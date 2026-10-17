@@ -13,6 +13,7 @@ import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -716,8 +717,13 @@ suite('MultiDiffEditorWidget', () => {
 			{ variant: 'noCardsNonCompact' },
 		);
 		widget.layout(new Dimension(800, 200));
-		const viewModel = widget.createViewModel(model);
-		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		// The diffs never resolve, so each item waits for its 1s initial-diff fallback. Creating the view model
+		// schedules those timers, so it must happen inside virtual time; the view model is returned for the real-time rest.
+		const viewModel = await runWithFakedTimers({}, async () => {
+			const created = widget.createViewModel(model);
+			await waitForState(created.items, items => items.length === documentItems.length);
+			return created;
+		});
 		viewModel.items.get()[0].lastTemplateData.set({ expandedContentHeight: 2000, selections: undefined }, undefined);
 		widget.setViewModel(viewModel);
 		widget.reveal({ original: originalUris[0], modified: modifiedUris[0] }, { highlight: false });
