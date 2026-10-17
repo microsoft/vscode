@@ -194,6 +194,11 @@ const COPILOT_FORMAT: IPluginFormatConfig = {
 	},
 };
 
+const GITHUB_COPILOT_FORMAT: IPluginFormatConfig = {
+	...COPILOT_FORMAT,
+	manifestPath: '.github/plugin/plugin.json',
+};
+
 const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
@@ -250,20 +255,40 @@ const PLUGIN_FORMAT_CONFIGS: Readonly<Record<PluginFormat, IPluginFormatConfig>>
 	[PluginFormat.AgentPlugin]: AGENT_PLUGIN_FORMAT,
 };
 
-export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
+async function detectManifestPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig | undefined> {
 	if (await readAgentPluginManifest(pluginUri, fileService)) {
 		return AGENT_PLUGIN_FORMAT;
 	}
 	if (await pathExists(joinPath(pluginUri, '.plugin', 'plugin.json'), fileService)) {
 		return OPEN_PLUGIN_FORMAT;
 	}
+	if (await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
+		return CLAUDE_FORMAT;
+	}
+	if (await pathExists(joinPath(pluginUri, 'plugin.json'), fileService)) {
+		return COPILOT_FORMAT;
+	}
+	if (await pathExists(joinPath(pluginUri, '.github', 'plugin', 'plugin.json'), fileService)) {
+		return GITHUB_COPILOT_FORMAT;
+	}
+	return undefined;
+}
 
+export async function hasPluginManifest(pluginUri: URI, fileService: IFileService): Promise<boolean> {
+	return await detectManifestPluginFormat(pluginUri, fileService) !== undefined;
+}
+
+export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
+	const manifestFormat = await detectManifestPluginFormat(pluginUri, fileService);
+	if (manifestFormat && manifestFormat.format !== PluginFormat.Copilot) {
+		return manifestFormat;
+	}
 	const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
-	if (isInClaudeDirectory || await pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'), fileService)) {
+	if (isInClaudeDirectory) {
 		return CLAUDE_FORMAT;
 	}
 
-	return COPILOT_FORMAT;
+	return manifestFormat ?? COPILOT_FORMAT;
 }
 
 export async function readPluginManifest(pluginUri: URI, format: IPluginFormatConfig, fileService: IFileService): Promise<Record<string, unknown> | undefined> {

@@ -10,7 +10,7 @@ import { IGitHubRepository } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 
 export class GitHubRepositoryFetcher {
-	constructor(readonly client: GitHubApiClient) { }
+	constructor(private readonly client: GitHubApiClient) { }
 
 	getRepositories(query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
 		return this.client.withClient(async (client, signal) => {
@@ -31,16 +31,11 @@ export class GitHubRepositoryFetcher {
 			return repositories.map(toGitHubRepository);
 		}, token);
 	}
-
-	getRepository(owner: string, repo: string, token?: CancellationToken): Promise<IGitHubRepository> {
-		return this.client.withClient(async (client, signal) =>
-			toGitHubRepository(await client.repositories.get({ owner, name: repo }, signal)), token);
-	}
 }
 
 function toGitHubRepository(repository: Repository | RepositorySearchItem): IGitHubRepository {
 	return {
-		owner: repository.owner.login,
+		owner: repository.owner?.login ?? repository.full_name.split('/')[0],
 		name: repository.name,
 		fullName: repository.full_name,
 		defaultBranch: repository.default_branch,

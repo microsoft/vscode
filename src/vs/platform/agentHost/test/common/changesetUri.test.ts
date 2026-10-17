@@ -22,6 +22,7 @@ import {
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
 	buildFolderChangesetOwnerUri,
+	formatBranchChangesetDescription,
 	isChangesetUri,
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
@@ -40,6 +41,40 @@ suite('changesetUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionUri = 'copilot:/abc-123';
+
+	test('formats branch descriptions from the explicit base', () => {
+		assert.deepStrictEqual({
+			persistedBase: formatBranchChangesetDescription('feature', 'origin/release'),
+			currentBranchBase: formatBranchChangesetDescription('main', 'origin/main'),
+			localBase: formatBranchChangesetDescription('feature', 'main'),
+			noBase: formatBranchChangesetDescription('feature', undefined),
+			noBranch: formatBranchChangesetDescription(undefined, 'origin/main'),
+		}, {
+			persistedBase: 'feature → origin/release',
+			currentBranchBase: 'main → origin/main',
+			localBase: 'feature → main',
+			noBase: 'feature',
+			noBranch: undefined,
+		});
+	});
+
+	test('the branch catalogue uses the explicit base, not stale Git-state base or upstream', () => {
+		const chat = buildDefaultChatUri(sessionUri);
+		const readyState = {
+			...state(),
+			_meta: withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'stale-base', upstreamBranchName: 'origin/feature' }),
+		};
+		const description = (baseBranch: string | undefined) => buildDefaultChangesetCatalog(chat, true, readyState, chat, undefined, baseBranch)
+			.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.description;
+
+		assert.deepStrictEqual({
+			resolved: description('origin/release'),
+			unresolved: description(undefined),
+		}, {
+			resolved: 'feature → origin/release',
+			unresolved: 'feature',
+		});
+	});
 
 	function turn(id: string, kind: MessageKind, agentMerge = false): Turn {
 		return {

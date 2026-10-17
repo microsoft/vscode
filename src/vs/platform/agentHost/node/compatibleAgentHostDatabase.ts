@@ -702,6 +702,34 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.isWorktreeInUse(worktreePath, excludedSession === undefined ? undefined : this.identity.toStorage(excludedSession));
 	}
 
+	async listWorktreeCoOwnersOfSession(...[session]: Parameters<IAgentHostDatabase['listWorktreeCoOwnersOfSession']>): ReturnType<IAgentHostDatabase['listWorktreeCoOwnersOfSession']> {
+		return (await this.raw.listWorktreeCoOwnersOfSession(this.identity.toStorage(session))).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	async readWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['readWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['readWorktreeCoOwners']> {
+		return (await this.raw.readWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	async pruneWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['pruneWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['pruneWorktreeCoOwners']> {
+		return (await this.raw.pruneWorktreeCoOwners(worktreePath)).map(row => ({ ...row, session: this.identity.toRuntime(row.session) }));
+	}
+
+	pruneDeletedWorktreeCoOwners(): ReturnType<IAgentHostDatabase['pruneDeletedWorktreeCoOwners']> {
+		return this.raw.pruneDeletedWorktreeCoOwners();
+	}
+
+	clearStaleWorktreeCoOwners(...[worktreePath]: Parameters<IAgentHostDatabase['clearStaleWorktreeCoOwners']>): ReturnType<IAgentHostDatabase['clearStaleWorktreeCoOwners']> {
+		return this.raw.clearStaleWorktreeCoOwners(worktreePath);
+	}
+
+	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
+		return this.raw.isSessionLive(this.identity.toStorage(session));
+	}
+
+	async findAdditionalWorktreeOwners(...[handle]: Parameters<IAgentHostDatabase['findAdditionalWorktreeOwners']>): ReturnType<IAgentHostDatabase['findAdditionalWorktreeOwners']> {
+		return (await this.raw.findAdditionalWorktreeOwners(handle)).map(session => this.identity.toRuntime(session));
+	}
+
 	readSessionArchived(...[session]: Parameters<IAgentHostDatabase['readSessionArchived']>): ReturnType<IAgentHostDatabase['readSessionArchived']> {
 		return this.raw.readSessionArchived(this.identity.toStorage(session));
 	}

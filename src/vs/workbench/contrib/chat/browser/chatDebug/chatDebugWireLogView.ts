@@ -31,7 +31,7 @@ import { ActionType } from '../../../../../platform/agentHost/common/state/sessi
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { AgentHostLogSourceKind, enumerateAgentHostLogSources, IAgentHostLogSource, IAgentHostLogSourceServices, isAgentHostSession, readAgentHostLogSourceContent } from './agentHostLogSources.js';
@@ -156,7 +156,7 @@ export class ChatDebugWireLogView extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPathService private readonly pathService: IPathService,
+		@ICopilotHomeService private readonly copilotHomeService: ICopilotHomeService,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
@@ -281,7 +281,7 @@ export class ChatDebugWireLogView extends Disposable {
 
 	private get logSourceServices(): IAgentHostLogSourceServices {
 		return {
-			pathService: this.pathService,
+			copilotHomeService: this.copilotHomeService,
 			agentHostService: this.agentHostService,
 			agentHostConnectionsService: this.agentHostConnectionsService,
 			remoteAgentHostService: this.remoteAgentHostService,

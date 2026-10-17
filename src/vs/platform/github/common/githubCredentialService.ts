@@ -28,7 +28,6 @@ export interface GitHubCredentialInvalidation {
 export interface IGitHubCredentials {
 	readonly onDidInvalidate: Event<GitHubCredentialInvalidation>;
 	getCredential(signal: AbortSignal): Promise<GitHubCredential>;
-	resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential>;
 	handleRequestError(credential: GitHubCredential, error: unknown): void;
 }
 
@@ -128,18 +127,6 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			this._throwIfExpired(signal, deadline);
 			if (!token) {
 				this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
-				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
-			}
-			return this._resolve(token, signal, deadline);
-		});
-	}
-
-	resolveCredential(token: string, signal: AbortSignal): Promise<GitHubCredential> {
-		return this._withDeadline(signal, async (signal, deadline) => {
-			const current = await this._tokenProvider.getToken(signal);
-			this._throwIfExpired(signal, deadline);
-			if (current !== token) {
-				this._logService?.debug('[GitHubCredentialService] Rejected credential resolution for a non-current token');
 				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
 			}
 			return this._resolve(token, signal, deadline);

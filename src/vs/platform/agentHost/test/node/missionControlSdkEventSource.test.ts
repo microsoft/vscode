@@ -24,6 +24,7 @@ import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 const session = 'ahp-session:/native';
 const chat = URI.parse(buildDefaultChatUri(session));
@@ -44,6 +45,7 @@ suite('MissionControlSdkEventSource', () => {
 		const log = store.add(new NullLogService());
 		const errors = sinon.spy(log, 'error');
 		instantiation.stub(ILogService, log);
+		instantiation.stub(IAgentHostAuthenticationService, store.add(new AgentHostAuthenticationService(log)));
 		const state = store.add(new AgentHostStateManager(log));
 		const summary = { resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
 		if (provisional) {

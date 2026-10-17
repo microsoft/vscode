@@ -17,6 +17,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -162,36 +163,6 @@ export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.expe
 
 /** Configuration key controlling whether new Copilot drafts start their runtime and MCP servers before the first message. */
 export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
-
-/**
- * Configuration key gating multiple-working-directory support for the Copilot
- * agent-host provider. When `true`, the Copilot provider advertises the
- * `multipleWorkingDirectories` capability, so a session created in a multi-root
- * workspace can span every workspace folder. Hidden from the Settings UI and
- * off by default while the feature is dogfooded; the agent host re-advertises
- * on change, so newly created sessions pick it up without a restart.
- */
-export const AgentHostCopilotMultiRootEnabledSettingId = 'chat.agentHost.copilotAgent.multiRootEnabled';
-
-/**
- * Configuration key gating multiple-working-directory support for the Claude
- * agent-host provider. When `true`, the Claude provider advertises the
- * `multipleWorkingDirectories` capability, so a session created in a multi-root
- * workspace can span every workspace folder. Independent of
- * {@link AgentHostCopilotMultiRootEnabledSettingId} because the Claude Agent SDK
- * already supports additional directories while the Copilot SDK does not. Hidden
- * from the Settings UI and off by default while the feature is dogfooded; the
- * agent host re-advertises on change, so newly created sessions pick it up
- * without a restart.
- */
-export const AgentHostClaudeMultiRootEnabledSettingId = 'chat.agentHost.claudeAgent.multiRootEnabled';
-
-/**
- * Configuration key gating multiple-working-directory support for the Codex
- * agent-host provider. Hidden from the Settings UI and off by default while the
- * feature is dogfooded.
- */
-export const AgentHostCodexMultiRootEnabledSettingId = 'chat.agentHost.codexAgent.multiRootEnabled';
 
 /**
  * Experimentation setting id gating the conditional agent-window auth feature.
@@ -439,13 +410,19 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	ExporterType: 'COPILOT_OTEL_EXPORTER_TYPE',
 	OtlpEndpoint: 'OTEL_EXPORTER_OTLP_ENDPOINT',
 	OtlpEndpointAlt: 'COPILOT_OTEL_ENDPOINT',
+	OtlpTracesEndpoint: 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT',
+	OtlpMetricsEndpoint: 'OTEL_EXPORTER_OTLP_METRICS_ENDPOINT',
 	OtlpProtocol: 'OTEL_EXPORTER_OTLP_PROTOCOL',
+	OtlpProtocolAlt: 'COPILOT_OTEL_PROTOCOL',
 	OtlpTracesProtocol: 'OTEL_EXPORTER_OTLP_TRACES_PROTOCOL',
 	OtlpMetricsProtocol: 'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
 	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
+	OtlpTracesHeaders: 'OTEL_EXPORTER_OTLP_TRACES_HEADERS',
+	OtlpMetricsHeaders: 'OTEL_EXPORTER_OTLP_METRICS_HEADERS',
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
 	CaptureIdentity: 'COPILOT_OTEL_CAPTURE_IDENTITY',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
+	FilePathIsManaged: 'VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
 	ServiceName: 'OTEL_SERVICE_NAME',
 	ResourceAttributes: 'OTEL_RESOURCE_ATTRIBUTES',
@@ -650,31 +627,48 @@ export function buildAgentHostOTelEnv(
 		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
 	}
 
-	if (policySettings.enabled !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
-		if (!policySettings.enabled) {
-			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
-			setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+	const clearCollectorDestination = (): void => {
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocolAlt, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpHeaders, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesHeaders, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsHeaders, '');
+	};
+	const hasManagedFilePath = policySettings.outfile !== undefined && (policySettings.outfile !== '' || policySettings.exporterType === 'file');
+	if (policySettings.enabled === false) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, 'false');
+		clearCollectorDestination();
+		setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		setPolicy(AgentHostOTelEnvVars.DbSpanExporterEnabled, '');
+	} else if (hasManagedFilePath) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, 'true');
+		setPolicy(AgentHostOTelEnvVars.ExporterType, 'file');
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		clearCollectorDestination();
+	} else {
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		if (policySettings.enabled !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
+		}
+		if (policySettings.exporterType !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
 			setPolicy(AgentHostOTelEnvVars.FilePath, '');
 		}
-	}
-	if (policySettings.exporterType !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
-		setPolicy(AgentHostOTelEnvVars.FilePath, '');
-	}
-	if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
-		// Mirror the CLI: thread the managed protocol into the generic AND per-signal protocol
-		// env vars so it wins over any user-provided OTEL_EXPORTER_OTLP_{,TRACES_,METRICS_}PROTOCOL.
-		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
-		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
-		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
-	}
-	if (policySettings.otlpEndpoint !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
-		setPolicy(AgentHostOTelEnvVars.FilePath, '');
-	}
-	if (policySettings.outfile !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
+			setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
+			setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
+			setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
+		}
+		if (policySettings.otlpEndpoint !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
+			setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		}
 	}
 	if (policySettings.captureContent !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
@@ -688,6 +682,11 @@ export function buildAgentHostOTelEnv(
 	const policyResourceAttributes = serializeResourceAttributes(policySettings.resourceAttributes);
 	if (policyResourceAttributes !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.ResourceAttributes, policyResourceAttributes);
+	}
+	if (hasManagedFilePath && policySettings.enabled !== false) {
+		setPolicy(AgentHostOTelEnvVars.FilePathIsManaged, 'true');
+	} else if (inheritedEnv[AgentHostOTelEnvVars.FilePathIsManaged] !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.FilePathIsManaged, 'false');
 	}
 	return out;
 }
@@ -847,8 +846,6 @@ export interface IMissionControlOptions {
 	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
-	/** Explicit host-owner opt-in; validated relay clients use the local credential for Copilot authentication. */
-	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
 }
@@ -903,6 +900,11 @@ export interface IAgentHostManagementService {
 	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void>;
 	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	addMcpServerConfiguration(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
+	/**
+	 * Local-only bridge for the owning client process to report whether the
+	 * machine is fully awake, rather than asleep or in a background maintenance wake.
+	 */
+	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -946,7 +948,7 @@ export interface IAgentService {
 	 * the agent's protectedResources in root state. Analogous to RFC 6750
 	 * bearer token delivery.
 	 */
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
@@ -994,7 +996,7 @@ export interface IAgentService {
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource): Promise<void>;
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
@@ -1054,7 +1056,7 @@ export interface IAgentService {
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
 
-	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
+	invokeChangesetOperation(params: InvokeChangesetOperationParams, credentials?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult>;
 
 	/**
 	 * Routes a request received on an `mcp://` AHP side channel to the
@@ -1127,7 +1129,7 @@ export interface IAgentService {
 	 * request cancelled during asynchronous resolution cannot pin the resource.
 	 * Callers must distinguish lost subscription ownership from a missing resource.
 	 */
-	subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot>;
+	subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource): Promise<IStateSnapshot>;
 
 	/**
 	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
@@ -1175,7 +1177,7 @@ export interface IAgentService {
 	 * like `ahp-root://` survive the wire format without normalization.
 	 * Queued dispatches return a promise that settles after application or rejection.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void | Promise<void>;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void | Promise<void>;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.

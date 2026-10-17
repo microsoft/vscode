@@ -19,6 +19,7 @@ import { parse, SchemaError } from '../../common/client/schema.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions } from '../../common/githubTypes.js';
 import { RequestFetch, RequestOptions } from '../../common/types.js';
+import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
 const apiBaseUri = 'https://api.github.com';
 const rawBaseUri = 'https://raw.githubusercontent.com';
@@ -134,7 +135,7 @@ suite('GitHub anonymous clients', () => {
 		});
 		const authorized = store.add(service.acquireClient(authorizedOptions)).object;
 		const anonymous = store.add(service.acquireAnonymousRequestProviders()).object.rest;
-		await authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r` }, signal());
+		await getGitHubClientInternals(authorized).transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/repos/o/r` }, signal());
 		await read(anonymous, '/repos/o/r', signal());
 		const reused = await read(anonymous, '/repos/o/r', signal());
 		assert.deepStrictEqual({ seen, reused }, {
@@ -211,7 +212,7 @@ suite('GitHub anonymous clients', () => {
 				}
 				const second = store.add(service.acquireAnonymousRequestProviders());
 				const authorized = store.add(service.acquireClient(authorizedOptions)).object;
-				await authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/authenticated` }, signal());
+				await getGitHubClientInternals(authorized).transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/authenticated` }, signal());
 				await read(second.object.rest, '/second', signal());
 				assert.deepStrictEqual(requests, [
 					{ url: `${apiBaseUri}/first`, at: 0, authenticated: false },
@@ -235,7 +236,7 @@ suite('GitHub anonymous clients', () => {
 		});
 		const authorized = store.add(service.acquireClient(authorizedOptions)).object;
 		const anonymous = store.add(service.acquireAnonymousRequestProviders()).object.rest;
-		await assert.rejects(authorized.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/private` }, signal()), { kind: 'notFound' });
+		await assert.rejects(getGitHubClientInternals(authorized).transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/private` }, signal()), { kind: 'notFound' });
 		await assert.rejects(read(anonymous, '/private', signal()), { kind: 'notFound' });
 		assert.deepStrictEqual(requests, [true, false]);
 	});
@@ -273,8 +274,8 @@ suite('GitHub anonymous clients', () => {
 		const authenticated = store.add(service.acquireClient(authorizedOptions)).object;
 		const pending = [
 			read(anonymous, '/public', signal()),
-			authenticated.transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/first` }, signal()),
-			authenticated.transport.rest({ ...account, accountId: '202' }, 'other', { method: 'GET', url: `${apiBaseUri}/second` }, signal()),
+			getGitHubClientInternals(authenticated).transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/first` }, signal()),
+			getGitHubClientInternals(authenticated).transport.rest({ ...account, accountId: '202' }, 'other', { method: 'GET', url: `${apiBaseUri}/second` }, signal()),
 		];
 		await timeout(0);
 		const initiallyStarted = requests.length;
@@ -362,6 +363,22 @@ suite('GitHub public raw content', () => {
 		assert.deepStrictEqual(requests, [`${rawBaseUri}/microsoft/sample/${commitSha}/docs/a%20%23%3F%25.md`]);
 	});
 
+	test('resolves and downloads a revision pinned to a SHA-256 object ID', async () => {
+		const expectedSha = '0123456789abcdef'.repeat(4);
+		const requests: string[] = [];
+		const service = create(async input => {
+			requests.push(String(input));
+			return new Response(String(input).includes('/commits/') ? expectedSha : content);
+		});
+		const client = store.add(service.acquireAnonymousClient());
+		const sha = await client.content.resolveRef('microsoft', 'sample', 'HEAD', signal());
+		const result = await client.content.getRawFile('microsoft', 'sample', sha, path, signal());
+		assert.deepStrictEqual({ sha, result, requests }, {
+			sha: expectedSha, result: content,
+			requests: [`${apiBaseUri}/repos/microsoft/sample/commits/HEAD`, `${rawBaseUri}/microsoft/sample/${expectedSha}/${path}`],
+		});
+	});
+
 	for (const invalidPath of ['', '..', '../main/file.json', '/file.json', '//other.example.test/file.json', 'dir/../file.json', 'dir//file.json', 'dir\\file.json']) {
 		test(`rejects an invalid raw path before dispatch: ${JSON.stringify(invalidPath)}`, async () => {
 			const service = create(async () => assert.fail('No fetch expected'));
@@ -370,7 +387,7 @@ suite('GitHub public raw content', () => {
 		});
 	}
 
-	for (const invalidSha of ['', 'main', 'a'.repeat(39), 'z'.repeat(40), `${commitSha}\n`]) {
+	for (const invalidSha of ['', 'main', 'a'.repeat(39), 'z'.repeat(40), 'a'.repeat(63), 'a'.repeat(65), 'A'.repeat(64), `${commitSha}\n`, `${'a'.repeat(64)}\n`]) {
 		test(`rejects an invalid pinned revision: ${JSON.stringify(invalidSha)}`, async () => {
 			const service = create(async () => assert.fail('No fetch expected'));
 			const client = store.add(service.acquireAnonymousClient());

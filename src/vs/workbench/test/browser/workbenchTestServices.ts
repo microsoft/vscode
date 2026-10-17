@@ -171,6 +171,7 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Po
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../platform/environment/common/copilotHome.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
 import { NullOpenerService } from '../../../platform/opener/test/common/nullOpenerService.js';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
@@ -306,7 +307,13 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
-	instantiationService.stub(IPathService, overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService());
+	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();
+	instantiationService.stub(IPathService, pathService);
+	instantiationService.stub(ICopilotHomeService, {
+		_serviceBrand: undefined,
+		get home() { return URI.joinPath(pathService.userHome({ preferLocal: true }), '.copilot'); },
+		source: 'userHome',
+	});
 	const layoutService = new TestLayoutService();
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IDialogService, new TestDialogService());

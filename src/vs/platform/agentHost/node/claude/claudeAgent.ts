@@ -26,7 +26,7 @@ import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -731,13 +731,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
-				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+				multipleWorkingDirectories: { immutablePrimary: true },
 			},
 		};
-	}
-
-	private _isMultiRootEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeMultiRootEnabledConfigKey) === true;
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -2460,7 +2456,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sess.abort();
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
+		return this.setPendingMessages(chat, message, []);
+	}
+
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are intentionally a no-op. CONTEXT.md M10 +
 		// AgentSideEffects confirm queued messages are consumed server-side;
 		// the agent boundary always receives an empty queue.
@@ -2471,11 +2471,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
 		if (!target) {
 			this._logService.warn(`[Claude] setPendingMessages: target not found for ${chat.toString()}`);
-			return;
+			return false;
 		}
 		if (steeringMessage) {
+			if (!target.hasActiveTurn) {
+				return false;
+			}
 			target.injectSteering(steeringMessage);
 		}
+		return true;
 	}
 
 	private async _changeModel(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -2684,9 +2688,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * never surfaces them as customizations.
 	 */
 	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
-		if (!this._isMultiRootEnabled()) {
-			return undefined;
-		}
 		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => claudeDirectoryQualifiesForPrimary(this._fileService, directory, this._environmentService.userHome, t), token);
 	}
 

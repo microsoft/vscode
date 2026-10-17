@@ -70,6 +70,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
+	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+		const editsBefore = [...this._edits];
+		const turnsBefore = new Set(this._turns);
+		try {
+			for (const edit of edits) {
+				await this.storeFileEdit(edit);
+			}
+			await beforeCommit?.();
+		} catch (error) {
+			this._edits.splice(0, this._edits.length, ...editsBefore);
+			this._turns.clear();
+			for (const turn of turnsBefore) {
+				this._turns.add(turn);
+			}
+			throw error;
+		}
+	}
+
 	async getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]> {
 		const toolCallIdsSet = new Set(toolCallIds);
 		return this._toEditRecords(this._edits.filter(e => toolCallIdsSet.has(e.toolCallId)));
@@ -807,6 +825,8 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onToolCallEditsApplied: () => { },
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
+		openTrackedTurnDatabase: () => undefined,
+		onFileEditsDiscarded: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },
 	};

@@ -14,7 +14,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
-import { ToggleRemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
+import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 
@@ -62,7 +62,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 		}));
 
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
-			return instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action);
+			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, false);
 		};
 		this._register(actionViewItemService.register(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory, remoteTunnelService.onDidChangeTunnelStatus));
 	}

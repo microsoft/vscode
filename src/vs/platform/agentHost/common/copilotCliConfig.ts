@@ -48,6 +48,14 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	/** Use the runtime's execution subagent instead of the extension-native client tool. */
+	ExecutionSubagent = 'executionSubagent',
+	/** Runtime model ID for the execution subagent; empty inherits the session model. */
+	ExecutionSubagentModel = 'executionSubagentModel',
+	/** Whether the workbench enablement value is controlled by its configuration default. */
+	ExecutionSubagentDefaultControlled = 'executionSubagentDefaultControlled',
+	/** Whether the workbench model value is controlled by its configuration default. */
+	ExecutionSubagentModelDefaultControlled = 'executionSubagentModelDefaultControlled',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
@@ -64,10 +72,10 @@ export const enum CopilotCliConfigKey {
 	HydraFusionV2 = 'hydraFusionV2',
 	/** Ask CAPI to keep a conversation's HydraFusion root model across turns. Set by the `'multiRoot'` HydraFusion setting value; requires {@link HydraFusionV2}. */
 	HydraFusionMultiRoot = 'hydraFusionMultiRoot',
-	/** Present Auto as Fusion, with Lite, Balance, and Max. Off by default. */
+	/** Present Auto as Fusion, with Standard, High, and Max. Off by default. */
 	Fusion = 'fusion',
-	/** With {@link Fusion}, Fusion's Balance uses HydraFusion. Off by default. */
-	FusionBalanceUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
+	/** With {@link Fusion}, Fusion's High uses HydraFusion. Off by default. */
+	FusionHighUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -112,6 +120,12 @@ export function isImageGenerationEnabledByDefault(quality: string | undefined): 
 	return quality === 'insider';
 }
 
+export const AgentHostCopilotExecutionSubagentEnabledSettingId = 'chat.agentHost.copilot.executionSubagent.enabled';
+
+export const AgentHostCopilotExecutionSubagentModelSettingId = 'chat.agentHost.copilot.executionSubagent.model';
+
+export const DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL = 'gpt-5.6-luna';
+
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
@@ -130,7 +144,7 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
  */
 export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
 export const AgentHostFusionEnabledSettingId = 'chat.copilot.ensemble.enabled';
-export const AgentHostFusionBalanceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
+export const AgentHostFusionHighUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -269,6 +283,30 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.ExecutionSubagent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagent.title', "Runtime Execution Subagent"),
+		description: localize('agentHost.config.executionSubagent.description', "Opt into the Copilot runtime execution subagent in Copilot Agent Host sessions. Runtime experiment assignments may override this default. When available, the runtime implementation replaces the extension-native execution tool. Changing this setting restarts the Copilot runtime after active turns finish."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.executionSubagentModel.title', "Runtime Execution Subagent Model"),
+		description: localize('agentHost.config.executionSubagentModel.description', "Default model ID for the Copilot runtime execution subagent. Empty inherits the session model. Runtime experiment assignments may override this default. Changing this setting restarts the Copilot runtime after active turns finish."),
+		default: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagentDefaultControlled.title', "Runtime Execution Subagent Default Control"),
+		description: localize('agentHost.config.executionSubagentDefaultControlled.description', "Whether the workbench execution subagent enablement setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagentModelDefaultControlled.title', "Runtime Execution Subagent Model Default Control"),
+		description: localize('agentHost.config.executionSubagentModelDefaultControlled.description', "Whether the workbench execution subagent model setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.LocalIndexEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.localIndexEnabled.title', "Local Session Index"),
@@ -320,25 +358,25 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.Fusion]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.fusion.title', "Fusion"),
-		description: localize('agentHost.config.fusion.description', "When enabled, Auto is presented as Fusion, optimizing for Lite, Balance, or Max."),
+		description: localize('agentHost.config.fusion.description', "When enabled, Auto is presented as Fusion, optimizing for Standard, High, or Max."),
 		default: false,
 	}),
-	[CopilotCliConfigKey.FusionBalanceUsesHydraFusion]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.FusionHighUsesHydraFusion]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.fusionBalanceUsesHydraFusion.title', "Fusion Balance Uses HydraFusion"),
-		description: localize('agentHost.config.fusionBalanceUsesHydraFusion.description', "When enabled together with Fusion and HydraFusion, Fusion's Balance tier uses HydraFusion."),
+		title: localize('agentHost.config.fusionHighUsesHydraFusion.title', "Fusion High Uses HydraFusion"),
+		description: localize('agentHost.config.fusionHighUsesHydraFusion.description', "When enabled together with Fusion and HydraFusion, Fusion's High tier uses HydraFusion."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.memory.title', "Copilot Memory"),
-		description: localize('agentHost.config.memory.description', "When enabled, Copilot SDK sessions can store and recall Copilot Memory."),
+		description: localize('agentHost.config.memory.description', "When enabled, Copilot SDK sessions can store and recall Copilot Memory. GitHub Copilot Memory settings and policies still apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
-		description: localize('agentHost.config.localMemory.description', "When enabled together with Copilot Memory, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; Copilot Memory policies configured on GitHub do not apply."),
+		description: localize('agentHost.config.localMemory.description', "When enabled together with Copilot Memory, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

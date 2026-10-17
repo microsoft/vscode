@@ -12,6 +12,7 @@ import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../co
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from '../agentChatContext.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
@@ -68,6 +69,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
@@ -297,7 +299,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		let context: IAgentChatContext;
 		try {
 			const owner = this._chatOwnership.getChatOwner(source.chat) ?? source.session;
-			context = createAgentChatContext(this._stateManager, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
+			context = createAgentChatContext(this._stateManager, this._authenticationService, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
 		} catch (error) {
 			this._logService.warn('[MissionControlSdkEventSource] Cannot address the chat to reconcile its history; continuing live replication', { session: source.session }, error);
 			return;

@@ -382,14 +382,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._reconcileWorkspaceRootSet(sessionResource, entry);
 			}
 		}));
-		// The advertised `multipleWorkingDirectories` capability can flip at
-		// runtime: the hidden `multiRootEnabled` setting is mirrored to the host,
-		// which re-advertises it, so `rootState` changes without a reload. Re-scope
-		// open not-yet-started drafts when it does. The host starts lazily and
-		// restarts behind a fresh root state (until it starts, the desktop
-		// `rootState` is a noop whose event never fires), so re-bind on each start
-		// rather than holding one subscription for the window's lifetime,
-		// reconciling once per (re)bind to pick up an already-advertised capability.
+		// Rebind after host (re)starts to reconcile drafts against its advertised capabilities.
 		const rootStateListeners = this._register(new DisposableStore());
 		const bindRootState = () => {
 			rootStateListeners.clear();

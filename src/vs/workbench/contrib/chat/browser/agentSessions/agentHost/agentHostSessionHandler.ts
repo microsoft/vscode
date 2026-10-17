@@ -10,7 +10,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { CancellationError, getErrorCode, isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -42,6 +42,7 @@ import { AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } 
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
@@ -82,12 +83,11 @@ import { packErrorForTelemetry } from '../../../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
-import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, type IChatTerminalOutputSource, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import {
 	AgentHostCompletionReferenceKind,
@@ -145,11 +145,12 @@ import { AgentHostSandboxNotification } from './agentHostSandboxNotification.js'
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
+import { ICopilotHomeService } from '../../../../../services/environment/common/copilotHomeService.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
-import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostFusionHighUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
@@ -331,6 +332,8 @@ class SubagentChatObservation extends DisposableStore {
 
 interface IOutputTerminalAttachment {
 	sessionId?: string;
+	/** The output the attachment registered for {@link sessionId}. */
+	source?: IChatTerminalOutputSource;
 	readonly disposable: MutableDisposable<IDisposable>;
 }
 
@@ -1243,12 +1246,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	private readonly _remotePendingMessageProjections = new ResourceSet();
+	/** Locally retained IDs; true means dispatched but not yet projected by the host. */
+	private readonly _localSteeringSubmissions = new ResourceMap<Map<string, boolean>>();
 	/** Per-session debounced sync from chat input state to AHP draft state. */
 	private readonly _draftSyncSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
 	private readonly _serverTurnWatchers = this._register(new DisposableResourceMap());
 	/** Per-session subscription silently resolving existing MCP authentication grants. */
 	private readonly _mcpAuthWatchers = this._register(new DisposableResourceMap());
+	/** Per-session output of completed tool calls whose commands outlived their turn, kept until the chat closes. */
+	private readonly _retainedOutputTerminals = this._register(new DisposableResourceMap<DisposableStore>());
 	/**
 	 * Ownership of actionable protocol requests, keyed by backend session URI
 	 * string. `inputNeeded` is a session-level queue and the single caller of
@@ -1396,7 +1403,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
-		@IPathService private readonly _pathService: IPathService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -1906,6 +1913,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._draftSyncSubscriptions.deleteAndDispose(sessionResource);
 					this._serverTurnWatchers.deleteAndDispose(sessionResource);
 					this._mcpAuthWatchers.deleteAndDispose(sessionResource);
+					this._retainedOutputTerminals.deleteAndDispose(sessionResource);
 					this._releaseSessionInputNeeded(sessionResource);
 					this._pendingHistoryTurns.delete(sessionResource);
 					this._surfacedMcpAuthServers.delete(sessionResource);
@@ -2220,6 +2228,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!isCancellationError(error)) {
 				this._reportInvocationFailure(request, failureStage, error);
 			}
+			if (getErrorCode(error) === 'policyResolutionFailed' && !this._isInvocationAbandoned(cancellationToken)) {
+				return { errorDetails: this._getPolicyErrorDetails(getErrorMessage(error)) };
+			}
 			throw error;
 		} finally {
 			// Always cancel the pending "preparing" status — including when an
@@ -2257,6 +2268,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
+	private _getPolicyErrorDetails(message: string, allowRetry = true): IChatResponseErrorDetails {
+		return {
+			message,
+			isExpectedError: true,
+			...(allowRetry ? {
+				confirmationButtons: [{ label: localize('agentHost.retryPolicyResolution', "Retry"), data: undefined, resend: true }],
+			} : {}),
+		};
+	}
+
 	/**
 	 * Builds the {@link IChatResponseErrorDetails} for a failed turn so the
 	 * chat response renders a proper error (and, for quota errors, the upgrade
@@ -2269,6 +2290,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const error = getTurnError(turn);
 		if (!error) {
 			return undefined;
+		}
+		if (error.errorType === 'policyResolutionFailed') {
+			return this._getPolicyErrorDetails(error.message, allowResume);
 		}
 		if (error.errorType === 'CodexThreadInUse') {
 			return {
@@ -2381,17 +2405,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const chatURI = this._getChatURI(sessionResource);
 		const pending = chatModel.getPendingRequests();
 		const protocolState = this._getSessionState(session, chatURI);
-		const prevSteering = protocolState?.steeringMessage;
-		const prevQueued = protocolState?.queuedMessages ?? [];
-		const previousMessages = new Map(prevQueued.map(p => [p.id, p.message]));
-		if (prevSteering) {
-			previousMessages.set(prevSteering.id, prevSteering.message);
-		}
+		const previous = [
+			...(protocolState ? getPendingSteeringMessages(protocolState).map(message => ({ ...message, kind: PendingMessageKind.Steering })) : []),
+			...(protocolState?.queuedMessages?.filter(message => message.kind !== PendingMessageKind.Steering) ?? []),
+		];
+		const previousMessages = new Map(previous.map(p => [p.id, p.message]));
+		const localSteering = this._localSteeringSubmissions.get(sessionResource) ?? new Map<string, boolean>();
+		this._localSteeringSubmissions.set(sessionResource, localSteering);
 
-		// Compute current state from chat model
-		interface IPendingSnapshot { id: string; message: Message }
-		let currentSteering: IPendingSnapshot | undefined;
-		const currentQueued: IPendingSnapshot[] = [];
+		const current: (PendingMessage & { kind: PendingMessageKind })[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
 			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
@@ -2401,75 +2423,68 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const isSystemInitiated = p.request.isSystemInitiated ?? p.sendOptions.isSystemInitiated;
 			const metadata = p.sendOptions.metadata ?? previousMessage?._meta;
 			const roundTripMetadata = previousMessage && previousMessage.text !== p.request.message.text ? withoutAgentMessageDelegationMeta(metadata) : metadata;
-			const snapshot: IPendingSnapshot = {
+			const snapshot = {
 				id: p.request.id,
+				kind: p.kind === ChatRequestQueueKind.Steering ? PendingMessageKind.Steering : PendingMessageKind.Queued,
 				message: {
 					...requestMessage(p.request.message.text, attachments, roundTripMetadata, isSystemInitiated, previousMessage?.origin ?? p.sendOptions.agentHostMessageOrigin),
 					...(model ? { model } : {}),
 				},
 			};
-			if (p.kind === ChatRequestQueueKind.Steering) {
-				currentSteering = snapshot;
-			} else {
-				currentQueued.push(snapshot);
+			current.push(snapshot);
+			if (snapshot.kind === PendingMessageKind.Steering) {
+				if (!previousMessages.has(snapshot.id) && !localSteering.has(snapshot.id)) {
+					localSteering.set(snapshot.id, false);
+				}
 			}
 		}
 
-		// --- Steering ---
-		if (currentSteering) {
-			if (currentSteering.id !== prevSteering?.id || !equals(currentSteering.message, prevSteering.message)) {
-				this._dispatchAction(backendSession, {
-					type: ActionType.ChatPendingMessageSet,
-					kind: PendingMessageKind.Steering,
-					id: currentSteering.id,
-					message: currentSteering.message,
-				}, chatURI);
+		for (const id of localSteering.keys()) {
+			if (!current.some(message => message.id === id)) {
+				localSteering.delete(id);
 			}
-		} else if (prevSteering) {
-			this._dispatchAction(backendSession, {
-				type: ActionType.ChatPendingMessageRemoved,
-				kind: PendingMessageKind.Steering,
-				id: prevSteering.id,
-			}, chatURI);
 		}
-
-		// --- Queued: removals ---
-		const currentQueuedIds = new Set(currentQueued.map(q => q.id));
-		for (const prev of prevQueued) {
-			if (!currentQueuedIds.has(prev.id)) {
+		const currentIds = new Set(current.map(message => message.id));
+		for (const prev of previous) {
+			if (!currentIds.has(prev.id)) {
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatPendingMessageRemoved,
-					kind: PendingMessageKind.Queued,
+					kind: prev.kind ?? PendingMessageKind.Queued,
 					id: prev.id,
 				}, chatURI);
 			}
 		}
 
-		// --- Queued: additions ---
-		const prevQueuedById = new Map(prevQueued.map(q => [q.id, q]));
-		for (const q of currentQueued) {
-			const prev = prevQueuedById.get(q.id);
-			if (!prev || !equals(q.message, prev.message)) {
+		const previousById = new Map(previous.map(message => [message.id, message]));
+		for (const message of current) {
+			const prev = previousById.get(message.id);
+			if (!prev && localSteering.get(message.id) === true) {
+				continue;
+			}
+			if (!prev || message.kind !== (prev.kind ?? PendingMessageKind.Queued) || !equals(message.message, prev.message)) {
+				if (!prev && message.kind === PendingMessageKind.Steering) {
+					localSteering.set(message.id, true);
+				}
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatPendingMessageSet,
-					kind: PendingMessageKind.Queued,
-					id: q.id,
-					message: q.message,
+					...message,
 				}, chatURI);
 			}
 		}
 
-		// --- Queued: reordering ---
-		// After additions/removals, check if the remaining common items changed order.
-		// Re-read protocol state since dispatches above may have mutated it.
 		const updatedProtocol = this._getSessionState(session, chatURI);
 		const updatedQueued = updatedProtocol?.queuedMessages ?? [];
-		if (updatedQueued.length > 1 && currentQueued.length === updatedQueued.length) {
-			const needsReorder = currentQueued.some((q, i) => q.id !== updatedQueued[i].id);
+		if (updatedQueued.length > 1 && current.length === updatedQueued.length) {
+			// Display groups steering first without rewriting the host's interleaved order.
+			const displayed = [
+				...updatedQueued.filter(message => message.kind === PendingMessageKind.Steering),
+				...updatedQueued.filter(message => message.kind !== PendingMessageKind.Steering),
+			];
+			const needsReorder = current.some((message, i) => message.id !== displayed[i].id);
 			if (needsReorder) {
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatQueuedMessagesReordered,
-					order: currentQueued.map(q => q.id),
+					order: current.map(message => message.id),
 				}, chatURI);
 			}
 		}
@@ -2480,7 +2495,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * The protocol is authoritative, so matching local state is a no-op.
 	 */
 	private _applyRemotePendingMessages(sessionResource: URI, backendSession: URI): void {
-		if (!this._chatService.getSession(sessionResource)) {
+		const model = this._chatService.getSession(sessionResource);
+		if (!model) {
 			return;
 		}
 		const chatURI = this._chatURIsBySessionResource.get(sessionResource);
@@ -2506,11 +2522,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 
 		const remote: IRemotePendingRequest[] = [];
-		if (state.steeringMessage) {
-			remote.push(toRemote(state.steeringMessage, ChatRequestQueueKind.Steering));
+		for (const message of getPendingSteeringMessages(state)) {
+			remote.push(toRemote(message, ChatRequestQueueKind.Steering));
+		}
+		const localSteering = this._localSteeringSubmissions.get(sessionResource);
+		for (const message of remote) {
+			localSteering?.delete(message.id);
+		}
+		for (const pending of model.getPendingRequests()) {
+			if (pending.kind !== ChatRequestQueueKind.Steering || !localSteering?.has(pending.request.id)) {
+				continue;
+			}
+			remote.push({
+				id: pending.request.id,
+				kind: pending.kind,
+				message: pending.request.message.text,
+				variableData: pending.request.variableData,
+				modelId: pending.request.modelId ?? pending.sendOptions.userSelectedModelId,
+				modelConfiguration: pending.request.modelConfiguration ?? pending.sendOptions.userSelectedModelConfiguration,
+				metadata: pending.sendOptions.metadata,
+				agentHostMessageOrigin: pending.sendOptions.agentHostMessageOrigin,
+				isSystemInitiated: pending.request.isSystemInitiated ?? pending.sendOptions.isSystemInitiated,
+				systemInitiatedLabel: pending.request.systemInitiatedLabel ?? pending.sendOptions.systemInitiatedLabel,
+			});
 		}
 		for (const queued of state.queuedMessages ?? []) {
-			remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
+			if (queued.kind !== PendingMessageKind.Steering) {
+				remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
+			}
 		}
 
 		this._remotePendingMessageProjections.add(sessionResource);
@@ -2518,6 +2557,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._chatService.syncPendingRequestsFromRemote(sessionResource, remote);
 		} finally {
 			this._remotePendingMessageProjections.delete(sessionResource);
+		}
+		if (localSteering && [...localSteering.values()].some(submitted => !submitted)) {
+			this._syncPendingMessages(sessionResource, backendSession);
 		}
 	}
 
@@ -2698,7 +2740,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentState = this._getSessionState(sessionStr, chatURI);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
-		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
+		let previousSteeringIds = new Set(currentState ? getPendingSteeringMessages(currentState).map(message => message.id) : []);
 		let previousTitle: string | undefined = currentState ? this._getHostChatTitle(sessionResource, currentState, chatURI) : undefined;
 		let previousTurnIds = new Set(currentState?.turns.map(turn => turn.id) ?? []);
 
@@ -2771,14 +2813,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const e = { session: sessionStr, state };
 
 			// Track queued message IDs so we can detect which one was consumed
-			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
-			const currentSteeringId = e.state.steeringMessage?.id;
+			const currentQueuedIds = new Set(e.state.queuedMessages?.filter(message => message.kind !== PendingMessageKind.Steering).map(message => message.id));
+			const currentSteeringIds = new Set(getPendingSteeringMessages(e.state).map(message => message.id));
 
 			// Detect steering message removal or replacement regardless of turn changes
-			if (previousSteeringId && previousSteeringId !== currentSteeringId) {
-				this._chatService.removePendingRequest(sessionResource, previousSteeringId);
+			const removedSteeringIds = [...previousSteeringIds].filter(id => !currentSteeringIds.has(id));
+			previousSteeringIds = currentSteeringIds;
+			for (const id of removedSteeringIds) {
+				this._chatService.removePendingRequest(sessionResource, id);
 			}
-			previousSteeringId = currentSteeringId;
 
 			const currentTitle = this._getHostChatTitle(sessionResource, e.state, chatURI);
 			if (currentTitle && currentTitle !== previousTitle) {
@@ -4593,8 +4636,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._trackSubagentToolCall(initial, invocation, opts, subagentContext);
 		const outputTerminalAttachment: IOutputTerminalAttachment = {
-			disposable: store.add(new MutableDisposable())
+			disposable: new MutableDisposable()
 		};
+		store.add(toDisposable(() => this._releaseOutputTerminal(outputTerminalAttachment, part$.get().toolCall, opts.sessionResource)));
 		store.add(this._config.connection.onDidAction(envelope => {
 			const action = envelope.action;
 			if (envelope.rejectionReason || envelope.channel !== opts.chatURI || action.type !== ActionType.ChatToolCallDelta
@@ -5312,6 +5356,32 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/**
+	 * Releases a tool call's live non-PTY output when its turn observation
+	 * ends. A completed call whose command still runs, such as a detached
+	 * background shell, keeps the output attached until the chat session
+	 * closes. Its inline terminal keeps streaming, and a card rendered after
+	 * the command exited still shows the output and exit code.
+	 */
+	private _releaseOutputTerminal(attachment: IOutputTerminalAttachment, toolCall: ToolCallState, sessionResource: URI): void {
+		const live = attachment.disposable.clearAndLeak();
+		attachment.disposable.dispose();
+		if (!live) {
+			return;
+		}
+		const source = attachment.source;
+		if (toolCall.status !== ToolCallStatus.Completed || !source || source.hasExited || this._store.isDisposed || !this._activeSessions.has(sessionResource)) {
+			live.dispose();
+			return;
+		}
+		let retained = this._retainedOutputTerminals.get(sessionResource);
+		if (!retained) {
+			retained = new DisposableStore();
+			this._retainedOutputTerminals.set(sessionResource, retained);
+		}
+		retained.add(live);
+	}
+
+	/**
 	 * Synchronizes PTY and non-PTY terminal content, including the live-to-retained output handoff, and updates invocation metadata.
 	 */
 	private _reviveTerminalIfNeeded(
@@ -5344,9 +5414,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (hasSettledNonPtySnapshot) {
 			outputTerminalAttachment.disposable.clear();
 			outputTerminalAttachment.sessionId = undefined;
+			outputTerminalAttachment.source = undefined;
 		} else if (!isPty && outputTerminalAttachment.sessionId !== sessionId) {
 			outputTerminalAttachment.disposable.value = this._agentHostTerminalService.attachOutputTerminal(this._config.connection, terminalCommandUri, sessionId);
 			outputTerminalAttachment.sessionId = sessionId;
+			outputTerminalAttachment.source = this._terminalChatService.getOutputSource(sessionId);
 		}
 		const existing = invocation.toolSpecificData?.kind === 'terminal'
 			? invocation.toolSpecificData as IChatTerminalToolInvocationData
@@ -6368,6 +6440,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (chatModel) {
 			const store = new DisposableStore();
 			this._pendingMessageSubscriptions.set(sessionResource, store);
+			store.add(toDisposable(() => this._localSteeringSubmissions.delete(sessionResource)));
+			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
+			store.add(this._config.connection.onDidAction(envelope => {
+				const action = envelope.action;
+				if (envelope.channel === chatURI && envelope.origin?.clientId === this._config.connection.clientId && envelope.rejectionReason
+					&& action.type === ActionType.ChatPendingMessageSet && action.kind === PendingMessageKind.Steering
+					&& this._localSteeringSubmissions.get(sessionResource)?.delete(action.id)) {
+					this._logService.warn(`[AgentHost] Steering message rejected: ${envelope.rejectionReason}`);
+					this._applyRemotePendingMessages(sessionResource, backendSession);
+				}
+			}));
 
 			// Hydrate first so the initial outbound diff cannot remove another client's messages.
 			this._applyRemotePendingMessages(sessionResource, backendSession);
@@ -6378,7 +6461,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._syncPendingMessages(sessionResource, backendSession);
 
 			const sessionStr = backendSession.toString();
-			const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 			if (chatURI) {
 				const onRemoteChange = () => this._applyRemotePendingMessages(sessionResource, backendSession);
 				store.add(this._ensureSessionSubscription(sessionStr).onDidChange(onRemoteChange));
@@ -6745,7 +6827,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const fusionModelName = responseModelId === undefined ? undefined : COPILOT_HYDRA_FUSION_MODEL_NAMES.get(responseModelId);
 				const fusion = fusionModelName ? lookupRawModel(AUTO_RAW_MODEL_ID) : undefined;
 				if (fusion?.model.autoModelFusion && responseModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
-					logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
+					logSettingExperimentTrigger(this._telemetryService, AgentHostFusionHighUsesHydraFusionSettingId);
 				}
 				const fusionTier = fusion && responseModelId ? getFusionTierLabel(fusion.model, responseModelId) : undefined;
 				const responseModel = fusion && fusionTier ? {
@@ -7342,7 +7424,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// TODO: Support full EH-to-AH session porting for continue/resume flows.
 		return buildHostLocalEventsPath(
 			sessionResource,
-			this._pathService.userHome({ preferLocal: true }),
+			this._copilotHomeService.home,
 			authority => this._remoteAgentHostService.connections.find(connection => agentHostAuthority(connection.address) === authority),
 		);
 	}
