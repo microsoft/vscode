@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -569,6 +570,17 @@ suite('ChatEntitlementService', () => {
 			store.add(new TestStorageService()),
 		));
 	}
+
+	(isWeb ? test : test.skip)('preserves environment-hidden setup when force hidden is cleared', () => {
+		const service = createService();
+
+		assert.strictEqual(service.context, undefined);
+		assert.strictEqual(service.sentiment.hidden, true);
+
+		service.setForceHidden(false);
+
+		assert.strictEqual(service.sentiment.hidden, true);
+	});
 
 	test('signals changed usage when only consumed credits move on an unlimited plan', () => {
 		const service = createService();
