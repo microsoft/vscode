@@ -16,7 +16,7 @@ import { isAgentHostSandboxDisablingBlocked } from '../../../../../../platform/a
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { readAgentSandboxDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
+import { readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { isSessionConfigWritable, validateChatPickerConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
@@ -29,12 +29,15 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
+const OPEN_SETTINGS_COMMAND = 'workbench.action.openSettings';
+
 export class AgentHostSandboxNotification extends Disposable {
 	/** Retains dismissals across chat recreation for the lifetime of the window's notification service. */
 	private static readonly _dismissedSessions = new WeakMap<IChatInputNotificationService, ResourceSet>();
 	private readonly _id: string;
 	private readonly _dismissedSessions: ResourceSet;
 	private _reasons: readonly string[] | undefined;
+	private _localNetworkMessage: string | undefined;
 	private readonly _disableCommandId = `_chat.disableSandboxing.${generateUuid()}`;
 	private _canDisable = false;
 
@@ -134,34 +137,50 @@ export class AgentHostSandboxNotification extends Disposable {
 		}
 		const diagnostics = state && !(state instanceof Error) ? readAgentSandboxDiagnostics(state) : undefined;
 		const reasons = diagnostics ? distinct(diagnostics) : undefined;
+		const localNetworkLink = new MarkdownString().appendLink(
+			createCommandUri(OPEN_SETTINGS_COMMAND, `@id:${AgentSandboxSettingId.AgentSandboxAllowLocalNetwork}`).toString(),
+			localize('agentHost.allowLocalNetworkAccess', "Allow"),
+		).value;
+		const localNetworkMessage = !reasons && state && !(state instanceof Error) && readAgentSandboxLocalNetworkRequired(state)
+			? readSessionSandboxPolicy(state)?.allowLocalNetwork === false
+				? localize('agentHost.sandboxLocalNetworkManaged', "Your organization disables local network access, which some sandboxing features need. {0}", localNetworkLink)
+				: localize('agentHost.sandboxLocalNetworkRequired', "Sandboxing requires access to local network. {0}", localNetworkLink)
+			: undefined;
 		const canDisable = this._canDisableSandboxing(state);
-		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable) {
+		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable && this._localNetworkMessage === localNetworkMessage) {
 			return;
 		}
 		this._reasons = reasons;
 		this._canDisable = canDisable;
-		if (!reasons) {
+		this._localNetworkMessage = localNetworkMessage;
+		if (!reasons && !localNetworkMessage) {
 			this._notificationService.deleteNotification(this._id);
 			return;
 		}
-		const description = new MarkdownString('', { isTrusted: { enabledCommands: canDisable ? [this._disableCommandId] : [] } });
-		description.appendText(reasons[0]);
-		description.appendText(' ');
-		// Use the OS-support page until the sandbox troubleshooting guide is available.
-		description.appendLink('https://aka.ms/ghcp-sandbox-os-support', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
-		if (canDisable) {
-			description.appendText(' | ');
-			description.appendLink(
-				createCommandUri(this._disableCommandId).toString(),
-				localize('agentHost.disableSandboxing', "Disable Sandboxing"),
-				localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
-			);
+		const description = new MarkdownString('', { isTrusted: { enabledCommands: localNetworkMessage ? [OPEN_SETTINGS_COMMAND] : canDisable ? [this._disableCommandId] : [] } });
+		if (localNetworkMessage) {
+			description.appendMarkdown(localNetworkMessage);
+		} else if (reasons) {
+			description.appendText(reasons[0]);
+			description.appendText(' ');
+			// Use the OS-support page until the sandbox troubleshooting guide is available.
+			description.appendLink('https://aka.ms/ghcp-sandbox-os-support', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
+			if (canDisable) {
+				description.appendText(' | ');
+				description.appendLink(
+					createCommandUri(this._disableCommandId).toString(),
+					localize('agentHost.disableSandboxing', "Disable Sandboxing"),
+					localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
+				);
+			}
 		}
 		this._notificationService.setNotification({
 			id: this._id,
-			severity: ChatInputNotificationSeverity.Warning,
-			message: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
-			description,
+			severity: localNetworkMessage ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Warning,
+			message: localNetworkMessage
+				? description
+				: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
+			description: localNetworkMessage ? undefined : description,
 			actions: [],
 			dismissible: true,
 			onDismiss: () => {

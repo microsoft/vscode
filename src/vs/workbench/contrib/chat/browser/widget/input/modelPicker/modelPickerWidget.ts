@@ -31,7 +31,7 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../../platform/telemetry/common/experimentTrigger.js';
-import { AgentHostFusionBalanceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostFusionHighUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -322,11 +322,11 @@ export class ModelPickerWidget extends Disposable {
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		return this._normalizeFusionBalance(model, models);
+		return this._normalizeFusionHigh(model, models);
 	}
 
-	/** Fusion's Balance is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
-	private _normalizeFusionBalance(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
+	/** Fusion's High is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
+	private _normalizeFusionHigh(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
 		const routing = this._getFusionRouting(models);
 		if (!routing) {
 			return model;
@@ -338,7 +338,7 @@ export class ModelPickerWidget extends Disposable {
 		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== fusion.identifier || tier.value !== 'intelligence'))) {
 			return model;
 		}
-		logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
+		logSettingExperimentTrigger(this._telemetryService, AgentHostFusionHighUsesHydraFusionSettingId);
 		if (fusion.metadata.autoModelFusion?.balanceUsesHydraFusion) {
 			return hydraFusion;
 		}
@@ -354,7 +354,7 @@ export class ModelPickerWidget extends Disposable {
 		return model;
 	}
 
-	/** Fusion and the HydraFusion its Balance can route to, when routing it there can make a difference. */
+	/** Fusion and the HydraFusion its High can route to, when routing it there can make a difference. */
 	private _getFusionRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly fusion: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
 		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
 			return undefined;
@@ -691,7 +691,7 @@ export class ModelPickerWidget extends Disposable {
 		trigger?.setAttribute('aria-expanded', 'true');
 		this._domNode?.classList.add('model-picker-active');
 		if (this._getFusionRouting(context.models)) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostFusionBalanceUsesHydraFusionSettingId);
+			logSettingExperimentTrigger(this._telemetryService, AgentHostFusionHighUsesHydraFusionSettingId);
 		}
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 		if (!picker.isVisible) {

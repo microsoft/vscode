@@ -1415,6 +1415,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// never emits `exit_plan_mode.requested`.
 			infiniteSessions: { enabled: true },
 			// Always explicit so the VS Code opt-in gates memory instead of the runtime default.
+			// The runtime still applies the user's GitHub Copilot Memory settings and policies.
 			memory: { enabled: memoryEnabled },
 			// Per-session remote export: the client-level `--remote` flag
 			// (enableRemoteSessions) enables the CLI capability, but each

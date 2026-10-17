@@ -33,7 +33,7 @@ import { sessionServerToolDefinitions } from '../../node/shared/sessionServerToo
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, createTestChatOwnershipService, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -691,7 +691,7 @@ suite('AgentHostSessionTitleController', () => {
 			peers: [{ chat, order: 1 }],
 			privateDescendants: [],
 		});
-		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)));
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)), noOlderBuildCopyParticipant);
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
