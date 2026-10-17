@@ -15,6 +15,7 @@ export class CopilotInlineCompletionItemProviderService extends Disposable imple
 
 	private _provider: InlineCompletionItemProvider | undefined;
 	private _completionsInstantiationService: IInstantiationService | undefined;
+	private _creatingProvider = false;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -31,9 +32,14 @@ export class CopilotInlineCompletionItemProviderService extends Disposable imple
 
 	getOrCreateProvider(): InlineCompletionItemProvider {
 		if (!this._provider) {
+			if (this._creatingProvider) {
+				throw new Error('CopilotInlineCompletionItemProvider is already being created (re-entrant call)');
+			}
+			this._creatingProvider = true;
 			this._completionsInstantiationService = this.getOrCreateInstantiationService();
 			this._completionsInstantiationService.invokeFunction(setup, this._store);
 			this._provider = this._register(this._completionsInstantiationService.createInstance(CopilotInlineCompletionItemProvider));
+			this._creatingProvider = false;
 		}
 		return this._provider;
 	}
