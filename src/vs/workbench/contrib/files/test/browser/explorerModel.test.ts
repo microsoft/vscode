@@ -13,6 +13,7 @@ import { TestPathService } from '../../../../test/browser/workbenchTestServices.
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { validateFileName } from '../../browser/fileActions.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
+import { FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 
 
 suite('Files - View Model', function () {
@@ -279,4 +280,124 @@ suite('Files - View Model', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('Files - ExplorerItem getChild case sensitivity', function () {
+
+	const configService = new TestConfigurationService();
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Creates a TestFileService whose hasCapability() reports the given
+	 * case-sensitivity value for PathCaseSensitive queries.
+	 */
+	function makeFileService(caseSensitive: boolean): TestFileService {
+		const svc = new TestFileService();
+		const origHas = svc.hasCapability.bind(svc);
+		svc.hasCapability = (resource: URI, capability: FileSystemProviderCapabilities) => {
+			if (capability === FileSystemProviderCapabilities.PathCaseSensitive) {
+				return caseSensitive;
+			}
+			return origHas(resource, capability);
+		};
+		return svc;
+	}
+
+	/** Use URI.file() directly — avoids needing the mocha `this` context that toResource requires. */
+	function createStat(fileService: TestFileService, path: string, name: string, isFolder: boolean): ExplorerItem {
+		return new ExplorerItem(
+			URI.file(path),
+			fileService, configService, NullFilesConfigurationService,
+			undefined, isFolder, false, false, false, name, 0
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Exact (case-sensitive) lookup always works regardless of FS sensitivity
+	// -----------------------------------------------------------------------
+
+	test('getChild — exact match on case-sensitive FS', function () {
+		const fs = makeFileService(true);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/foo', 'foo', false);
+		parent.addChild(child);
+
+		assert.strictEqual(parent.getChild('foo'), child, 'exact name must be found');
+		assert.strictEqual(parent.getChild('FOO'), undefined, 'different case must not be found on case-sensitive FS');
+	});
+
+	test('getChild — exact match on case-insensitive FS', function () {
+		const fs = makeFileService(false);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/Foo', 'Foo', false);
+		parent.addChild(child);
+
+		assert.strictEqual(parent.getChild('Foo'), child, 'exact name must be found');
+	});
+
+	// -----------------------------------------------------------------------
+	// Case-insensitive fallback via secondary index
+	// -----------------------------------------------------------------------
+
+	test('getChild — case-insensitive fallback on case-insensitive FS', function () {
+		const fs = makeFileService(false);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/Foo', 'Foo', false);
+		parent.addChild(child);
+
+		assert.strictEqual(parent.getChild('FOO'), child, 'uppercase lookup must hit lowercase index');
+		assert.strictEqual(parent.getChild('foo'), child, 'lowercase lookup must hit lowercase index');
+		assert.strictEqual(parent.getChild('fOo'), child, 'mixed-case lookup must hit lowercase index');
+	});
+
+	test('getChild — case-insensitive fallback does NOT apply on case-sensitive FS', function () {
+		const fs = makeFileService(true);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/Foo', 'Foo', false);
+		parent.addChild(child);
+
+		assert.strictEqual(parent.getChild('foo'), undefined, 'lowercase lookup must fail on case-sensitive FS');
+		assert.strictEqual(parent.getChild('FOO'), undefined, 'uppercase lookup must fail on case-sensitive FS');
+	});
+
+	// -----------------------------------------------------------------------
+	// Secondary index stays in sync: removeChild / forgetChildren
+	// -----------------------------------------------------------------------
+
+	test('removeChild keeps secondary index in sync', function () {
+		const fs = makeFileService(false);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/bar', 'bar', false);
+		parent.addChild(child);
+
+		assert.strictEqual(parent.getChild('BAR'), child, 'must be found before removal');
+		parent.removeChild(child);
+		assert.strictEqual(parent.getChild('bar'), undefined, 'must not be found after removal (exact)');
+		assert.strictEqual(parent.getChild('BAR'), undefined, 'must not be found after removal (case-insensitive)');
+	});
+
+	test('forgetChildren clears both primary and secondary index', function () {
+		const fs = makeFileService(false);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/baz', 'baz', false);
+		parent.addChild(child);
+
+		parent.forgetChildren();
+		assert.strictEqual(parent.getChild('baz'), undefined, 'primary index must be cleared');
+		assert.strictEqual(parent.getChild('BAZ'), undefined, 'secondary index must be cleared');
+	});
+
+	test('re-adding a child after forgetChildren works correctly', function () {
+		const fs = makeFileService(false);
+		const parent = createStat(fs, '/root', 'root', true);
+		const child = createStat(fs, '/root/qux', 'qux', false);
+
+		parent.addChild(child);
+		parent.forgetChildren();
+		parent.addChild(child);
+
+		assert.strictEqual(parent.getChild('qux'), child, 'exact lookup must work after re-add');
+		assert.strictEqual(parent.getChild('QUX'), child, 'case-insensitive lookup must work after re-add');
+	});
 });

@@ -591,6 +591,10 @@ export class TestFileService implements IFileService {
 		return stats.map(stat => ({ stat, success: true }));
 	}
 
+	async resolvePathCaseSensitive(resource: URI): Promise<boolean> {
+		return false;
+	}
+
 	readonly notExistsSet = new ResourceMap<boolean>();
 
 	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
