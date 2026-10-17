@@ -165,17 +165,17 @@ const element = new class extends mock<IChatRequestViewModel>() { }();
 
 ## Async Rendering
 
-The component explorer awaits the render promise, then waits two animation frames. Those frames are not a readiness guarantee for image decoding, native resize observers, delayed layout, or scrollbar idle timers.
+The component explorer awaits the render promise, then waits two animation frames. Those frames are not a readiness guarantee for image decoding, native resize observers, or delayed layout.
 
 The render promise must resolve only when the fixture represents its named state:
 
 - Await assets that affect the screenshot. An editor's `setInput()` may return before its main image or thumbnails have loaded; wait for the expected image count and await `decode()`, failing on missing or broken images.
 - Finish layout-changing actions before positioning the viewport. Wait for content height, scroll height, scroll position, and finite animations to settle, then scroll and settle again. Assert that an "offscreen" header is actually offscreen and a "visible" header is not covered by sticky content.
-- Account for transient visuals such as auto-hiding scrollbars. A stable height does not mean a stable screenshot.
+- Account for transient visuals. A stable height does not mean a stable screenshot. Headless renders never flash auto-hiding scrollbars on scroll or resize, so do not wait for or hide them; use `ScrollbarVisibility.Visible` when a scrollbar is part of the intended state.
 - Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
 - Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
 
-Design fixtures as **state + local inputs + an explicit readiness condition**. Supply local account icons instead of letting a mock fall back to a live avatar URL, and await decoding; `waitForFixtureCondition` polls native browser frames while preserving the virtual clock. Prefer shared DOM spinners over animated SVG backgrounds: ancestor CSS cannot stop animations inside an image. Wait for auto-hiding scrollbars to reach their intended idle state, not merely for content height to stabilize.
+Design fixtures as **state + local inputs + an explicit readiness condition**. Supply local account icons instead of letting a mock fall back to a live avatar URL, and await decoding; `waitForFixtureCondition` polls native browser frames while preserving the virtual clock. Prefer shared DOM spinners over animated SVG backgrounds: ancestor CSS cannot stop animations inside an image.
 
 Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
 
