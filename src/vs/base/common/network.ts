@@ -141,6 +141,11 @@ export namespace Schemas {
 	export const vsls = 'vsls';
 
 	/**
+	 * Scheme used by the built-in git extension for resources at a specific revision
+	 */
+	export const git = 'git';
+
+	/**
 	 * Scheme used for the Source Control commit input's text document
 	 */
 	export const vscodeSourceControl = 'vscode-scm';
