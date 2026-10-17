@@ -7868,6 +7868,33 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not schedule a model refresh retry when the agent is torn down while a refresh failure is handled', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		client.modelListErrors.push(new Error('429 "too many requests"'));
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		// Handling a failure can take a while, e.g. while a closed connection is recovered.
+		const failureHandlingStarted = new DeferredPromise<void>();
+		const finishFailureHandling = new DeferredPromise<void>();
+		(agent as unknown as { _handleClientOperationFailure(): Promise<undefined> })._handleClientOperationFailure = async () => {
+			failureHandlingStarted.complete();
+			await finishFailureHandling.p;
+			return undefined;
+		};
+		const authenticated = agent.authenticate('https://api.github.com', 'token');
+		await failureHandlingStarted.p;
+
+		await disposeAgent(agent);
+		finishFailureHandling.complete();
+		await authenticated;
+		await timeout(0);
+
+		// A retry timer scheduled now would outlive the agent: the suite's leak check reports it.
+		assert.strictEqual(client.modelListRequests.length, 1);
+	});
+
 	test('does not refresh models or restart the client after shutdown', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
