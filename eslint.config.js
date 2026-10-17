@@ -980,17 +980,12 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once all their `runWithFakedTimers` calls wrap whole tests
 					'exclude': [
-						'src/vs/base/test/browser/ui/tree/objectTree.test.ts',
 						'src/vs/base/test/common/virtualScheduling/virtualScheduling.test.ts',
 						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostToolCallTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostTurnHangTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
-						'src/vs/platform/agentHost/test/node/codex/codexCreateChat.test.ts',
-						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
-						'src/vs/platform/github/test/node/scheduler.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/attachments/chatImageReveal.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
 					]
 				}
 			]
