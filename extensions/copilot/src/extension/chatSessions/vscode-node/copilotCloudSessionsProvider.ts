@@ -17,7 +17,7 @@ import { FileType } from '../../../platform/filesystem/common/fileTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { getGithubRepoIdFromFetchUrl, GithubRepoId, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
 import { derivePullRequestState, PullRequestSearchItem, PullRequestState } from '../../../platform/github/common/githubAPI';
-import { CCAEnabledResult, IGithubRepositoryService, IOctoKitService } from '../../../platform/github/common/githubService';
+import { CCAEnabledResult, IGithubRepositoryService, IOctoKitService, PermissiveAuthRequiredError } from '../../../platform/github/common/githubService';
 import { getModelCapabilitiesDescription, normalizeTokenPrices } from '../../conversation/common/languageModelAccess';
 import { ILogService } from '../../../platform/log/common/logService';
 import { emitCloudSessionInvokeEvent } from '../../../platform/otel/common/genAiEvents';
@@ -764,8 +764,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this._register(vscode.commands.registerCommand('github.copilot.chat.openPullRequestReroute', openPullRequestReroute));
 
 		this._register(vscode.commands.registerCommand(SEARCH_REPOSITORIES_COMMAND_ID, async (query: string) => {
-			const repositories = await this._octoKitService.getUserRepositories({}, query);
-			return repositories.map(repo => `${repo.owner}/${repo.name}`);
+			try {
+				const repositories = await this._octoKitService.getUserRepositories({}, query);
+				return repositories.map(repo => `${repo.owner}/${repo.name}`);
+			} catch (error) {
+				if (error instanceof PermissiveAuthRequiredError) {
+					this.logService.trace('[searchRepositories] No permissive GitHub session');
+					return [];
+				}
+				throw error;
+			}
 		}));
 
 		const openRepositoryCommand = async (
