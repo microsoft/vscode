@@ -14,41 +14,34 @@
 }
 
 .new-session-connector-recommendation-cards {
-	display: flex;
-	gap: var(--vscode-spacing-size80);
 	width: 100%;
 	padding: var(--vscode-spacing-size20);
 	box-sizing: border-box;
-	overflow-x: auto;
-	scrollbar-width: thin;
 }
 
 .new-session-connector-recommendation-card {
 	position: relative;
-	flex: 1 0 0;
-	min-width: 180px;
+	min-width: 0;
 }
 
 .monaco-button.new-session-connector-recommendation-card-primary {
 	display: grid;
-	grid-template-columns: var(--vscode-spacing-size320) minmax(0, 1fr);
+	grid-template-columns: var(--vscode-codiconFontSize) minmax(0, 1fr);
 	column-gap: var(--vscode-spacing-size100);
-	align-items: start;
+	align-items: center;
 	width: 100%;
-	min-height: 100%;
-	padding: var(--vscode-spacing-size60);
-	padding-right: var(--vscode-spacing-size320);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size100);
+	padding-right: var(--vscode-spacing-size400);
 	box-sizing: border-box;
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
 	border-radius: var(--vscode-cornerRadius-medium);
-	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
-	color: var(--vscode-foreground);
+	background-color: var(--session-view-background, var(--vscode-editor-background));
+	color: var(--vscode-descriptionForeground);
 	text-align: left;
 }
 
 .monaco-button.new-session-connector-recommendation-card-primary:hover {
-	border-color: var(--vscode-focusBorder);
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 8%, var(--vscode-editorWidget-background));
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-button.new-session-connector-recommendation-card-primary:focus-visible {
@@ -60,11 +53,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-spacing-size320);
-	height: var(--vscode-spacing-size320);
-	border-radius: var(--vscode-cornerRadius-medium);
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
 	overflow: hidden;
-	background-color: var(--vscode-editor-background);
 }
 
 .new-session-connector-recommendation-icon img {
@@ -79,49 +70,28 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.new-session-connector-recommendation-content {
-	min-width: 0;
-}
-
-.new-session-connector-recommendation-name {
-	overflow: hidden;
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .new-session-connector-recommendation-description {
-	margin-top: var(--vscode-spacing-size20);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	line-height: 1.2;
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.4;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
-.monaco-button.new-session-connector-recommendation-dismiss {
+.new-session-connector-recommendation-dismiss {
 	position: absolute;
-	top: var(--vscode-spacing-size60);
-	right: var(--vscode-spacing-size60);
-	display: flex;
-	align-items: center;
+	top: 50%;
+	right: var(--vscode-spacing-size80);
+	transform: translateY(-50%);
+}
+
+.new-session-connector-recommendation-dismiss .action-label.codicon {
 	justify-content: center;
 	width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
 	padding: 0;
-	border: 0;
-	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
-	color: var(--vscode-icon-foreground);
-}
-
-.monaco-button.new-session-connector-recommendation-dismiss:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.monaco-button.new-session-connector-recommendation-dismiss:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
 }
 
 :is(.hc-black, .hc-light) .monaco-button.new-session-connector-recommendation-card-primary {

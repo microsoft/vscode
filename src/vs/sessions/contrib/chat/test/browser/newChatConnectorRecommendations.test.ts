@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -11,6 +13,7 @@ import { type IConfigurationChangeEvent, type IConfigurationOverrides, IConfigur
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -32,7 +35,7 @@ const connectorRecommendations: NonNullable<IProductService['connectorRecommenda
 suite('NewChatConnectorRecommendations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(marketplaceEnabled: boolean, connectorsEnabled: boolean, fromDefault = true, productRecommendations: IProductService['connectorRecommendations'] | null = connectorRecommendations, recommendationsEnabled = connectorsEnabled) {
+	function setup(marketplaceEnabled: boolean, connectorsEnabled: boolean, fromDefault = true, productRecommendations: IProductService['connectorRecommendations'] | null = connectorRecommendations, recommendationsEnabled = connectorsEnabled, random = () => 0) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = new class extends TestConfigurationService {
 			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
@@ -51,9 +54,16 @@ suite('NewChatConnectorRecommendations', () => {
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const errors: unknown[][] = [];
 		const notifications: string[] = [];
+		const hovers: Omit<IHoverOptions, 'target'>[] = [];
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		let focusCount = 0;
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: (_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) => {
+				hovers.push(typeof options === 'function' ? options() : options);
+				return Disposable.None;
+			},
+		});
 		instantiationService.stub(ICommandService, {
 			executeCommand: async (id: string, ...args: unknown[]) => {
 				commands.push({ id, args });
@@ -69,9 +79,9 @@ suite('NewChatConnectorRecommendations', () => {
 		instantiationService.stub(IProductService, { _serviceBrand: undefined, connectorRecommendations: productRecommendations ?? undefined });
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ITelemetryService, telemetryService);
-		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, () => focusCount++));
+		const recommendations = store.add(instantiationService.createInstance(NewChatConnectorRecommendations, () => focusCount++, random));
 		document.body.appendChild(recommendations.element);
-		return { recommendations, configurationService, commands, errors, notifications, telemetryService, get focusCount() { return focusCount; } };
+		return { recommendations, configurationService, commands, errors, notifications, hovers, telemetryService, get focusCount() { return focusCount; } };
 	}
 
 	test('triggers the recommendation experiment before deciding visibility', () => {
@@ -100,48 +110,68 @@ suite('NewChatConnectorRecommendations', () => {
 		});
 	});
 
-	test('renders product recommendations and opens the selected connector detail', async () => {
-		const fixture = setup(true, true);
-		await Promise.resolve();
-		await Promise.resolve();
-		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		cards[2].querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')!.click();
+	test('uses product descriptions without overriding known connectors and opens the selected detail', async () => {
+		const fixtures = [0, 0.5, 0.999].map(value => setup(true, true, true, connectorRecommendations, true, () => value));
+		for (const fixture of fixtures) {
+			fixture.recommendations.element.querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')!.click();
+		}
 		await Promise.resolve();
 
-		assert.deepStrictEqual({
+		assert.deepStrictEqual(fixtures.map(fixture => ({
 			hidden: fixture.recommendations.element.hidden,
 			role: fixture.recommendations.element.getAttribute('role'),
-			names: cards.map(card => card.querySelector('.new-session-connector-recommendation-name')?.textContent),
-			descriptions: cards.map(card => card.querySelector('.new-session-connector-recommendation-description')?.textContent),
-			icons: cards.map(card => card.querySelector<HTMLImageElement>('img')?.src),
+			groupLabel: fixture.recommendations.element.getAttribute('aria-label'),
+			cardCount: fixture.recommendations.element.querySelectorAll('.new-session-connector-recommendation-card').length,
+			nameCount: fixture.recommendations.element.querySelectorAll('.new-session-connector-recommendation-name').length,
+			description: fixture.recommendations.element.querySelector('.new-session-connector-recommendation-description')?.textContent,
+			label: fixture.recommendations.element.querySelector('.new-session-connector-recommendation-card-primary')?.getAttribute('aria-label'),
+			buttonRole: fixture.recommendations.element.querySelector('.new-session-connector-recommendation-card-primary')?.getAttribute('role'),
+			iconHidden: fixture.recommendations.element.querySelector('.new-session-connector-recommendation-icon')?.getAttribute('aria-hidden'),
+			dismissLabel: fixture.recommendations.element.querySelector('.new-session-connector-recommendation-dismiss .action-label')?.getAttribute('aria-label'),
+			hovers: fixture.hovers,
+			compactDismissCount: fixture.recommendations.element.querySelectorAll('.codicon-close-compact').length,
+			icon: fixture.recommendations.element.querySelector<HTMLImageElement>('img')?.src,
 			commands: fixture.commands,
 			errors: fixture.errors,
-			triggers: fixture.telemetryService.triggers,
-		}, {
+		})), [
+			{ id: 'linear', name: 'Linear', task: 'Plan and track product work.', icon: 'linear' },
+			{ id: 'notion', name: 'Notion', task: 'Search team knowledge and documentation.', icon: 'notion' },
+			{ id: 'workiq-mail', name: 'WorkIQ', task: 'Bring Microsoft 365 work context into chats.', icon: 'workiq' },
+		].map(({ id, name, task, icon }) => ({
 			hidden: false,
 			role: 'group',
-			names: ['Linear', 'Notion', 'WorkIQ'],
-			descriptions: [
-				'Plan and track product work.',
-				'Search team knowledge and documentation.',
-				'Bring Microsoft 365 work context into chats.',
-			],
-			icons: ['https://example.com/linear.png', 'https://example.com/notion.png', 'https://example.com/workiq.png'],
+			groupLabel: 'Recommended connector',
+			cardCount: 1,
+			nameCount: 0,
+			description: task,
+			label: `Review the ${name} connector. ${task}`,
+			buttonRole: 'button',
+			iconHidden: 'true',
+			dismissLabel: `Dismiss ${name} Connector Recommendation for This Session`,
+			hovers: [{
+				content: `Review the ${name} connector in Copilot Connectors`,
+				persistence: { hideOnKeyDown: true },
+			}],
+			compactDismissCount: 1,
+			icon: `https://example.com/${icon}.png`,
 			commands: [{
 				id: AICustomizationManagementCommands.OpenMarketplace,
 				args: [{
 					section: AICustomizationManagementSection.McpServers,
 					sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
-					connectorName: 'workiq-mail',
+					connectorName: id,
 				}],
 			}],
 			errors: [],
-			triggers: ['config.sessions.chat.experimental.connectorRecommendations'],
-		});
+		})));
 	});
 
-	test('tracks enablement and dismisses individual cards for the widget lifetime', async () => {
-		const fixture = setup(true, false, true, connectorRecommendations, true);
+	test('keeps the random choice stable and hides recommendations for the widget lifetime after dismissal', async () => {
+		let randomCalls = 0;
+		const fixture = setup(true, false, true, connectorRecommendations, true, () => {
+			randomCalls++;
+			return 0.5;
+		});
 		assert.strictEqual(fixture.recommendations.element.hidden, true);
 
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);
@@ -152,13 +182,8 @@ suite('NewChatConnectorRecommendations', () => {
 		}());
 		assert.strictEqual(fixture.recommendations.element.hidden, false);
 
-		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		const dismissButtons = cards.map(card => card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!);
-		dismissButtons[1].click();
-		const focusAfterMiddleDismiss = document.activeElement === cards[2].querySelector('.new-session-connector-recommendation-card-primary');
-		dismissButtons[2].click();
-		const focusAfterLastDismiss = document.activeElement === cards[0].querySelector('.new-session-connector-recommendation-card-primary');
-		dismissButtons[0].click();
+		fixture.recommendations.element.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
+		const hiddenImmediately = fixture.recommendations.element.hidden;
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		fixture.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -169,27 +194,43 @@ suite('NewChatConnectorRecommendations', () => {
 
 		assert.deepStrictEqual({
 			hidden: fixture.recommendations.element.hidden,
-			dismissedCards: cards.map(card => card.hidden),
-			focusAfterMiddleDismiss,
-			focusAfterLastDismiss,
+			hiddenImmediately,
+			randomCalls,
+			renderedConnectors: [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')].map(card => card.dataset.connectorId),
 			focusCount: fixture.focusCount,
 		}, {
 			hidden: true,
-			dismissedCards: [true, true, true],
-			focusAfterMiddleDismiss: true,
-			focusAfterLastDismiss: true,
+			hiddenImmediately: true,
+			randomCalls: 1,
+			renderedConnectors: ['notion'],
 			focusCount: 1,
 		});
 	});
 
-	test('uses the MCP server icon when a product image URL is invalid', () => {
+	test('preserves the product description for other recommended connectors', () => {
 		const fixture = setup(true, true, true, {
-			linear: { name: 'Linear', description: 'Plan and track product work.', iconUrl: 'data:image/png;base64,invalid' },
-			notion: { name: 'Notion', description: 'Search team knowledge and documentation.', iconUrl: '' },
-			'workiq-mail': { name: 'WorkIQ', description: 'Bring Microsoft 365 work context into chats.', iconUrl: 'file:///tmp/workiq.png' },
+			custom: { name: 'Custom', description: 'Find related customer feedback', iconUrl: '' },
 		});
-		const fallbackClasses = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-icon > .codicon')]
-			.map(icon => [...icon.classList]);
+		const card = fixture.recommendations.element.querySelector<HTMLElement>('.new-session-connector-recommendation-card')!;
+
+		assert.deepStrictEqual({
+			hidden: card.hidden,
+			description: card.querySelector('.new-session-connector-recommendation-description')?.textContent,
+			label: card.querySelector('.new-session-connector-recommendation-card-primary')?.getAttribute('aria-label'),
+		}, {
+			hidden: false,
+			description: 'Find related customer feedback',
+			label: 'Review the Custom connector. Find related customer feedback',
+		});
+	});
+
+	test('uses the MCP server icon when a product image URL is invalid', () => {
+		const fallbackClasses = ['data:image/png;base64,invalid', '', 'file:///tmp/workiq.png'].map(iconUrl => {
+			const fixture = setup(true, true, true, {
+				linear: { ...connectorRecommendations.linear, iconUrl },
+			});
+			return [...fixture.recommendations.element.querySelector<HTMLElement>('.new-session-connector-recommendation-icon > .codicon')!.classList];
+		});
 
 		assert.deepStrictEqual(fallbackClasses, [
 			['codicon', 'codicon-ai-customization-mcp-server'],

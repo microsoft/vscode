@@ -81,7 +81,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('three connector cards offer Linear, Notion, and WorkIQ');
+				.includes('one randomly chosen connector recommendation suggests a task for your agent');
 		});
 
 		assert.deepStrictEqual(enabled, [false, true]);
