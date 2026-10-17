@@ -16,11 +16,12 @@ export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt
 	if (cssPropertyValue !== undefined) {
 		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
 		if (variableMatch) {
-			const varArguments = variableMatch[1].split(',', 2);
-			if (varArguments.length === 2) {
-				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
+			const firstCommaIndex = variableMatch[1].indexOf(',');
+			if (firstCommaIndex !== -1) {
+				dflt = asCssValueWithDefault(variableMatch[1].substring(firstCommaIndex + 1).trim(), dflt);
+				return `var(${variableMatch[1].substring(0, firstCommaIndex)}, ${dflt})`;
 			}
-			return `var(${varArguments[0]}, ${dflt})`;
+			return `var(${variableMatch[1]}, ${dflt})`;
 		}
 		return cssPropertyValue;
 	}
