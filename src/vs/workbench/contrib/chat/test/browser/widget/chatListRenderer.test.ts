@@ -1363,35 +1363,35 @@ suite('ChatListRenderer', () => {
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
 			});
+		});
 
-			suite('endsWithCompletedQuestionInteraction', () => {
-				test('resumes working progress after completed ask interactions', () => {
-					const completedTool: IChatToolInvocationSerialized = {
-						kind: 'toolInvocationSerialized',
-						toolCallId: 'ask-1',
-						toolId: 'ask_user',
-						invocationMessage: 'Waiting for answer...',
-						originMessage: undefined,
-						pastTenseMessage: undefined,
-						isComplete: true,
-						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
-						presentation: undefined,
-						source: ToolDataSource.Internal,
-					};
-					const completedQuestion: IChatQuestionCarousel = {
-						kind: 'questionCarousel',
-						questions: [],
-						allowSkip: true,
-						isUsed: true,
-					};
+		suite('endsWithCompletedQuestionInteraction', () => {
+			test('resumes working progress after completed ask interactions', () => {
+				const completedTool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'ask-1',
+					toolId: 'ask_user',
+					invocationMessage: 'Waiting for answer...',
+					originMessage: undefined,
+					pastTenseMessage: undefined,
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+				};
+				const completedQuestion: IChatQuestionCarousel = {
+					kind: 'questionCarousel',
+					questions: [],
+					allowSkip: true,
+					isUsed: true,
+				};
 
-					assert.deepStrictEqual([
-						endsWithCompletedQuestionInteraction([completedTool]),
-						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
-						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
-						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
-					], [true, true, false, false]);
-				});
+				assert.deepStrictEqual([
+					endsWithCompletedQuestionInteraction([completedTool]),
+					endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+					endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+					endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+				], [true, true, false, false]);
 			});
 		});
 	});
