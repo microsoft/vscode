@@ -149,6 +149,46 @@ suite('ChatImageReveal', () => {
 		});
 	}
 
+	test('a resize of the glyph canvas repaints the reveal after resize observation, so it causes no resize observer loop', async () => {
+		const { container, reveal, host } = await render();
+		// The chat list observes the rows that contain a reveal.
+		const hostObserver = store.add(new dom.DisposableResizeObserver('ChatImageReveal.test.host', () => { }));
+		store.add(hostObserver.observe(host));
+		const loopErrors: string[] = [];
+		const onError = (event: ErrorEvent) => {
+			if (event.message.includes('ResizeObserver loop')) {
+				loopErrors.push(event.message);
+			}
+		};
+		mainWindow.addEventListener('error', onError);
+		store.add(toDisposable(() => mainWindow.removeEventListener('error', onError)));
+		reveal.reveal();
+		const field = container.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+		seek(container, 0);
+		// Without motion, the reveal paints no more animation frames: only a resize of its canvas repaints it.
+		reducedMotion = true;
+		await nextFrame();
+		await nextFrame();
+		const heightBefore = container.getBoundingClientRect().height;
+
+		// The reveal moves on and its canvas is resized in the same animation frame.
+		await new Promise<void>(resolve => store.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+			seek(container, 0.5);
+			field.style.width = `${field.getBoundingClientRect().width + 1}px`;
+			resolve();
+		})));
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			loopErrors,
+			repainted: container.getBoundingClientRect().height !== heightBefore,
+		}, {
+			loopErrors: [],
+			repainted: true,
+		});
+	});
+
 	for (const [width, height, loadingTime] of [[200, 240, 0], [400, 240, 1600], [319, 240, 2400], [320, 240, 3199], [321, 240, 3199], [200, 30, 1200]]) {
 		test(`skips the loading sweep and resizes continuously (${width}x${height}, phase=${loadingTime})`, async () => {
 			const { container, image, reveal, instantiationService } = await render(ColorScheme.DARK, width, height);

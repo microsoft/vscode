@@ -122,6 +122,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	/** Retry a failed load when the user explicitly opens the selected chat again. */
+	reopenChat(_resource: URI): Promise<void> {
+		return Promise.resolve();
+	}
+
 	/**
 	 * Select a workspace folder, acknowledging application or preservation of an existing choice.
 	 * Views without a ready workspace picker return notReady.

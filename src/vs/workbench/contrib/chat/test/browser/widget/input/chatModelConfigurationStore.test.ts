@@ -199,7 +199,7 @@ suite('ChatModelConfigurationStore', () => {
 		}, ['tier']);
 		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
 		editor.setSessionModelConfiguration({
-			models: { [MODEL]: { defaults: { tier: 'hydrafusion' }, readOnly: [], choices: { tier: { values: ['balance', 'hydrafusion'], labels: ['Lite', 'Balance'], descriptions: ['Quick', 'Thorough'] } } } },
+			models: { [MODEL]: { defaults: { tier: 'hydrafusion' }, readOnly: [], choices: { tier: { values: ['balance', 'hydrafusion'], labels: ['Standard', 'High'], descriptions: ['Quick', 'Thorough'] } } } },
 		});
 		const tier = editor.getModelConfigurationSchema(MODEL)?.properties?.tier;
 		assert.deepStrictEqual({
@@ -208,7 +208,7 @@ suite('ChatModelConfigurationStore', () => {
 			selectableKept: filterConfigurationToSchema({ tier: 'hydrafusion' }, editor.getModelConfigurationSchema(MODEL)),
 		}, {
 			enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
-			labels: ['Lite', 'Premium', 'Balance', 'Max'],
+			labels: ['Standard', 'Premium', 'High', 'Max'],
 			descriptions: ['Quick', 'Contact admin', 'Thorough', 'Requires more models'],
 			disabled: [false, true, false, true],
 			default: 'hydrafusion',

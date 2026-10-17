@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../common/meta/attachmentMeta.js';
-import { readErrorDetail } from '../../common/meta/errorMeta.js';
+import { isPolicyResolutionErrorData, readErrorDetail, toPolicyResolutionErrorData } from '../../common/meta/errorMeta.js';
 import { readAgentMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readAgentModelCallDetail } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
@@ -30,6 +30,15 @@ function readerMatrix<T>(name: string, read: (meta: Record<string, unknown> | un
 
 suite('Metadata compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('policy errors survive JSON without classifying absent or malformed metadata', () => {
+		const invalid = [undefined, null, {}, [], { _meta: null }, { _meta: [] }, { _meta: { 'vscode.policyResolutionFailed': 'true' } }, { _meta: { 'vscode.policyResolutionFailed': false } }];
+		assert.deepStrictEqual({
+			wire: JSON.parse(JSON.stringify(toPolicyResolutionErrorData())),
+			valid: isPolicyResolutionErrorData(JSON.parse(JSON.stringify(toPolicyResolutionErrorData()))),
+			invalid: invalid.map(isPolicyResolutionErrorData),
+		}, { wire: { _meta: { 'vscode.policyResolutionFailed': true } }, valid: true, invalid: invalid.map(() => false) });
+	});
 
 	test('permission diffs are additive and do not change native VS Code presentation', () => {
 		const original = { toolKind: 'read', mcpServerName: 'server' };

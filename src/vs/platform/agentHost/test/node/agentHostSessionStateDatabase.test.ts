@@ -165,7 +165,7 @@ suite('AgentHostDatabase session state', () => {
 			centralBranchChangesets: after.centralBranchChangesets,
 			reopenedState,
 		}, {
-			versions: [14, 19, 19],
+			versions: [14, 20, 20],
 			addedColumns: [['origin_session_uri', 'TEXT', 0]],
 			protectedSchemaUnchanged: true,
 			oldBuildViewUnchanged: true,

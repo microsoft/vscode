@@ -205,7 +205,7 @@ suite('ModelCard', () => {
 							tier: {
 								type: 'string', title: 'Effort Level', group: 'navigation',
 								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
-								enumItemLabels: ['Lite', 'Balance', 'Max'],
+								enumItemLabels: ['Standard', 'High', 'Max'],
 								default: 'balance',
 							},
 						},
@@ -229,15 +229,15 @@ suite('ModelCard', () => {
 			const covered = read(card);
 			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
 			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
-				covered: { discount: 'Models routed via Fusion Balance receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
-				uncovered: { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'] },
+				covered: { discount: 'Models routed via Fusion High receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'] },
 			});
 		});
 
 		test('a promotion without a message changes the discount without showing a banner', () => {
 			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
-			assert.deepStrictEqual(read(card), { discount: 'Models routed via Fusion Balance receive a 30% discount.', promotions: [] });
+			assert.deepStrictEqual(read(card), { discount: 'Models routed via Fusion High receive a 30% discount.', promotions: [] });
 		});
 
 		test('an upcoming promotion is announced with its start date without changing the discount, and an ended one is hidden', () => {
@@ -248,8 +248,8 @@ suite('ModelCard', () => {
 				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
 				ended: read(ended),
 			}, {
-				upcoming: { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
-				ended: { discount: 'Models routed via Fusion Lite receive a 10% discount.', promotions: [] },
+				upcoming: { discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
+				ended: { discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: [] },
 			});
 		});
 

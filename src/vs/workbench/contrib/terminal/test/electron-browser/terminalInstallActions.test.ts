@@ -210,7 +210,7 @@ suite('TerminalInstallActions', () => {
 				useShellEnvironment: true,
 				isFeatureTerminal: true,
 				isTransient: true,
-				waitOnExit: true
+				waitOnExit: 'Press any key to close this terminal.'
 			},
 			cwd: URI.file('/Users/tester'),
 			location: TerminalLocation.Panel,
@@ -265,7 +265,7 @@ suite('TerminalInstallActions', () => {
 				useShellEnvironment: true,
 				isFeatureTerminal: true,
 				isTransient: true,
-				waitOnExit: true
+				waitOnExit: 'Press any key to close this terminal.'
 			},
 			cwd: URI.file('/Users/tester\'s home'),
 			location: TerminalLocation.Panel,
