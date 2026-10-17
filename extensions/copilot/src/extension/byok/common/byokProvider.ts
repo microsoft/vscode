@@ -70,6 +70,7 @@ export interface BYOKModelCapabilities {
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
+	extraBody?: Record<string, Object>,
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
 	/** Whether the Responses API server retains prior responses for `previous_response_id` chaining. */
@@ -179,6 +180,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
 		statefulResponses: knownModelInfo?.statefulResponses,
 		modelOptions: knownModelInfo?.modelOptions,
+		extraBody: knownModelInfo?.extraBody,
 		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
 	if (knownModelInfo?.requestHeaders && Object.keys(knownModelInfo.requestHeaders).length > 0) {

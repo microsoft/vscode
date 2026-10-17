@@ -106,6 +106,7 @@ interface _CustomEndpointModelConfig {
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
+	extraBody?: Record<string, Object>,
 	zeroDataRetentionEnabled?: boolean;
 	statefulResponses?: boolean;
 	supportsReasoningEffort?: string[];
@@ -173,6 +174,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
 			modelOptions: modelConfiguration?.modelOptions,
+			extraBody: modelConfiguration?.extraBody,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
 			statefulResponses: modelConfiguration?.statefulResponses,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
