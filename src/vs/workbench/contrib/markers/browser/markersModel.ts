@@ -12,7 +12,7 @@ import { basename, extUri } from '../../../../base/common/resources.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
-import { IMarker, IMarkerData, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarker, IMarkerData, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { unsupportedSchemas } from '../../../../platform/markers/common/markerService.js';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
@@ -98,7 +98,7 @@ export class Marker {
 	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
-			this._lines = splitLines(this.marker.message);
+			this._lines = splitLines(getMarkerMessageText(this.marker.message));
 		}
 		return this._lines;
 	}
