@@ -1148,6 +1148,24 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>> {
+		return this._queueTurnData(async db => {
+			const result = new Map<string, number>();
+			if (toolCallIds.length === 0) {
+				return result;
+			}
+			// Bind the ids as one JSON array so large sessions stay within SQLite's bound-parameter limit.
+			const rows = await dbAll(db,
+				'SELECT tool_call_id, length(output) AS size FROM terminal_outputs WHERE tool_call_id IN (SELECT value FROM json_each(?))',
+				[JSON.stringify(toolCallIds)],
+			);
+			for (const row of rows) {
+				result.set(row.tool_call_id as string, row.size as number);
+			}
+			return result;
+		});
+	}
+
 	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined> {
 		return this._queueTurnData(async db => {
 			const sizeRow = await dbGet(db, 'SELECT length(output) AS size FROM terminal_outputs WHERE tool_call_id = ?', [toolCallId]);

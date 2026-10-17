@@ -226,6 +226,11 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
+	async getTerminalOutputSizes(...[toolCallIds]: Parameters<ISessionDatabase['getTerminalOutputSizes']>): ReturnType<ISessionDatabase['getTerminalOutputSizes']> {
+		const result = await this.raw.getTerminalOutputSizes(toolCallIds);
+		return result;
+	}
+
 	async readTerminalOutput(...[toolCallId]: Parameters<ISessionDatabase['readTerminalOutput']>): ReturnType<ISessionDatabase['readTerminalOutput']> {
 		const result = await this.raw.readTerminalOutput(toolCallId);
 		return result;

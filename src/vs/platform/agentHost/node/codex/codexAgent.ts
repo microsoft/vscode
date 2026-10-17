@@ -6820,8 +6820,9 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			try {
+				const storedSizes = await database.object.getTerminalOutputSizes(commands.map(({ toolCall }) => toolCall.toolCallId));
 				for (const { toolCall, output, exitCode } of commands) {
-					if (await database.object.getTerminalOutputSize(toolCall.toolCallId) !== undefined) {
+					if (storedSizes.has(toolCall.toolCallId)) {
 						let previewOutput = output;
 						if (!shouldRetainCodexCommandOutput(output)) {
 							const storedOutput = await database.object.readTerminalOutput(toolCall.toolCallId);

@@ -592,6 +592,24 @@ suite('SessionDatabase', () => {
 			});
 		});
 
+		test('looks up output sizes for more tool calls than SQLite can bind as parameters', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			await db.storeTerminalOutput('turn-1', 'tool-1', new Uint8Array([1, 2, 3]));
+			await db.storeTerminalOutput('turn-1', 'tool-2', new Uint8Array([4]));
+			const missing = Array.from({ length: 40_000 }, (_, index) => `missing-${index}`);
+
+			assert.deepStrictEqual({
+				sizes: await db.getTerminalOutputSizes(['tool-1', ...missing, 'tool-2', 'tool-1']),
+				none: await db.getTerminalOutputSizes([]),
+				onlyMissing: await db.getTerminalOutputSizes(missing.slice(0, 3)),
+			}, {
+				sizes: new Map([['tool-1', 3], ['tool-2', 1]]),
+				none: new Map(),
+				onlyMissing: new Map(),
+			});
+		});
+
 		test('repeated writes replace output without creating duplicate records', async () => {
 			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
 			db = database;

@@ -77,7 +77,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { BackgroundWorkKind, ConfirmationOptionKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ModelSelection, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -332,6 +332,14 @@ function getAgentMergeRestrictedMcpServerNames(plan: CopilotSessionLaunchPlan): 
 }
 
 type IMappedSessionEvents = { turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> };
+
+/** A restored non-PTY shell call whose full output may be stored in the session database. */
+interface IStoredShellOutputCandidate {
+	readonly toolCall: ToolCallCompletedState;
+	readonly terminal: ToolResultTerminalContent | undefined;
+	/** The chat that owns the tool call, used to address its terminal resource. */
+	readonly chat: URI;
+}
 
 interface ICopilotResponsePartState {
 	readonly markdownPartIds: Map<string, string>;
@@ -5695,13 +5703,34 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents, db: ISessionDatabase): Promise<void> {
-		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri, db);
+		const candidates: IStoredShellOutputCandidate[] = [];
+		this._collectStoredShellOutputCandidates(mapped.turns, this._chatChannelUri, candidates);
 		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
-			await this._restoreStoredShellOutputsForChat(turns, URI.parse(this._subagentChatUri(parentToolCallId)), db);
+			this._collectStoredShellOutputCandidates(turns, URI.parse(this._subagentChatUri(parentToolCallId)), candidates);
+		}
+		if (candidates.length === 0) {
+			return;
+		}
+		// Look up every candidate at once; long sessions have thousands of shell calls.
+		const storedSizes = await db.getTerminalOutputSizes(candidates.map(({ toolCall }) => toolCall.toolCallId));
+		for (const { toolCall, terminal, chat } of candidates) {
+			if (!storedSizes.has(toolCall.toolCallId)) {
+				continue;
+			}
+			const text = toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
+			const terminalContent: ToolResultTerminalContent = {
+				type: ToolResultContentType.Terminal,
+				title: toolCall.displayName,
+				isPty: false,
+				result: parseSpilledShellCompletion(text) ?? { truncated: true, preview: '' },
+				...terminal,
+				resource: buildNonPtyShellTerminalUri(this._storageUri, this._ownerSessionUri, chat, toolCall.toolCallId),
+			};
+			toolCall.content = [...(toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
 		}
 	}
 
-	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI, db: ISessionDatabase): Promise<void> {
+	private _collectStoredShellOutputCandidates(turns: readonly Turn[], chat: URI, candidates: IStoredShellOutputCandidate[]): void {
 		for (const turn of turns) {
 			for (const part of turn.responseParts) {
 				if (part.kind !== ResponsePartKind.ToolCall
@@ -5713,19 +5742,7 @@ export class CopilotAgentSession extends Disposable {
 				if (terminal && terminal.isPty !== false) {
 					continue;
 				}
-				if (await db.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
-					continue;
-				}
-				const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
-				const terminalContent: ToolResultTerminalContent = {
-					type: ToolResultContentType.Terminal,
-					title: part.toolCall.displayName,
-					isPty: false,
-					result: parseSpilledShellCompletion(text) ?? { truncated: true, preview: '' },
-					...terminal,
-					resource: buildNonPtyShellTerminalUri(this._storageUri, this._ownerSessionUri, chat, part.toolCall.toolCallId),
-				};
-				part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
+				candidates.push({ toolCall: part.toolCall, terminal, chat });
 			}
 		}
 	}

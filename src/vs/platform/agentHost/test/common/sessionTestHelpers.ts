@@ -125,6 +125,17 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return this._terminalOutputs.get(toolCallId)?.content.byteLength;
 	}
 
+	async getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>> {
+		const result = new Map<string, number>();
+		for (const toolCallId of toolCallIds) {
+			const output = this._terminalOutputs.get(toolCallId);
+			if (output) {
+				result.set(toolCallId, output.content.byteLength);
+			}
+		}
+		return result;
+	}
+
 	async readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined> {
 		const content = this._terminalOutputs.get(toolCallId)?.content;
 		if (content && content.byteLength > MAX_TERMINAL_OUTPUT_BYTES) {
