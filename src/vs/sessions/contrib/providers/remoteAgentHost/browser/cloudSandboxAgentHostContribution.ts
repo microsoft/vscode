@@ -137,7 +137,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		const provider = store.add(this._instantiateProvider({
 			address: cloudSandboxAddress(env.environmentId),
 			name: env.name,
-			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
+			connectOnDemand: async () => { await this._connectEnvironment(env.environmentId); },
 			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
 			deleteSessionsOnDemand: {
 				ownsSession: session => isEqual(session, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, AgentSession.id(session))) && this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), AgentSession.id(session)),
