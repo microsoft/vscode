@@ -125,7 +125,10 @@ export class InProcHttpServer extends Disposable {
 			app.get('/mcp', (req: express.Request, res: express.Response) => this._handleGetDelete(req, res));
 			app.delete('/mcp', (req: express.Request, res: express.Response) => this._handleGetDelete(req, res));
 
-			const httpServer = app.listen(socketPath);
+			const httpServer = await new Promise<ReturnType<typeof app.listen>>((resolve, reject) => {
+				const server = app.listen(socketPath, () => resolve(server));
+				server.on('error', reject);
+			});
 			this._logger.debug('HTTP server listening on socket');
 
 			// Register push notifications if provided
