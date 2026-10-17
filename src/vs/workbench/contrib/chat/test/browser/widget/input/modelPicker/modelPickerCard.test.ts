@@ -190,15 +190,15 @@ suite('ModelCard', () => {
 
 	suite('Fusion tier promotions', () => {
 		const day = 24 * 60 * 60 * 1000;
-		function createFusionModel(promotions: ILanguageModelChatMetadata['autoModelTierPromotions']): ILanguageModelChatMetadataAndIdentifier {
+		/** As the agent host presents it: while the service promotes Fusion's tiers, Fusion has no discount of its own. */
+		function createFusionModel(promotions: NonNullable<ILanguageModelChatMetadata['autoModelTierPromotions']>, detail?: string): ILanguageModelChatMetadataAndIdentifier {
 			return {
 				...createModel({
 					id: 'auto',
 					name: 'Fusion',
-					detail: '10% discount',
-					autoModelDiscountPercent: 10,
+					...(promotions.length ? { detail } : { detail: '10% discount', autoModelDiscountPercent: 10 }),
 					autoModelFusion: { balanceUsesHydraFusion: true },
-					autoModelTierPromotions: promotions,
+					...(promotions.length && { autoModelTierPromotions: promotions }),
 					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
 					configurationSchema: {
 						properties: {
@@ -220,36 +220,43 @@ suite('ModelCard', () => {
 			...(startsAt && { startsAt }), ...(endsAt && { endsAt }),
 		});
 		const read = (card: ModelCard) => ({
+			chip: card.element.querySelector('.chat-model-card-badge')?.textContent,
 			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
 			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
 		});
 
-		test('a running promotion replaces Fusion\'s discount on the tiers it covers, and shows its message', () => {
+		test('a running promotion sets the discount of the tiers it covers, other tiers show none, and so does the chip', () => {
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
 			const covered = read(card);
 			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
 			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
-				covered: { discount: 'Models routed via Fusion High receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
-				uncovered: { discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'] },
+				covered: { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'] },
 			});
+		});
+
+		test('the chip shows a running promotion that covers every tier', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: 'Models routed via Fusion Standard receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] });
 		});
 
 		test('a promotion without a message changes the discount without showing a banner', () => {
 			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
 			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
-			assert.deepStrictEqual(read(card), { discount: 'Models routed via Fusion High receive a 30% discount.', promotions: [] });
+			assert.deepStrictEqual(read(card), { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: [] });
 		});
 
-		test('an upcoming promotion is announced with its start date without changing the discount, and an ended one is hidden', () => {
+		test('an upcoming promotion is announced with its start date and no discount, and once it ends Fusion\'s own discount returns', () => {
 			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
 			const startsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-2 * day), iso(-day))]) }).card;
+			// The agent host drops ended promotions.
+			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([]) }).card;
 			assert.deepStrictEqual({
 				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
 				ended: read(ended),
 			}, {
-				upcoming: { discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
-				ended: { discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: [] },
+				upcoming: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
+				ended: { chip: '10% discount', discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: [] },
 			});
 		});
 

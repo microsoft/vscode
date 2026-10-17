@@ -154,7 +154,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const publishedPromotions = tierPromotions
 					.filter(({ endsAt }) => !endsAt || now < Date.parse(endsAt))
 					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt, upcoming: !!startsAt && now < Date.parse(startsAt) }));
-				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? (hasDiscount ? discountPercent : undefined));
+				// While the service promotes Auto's tiers, its promotions alone decide the discount: Auto's own would contradict them.
+				const modelDiscount = hasDiscount && !publishedPromotions.length ? discountPercent : undefined;
+				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
@@ -178,7 +180,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
-						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
+						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
 						...(fusion && { autoModelFusion: fusion }),
 						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
 						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),

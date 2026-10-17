@@ -297,7 +297,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
-	test('passes the service\'s tier promotions to Fusion, whose detail shows a running promotion that covers all its tiers', async () => {
+	test('passes the service\'s tier promotions to Fusion, which then shows no discount of its own', async () => {
 		const day = 24 * 60 * 60 * 1000;
 		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
 		const configSchema: SessionModelInfo['configSchema'] = {
@@ -321,10 +321,10 @@ suite('AgentHostLanguageModelProvider', () => {
 			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
 			notFusion: await presented(false, [running]),
 		}, {
-			running: { detail: '30% discount', discount: 10, promotions: ['launch'] },
-			upcoming: { detail: '10% discount', discount: 10, promotions: ['launch (upcoming)'] },
+			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
+			upcoming: { detail: undefined, discount: undefined, promotions: ['launch (upcoming)'] },
 			ended: { detail: '10% discount', discount: 10, promotions: undefined },
-			oneTier: { detail: '10% discount', discount: 10, promotions: ['launch'] },
+			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});
