@@ -8072,8 +8072,8 @@ suite('CopilotAgent', () => {
 				await disposeProvisionedSession(agent, result.session);
 				await assert.rejects(() => fs.access(scratchDir.fsPath));
 			} finally {
-				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true, maxRetries: 5 });
 			}
 		}).timeout(30_000);
 
