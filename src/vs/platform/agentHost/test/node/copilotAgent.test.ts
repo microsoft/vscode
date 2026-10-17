@@ -7868,6 +7868,33 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not schedule a model refresh retry when the agent is torn down while a refresh failure is handled', async () => {
+		const client = new TestCopilotClient([], [{
+			id: 'gpt-4o',
+			name: 'GPT-4o',
+		}]);
+		client.modelListErrors.push(new Error('429 "too many requests"'));
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		// Handling a failure can take a while, e.g. while a closed connection is recovered.
+		const failureHandlingStarted = new DeferredPromise<void>();
+		const finishFailureHandling = new DeferredPromise<void>();
+		(agent as unknown as { _handleClientOperationFailure(): Promise<undefined> })._handleClientOperationFailure = async () => {
+			failureHandlingStarted.complete();
+			await finishFailureHandling.p;
+			return undefined;
+		};
+		const authenticated = agent.authenticate('https://api.github.com', 'token');
+		await failureHandlingStarted.p;
+
+		await disposeAgent(agent);
+		finishFailureHandling.complete();
+		await authenticated;
+		await timeout(0);
+
+		// A retry timer scheduled now would outlive the agent: the suite's leak check reports it.
+		assert.strictEqual(client.modelListRequests.length, 1);
+	});
+
 	test('does not refresh models or restart the client after shutdown', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -13980,6 +14007,44 @@ suite('CopilotAgent', () => {
 				readyWithByok: true,
 				copilotStillBlocked: true,
 				readyAfterHide: false,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('publishes HydraFusion beside BYOK models only while signed in to GitHub', async () => {
+		const byokBridgeRegistry = new ByokLmBridgeRegistry();
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]),
+			byokBridgeRegistry,
+			rootConfig: {
+				[AgentHostConfigKey.AllowSignedOutWhenUsable]: true,
+				[CopilotCliConfigKey.HydraFusion]: true,
+				[CopilotCliConfigKey.HydraFusionV2]: true,
+			},
+		});
+		const modelSnapshots = disposables.add(new Emitter<IByokLmModelInfo[]>());
+		disposables.add(byokBridgeRegistry.register('renderer', {
+			chat: async () => ({ output: [] }),
+			onDidChangeModels: modelSnapshots.event,
+		}));
+		const publishedModels = () => agent.models.get().map(model => model.id);
+
+		try {
+			modelSnapshots.fire([{ vendor: 'acme', id: 'model', name: 'Model' }]);
+			await waitForState(agent.models, models => models.some(model => model.id === 'acme/model'));
+			const signedOut = publishedModels();
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const signedIn = publishedModels();
+			await agent.authenticate('https://api.github.com', '');
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({ signedOut, signedIn, signedOutAgain: publishedModels() }, {
+				signedOut: ['acme/model'],
+				signedIn: ['gpt-5', 'hydrafusion', 'hydrafusion-max', 'acme/model'],
+				signedOutAgain: ['acme/model'],
 			});
 		} finally {
 			await disposeAgent(agent);

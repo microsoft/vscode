@@ -50,6 +50,33 @@ export interface ITrackedTurnDatabase extends IDisposable {
 	readonly otherChatDatabases: readonly ISessionDatabase[];
 }
 
+/** A database holding tracked edits, and the chat whose turns recorded them. */
+export interface ITrackedEditSource {
+	/** Chat whose turns recorded the edits in {@link db}. */
+	readonly chat: ProtocolURI;
+	readonly db: ISessionDatabase;
+}
+
+/**
+ * The databases holding the tracked edits of a Session Changes changeset,
+ * opened by {@link IAgentHostChangesetService.openTrackedSessionDatabases}.
+ * Dispose it to release the databases.
+ */
+export interface ITrackedSessionDatabases extends IDisposable {
+	/** Databases the changeset is computed from: a chat's own, or for a session its own and every peer chat's. */
+	readonly sources: readonly ITrackedEditSource[];
+	/**
+	 * Databases of the session's other chats, whose edits its Session Changes
+	 * combine with {@link sources}'. Empty for a session's changeset, whose
+	 * sources already include every chat's.
+	 */
+	readonly otherChatDatabases: readonly ISessionDatabase[];
+	/** Working directories the changeset covers. */
+	readonly workingDirectories: readonly ProtocolURI[] | undefined;
+	/** Folders the changeset is limited to, or `undefined` when it isn't limited. */
+	readonly folderScope: readonly URI[] | undefined;
+}
+
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
 
 /**
@@ -232,6 +259,16 @@ export interface IAgentHostChangesetService {
 	 * one chat, because its edits can't be attributed to one database.
 	 */
 	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined;
+
+	/**
+	 * Opens the databases holding the tracked edits that the Session Changes
+	 * changeset of `owner` is computed from, together with that changeset's
+	 * working directories and folder scope: a chat's own database, or for a
+	 * session its database and every peer chat's. For a chat, also opens the
+	 * session's other databases, whose edits the session's Session Changes
+	 * combine with the chat's.
+	 */
+	openTrackedSessionDatabases(owner: ProtocolURI): ITrackedSessionDatabases;
 
 	/**
 	 * Hook called after edits of `turnIds` on `owner` were discarded. Recomputes

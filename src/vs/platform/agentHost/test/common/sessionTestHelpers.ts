@@ -826,6 +826,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
 		openTrackedTurnDatabase: () => undefined,
+		openTrackedSessionDatabases: () => ({ sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }),
 		onFileEditsDiscarded: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },
