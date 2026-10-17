@@ -285,6 +285,60 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('preserves agent-specific frontmatter hooks without merging between agents', async () => {
+			const firstAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/first.md' });
+			const secondAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/second.md' });
+			await fileService.writeFile(firstAgentUri, VSBuffer.fromString([
+				'---',
+				'name: first',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo first',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny first',
+				'      timeout: 5',
+				'---',
+				'First agent.',
+			].join('\n')));
+			await fileService.writeFile(secondAgentUri, VSBuffer.fromString([
+				'---',
+				'name: second',
+				'hooks:',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny second',
+				'---',
+				'Second agent.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: firstAgentUri, name: 'first' },
+				{ uri: secondAgentUri, name: 'second' },
+			], fileService);
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'first',
+					tools: null,
+					hooks: {
+						SessionStart: [{ type: 'command', command: 'echo first' }],
+						PreToolUse: [{ type: 'command', command: 'deny first', timeout: 5 }],
+					},
+					prompt: 'First agent.',
+				},
+				{
+					name: 'second',
+					tools: null,
+					hooks: {
+						PreToolUse: [{ type: 'command', command: 'deny second' }],
+					},
+					prompt: 'Second agent.',
+				},
+			]);
+		});
+
 		test('parses supported reasoning-effort values from frontmatter', async () => {
 			const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 			const agents: INamedPluginResource[] = [];
@@ -485,15 +539,40 @@ suite('copilotPluginConverters', () => {
 
 		test('forces the selected file-dir plugin agent into customAgents', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/inbox.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString('Inbox agent'));
+			const otherAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/other.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: Inbox',
+				'hooks:',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny plugin shell',
+				'---',
+				'Inbox agent',
+			].join('\n')));
+			await fileService.writeFile(otherAgentUri, VSBuffer.fromString([
+				'---',
+				'name: Other',
+				'hooks:',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny other shell',
+				'---',
+				'Other agent',
+			].join('\n')));
 
 			const plugins: IPluginAgentsForSdk[] = [{
 				pluginDir: URI.file('/plugins/inbox'),
-				agents: [{ uri: agentUri, name: 'Inbox' }],
+				agents: [{ uri: agentUri, name: 'Inbox' }, { uri: otherAgentUri, name: 'Other' }],
 			}];
 			const result = await toSdkSessionCustomAgents(plugins, 'Inbox', fileService);
 
-			assert.deepStrictEqual(result, [{ name: 'Inbox', tools: null, prompt: 'Inbox agent' }]);
+			assert.deepStrictEqual(result, [{
+				name: 'Inbox',
+				tools: null,
+				hooks: { PreToolUse: [{ type: 'command', command: 'deny plugin shell' }] },
+				prompt: 'Inbox agent',
+			}]);
 		});
 
 		test('does not duplicate the selected agent when already present', async () => {
