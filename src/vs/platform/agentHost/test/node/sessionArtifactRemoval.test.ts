@@ -9,14 +9,14 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS } from '../../common/agentHostGitStateService.js';
 import { SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
+import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -24,7 +24,7 @@ import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from 
 import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
 import { SESSION_ARTIFACTS_KEY } from '../../node/shared/persistSessionMetadata.js';
 import type { AgentService } from '../../node/agentService.js';
-import type { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, type IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createTestAgentService, getTestAgentStateManager, getTestSessionStateStore, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -49,10 +49,14 @@ suite('Session Artifact Removal', () => {
 		...(artifact.isGitHub !== undefined ? { isGitHub: artifact.isGitHub } : {}),
 	}));
 
-	async function createFixture(database: ISessionDatabase, logService = new NullLogService()) {
-		const sessionDataService = createSessionDataService(database);
+	function createService(database: ISessionDatabase, logService: ILogService, orchestratorDatabase?: IAgentHostDatabase): AgentService {
 		const fileService = store.add(new FileService(logService));
-		const service = store.add(createTestAgentService(logService, fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		return store.add(createTestAgentService(logService, fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+	}
+
+	async function createFixture(database: ISessionDatabase, logService: ILogService = new NullLogService(), orchestratorDatabase?: IAgentHostDatabase) {
+		const service = createService(database, logService, orchestratorDatabase);
 		const agent = store.add(new MockAgent('copilot'));
 		registerTestAgentProvider(service, agent);
 		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
@@ -89,7 +93,14 @@ suite('Session Artifact Removal', () => {
 			assert.ok(decoded.ok);
 			return readSessionArtifacts(decoded.value.data._meta);
 		};
-		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts, readPersisted };
+		/** The artifacts as published, in central state, in session.db and in the session catalog. */
+		const readStates = async () => ({
+			published: stateManager.getSessionState(session.toString())?._meta,
+			central: sessionStateStore.peek(session)?.values.get(SESSION_ARTIFACTS_KEY),
+			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
+			catalog: await readCentralArtifacts(),
+		});
+		return { service, agent, session, stateManager, meta, artifactAccessor: internals._createArtifactServerToolAccessor(), readCentralArtifacts, readPersisted, readStates };
 	}
 
 	/** Seeds through the session state store, the owner of the key once the session is open. */
@@ -338,48 +349,219 @@ suite('Session Artifact Removal', () => {
 		});
 	});
 
-	test('logs and propagates persistence failures without hiding the artifact and allows a durable retry', async () => {
-		class FailingDatabase extends TestSessionDatabase {
-			failArtifactWrites = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
-				if (this.failArtifactWrites && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+	class FailingDatabase extends TestSessionDatabase {
+		failArtifactWrites = false;
+		/** Runs before the next artifact write, e.g. to interleave other work while it is in flight. */
+		beforeNextArtifactWrite: (() => Promise<void>) | undefined;
+		failNextAcknowledgement = false;
+		override async acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean> {
+			if (this.failNextAcknowledgement) {
+				this.failNextAcknowledgement = false;
+				throw new Error('acknowledgement failed');
+			}
+			return super.acknowledgeCatalogSyncSnapshot(acknowledgement);
+		}
+		override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+			if (values[SESSION_ARTIFACTS_KEY] !== undefined) {
+				const before = this.beforeNextArtifactWrite;
+				this.beforeNextArtifactWrite = undefined;
+				await before?.();
+				if (this.failArtifactWrites) {
 					throw new Error('artifact write failed');
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
+			return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 		}
+	}
+
+	function createErrorLog() {
 		const errors: string[] = [];
 		class TestLogService extends NullLogService {
 			override error(message: string): void { errors.push(message); }
 		}
+		return { errors, logService: new TestLogService() };
+	}
+
+	test('logs and propagates persistence failures without hiding the artifact and allows a durable retry', async () => {
+		const { errors, logService } = createErrorLog();
 		const database = new FailingDatabase();
-		const fixture = await createFixture(database, new TestLogService());
-		const { service, session, stateManager, meta, readPersisted } = fixture;
+		const { service, session, meta, readStates } = await createFixture(database, logService);
+		const before = await readStates();
 		database.failArtifactWrites = true;
 
 		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
-		const afterFailure = {
-			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
-		};
+		const afterFailure = await readStates();
 		database.failArtifactWrites = false;
 		await service.removeSessionArtifact(session, 'pr');
 		await service.removeSessionArtifact(session, 'pr');
 
 		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		assert.deepStrictEqual({ errors, afterFailure, afterRetry: await readStates() }, {
+			errors: ['[AgentService] Failed to persist session artifacts'],
+			// The failed removal is rolled back: central state, session.db and the catalog still match what is published.
+			afterFailure: before,
+			afterRetry: {
+				published: withSessionArtifacts(meta, remaining),
+				central: stringifySessionArtifacts(remaining),
+				persisted: stringifySessionArtifacts(remaining),
+				catalog: remaining,
+			},
+		});
+	});
+
+	test('a failed removal stays consistent when a background write lands while it is persisting', async () => {
+		const { errors, logService } = createErrorLog();
+		const database = new FailingDatabase();
+		const { service, session, stateManager, meta, readStates } = await createFixture(database, logService);
+		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
+		database.failArtifactWrites = true;
+		// A summary change is flushed while the removal is persisting, queueing a background write behind it.
+		database.beforeNextArtifactWrite = async () => {
+			const summaryFlushed = Event.toPromise(stateManager.onDidChangeSessionSummary);
+			stateManager.setSessionMeta(session.toString(), latestMeta);
+			await summaryFlushed;
+		};
+
+		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
+		const afterFailure = await readStates();
+		database.failArtifactWrites = false;
+		await service.removeSessionArtifact(session, 'pr');
+
+		const all = withChat(artifacts, buildDefaultChatUri(session));
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
 		assert.deepStrictEqual({
 			errors,
-			afterFailure,
-			meta: stateManager.getSessionState(session.toString())?._meta,
-			persisted: await readPersisted(SESSION_ARTIFACTS_KEY),
-			centralArtifacts: await fixture.readCentralArtifacts(),
+			afterFailure: {
+				published: afterFailure.published,
+				central: JSON.parse(afterFailure.central ?? 'null'),
+				mirrorsCentral: afterFailure.persisted === afterFailure.central,
+				catalog: afterFailure.catalog,
+			},
+			afterRetry: await readStates(),
 		}, {
 			errors: ['[AgentService] Failed to persist session artifacts'],
-			// The removal reaches the session state store before the catalog sync fails; the artifact stays visible until the retry.
-			afterFailure: { meta, persisted: stringifySessionArtifacts(remaining) },
-			meta: withSessionArtifacts(meta, remaining),
-			persisted: stringifySessionArtifacts(remaining),
-			centralArtifacts: remaining,
+			afterFailure: { published: latestMeta, central: all, mirrorsCentral: true, catalog: all },
+			afterRetry: {
+				published: withSessionArtifacts(latestMeta, remaining),
+				central: stringifySessionArtifacts(remaining),
+				persisted: stringifySessionArtifacts(remaining),
+				catalog: remaining,
+			},
+		});
+	});
+
+	/** Starts a new service on the same databases, as a host does after a restart, and reads the artifacts it recovers. */
+	async function restartAndRead(database: ISessionDatabase, orchestratorDatabase: IAgentHostDatabase, agent: MockAgent, session: URI) {
+		const restarted = createService(database, new NullLogService(), orchestratorDatabase);
+		// The provider keeps its sessions across the restart.
+		registerTestAgentProvider(restarted, agent);
+		// The pass a host schedules once its startup settles.
+		await (restarted as unknown as { _catalogReconciliationService: { runPass(): Promise<unknown> } })._catalogReconciliationService.runPass();
+		await restarted.whenCatalogReconciliationIdle();
+		const listed = (await restarted.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+		await restarted.restoreSession(session);
+		const restartedStore = getTestSessionStateStore(restarted);
+		await restartedStore.whenIdle(session);
+		const row = await orchestratorDatabase.getSessionV2(session.toString());
+		const decoded = row && decodeAgentHostCatalogPayload(row.payload);
+		return {
+			listed: readSessionArtifacts(listed?._meta),
+			restored: readSessionArtifacts(getTestAgentStateManager(restarted).getSessionState(session.toString())?._meta),
+			central: JSON.parse(restartedStore.peek(session)?.values.get(SESSION_ARTIFACTS_KEY) ?? 'null'),
+			persisted: JSON.parse(await database.getMetadata(SESSION_ARTIFACTS_KEY) ?? 'null'),
+			catalog: decoded?.ok ? readSessionArtifacts(decoded.value.data._meta) : undefined,
+		};
+	}
+
+	test('a crash between the owned write and its rollback recovers to one consistent state', async () => {
+		const database = new FailingDatabase();
+		const orchestratorDatabase = store.add(new AgentHostDatabase(':memory:'));
+		const { service, agent, session } = await createFixture(database, new NullLogService(), orchestratorDatabase);
+		const crashed = new DeferredPromise<void>();
+		const writeStarted = new DeferredPromise<void>();
+		database.failArtifactWrites = true;
+		// The process dies while the removal's catalog write is in flight: its owned write is durable, no rollback runs.
+		database.beforeNextArtifactWrite = async () => {
+			await writeStarted.complete();
+			await crashed.p;
+		};
+		const removal = service.removeSessionArtifact(session, 'pr');
+		await writeStarted.p;
+
+		database.failArtifactWrites = false;
+		const recovered = await restartAndRead(database, orchestratorDatabase, agent, session);
+		crashed.error(new Error('artifact write failed'));
+		await assert.rejects(removal, /artifact write failed/);
+
+		// The owned write marked the catalog payload dirty in the same agent-host.db transaction as central state, and
+		// session.db's mirror is repaired from central state: recovery rolls the removal forward everywhere.
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		assert.deepStrictEqual(recovered, { listed: remaining, restored: remaining, central: remaining, persisted: remaining, catalog: remaining });
+	});
+
+	test('rolls back a failed removal whose owned write failed only to record its mirror', async () => {
+		class MirrorAcknowledgementFailingDatabase extends AgentHostDatabase {
+			failNextMirrorAcknowledgement = false;
+			override async markSessionStateLegacyMirrored(...args: Parameters<AgentHostDatabase['markSessionStateLegacyMirrored']>): Promise<boolean> {
+				if (this.failNextMirrorAcknowledgement) {
+					this.failNextMirrorAcknowledgement = false;
+					throw new Error('mirror acknowledgement failed');
+				}
+				return super.markSessionStateLegacyMirrored(...args);
+			}
+		}
+		const { errors, logService } = createErrorLog();
+		const database = new FailingDatabase();
+		const orchestratorDatabase = store.add(new MirrorAcknowledgementFailingDatabase(':memory:'));
+		const { service, session, meta, readStates } = await createFixture(database, logService, orchestratorDatabase);
+		const before = await readStates();
+		// The owned write commits central state and session.db, then fails to record that the mirror is current.
+		orchestratorDatabase.failNextMirrorAcknowledgement = true;
+		database.failArtifactWrites = true;
+
+		await assert.rejects(service.removeSessionArtifact(session, 'pr'), /artifact write failed/);
+		const afterFailure = await readStates();
+		database.failArtifactWrites = false;
+		await service.removeSessionArtifact(session, 'pr');
+
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		assert.deepStrictEqual({ errors, afterFailure, afterRetry: await readStates() }, {
+			errors: ['[AgentService] Failed to persist session artifacts'],
+			afterFailure: before,
+			afterRetry: {
+				published: withSessionArtifacts(meta, remaining),
+				central: stringifySessionArtifacts(remaining),
+				persisted: stringifySessionArtifacts(remaining),
+				catalog: remaining,
+			},
+		});
+	});
+
+	test('a removal whose catalog committed but whose receipt acknowledgement failed is persisted, also across a restart', async () => {
+		const { errors, logService } = createErrorLog();
+		const database = new FailingDatabase();
+		const orchestratorDatabase = store.add(new AgentHostDatabase(':memory:'));
+		const { service, agent, session, meta, readStates } = await createFixture(database, logService, orchestratorDatabase);
+		// The catalog row is upserted; only recording that in session.db's receipt fails.
+		database.failNextAcknowledgement = true;
+
+		const outcome = await service.removeSessionArtifact(session, 'pr').then(() => 'persisted', error => `failed: ${error.message}`);
+		const afterRemoval = await readStates();
+		const recovered = await restartAndRead(database, orchestratorDatabase, agent, session);
+
+		// Every state, before and after the restart, agrees with the outcome the caller saw.
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		assert.deepStrictEqual({ outcome, errors, afterRemoval, recovered, receipt: (await database.getCatalogSyncSnapshot())?.state }, {
+			outcome: 'persisted',
+			errors: [],
+			afterRemoval: {
+				published: withSessionArtifacts(meta, remaining),
+				central: stringifySessionArtifacts(remaining),
+				persisted: stringifySessionArtifacts(remaining),
+				catalog: remaining,
+			},
+			recovered: { listed: remaining, restored: remaining, central: remaining, persisted: remaining, catalog: remaining },
+			receipt: 'acknowledged',
 		});
 	});
 

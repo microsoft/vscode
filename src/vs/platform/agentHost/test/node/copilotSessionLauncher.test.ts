@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, PermissionHandler, PermissionRequest, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -40,6 +42,7 @@ import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
+import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -472,6 +475,34 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} waits for slow managed settings before applying policy and starting the SDK session`, async () => {
+			const fixture = setup(kind);
+			const rpc = fixture.plan.client.rpc.managedSettings;
+			const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
+			const gate = new DeferredPromise<typeof result>();
+			const started = new DeferredPromise<void>();
+			rpc.resolve = () => { started.complete(); return gate.p; };
+			const resolver = store.add(new CopilotManagedSettingsResolver(new NullLogService()));
+			const policies: typeof result.resolved[] = [];
+			const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			try {
+				const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
+					...testRuntime,
+					setApprovalPolicy: resolved => policies.push(resolved),
+				});
+				await started.p;
+				await clock.tickAsync(4000);
+				assert.deepStrictEqual({ captured: fixture.captured, policies }, { captured: undefined, policies: [] });
+				const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
+				gate.complete({ ...result, resolved: restricted });
+				store.add(await launch);
+				assert.deepStrictEqual({ created: !!fixture.captured, policies }, { created: true, policies: [restricted] });
+			} finally {
+				gate.complete(result);
+				clock.restore();
+			}
+		});
+
 		test(`${kind} sends sandbox environment credentials to the SDK and clears them on reset`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
@@ -1421,9 +1452,17 @@ suite('CopilotSessionLauncher shared session config', () => {
 		]);
 	});
 
-	test('passes Agent Host defaults, managed permissions, and exit-plan handler to create and resume', async () => {
+	test('passes Agent Host defaults, managed permissions, and permission callback context to create and resume', async () => {
 		const createConfigs: Parameters<CopilotClient['createSession']>[0][] = [];
 		const resumeConfigs: Parameters<CopilotClient['resumeSession']>[1][] = [];
+		const permissionCalls: Parameters<ICopilotSessionRuntime['handlePermissionRequest']>[] = [];
+		const runtime: ICopilotSessionRuntime = {
+			...testRuntime,
+			handlePermissionRequest: async (request, invocation) => {
+				permissionCalls.push([request, invocation]);
+				return { kind: 'approve-once' };
+			},
+		};
 		const session = {
 			sessionId: 'session-1',
 			on: () => () => { },
@@ -1532,9 +1571,20 @@ suite('CopilotSessionLauncher shared session config', () => {
 
 		const sessions = new DisposableStore();
 		try {
-			sessions.add(await launcher.launch(createPlan, testRuntime));
-			sessions.add(await launcher.launch(resumePlan, testRuntime));
-			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, testRuntime));
+			sessions.add(await launcher.launch(createPlan, runtime));
+			sessions.add(await launcher.launch(resumePlan, runtime));
+			sessions.add(await launcher.launch({ ...createPlan, isEphemeral: true }, runtime));
+
+			const request: PermissionRequest = { kind: 'read', path: '/workspace/file.ts', intention: 'Read a file', managedApprovalRequired: true };
+			const invocation: Parameters<PermissionHandler>[1] = {
+				sessionId: session.sessionId,
+				promptRequest: { ...request, managedApprovalRequired: false, assistedApproval: { recommendation: 'approve', reason: 'Explicit user request' } },
+			};
+			for (const config of [createConfigs[0], resumeConfigs[0], createConfigs[1]]) {
+				assert.ok(config?.onPermissionRequest);
+				await config.onPermissionRequest(request, invocation);
+			}
+			assert.deepStrictEqual(permissionCalls, [[request, invocation], [request, invocation], [request, invocation]]);
 
 			assert.deepStrictEqual({
 				createImage: createConfigs.map(config => {

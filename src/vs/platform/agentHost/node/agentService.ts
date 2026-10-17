@@ -109,7 +109,7 @@ import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { SessionArtifactCollection } from '../common/sessionArtifactCollection.js';
-import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, type AgentHostCatalogSyncResult, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -1883,9 +1883,10 @@ export class AgentService extends Disposable implements IAgentService {
 			reportAssociationError: error => this._logService.warn('[AgentService] Failed to reconcile a recorded pull request', error),
 			persist: async (session, artifacts) => {
 				try {
+					// Artifacts are published only once persisted: a failure must leave them as published.
 					await this._persistOrderedListVisibleSessionState(URI.parse(session), {
 						[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
-					});
+					}, undefined, { rollbackOnFailure: true });
 				} catch (error) {
 					this._logService.error('[AgentService] Failed to persist session artifacts', error);
 					throw error;
@@ -2816,7 +2817,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._catalogReconciliationService.schedule();
 	}
 
-	private async _persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[]): Promise<void> {
+	/**
+	 * Persists a mutation its caller publishes only once this resolves. With `rollbackOnFailure`, a failed
+	 * persistence undoes the owned values it already wrote, so central state and session.db keep showing what is
+	 * published; callers that published before persisting leave it off and let reconciliation roll forward.
+	 */
+	private async _persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[], options?: { readonly rollbackOnFailure?: boolean }): Promise<void> {
 		const sessionKey = session.toString();
 		const source = this._captureListVisibleCatalogSource(sessionKey);
 		if (!source) {
@@ -2840,6 +2846,7 @@ export class AgentService extends Disposable implements IAgentService {
 			source,
 			previous?.promise,
 			write,
+			options?.rollbackOnFailure ?? false,
 		);
 		await write.promise;
 	}
@@ -2850,7 +2857,8 @@ export class AgentService extends Disposable implements IAgentService {
 	 * state manager only after it was persisted, so the sources of those
 	 * trailing writes cannot reflect it yet: a successful mutation's
 	 * `unpublishedOverrides` are therefore carried into each trailing write,
-	 * below the trailing write's own, newer overrides.
+	 * below the trailing write's own, newer overrides. With `rollbackOnFailure`,
+	 * a failed mutation undoes its own owned values before the trailing writes run.
 	 */
 	private async _drainOrderedCatalogStateWrite(
 		session: URI,
@@ -2860,6 +2868,7 @@ export class AgentService extends Disposable implements IAgentService {
 		source: IListVisibleCatalogSource,
 		previous: Promise<void> | undefined,
 		write: IBackgroundCatalogStateWrite,
+		rollbackOnFailure: boolean,
 	): Promise<void> {
 		const sessionKey = session.toString();
 		let orderedError: unknown;
@@ -2869,7 +2878,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (previous) {
 					await Promise.allSettled([previous]);
 				}
-				await this._persistListVisibleSessionStateNow(session, metadataOverrides, chatsOverride, source);
+				await this._persistListVisibleSessionStateNow(session, metadataOverrides, chatsOverride, source, rollbackOnFailure ? unpublishedOverrides : undefined);
 			} catch (error) {
 				orderedError = error;
 				orderedFailed = true;
@@ -2912,7 +2921,8 @@ export class AgentService extends Disposable implements IAgentService {
 		return summary && state ? { summary, state } : undefined;
 	}
 
-	private async _persistListVisibleSessionStateNow(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[], source?: IListVisibleCatalogSource): Promise<void> {
+	/** @param rollbackOverrides owned overrides to undo, when they are still what this write left, if the synchronization fails. */
+	private async _persistListVisibleSessionStateNow(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[], source?: IListVisibleCatalogSource, rollbackOverrides?: Readonly<Record<string, string>>): Promise<void> {
 		const sessionKey = session.toString();
 		source ??= this._captureListVisibleCatalogSource(sessionKey);
 		if (!source) {
@@ -2927,25 +2937,77 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		const ownedOverrides = Object.fromEntries(Object.entries(metadataOverrides).filter(([key]) => key !== AH_META_IS_READ_DB_KEY && getSessionStateValueKey(key)));
-		const ownedWrite = Object.keys(ownedOverrides).length > 0
-			? persistSessionMetadataValues(this._sessionStateStore, sessionKey, ownedOverrides).catch(error => this._logService.warn(`[AgentService] Failed to persist owned list-visible state for ${sessionKey}`, error))
-			: Promise.resolve();
-		// The request is built from this session's catalog alone.
-		await this._peerChatStore.whenSessionsIdle([session]);
-		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
+		const rollbackKeys = rollbackOverrides ? Object.keys(ownedOverrides).filter(key => rollbackOverrides[key] === ownedOverrides[key]) : [];
+		// Filled before the owned write commits, so a failure after the commit (recording the mirror) still rolls it back.
+		const previousOwned = new Map<string, string | undefined>();
+		const ownedWrite = Object.keys(ownedOverrides).length === 0
+			? Promise.resolve()
+			: (rollbackKeys.length > 0
+				? this._swapOwnedSessionValues(session, ownedOverrides, rollbackKeys, previousOwned)
+				: persistSessionMetadataValues(this._sessionStateStore, sessionKey, ownedOverrides)
+			).catch(error => this._logService.warn(`[AgentService] Failed to persist owned list-visible state for ${sessionKey}`, error));
+		let attempted: Readonly<Record<string, string>> | undefined;
+		let result: AgentHostCatalogSyncResult;
+		try {
+			// The request is built from this session's catalog alone.
+			await this._peerChatStore.whenSessionsIdle([session]);
+			result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
+				await ownedWrite;
+				const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+				const normalized = snapshot?.authorityVersion === 2 ? snapshot : undefined;
+				if (normalized && !normalized.header) {
+					throw new Error(`Missing normalized catalog header for ${sessionKey}`);
+				}
+				const request = await this._buildListVisibleCatalogSyncRequest(session, metadataOverrides, chatsOverride, database, normalized, {}, { summary, state });
+				attempted = request.legacyMetadata;
+				return request;
+			});
+		} catch (error) {
+			// A synchronization that committed the catalog but could not acknowledge its receipt reports pending instead of throwing.
 			await ownedWrite;
-			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
-			const normalized = snapshot?.authorityVersion === 2 ? snapshot : undefined;
-			if (normalized && !normalized.header) {
-				throw new Error(`Missing normalized catalog header for ${sessionKey}`);
+			if (previousOwned.size > 0) {
+				await this._rollBackOwnedSessionValues(session, ownedOverrides, attempted, previousOwned)
+					.catch(rollbackError => this._logService.error(`[AgentService] Failed to roll back owned list-visible state for ${sessionKey}`, rollbackError));
 			}
-			return this._buildListVisibleCatalogSyncRequest(session, metadataOverrides, chatsOverride, database, normalized, {}, { summary, state });
-		});
+			throw error;
+		}
 		if (result.status === 'pending') {
 			this._logService.warn(`[AgentService] Catalog synchronization for ${sessionKey} remains pending: ${result.reason}`);
 			await this._markCatalogPayloadDirty(sessionKey);
 			this._catalogReconciliationService.schedule();
 		}
+	}
+
+	/**
+	 * Writes owned session values (mirrored to session.db before returning) after recording into `previous` what
+	 * `rollbackKeys` held, read in the same exclusive section before the write commits. The central write marks the
+	 * catalog payload dirty in the same agent-host.db transaction, so a crash before any rollback recovers to these
+	 * values everywhere.
+	 */
+	private async _swapOwnedSessionValues(session: URI, values: Readonly<Record<string, string>>, rollbackKeys: readonly string[], previous: Map<string, string | undefined>): Promise<void> {
+		await this._sessionStateStore.runExclusive(session, async exclusive => {
+			for (const key of rollbackKeys) {
+				previous.set(key, exclusive.snapshot.values.get(key));
+			}
+			await exclusive.write(sessionStatePatch({ values }), SessionStateMirrorFlush.Immediate);
+		});
+	}
+
+	/**
+	 * Restores `previous` for each key that still holds what the failed write left: its own value or the value its
+	 * synchronization adopted (`attempted`). A newer write stands. Mirrored to session.db before returning.
+	 */
+	private _rollBackOwnedSessionValues(session: URI, written: Readonly<Record<string, string>>, attempted: Readonly<Record<string, string>> | undefined, previous: ReadonlyMap<string, string | undefined>): Promise<void> {
+		return this._sessionStateStore.runExclusive(session, async exclusive => {
+			const values: Record<string, string | null> = {};
+			for (const [key, value] of previous) {
+				const current = exclusive.snapshot.values.get(key);
+				if (current !== value && (current === written[key] || current === attempted?.[key])) {
+					values[key] = value ?? null;
+				}
+			}
+			await exclusive.write(sessionStatePatch({ values }), SessionStateMirrorFlush.Immediate);
+		});
 	}
 
 	private async _buildListVisibleCatalogSyncRequest(
@@ -4093,6 +4155,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._readableProviderCatalogs.add(provider.id);
 		if (readableTransition) {
 			this._queuePublishedSessionListRefresh(provider.id);
+			// The provider can vouch for its sessions now: those parked while it could not are re-projected (and converted).
+			if (this._catalogReconciliationService.wakeParkedProviderSessions(provider.id)) {
+				this._catalogReconciliationService.schedule();
+			}
 		}
 		if (report.marked) {
 			this._initialProviderMigrationsNeedingRetry.delete(provider.id);
@@ -11263,6 +11329,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._chatOwnership.trackRestore(restore);
 		try {
 			await restore;
+			// A restore is evidence its source resolves: the provider vouched for the session through its own lookup, which
+			// can succeed while the provider's whole catalog stays unreadable. A session parked meanwhile is released, so its
+			// catalog is re-projected (and converted) from its live state.
+			if (this._catalogReconciliationService.isParked(sessionStr)) {
+				this._catalogReconciliationService.wakeParkedSessions(sessionStr);
+				this._catalogReconciliationService.schedule();
+			}
 			// Copies of moved chats' attachments that waited to read the chats' messages (Block 4b).
 			this._attachmentMigration.resumeSession(sessionStr);
 			this._sessionResidency.touch(session);

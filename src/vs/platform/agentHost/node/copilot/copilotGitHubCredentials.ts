@@ -9,6 +9,7 @@ import { getExpirationTime, getRemainingTimeInSeconds } from '../../../../base/c
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isScopedCredentialUsable, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 const COPILOT_GITHUB_TOKEN_REFRESH_THRESHOLD_SECONDS = 60 * 60;
 const COPILOT_GITHUB_TOKEN_REFRESH_TIMEOUT_MS = 30_000;
@@ -62,22 +63,10 @@ export class CopilotGitHubSessionCredentials {
 	get sdkSessionOptions(): CopilotGitHubSdkSessionOptions {
 		if (this._capturedCredential) {
 			const credential = this._capturedCredential;
-			if (this._capturedCredential.expiresAt === undefined) {
-				return { gitHubToken: this._capturedCredential.token };
+			if (!isScopedCredentialUsable(credential)) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The captured Copilot credential has expired or been revoked');
 			}
-			return {
-				gitHubTokenProvider: async () => {
-					const expiresIn = getRemainingTimeInSeconds(credential?.expiresAt);
-					if (!isScopedCredentialUsable(credential) || expiresIn === undefined) {
-						return { kind: 'cancelled' };
-					}
-					return {
-						kind: 'token',
-						accessToken: credential.token,
-						expiresIn,
-					};
-				},
-			};
+			return { gitHubToken: credential.token };
 		}
 		return this._provider
 			? { gitHubTokenProvider: this._provider.tokenProvider }
