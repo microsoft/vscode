@@ -24,7 +24,8 @@ const result = child_process.spawnSync(npm, ['install'], {
 	cwd: root,
 	stdio: 'inherit',
 	shell: true,
-	env: { ...process.env, VSCODE_FORCE_INSTALL: '1' },
+	// Without `--force`, postinstall only reinstalls the outdated directories.
+	env: process.argv.includes('--force') ? { ...process.env, VSCODE_FORCE_INSTALL: '1' } : process.env,
 });
 
 process.exit(result.status ?? 1);

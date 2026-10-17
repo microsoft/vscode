@@ -121,14 +121,40 @@ export function readSavedState(): PostinstallState | undefined {
 	}
 }
 
-export function isUpToDate(): boolean {
-	const saved = readSavedState();
-	if (!saved) {
+function hasDependencies(dir: string): boolean {
+	try {
+		const packageJson = JSON.parse(fs.readFileSync(path.join(root, dir, 'package.json'), 'utf8'));
+		return ['dependencies', 'devDependencies', 'optionalDependencies'].some(key => Object.keys(packageJson[key] ?? {}).length > 0);
+	} catch {
 		return false;
 	}
+}
+
+/**
+ * Returns the directories from `dirs` (`''` being the root) whose dependencies need
+ * to be installed: those whose `package.json`, `package-lock.json` or `.npmrc` changed
+ * since the last successful install, or whose `node_modules` folder is missing.
+ * Returns all directories when there is no saved state or the Node.js version changed.
+ */
+export function getOutdatedDirs(): string[] {
+	const saved = readSavedState();
 	const current = computeState();
-	return saved.nodeVersion === current.nodeVersion
-		&& JSON.stringify(saved.fileHashes) === JSON.stringify(current.fileHashes);
+	const nvmrcKey = '.nvmrc';
+	if (!saved || saved.nodeVersion !== current.nodeVersion || saved.fileHashes[nvmrcKey] !== current.fileHashes[nvmrcKey]) {
+		return [...dirs];
+	}
+
+	return dirs.filter(dir => {
+		const base = dir === '' ? root : path.join(root, dir);
+		const inputsChanged = ['package.json', 'package-lock.json', '.npmrc']
+			.map(file => path.relative(root, path.join(base, file)))
+			.some(key => saved.fileHashes[key] !== current.fileHashes[key]);
+		return inputsChanged || (hasDependencies(dir) && !fs.existsSync(path.join(base, 'node_modules')));
+	});
+}
+
+export function isUpToDate(): boolean {
+	return getOutdatedDirs().length === 0;
 }
 
 export function readSavedContents(): Record<string, string> | undefined {

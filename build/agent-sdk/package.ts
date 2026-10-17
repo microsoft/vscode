@@ -337,7 +337,7 @@ function isCliInvocation(): boolean {
 	// `import.meta.filename` is already a real filesystem path; comparing
 	// it directly to `process.argv[1]` works on Windows (where the
 	// manual `file://${argv}` construction breaks because Node URL-encodes
-	// drive letters and spaces). Pattern matches `build/npm/installStateHash.ts:143`.
+	// drive letters and spaces). Pattern matches `build/npm/installStateHash.ts:169`.
 	return import.meta.filename === process.argv[1];
 }
 
