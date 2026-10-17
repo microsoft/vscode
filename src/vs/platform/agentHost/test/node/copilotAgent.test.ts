@@ -2333,6 +2333,21 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	// `getCopilotHomePath` prefers this over the injected `userHome`, so an
+	// ambient value sends session-state lookups outside the test sandbox.
+	let previousCopilotHome: string | undefined;
+	setup(() => {
+		previousCopilotHome = process.env['COPILOT_HOME'];
+		delete process.env['COPILOT_HOME'];
+	});
+	teardown(() => {
+		if (previousCopilotHome === undefined) {
+			delete process.env['COPILOT_HOME'];
+		} else {
+			process.env['COPILOT_HOME'] = previousCopilotHome;
+		}
+	});
+
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables);
 		try {
