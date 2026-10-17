@@ -982,14 +982,11 @@ export default defineConfig(
 					'exclude': [
 						'src/vs/base/test/browser/ui/tree/objectTree.test.ts',
 						'src/vs/base/test/common/virtualScheduling/virtualScheduling.test.ts',
-						'src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts',
-						'src/vs/editor/contrib/parameterHints/test/browser/parameterHintsModel.test.ts',
 						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostToolCallTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostTurnHangTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/platform/agentHost/test/node/codex/codexCreateChat.test.ts',
-						'src/vs/platform/agentHost/test/node/codex/codexProviderSwitchTelemetry.test.ts',
 						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
 						'src/vs/platform/configuration/test/common/policyConfiguration.test.ts',
 						'src/vs/platform/github/test/node/scheduler.test.ts',
@@ -997,7 +994,6 @@ export default defineConfig(
 						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
 						'src/vs/workbench/contrib/terminal/test/browser/terminalService.test.ts',
 						'src/vs/workbench/services/configuration/test/browser/configurationEditing.test.ts',
-						'src/vs/workbench/services/configuration/test/browser/configurationService.test.ts',
 					]
 				}
 			]
