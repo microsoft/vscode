@@ -25439,6 +25439,7 @@ suite('CopilotAgent', () => {
 			const standaloneDir = URI.file('/synced/standalone');
 			await fileService.writeFile(URI.joinPath(pluginDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'Plugin A' })));
 			await fileService.writeFile(URI.joinPath(pluginDir, 'skills', 'plugin-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: plugin-skill\ndescription: A plugin skill\n---\nDo plugin things.'));
+			await fileService.writeFile(URI.joinPath(pluginDir, 'agents', 'plugin-agent.agent.md'), VSBuffer.fromString('---\nname: plugin-agent\ndescription: A plugin agent\n---\nDelegate plugin tasks.'));
 			await fileService.writeFile(URI.joinPath(standaloneDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'VS Code Standalone Customizations' })));
 			await fileService.writeFile(URI.joinPath(standaloneDir, 'skills', 'my-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: my-skill\ndescription: A user skill\n---\nDo things.'));
 			await fileService.writeFile(URI.joinPath(standaloneDir, 'agents', 'my-agent.agent.md'), VSBuffer.fromString('---\nname: my-agent\ndescription: A user agent\n---\nBe helpful.'));
@@ -25500,7 +25501,7 @@ suite('CopilotAgent', () => {
 			}, {
 				pluginDirectories: [pluginDir.fsPath],
 				skillDirectories: [URI.joinPath(standaloneDir, 'skills', 'my-skill').fsPath],
-				customAgents: ['my-agent', ...COPILOT_BUILTIN_AGENT_NAMES],
+				customAgents: ['plugin-agent', 'my-agent', ...COPILOT_BUILTIN_AGENT_NAMES],
 				builtinAgents: buildCopilotBuiltinAgents([]),
 				mcpServers: ['my-server'],
 			});
