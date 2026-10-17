@@ -38,13 +38,13 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 	if (hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID) {
 		return localize('chat.modelPicker.fusionMax', "Max");
 	}
-	// Fusion's Balance runs as the runtime's intelligence tier.
-	const balance: AutoModeTier = 'intelligence';
+	// Fusion's High runs as the runtime's intelligence tier.
+	const high: AutoModeTier = 'intelligence';
 	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelFusion.balanceUsesHydraFusion) {
 		return undefined;
 	}
-	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(balance));
-	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(balance)] ?? getFusionAutoModeTierLabel(balance) : undefined;
+	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(high));
+	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(high)] ?? getFusionAutoModeTierLabel(high) : undefined;
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */

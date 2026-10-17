@@ -110,6 +110,8 @@ Starting two Codex chats in the same empty workspace can fail before the first p
     --grep "server tool: list_sessions.*archived"
   ```
 
+- Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
+
 ### Codex context snapshot flake
 
 Responses are correct, but session notifications intermittently differ from the snapshot. The test passes on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).

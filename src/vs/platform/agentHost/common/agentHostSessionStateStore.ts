@@ -19,6 +19,11 @@ export const enum SessionStateMirrorFlush {
 	Coalesced = 'coalesced',
 	/** Before the write's exclusive section ends. */
 	Immediate = 'immediate',
+	/**
+	 * Like {@link Immediate}, and the write fails unless older builds' copy of its own changes was written: what an
+	 * older build reads must hold before the caller relies on it. Its central change stays, and the mirror is retried.
+	 */
+	Acknowledged = 'acknowledged',
 }
 
 export type SessionStateTitleSource = 'user' | 'agent' | 'auto';
@@ -96,6 +101,46 @@ export interface ISessionStateChatMoveFolders {
 	readonly remaining: readonly (readonly string[])[];
 }
 
+/** A worktree folder the moved chats keep working in, shared since the move (Block 5), as its original owner records it (URI strings). */
+export interface ISessionStateSharedWorktree {
+	readonly worktreePath: string;
+	readonly repositoryRoot: string;
+	readonly branch: string;
+}
+
+/** A session sharing a worktree folder since a chat moved (Block 5). */
+export interface ISessionStateWorktreeCoOwner extends ISessionStateSharedWorktree {
+	readonly session: URI;
+}
+
+/** An additional worktree record as a session lists it (`agentHost.additionalWorktrees`, URI strings). */
+export interface ISessionStateAdditionalWorktree {
+	readonly handle: string;
+	readonly workingDirectory: string;
+	readonly repositoryRoot: string;
+	readonly chat?: string;
+}
+
+/** A worktree folder a session records since a move shared or transferred it (`agentHost.worktreeFolders`, URI strings). */
+export interface ISessionStateWorktreeFolder {
+	readonly workingDirectory: string;
+	readonly repositoryRoot: string;
+	readonly branch: string;
+}
+
+/**
+ * What a move changes in the worktree lists of its sessions (Block 5). The store applies the changes to each list's
+ * current value inside the move's section, so a list written meanwhile (a worktree another chat created) is kept.
+ */
+export interface ISessionStateWorktreeListChanges {
+	/** Handles that leave the source's `agentHost.additionalWorktrees`. */
+	readonly fromSource: readonly string[];
+	/** Records that join the target's `agentHost.additionalWorktrees`, replacing any of the same handle. */
+	readonly toTarget: readonly ISessionStateAdditionalWorktree[];
+	/** Folders the target records in `agentHost.worktreeFolders`, replacing any of the same folder. */
+	readonly targetFolders: readonly ISessionStateWorktreeFolder[];
+}
+
 /** A chat (with its private descendants) moving to another session, as the session state store commits it. */
 export interface ISessionStateChatMove {
 	readonly source: URI;
@@ -107,6 +152,10 @@ export interface ISessionStateChatMove {
 	readonly expectedSourceCatalogRevision: number;
 	readonly expectedTargetCatalogRevision: number;
 	readonly folders: ISessionStateChatMoveFolders;
+	/** Worktrees that become shared: the source and the target co-own each. A session that ends by the move gives its shares to the target. */
+	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
+	/** The worktree lists the move changes, in its transaction. A session that ends by the move keeps none. */
+	readonly worktreeLists: ISessionStateWorktreeListChanges;
 }
 
 export type SessionStateChatMoveResult =
@@ -127,6 +176,10 @@ export interface ISessionStateChatPromotion {
 	readonly values: Readonly<Record<string, string>>;
 	/** The source's folders, the promoted chat's (the new session's) and those of the chats staying in the source. */
 	readonly folders: Omit<ISessionStateChatMoveFolders, 'target'>;
+	/** Worktrees that become shared: the source and the new session co-own each. */
+	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
+	/** The worktree lists the promotion changes, in its transaction: the source's, and the new session's to start with. */
+	readonly worktreeLists: ISessionStateWorktreeListChanges;
 }
 
 export type SessionStateChatPromotionResult =
@@ -144,10 +197,12 @@ export interface ISessionStateChatMoveFolder {
 /**
  * The per-folder state a moved chat takes along (Block 4): for each of its folders, the git and GitHub rows,
  * and the base branch of its folder scope. A row is re-keyed when no chat staying in the source uses the folder,
- * else copied. The moved chat always has its own folders in the target, so its base branch is keyed by their scope.
+ * else copied. The moved chat always has its own folders in the target, so its base branch is keyed by their scope,
+ * unless it becomes the target's default chat (a promotion, `targetIsDefault`): a default chat's base branch is the
+ * session folder's ('').
  * A row the target already has wins; the store applies that.
  */
-export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders): readonly ISessionStateChatMoveFolder[] {
+export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders, targetIsDefault: boolean): readonly ISessionStateChatMoveFolder[] {
 	const key = (directory: string) => getWorkingDirectoryKey(directory);
 	const remainingKeys = new Set(folders.remaining.flatMap(directories => directories.map(key)));
 	const sourcePrimary = folders.source[0] === undefined ? undefined : key(folders.source[0]);
@@ -170,7 +225,7 @@ export function chatMoveFolderTransfers(folders: ISessionStateChatMoveFolders): 
 		const sourceKept = sourceScope === ''
 			? folders.remaining.length > 0
 			: folders.remaining.some(directories => directories.length > 0 && getWorkingDirectoryScopeId(directories) === sourceScope);
-		transfers.push({ kind: 'baseBranch', sourceKey: sourceScope, targetKey: getWorkingDirectoryScopeId(folders.chat), keepInSource: sourceKept });
+		transfers.push({ kind: 'baseBranch', sourceKey: sourceScope, targetKey: targetIsDefault ? '' : getWorkingDirectoryScopeId(folders.chat), keepInSource: sourceKept });
 	}
 	return transfers;
 }
@@ -408,10 +463,23 @@ export interface IAgentHostSessionStateStore {
 	 */
 	deleteChat(session: URI, chat: URI): Promise<void>;
 	/**
+	 * The sessions sharing a worktree folder since a chat moved (Block 5), each with the branch and repository the
+	 * folder can be recreated from. Read only where the folder is missing (resume repair), never on a hot path.
+	 */
+	readWorktreeCoOwners(worktreePath: string): Promise<readonly ISessionStateWorktreeCoOwner[]>;
+	/**
+	 * The live sessions whose central `agentHost.additionalWorktrees` lists the detached worktree `handle`; for the
+	 * startup repair of a handle transfer a crash interrupted.
+	 */
+	findAdditionalWorktreeOwners(handle: string): Promise<readonly URI[]>;
+	/** Whether `session` is registered and not deleted (tombstoned), by its recorded state; startup repair only. */
+	isSessionLive(session: URI): Promise<boolean>;
+	/**
 	 * Moves a chat and its private descendants to another session (Block 4). Holds both sessions, then commits the
 	 * catalog move and the chats' central state (their chat rows, pinned to the chat's folders, and the per-folder
 	 * state of {@link chatMoveFolderTransfers}) in one agent-host.db transaction, and refreshes both loaded states.
-	 * Writes nothing to either session's old-format mirrors: older builds see the move through the catalog.
+	 * Older builds see the move through the catalog. The only session values it writes are its worktree lists (Block
+	 * 5); those older builds read reach the sessions' old-format mirrors like any session value.
 	 */
 	moveChat(move: ISessionStateChatMove): Promise<SessionStateChatMoveResult>;
 
