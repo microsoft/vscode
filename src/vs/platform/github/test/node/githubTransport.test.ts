@@ -686,6 +686,22 @@ suite('GitHubTransport', () => {
 		}));
 	}
 
+	for (const header of ['45', 'Thu, 01 Jan 2026 00:00:45 GMT']) {
+		test(`Mission Control timeout retries honor Retry-After: ${header}`, () => runWithFakedTimers({ startTime: Date.UTC(2026, 0, 1) }, async () => {
+			const times: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				times.push(Date.now());
+				return times.length === 1
+					? Response.json({ error_code: 'request_timeout' }, { status: 408, headers: { 'Retry-After': header } })
+					: Response.json({ value: 1 });
+			}, undefined, undefined, undefined, { requestTimeout: 60_000 }));
+			const result = await transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal());
+			assert.deepStrictEqual({ times: times.map(time => time - times[0]), data: result.data }, { times: [0, 45_000], data: '{"value":1}' });
+		}));
+	}
+
 	for (const api of ['REST', 'GraphQL'] as const) {
 		for (const firstFailure of ['fetch', 'server', 'body'] as const) {
 			test(`${api} body failures share the retry budget with ${firstFailure} failures`, () => runWithFakedTimers({}, async () => {

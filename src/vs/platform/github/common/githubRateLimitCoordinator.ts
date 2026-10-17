@@ -84,7 +84,8 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
 		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now());
 		const metadata = parseMissionControlError(responseBody);
-		if (metadata.code === 'rate_limit_exceeded' || metadata.code === undefined && classifyGitHubHttpRateLimit(response, responseBody)) {
+		if (metadata.code === 'rate_limit_exceeded'
+			|| (metadata.code === undefined || isRetryableMissionControlError(response.status, metadata.code)) && classifyGitHubHttpRateLimit(response, responseBody)) {
 			const resource = metadata.limitedResource === 'sandbox' || metadata.limitedResource === 'token_mint' ? `agents:${metadata.limitedResource}` : 'agents';
 			this.updateCooldown(account, resource, retryAfter !== undefined && retryAfter > 0 ? retryAfter * 1000 : 5_000);
 		} else if (response.status >= 500 && retryAfter !== undefined && isRetryableMissionControlError(response.status, metadata.code)) {

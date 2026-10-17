@@ -34,6 +34,20 @@ suite('GitHub HTTP rate limits', () => {
 		});
 	}
 
+	for (const code of ['future_rate_limit', 'not_implemented', 'forbidden', undefined]) {
+		test(`Mission Control HTTP 429 fallback respects semantic overrides: ${code ?? 'missing'}`, async () => {
+			const scheduler = store.add(new FakeScheduler());
+			const transport = store.add(new GitHubTransport(async () => Response.json({
+				error_code: code,
+			}, { status: 429, headers: { 'Retry-After': '5' } }), scheduler));
+			await assert.rejects(transport.restText(account, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal()), { statusCode: 429 });
+			const delay = code === 'not_implemented' || code === 'forbidden' ? 0 : 5000;
+			assert.deepStrictEqual(['agents', 'agents:sandbox', 'agents:token_mint'].map(resource => transport.rateLimits.getRequestDelay(account, resource)), [delay, delay, delay]);
+		});
+	}
+
 	const cases: {
 		readonly name: string;
 		readonly headers?: Readonly<Record<string, string>>;

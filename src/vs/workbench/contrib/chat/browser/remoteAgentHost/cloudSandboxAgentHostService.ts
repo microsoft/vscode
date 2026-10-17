@@ -532,12 +532,12 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 				if (!(error instanceof CloudSandboxNetworkError) || token.isCancellationRequested) {
 					throw error;
 				}
-				rateLimitFailures = 0;
-				rateLimitedAt = undefined;
 				this._logService.warn(`${LOG_PREFIX} Connection request failed for environment ${options.environmentId}; retrying in ${CONNECTION_RETRY_DELAY_MS}ms: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
 				await timeout(CONNECTION_RETRY_DELAY_MS, token);
 				continue;
 			}
+			rateLimitFailures = 0;
+			rateLimitedAt = undefined;
 			if (result.kind === 'token') {
 				return await this._awaitSealedToken(options, result.token, token, telemetry);
 			}

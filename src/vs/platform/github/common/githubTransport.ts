@@ -935,7 +935,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						cancelResponseBody(response.body, this._logService);
 					}
 					this._logService?.debug(`[GitHubTransport] Retrying ${formatRequestUrl(url)} after HTTP ${response.status}`);
-					await schedulerDelay(this._scheduler, agents ? missionControlRetryDelay(code, undefined, 1) : 100 + this._scheduler.jitter(200), init.signal);
+					await schedulerDelay(this._scheduler, agents
+						? missionControlRetryDelay(code, parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now()), 1)
+						: 100 + this._scheduler.jitter(200), init.signal);
 					continue;
 				}
 				return result ?? await readResponse(response);

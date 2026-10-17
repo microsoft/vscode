@@ -561,6 +561,32 @@ suite('CloudSandboxAgentHostService', () => {
 		assert.strictEqual(fixture.requestCalls(), 4);
 	}));
 
+	test('successful waking polls do not consume the admission failure deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const failure = new CloudSandboxRequestError(429, 'rate limited', 5, { code: 'rate_limit_exceeded' });
+		const fixture = createService(store, [
+			failure,
+			{ kind: 'waking', waking: { retryAfterSeconds: 130 } },
+			failure,
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		fixture.service.dispose();
+		const elapsed = Date.now() - started;
+		assert.deepStrictEqual({ requests: fixture.requestCalls(), respectedDelays: elapsed >= 140_000 && elapsed <= 141_000 }, { requests: 4, respectedDelays: true });
+	}));
+
+	test('successful waking polls reset consecutive admission failure counts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const failure = new CloudSandboxRequestError(429, 'rate limited', 5, { code: 'rate_limit_exceeded' });
+		const responses: ScriptedConnectResult[] = Array.from({ length: 4 }, (): ScriptedConnectResult[] => [
+			failure, { kind: 'waking', waking: { retryAfterSeconds: 1 } },
+		]).flat();
+		const fixture = createService(store, [...responses, { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') }]);
+		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		fixture.service.dispose();
+		assert.strictEqual(fixture.requestCalls(), 9);
+	}));
+
 	test('rate-limited credential completion keeps the client identity and waits for a sealed token', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const started = Date.now();
 		const fixture = createService(store, [
