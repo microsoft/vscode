@@ -809,6 +809,15 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Let the owner lay out the list before calling focus, so initial focus does not scroll past section headings. */
+	readonly deferInitialFocus?: boolean;
+
+	/** Controls List range selection independently of checked items. Defaults to true. */
+	readonly multipleSelectionSupport?: boolean;
+
+	/** Exposes multiple checked options without enabling List range selection. */
+	readonly ariaMultiselectable?: boolean;
+
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
 
@@ -1114,6 +1123,7 @@ export class ActionListWidget<T> extends Disposable {
 			new SeparatorRenderer(this._hoverService),
 		], {
 			keyboardSupport: false,
+			multipleSelectionSupport: this._options?.multipleSelectionSupport ?? true,
 			typeNavigationEnabled: !this._options?.showFilter && !this._options?.onType,
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
@@ -1188,6 +1198,9 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 
 		this._list.style(defaultListStyles);
+		if (this._options?.ariaMultiselectable !== undefined) {
+			this._list.getHTMLElement().setAttribute('aria-multiselectable', String(this._options.ariaMultiselectable));
+		}
 
 		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
 		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1435,7 +1448,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._applyFilter();
 
-		if (this._list.length) {
+		if (this._list.length && !this._options?.deferInitialFocus) {
 			this._focusCheckedOrFirst();
 		}
 
