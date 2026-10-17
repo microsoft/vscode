@@ -9673,17 +9673,67 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('creates a session whose chat catalog a concurrent synchronization recorded while it was being registered', async () => {
-			const orchestratorDatabase = new AgentHostDatabase(':memory:');
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDatabase));
-			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
-			await svc.listSessions();
-			// As when the sessions_v2 migration records the session's verified source after the registration checked for one.
-			stub(orchestratorDatabase, 'registerChatCatalogV2').resolves({ status: 'conflict' });
+		test('creates a session that the provider\'s startup import records between its catalog check and its registration as when the import records it first', async () => {
+			// The provider's startup import runs in the background (no listing waited for it), and like Copilot, the provider
+			// lists the sessions in its storage, which include one still being created. The import records that session either
+			// before the session checks for a catalog, or between that check and its registration.
+			const createWhileImporting = async (importRecords: 'beforeTheCheck' | 'afterTheCheck') => {
+				const orchestratorDatabase = new AgentHostDatabase(':memory:');
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDatabase));
+				const listable = new DeferredPromise<URI>();
+				const imported = (session: URI) => waitForCondition(async () => !!(await orchestratorDatabase.getSessionV2(session.toString()))?.verified, `the import should record ${session.toString()}`);
+				class ListingAgent extends MockAgent {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
+						await listable.p;
+						return this.listExternalChats();
+					}
+				}
+				const agent = disposables.add(new ListingAgent('copilot'));
+				const createChat = agent.chats.createChat;
+				stub(agent.chats, 'createChat').callsFake(async (chat, context, options) => {
+					const result = await createChat(chat, context, options);
+					if (importRecords === 'beforeTheCheck') {
+						const session = resolveAgentChatContext(context, chat).owner.get();
+						listable.complete(session);
+						await imported(session);
+					}
+					return result;
+				});
+				const register = orchestratorDatabase.registerChatCatalogV2.bind(orchestratorDatabase);
+				const registrations: string[] = [];
+				stub(orchestratorDatabase, 'registerChatCatalogV2').callsFake(async (session, candidate) => {
+					if (importRecords === 'afterTheCheck') {
+						listable.complete(URI.parse(session));
+						await imported(URI.parse(session));
+					}
+					const result = await register(session, candidate);
+					registrations.push(result.status);
+					return result;
+				});
+				registerTestAgentProvider(svc, agent);
 
-			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
 
-			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(resource => resource.toString()), [session.toString()]);
+				const [snapshot] = await orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+				const named = (resource: URI | string) => resource.toString() === session.toString() ? 'created' : resource.toString();
+				return {
+					registrations,
+					registeredSessions: (await svc.getRegisteredSessions()).map(named),
+					listedSessions: (await svc.listSessions()).map(metadata => named(metadata.session)),
+					catalog: { authorityVersion: snapshot?.authorityVersion, chats: snapshot?.chats.map(chat => chat.chat) },
+				};
+			};
+
+			const outcome = { registeredSessions: ['created'], listedSessions: ['created'], catalog: { authorityVersion: 1, chats: [] } };
+			assert.deepStrictEqual({
+				beforeTheCheck: await createWhileImporting('beforeTheCheck'),
+				afterTheCheck: await createWhileImporting('afterTheCheck'),
+			}, {
+				// The check finds the session recorded: it registers no catalog.
+				beforeTheCheck: { registrations: [], ...outcome },
+				// The registration finds it recorded and conflicts: the same as if the check had found it.
+				afterTheCheck: { registrations: ['conflict'], ...outcome },
+			});
 		});
 
 		test('returns an already-published session when initial catalog persistence fails and schedules repair', async () => {
