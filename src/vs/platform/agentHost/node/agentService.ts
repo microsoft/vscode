@@ -3077,7 +3077,9 @@ export class AgentService extends Disposable implements IAgentService {
 			this._catalogReconciliationService.schedule();
 			return;
 		}
-		if (result.status !== 'applied' && result.status !== 'replayed' && result.status !== 'alreadyNormalized') {
+		// A conflict is a verified source or a catalog recorded since the check above, by a concurrent synchronization
+		// (such as the sessions_v2 migration picking up the session being created): as if the check had found it.
+		if (result.status !== 'applied' && result.status !== 'replayed' && result.status !== 'alreadyNormalized' && result.status !== 'conflict') {
 			throw new Error(`Failed to register normalized chat catalog for ${session.toString()}: ${result.status}`);
 		}
 		await this._sessionStateStore.noteCatalogNormalized(session);

@@ -9675,6 +9675,19 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('creates a session whose chat catalog a concurrent synchronization recorded while it was being registered', async () => {
+			const orchestratorDatabase = new AgentHostDatabase(':memory:');
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestratorDatabase));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('copilot')));
+			await svc.listSessions();
+			// As when the sessions_v2 migration records the session's verified source after the registration checked for one.
+			stub(orchestratorDatabase, 'registerChatCatalogV2').resolves({ status: 'conflict' });
+
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+
+			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(resource => resource.toString()), [session.toString()]);
+		});
+
 		test('returns an already-published session when initial catalog persistence fails and schedules repair', async () => {
 			class FailingInitialCatalogDatabase extends TestSessionDatabase {
 				failCatalogWrite = true;
@@ -11630,6 +11643,7 @@ suite('AgentService (node dispatcher)', () => {
 			const createdIn = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.joinPath(usedBySession.worktree, 'src')] });
 			// A chat of another session working in the second worktree, as a cross-session fork leaves it.
 			const forkSession = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file(join(root, 'elsewhere')), usedByFork.worktree] });
+			const forkChatListed = Event.toPromise(Event.filter(getStateManager(svc).onDidChangeSessionSummary, event => event.session === forkSession.toString() && event.changes.chats !== undefined));
 			await svc.createChat(forkSession, URI.parse(buildChatUri(forkSession, 'fork')), { workingDirectories: [usedByFork.worktree] });
 			await svc.listSessions();
 			for (const used of [usedBySession, usedByFork]) {
@@ -11647,6 +11661,11 @@ suite('AgentService (node dispatcher)', () => {
 			const pending = (await waitForPendingWorktreeRemovals(svc, 3)).map(removal => removal.mode).sort();
 			const gitCallsOnArchiveAndDelete = [...gitCalls];
 
+			// Persisting what the steps above changed opens session databases too, in the background: the fork's new chat, once
+			// its debounced summary change is announced. That is done before the clean-up pass is measured.
+			await forkChatListed;
+			await svc.whenCatalogReconciliationIdle();
+			await getTestSessionStateStore(svc).whenIdle(undefined);
 			perSession.databaseOpens.length = 0;
 			const cleanup = getTestWorktreeCleanupService(svc);
 			await cleanup.runPass();
@@ -32910,6 +32929,8 @@ suite('AgentService (node dispatcher)', () => {
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 				}
 				const folder = URI.file('/repo');
+				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a move must convert first.
+				await service.listSessions();
 				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder] });
 				const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [targetFolder ?? folder] });
 				const peer = URI.parse(buildChatUri(source, 'mover'));
@@ -34400,8 +34421,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('a promoted session restores from its default chat\'s own backing', async () => {
-				const db = new TestSessionDatabase();
-				const sessionDataService = createSessionDataService(db);
+				// Each session has its own database, as in production: sharing one, the source's and the new session's catalog
+				// synchronizations would overwrite each other's receipt.
+				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -34411,6 +34433,8 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
+				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
+				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);
@@ -34423,6 +34447,8 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = new MovingAgent('copilot');
 				const restarted = createService(agent);
 				await restarted.listSessions();
+				// Where moved chats came from loads in the background of the listing.
+				await getStateManager(restarted).whenMovedChatOriginsSettled();
 				const origin = getStateManager(restarted).getMovedChatOrigin(peer.toString());
 				await restarted.restoreSession(target);
 
@@ -34446,7 +34472,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps its chat\'s title and title source across a restart, in its state and in the list, not its first prompt (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				const sessionDataService = createSessionDataService(new TestSessionDatabase());
+				// Each session has its own database, as in production: sharing one, the source's and the new session's catalog
+				// synchronizations would overwrite each other's receipt, failing the write that persists the new session's title.
+				const sessionDataService = createPerSessionDataService().service;
 				// The agent describes the chat by its first prompt, as Copilot does.
 				class FirstPromptAgent extends MovingAgent {
 					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
@@ -34462,6 +34490,8 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService();
+				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
+				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer, { title: 'Promo' });
@@ -34506,10 +34536,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			test('a promoted session keeps a user rename of its chat that is not persisted yet as a user title (B4-1)', async () => {
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
-				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				// Each session has its own database, as in production (see the test above).
+				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
 				registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot')));
 				getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
+				await service.listSessions();
 				const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'renamed'));
 				await service.createChat(source, peer, { title: 'Promo' });
@@ -35213,8 +35246,9 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			test('after a restart, a promoted session finds its default chat in the chat\'s own storage, also cold', async () => {
-				const db = new TestSessionDatabase();
-				const sessionDataService = createSessionDataService(db);
+				// Each session has its own database, as in production: sharing one, the source's and the new session's catalog
+				// synchronizations would overwrite each other's receipt.
+				const sessionDataService = createPerSessionDataService().service;
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				const createService = (agent: MovingAgent) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -35224,6 +35258,8 @@ suite('AgentService (node dispatcher)', () => {
 					return service;
 				};
 				const first = createService(new MovingAgent('copilot'));
+				// Sessions are created once the provider's initial import ran, as after a client's first listing: a session it picks up while being created keeps a legacy chat catalog, which a promotion must convert first.
+				await first.listSessions();
 				const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 				const peer = URI.parse(buildChatUri(source, 'promoted'));
 				await first.createChat(source, peer);
