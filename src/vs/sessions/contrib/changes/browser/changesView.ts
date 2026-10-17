@@ -685,6 +685,7 @@ export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
 
 interface IChangesPickerLabel {
 	readonly label: string;
+	readonly tooltip?: string;
 	readonly isNonDefault: boolean;
 }
 
@@ -698,7 +699,11 @@ function createChangesPickerLabelObservable(owner: object, changesViewService: I
 			return undefined;
 		}
 		const defaultChangeset = findDefaultChangeset(changesViewService.activeSessionChangesetsObs.read(reader) ?? [], reader);
-		return { label: changeset.label, isNonDefault: changeset.id !== defaultChangeset?.id };
+		return {
+			label: changeset.label,
+			tooltip: changeset.id === BRANCH_CHANGES_CHANGESET_ID ? changeset.description : undefined,
+			isNonDefault: changeset.id !== defaultChangeset?.id,
+		};
 	});
 }
 
@@ -2339,21 +2344,25 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 	}
 
 	protected override getTooltip(): string {
-		const label = this._labelObs.get()?.label;
-		const title = super.getTooltip() || this.action.label;
-		if (!label) {
-			return title;
+		const label = this._labelObs.get();
+		const tooltip = label?.tooltip || label?.label;
+		if (!tooltip) {
+			return super.getTooltip() || this.action.label;
 		}
 
 		const summary = this._summaryObs?.get();
 		return summary
-			? localize('changesView.picker.tooltipWithSummary', "{0}: {1}, {2}", title, label, getChangesSummaryLabel(summary))
-			: localize('changesView.picker.tooltip', "{0}: {1}", title, label);
+			? localize('changesView.picker.tooltipWithSummary', "{0}, {1}", tooltip, getChangesSummaryLabel(summary))
+			: tooltip;
 	}
 
 	protected override setAriaLabelAttributes(element: HTMLElement): void {
 		super.setAriaLabelAttributes(element);
-		element.ariaLabel = this.getTooltip();
+		const label = this._labelObs.get();
+		const tooltip = this.getTooltip();
+		element.ariaLabel = label?.tooltip
+			? localize('changesView.picker.ariaLabelWithDescription', "{0}: {1}", label.label, tooltip)
+			: tooltip;
 	}
 
 	private _getChangesetCategory(changeset: ISessionChangeset): string {

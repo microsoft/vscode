@@ -143,6 +143,7 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_STRICT_MARKETPLACES_KEY]: { type: 'string' },
 	[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
@@ -203,6 +204,9 @@ export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
 
 /** Managed-settings key for the enterprise OTLP collector endpoint. */
 export const COPILOT_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
+
+/** Managed-settings key for the enterprise OTel file export destination. */
+export const COPILOT_OTEL_FILE_PATH_KEY = 'telemetry.filePath';
 
 /** Managed-settings key for the enterprise OTLP protocol (`http/json`, `http/protobuf`, or `grpc`). */
 export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';

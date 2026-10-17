@@ -93,11 +93,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Policy-disabled plugins are synchronized as a global customization decision, not an immutable
 	// policy floor: more specific session/workspace decisions can override it.
 	ChatEnabledPlugins: { status: 'partial' },
-	// Shared marketplace discovery and installation honor these settings. VS Code-only values do
+	// Shared marketplace discovery and installation honor this setting. VS Code-only values do
 	// not reach runtime-owned marketplace operations, whose enforcement needs separate verification.
-	// Extra marketplaces are additive; strict marketplaces do not disable already-installed plugins.
+	// Extra marketplaces are additive.
 	ChatExtraMarketplaces: { status: 'partial' },
-	ChatStrictMarketplaces: { status: 'partial' },
 	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
 	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
 	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
@@ -138,10 +137,11 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	Codex3PIntegration: { status: 'notApplicable' },
 	// Directly controls Copilot's custom-shell creation.
 	ChatAgentHostCustomTerminalTool: { status: 'enforced' },
-	// Explicit false clears destinations initially, but separately configured destinations or the
-	// DB recorder can re-enable host telemetry in resolveAgentHostOTelConfig.
-	CopilotOtelEnabled: { status: 'partial' },
-	// Forwarded exporter type can be overridden by inherited OTLP protocol in the host consumer.
+	// For the local Copilot Agent Host, explicit false clears destinations and DB activation.
+	// This does not certify remote hosts or independently fetched runtime policy.
+	CopilotOtelEnabled: { status: 'enforced' },
+	// Managed file type plus outfile composition is enforced. Active collector configurations and
+	// file type without a managed outfile remain partial because inherited OTLP protocol can win.
 	CopilotOtelProtocol: { status: 'partial' },
 	// Policy-priority forwarding and host consumption; remote hosts do not receive them.
 	CopilotOtelEndpoint: { status: 'enforced' },
@@ -177,6 +177,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ExtensionGalleryServiceUrl: { status: 'enforced' },
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
+	// Windows setup and the `copilot` command read the policy themselves, so it applies to shells of
+	// every session type.
+	CopilotCliCommand: { status: 'enforced' },
 
 	// #endregion
 

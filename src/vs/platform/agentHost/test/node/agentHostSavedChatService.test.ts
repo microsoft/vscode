@@ -22,6 +22,7 @@ import { CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats } from '../../no
 import { AgentHostSavedChatService, type AgentHostSavedChatArchiveTarget, type IAgentHostSavedChatReadContext, type IAgentHostSavedChatReader } from '../../node/agentHostSavedChatService.js';
 import { CHAT_WORKING_DIRECTORIES_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { replayThreadToTurns } from '../../node/codex/codexReplayMapper.js';
 import type { Thread } from '../../node/codex/protocol/generated/v2/Thread.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -77,7 +78,7 @@ suite('AgentHostSavedChatService', () => {
 			},
 		};
 		const readers = new Map<AgentProvider, IAgentHostSavedChatReader>([[provider, reader]]);
-		const createService = () => new AgentHostSavedChatService(readers, database, dataService, new NullLogService());
+		const createService = () => new AgentHostSavedChatService(readers, database, dataService, createTestSessionStateStore(database, dataService), new NullLogService());
 		return { database, sessionDatabase, peerDatabase, dataService, readers, calls, createService };
 	}
 
@@ -155,7 +156,7 @@ suite('AgentHostSavedChatService', () => {
 			cwd: '/workspace', cliVersion: '0.160.0', originator: 'vscode_agent_host', source: 'vscode',
 			canAcceptDirectInput: null, threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name: null, daybreakEnabled: null,
 			turns: [{
-				id: 'native-turn', status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null,
+				id: 'native-turn', rootTurnId: null, status: 'completed', itemsView: 'full', error: null, startedAt: null, completedAt: null, durationMs: null,
 				items: [
 					{ type: 'userMessage', id: 'prompt', clientId: null, content: [{ type: 'text', text: 'Saved question', text_elements: [] }] },
 					{ type: 'agentMessage', id: 'answer', text: 'Saved answer', phase: 'final_answer', memoryCitation: null, delivery: null, questions: null },
@@ -297,20 +298,23 @@ suite('AgentHostSavedChatService', () => {
 		await database.setMetadataValues({ 'copilot.worktree.branchName': 'saved', 'copilot.worktree.path': folder.toString() });
 		let referenceDisposed = false;
 		const dataService = new class extends mock<ISessionDataService>() {
-			override async tryOpenDatabase(): Promise<IReference<ISessionDatabase>> {
+			override async tryOpenDatabase(_resource: URI): Promise<IReference<ISessionDatabase>> {
 				return {
 					object: new class extends mock<ISessionDatabase>() {
-						override async getMetadata(key: string): Promise<string | undefined> {
+						override async getMetadataObject<T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> {
 							await Promise.resolve();
 							assert.strictEqual(referenceDisposed, false, 'metadata read outlived its database reference');
-							return database.getMetadata(key);
+							return database.getMetadataObject(keys);
 						}
 					}(),
 					dispose: () => { referenceDisposed = true; },
 				};
 			}
 		}();
-		const metadata = await readPersistedWorktreeMetadata(dataService, session, new NullLogService());
+		const metadata = await readPersistedWorktreeMetadata(async resource => {
+			const ref = await dataService.tryOpenDatabase(resource);
+			return ref && { reader: ref.object, dispose: () => ref.dispose() };
+		}, session, new NullLogService());
 		assert.deepStrictEqual({ branch: metadata?.branchName, path: metadata?.worktreePath?.toString(), referenceDisposed }, {
 			branch: 'saved', path: folder.toString(), referenceDisposed: true,
 		});

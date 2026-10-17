@@ -33,13 +33,14 @@ import { ISessionsProviderAutomations, type SessionResourceResolveReason } from 
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
-import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../workbench/services/environment/common/copilotHomeService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
@@ -131,12 +132,46 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// first catalog pass is far slower than an interactive open.
 		const timeoutMs = reason === 'restore' ? LEGACY_MIGRATION_RESTORE_TIMEOUT_MS : LEGACY_MIGRATION_TIMEOUT_MS;
 		const adopted = await adoptLegacyCopilotCliResource(this.connection, resource, this._logService, this._configurationService, this._telemetryService, reason ?? 'open', timeoutMs);
+		if (sessionKey && !this._sessionCache.has(sessionKey)) {
+			await this._refreshSessions();
+		}
+		if (adopted) {
+			const surfaced = !!(sessionKey && this._sessionCache.has(sessionKey));
+			reportLegacyMigrationOpen(this._telemetryService, reason ?? 'open', adopted, surfaced);
+			if (rawId && sessionKey && !this._sessionCache.has(sessionKey)) {
+				const now = Date.now();
+				this._ensureSessionInCache({
+					session: AgentSession.uri('copilotcli', rawId),
+					provider: 'copilotcli',
+					startTime: now,
+					modifiedTime: now,
+				});
+			}
+			return adopted;
+		}
 		// On decline or timeout, redirect only a non-adoptable (external /
 		// already-adopted) session to its surfaced twin so it opens as-is instead
 		// of the extension-host resource. An adoptable session that failed to adopt
-		// keeps the original `undefined` behavior and opens unmigrated. Mirrors the
-		// chat-editor open path.
-		return adopted ?? (adoptable ? undefined : twin);
+		// keeps the original `undefined` behavior while the extension-host provider
+		// is still registered; once retired, seed and redirect to the twin so it still resolves.
+		const isStillAdoptable = sessionKey ? readSessionEhcliAdoptable(this._getSessionMetadataByKey(sessionKey)) : adoptable;
+		const legacyProviderRegistered = this._chatSessionsService.getChatSessionContribution?.(resource.scheme) !== undefined;
+		if (isStillAdoptable && legacyProviderRegistered) {
+			return undefined;
+		}
+		if (twin && rawId && sessionKey && !this._sessionCache.has(sessionKey)) {
+			if (legacyProviderRegistered) {
+				return undefined;
+			}
+			const now = Date.now();
+			this._ensureSessionInCache({
+				session: AgentSession.uri('copilotcli', rawId),
+				provider: 'copilotcli',
+				startTime: now,
+				modifiedTime: now,
+			});
+		}
+		return twin;
 	}
 
 	constructor(
@@ -161,6 +196,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IDevContainerAgentHostService devContainerAgentHostService: IDevContainerAgentHostService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IPathService pathService: IPathService,
+		@ICopilotHomeService copilotHomeService: ICopilotHomeService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -194,7 +230,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		const updateResourceLabelHomes = () => {
 			const homes = this.getResourceLabelHomes();
 			const userHome = pathService.userHome({ preferLocal: true });
-			const sessionStateRoot = buildLocalSessionStateUri(userHome);
+			const sessionStateRoot = buildLocalSessionStateUri(copilotHomeService.home);
 			for (const session of this.getKnownSessions()) {
 				const rawId = AgentSession.id(session.resource);
 				const label = this.getResourceLabelHomeLabel(session);
@@ -295,6 +331,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
 		this._connectionsService.registerSessionResource(backendSession, undefined, provider);
+	}
+
+	protected override batchBackendRegistrations<T>(fn: () => T): T {
+		return this._connectionsService.batchSessionResolutionChanges(fn);
 	}
 
 	override getSessions(): ISession[] {

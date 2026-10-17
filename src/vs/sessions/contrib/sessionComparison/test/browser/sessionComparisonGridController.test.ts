@@ -321,11 +321,13 @@ suite('Session comparison grid controller', () => {
 		});
 	});
 
-	test('shows inputs by default and hides inactive inputs only when enabled for three or more attempts', async () => {
+	test('shows inputs by default and hides inactive inputs only in comparison grids with three or more panes', async () => {
 		const defaultGrid = setup({ attemptsOnly: true, attemptCount: 3 });
 		const twoAttemptGrid = setup({ attemptsOnly: true, attemptCount: 2, hideInactiveInputs: true });
 		const enabledGrid = setup({ attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true });
 		const mixedGrid = setup({ hideInactiveInputs: true });
+		const mixedThreePaneGrid = setup({ hideInactiveInputs: true });
+		mixedThreePaneGrid.visibleSessions.set([mixedThreePaneGrid.judge, mixedThreePaneGrid.attempt, mixedThreePaneGrid.attempt2], undefined);
 		const screenReaderGrid = setup({ attemptsOnly: true, attemptCount: 3, hideInactiveInputs: true, screenReaderOptimized: true });
 		const className = 'session-comparison-hide-inactive-inputs';
 		const activeClassName = 'session-comparison-grid-active';
@@ -353,6 +355,7 @@ suite('Session comparison grid controller', () => {
 			disabledBySetting,
 			afterLeavingGrid,
 			mixedGrid: mixedGrid.mainContainer.classList.contains(className),
+			mixedThreePaneGrid: mixedThreePaneGrid.mainContainer.classList.contains(className),
 			screenReaderGrid: screenReaderGrid.mainContainer.classList.contains(className),
 			defaultComparisonGrid: defaultGrid.mainContainer.classList.contains(activeClassName),
 			mixedComparisonGrid: mixedGrid.mainContainer.classList.contains(activeClassName),
@@ -366,6 +369,7 @@ suite('Session comparison grid controller', () => {
 			disabledBySetting: false,
 			afterLeavingGrid: false,
 			mixedGrid: false,
+			mixedThreePaneGrid: true,
 			screenReaderGrid: false,
 			defaultComparisonGrid: true,
 			mixedComparisonGrid: true,

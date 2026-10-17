@@ -11,7 +11,7 @@ export interface User {
 	readonly id?: number;
 	/** The user's login name. */
 	readonly login?: string;
-	/** The user's global relay identifier. */
+	/** The user's GraphQL node identifier. */
 	readonly node_id?: string;
 	/** The URL of the user's profile. */
 	readonly url?: string;
@@ -20,22 +20,21 @@ export interface User {
 /** The class of compute backing an environment. */
 export type EnvironmentKind = 'managed-actions' | 'managed-sandbox' | 'managed-cca' | 'user-local' | 'user-codespace';
 
-
-/** One response page with the HTTP metadata needed to continue a collection scan. */
+/** Results with continuation and server-time metadata from the last collected page. */
 export interface PaginatedResponse<T> {
-	/** The response body for this page, without fetching or hydrating other records. */
+	/** The requested page, or the collected pages when maxPages is supplied. */
 	readonly data: T;
 	/** The URL from Link rel="next", omitted when no next page is advertised. */
 	readonly nextLink?: string;
-	/** The HTTP Date header, when available, for server-clock incremental checkpoints. */
+	/** The server's HTTP Date value, when available. */
 	readonly serverDate?: string;
 }
 
-/** Telemetry-only W3C context for a provisioning or wake activation. */
+/** W3C trace context for a provisioning or wake activation. */
 export interface ActivationContext {
 	/** The activation context schema version. */
 	readonly version: 2;
-	/** The unsigned 64-bit activation sequence encoded as a decimal string. */
+	/** The positive uint64 activation sequence encoded as a decimal string without leading zeroes. */
 	readonly sequence: string;
 	/** The W3C traceparent identifying the activation trace. */
 	readonly traceparent: string;
@@ -87,7 +86,7 @@ export interface CodedApiErrorResponse {
 export interface ApiError extends Error, MissionControlErrorMetadata {
 	/** The HTTP status code returned by the service. */
 	readonly statusCode: number;
-	/** Parsed error details, excluding credential-bearing response bodies. */
+	/** Structured error details, omitted for sensitive responses. */
 	readonly response?: ApiErrorResponse | CodedApiErrorResponse;
 	/** The server request identifier for diagnostics, when available. */
 	readonly requestId?: string;

@@ -546,19 +546,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	SideBySide: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Two full-height session panels sit side by side. Each has a session header, a completed conversation, a chat input, and a complete one-stroke panel border. The same floating-panel gap used elsewhere in the Agents window separates the bordered panels without an additional divider, a three-dot gripper is centered in the gap, and no frame surrounds the Sessions group.'],
+		expectedVisualDescriptions: ['Two full-height session panels sit side by side. Each has a completed conversation, a chat input, and a complete one-stroke panel border. Only the active panel shows its session header at rest; inactive headers reveal on panel hover or keyboard focus. The same floating-panel gap used elsewhere in the Agents window separates the bordered panels without an additional divider, a three-dot gripper is centered in the gap, and no frame surrounds the Sessions group.'],
 		render: context => renderSessionsGrid(context, { sideBySide: true }),
 	}),
 	NestedSplits: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench title bar sits above three session panels, with sidebars and panels hidden. A narrow full-height panel is on the left and two unequal-height panels are stacked on the right. Floating-panel gaps separate the sessions, each gap has a centered three-dot gripper, each session retains its complete one-stroke panel border, and no frame surrounds the Sessions group. Each panel has a session header, a completed conversation, and a chat input.'],
+		expectedVisualDescriptions: ['The Agents workbench title bar sits above three session panels, with sidebars and panels hidden. A narrow full-height panel is on the left and two unequal-height panels are stacked on the right. Floating-panel gaps separate the sessions, each gap has a centered three-dot gripper, each session retains its complete one-stroke panel border, and no frame surrounds the Sessions group. Each panel has a completed conversation and a chat input; only the active panel shows its session header at rest.'],
 		render: context => renderSessionsGrid(context),
 	}),
 	CustomBackground: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A repeating custom background remains visible inside all three transparent session panels. The solid workbench-colored floating-panel gaps separate the complete panel frames, include centered three-dot grippers, and do not show the custom background through the gutters.'],
+		expectedVisualDescriptions: ['The active panel shows a repeating custom background at full strength. Inactive panels recess that background beneath a theme-colored veil, or a solid surface in high contrast. Their session headers, input pills, and turn indicators reveal on panel hover or keyboard focus. Pills, turn indicators, transcript text, and bubble fills fade in and out when motion is enabled; reduced motion reveals them immediately, and headers remain immediate. Chat content remains above the veil. Outside high contrast, inactive transcripts are subdued at rest and brighten to full opacity on panel hover or keyboard focus, while inputs stay dimmed. Inactive request bubble tints and response card backgrounds are transparent at rest and brighten to a subdued fill on panel hover or keyboard focus independently of the text. The solid workbench-colored floating-panel gaps separate the complete panel frames, include centered three-dot grippers, and do not show the custom background through the gutters.'],
 		render: context => renderSessionsGrid(context, { customBackground: true }),
 	}),
 	SidePanelGap: defineComponentFixture({
@@ -611,7 +611,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	}),
 	MultipleChats: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input below one shared session header.'],
+		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input, without a separate shared header above the tabs. The child in its own split pane shows its title followed by a dot and muted parent description.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide' }),
 	}),
 	MacWindowCorners: defineComponentFixture({
@@ -625,6 +625,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The wide left area contains a parent chat and related child chat as two independently rounded and fully bordered panels. The related child chat tab places its close action near the trailing edge with a compact inset, and its active shoulder connects to its own framed body. The same floating-panel gap used between unrelated sessions separates the chats, with a centered three-dot gripper and no enclosing parent-session frame.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true }),
+	}),
+	RelatedChatTabHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The child chat tab row has no drag-handle icon on hover. Because the child occupies a separate split pane, its tab shows the child title followed by a dot and muted parent description. There is no parent label on the right of the row or extra header above the chat tabs.'],
+		render: async context => {
+			await renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true });
+			const rows = context.container.querySelectorAll<HTMLElement>('.session-chat-tabs-bar .chat-composite-bar-tabs-row');
+			assert(rows.length >= 2, 'Expected parent and child chat tab rows');
+			rows[1].classList.add('hovered');
+		},
 	}),
 	RelatedChatsRtl: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

@@ -80,6 +80,22 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Embedded code-block editor presentation
+
+`markdown.codeBlockEditorProviders` contributions and export-API resolve results
+accept optional `presentation: { resizable, fullWidth, fullView, minHeight }`.
+The Markdown editor owns these controls, including for static/uncooperative
+pages. Resolve-result properties override contribution defaults; explicit
+provider properties override guest-advertised preferences. Keep the contribution
+schema, descriptor validation, RPC schema, equality checks, and static/export-API
+paths in sync when extending this contract.
+
+Undefined resolve-result properties inherit the contribution defaults; explicit `false` still overrides them. The extension consumes the published `@vscode/markdown-editor` package, which implements the controls and mode notifications.
+
+The implementation and interaction fixtures live in the local Markdown editor
+package. See its README's **Embedded editor presentation** section for the
+optional mode-notification messages and sizing precedence.
+
 ### Active block highlighting
 
 `markdown.editor.highlightActiveBlock` controls the rich editor's active-block

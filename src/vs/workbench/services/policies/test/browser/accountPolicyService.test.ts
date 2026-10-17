@@ -558,6 +558,36 @@ suite('AccountPolicyService', () => {
 	});
 
 	for (const channel of ['nativeMdm', 'server', 'file'] as const) {
+		test(`strictKnownMarketplaces from ${channel} is available without a configuration policy`, async () => {
+			const native = disposables.add(new FakeNativeManagedSettingsService());
+			const file = disposables.add(new FakeFileManagedSettingsService());
+			const changed = disposables.add(new Emitter<IPolicyData | null>());
+			const provider = new class extends DefaultAccountProvider {
+				override readonly onDidChangePolicyData = changed.event;
+				override policyData: IPolicyData = {};
+			}(BASE_DEFAULT_ACCOUNT);
+			defaultAccountService.setDefaultAccountProvider(provider);
+			await defaultAccountService.refresh();
+			policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+			await policyService.updatePolicyDefinitions({});
+			const results = [];
+			for (const strictKnownMarketplaces of [[{ source: 'github', repo: 'enterprise/catalog' }], [], undefined]) {
+				const raw = { strictKnownMarketplaces };
+				const update = Event.toPromise(policyService.onDidChangeManagedSettings);
+				if (channel === 'nativeMdm') {
+					native.setManagedSettings(normalizeManagedSettings(raw));
+				} else if (channel === 'file') {
+					file.setManagedSettings(normalizeManagedSettings(raw), raw);
+				} else {
+					provider.policyData = adaptManagedSettings(raw);
+					changed.fire(provider.policyData);
+				}
+				await update;
+				results.push(policyService.getManagedSettingValue('strictKnownMarketplaces'));
+			}
+			assert.deepStrictEqual(results, ['[{"source":"github","repo":"enterprise/catalog"}]', '[]', undefined]);
+		});
+
 		test(`temporary Local permission from ${channel} affects only Local across updates and removal`, async () => {
 			const configuration = new TestConfigurationService();
 			disposables.add(configuration.onDidChangeConfigurationEmitter);

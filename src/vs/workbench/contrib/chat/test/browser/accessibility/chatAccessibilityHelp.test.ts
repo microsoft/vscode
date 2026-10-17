@@ -10,19 +10,42 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
+import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents the session working set while preserving existing editor guidance', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true);
+		assert.deepStrictEqual({
+			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
+			disclosure: help.includes('Enter or Space to expand or collapse it'),
+			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+			editorNavigation: help.includes('Navigate between edits in the editor'),
+			editorSignals: help.includes('accessibility.signals.editsKept'),
+		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+	});
+
+	test('does not describe the editor working set on other chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+	});
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment'),
-				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
+				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
 				keyboard: help.includes('Enter or Space to enable or disable sharing'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
+				setting: type !== 'inlineChat' && type !== 'quickChat',
 				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
@@ -44,6 +67,15 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('explains read-only model options separately from overridable defaults', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			managed: help.includes('Its value is announced as managed by the agent host and cannot be changed.'),
+			overridable: help.includes('An overridable default remains selectable.'),
+			modelSpecific: help.includes('Changing models uses the options available for the newly selected model.'),
+		}, { managed: true, overridable: true, modelSpecific: true });
+	});
+
 	test('documents participant redirection only in workbench panel and editor chats', () => {
 		const keybindings = new MockKeybindingService();
 		assert.deepStrictEqual(
@@ -55,15 +87,16 @@ suite('Chat Accessibility Help', () => {
 		);
 	});
 
-	test('documents the canvases pill only for editor window session pills', () => {
+	test('documents the canvas menu and pill only for editor window session pills', () => {
 		const keybindings = new MockKeybindingService();
-		const canvasesPill = 'the chat\'s canvases appear in their own pill in the main window';
+		const canvasesPill = 'the chat\'s open canvases appear in their own pill in the main window';
 		assert.deepStrictEqual(
 			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
 				getAccessibilityHelpText(type, keybindings, false).includes(canvasesPill),
+				getAccessibilityHelpText(type, keybindings, false).includes('a Canvas submenu appears in the final section of the New Chat menu'),
 				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
 			]),
-			[[true, false], [true, false], [false, false], [false, false], [false, false]],
+			[[true, true, false], [true, true, false], [false, false, false], [false, false, false], [false, false, false]],
 		);
 	});
 
@@ -123,7 +156,7 @@ suite('Chat Accessibility Help', () => {
 			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
 			placeholder: help.includes('A compact decorative band of shifting glyphs remains visible below the dropdown'),
-			overlapping: help.includes('Multiple image-generation calls in a response share one batch preview'),
+			overlapping: help.includes('Each consecutive batch of image-generation calls has its own preview in conversation order'),
 			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
 			reveal: help.includes('The reveal is skipped in those modes and when reopening a chat'),
 			dropdown: help.includes('While generation runs, expand the tool dropdown to inspect the submitted prompt'),
@@ -180,6 +213,19 @@ suite('Chat Accessibility Help', () => {
 		}, { shared: true, noLegacyList: true, automatic: true, subagentArtifacts: true, dropdown: true, actions: true });
 	});
 
+	test('documents scoped BYOK prompts, deterministic answers, and restarting after input changes', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			scoped: help.includes('only the bound chat input\'s prompts and responses are read'),
+			restart: help.includes('Switching the bound input or discarding a recording stops Voice Mode'),
+			editorInputs: help.includes('including chat editor tabs and the chat sidebar'),
+			approval: help.includes('approval commands must be complete, unqualified English replies'),
+			naturalConsent: help.includes('I approve, or I accept to approve the current prompt'),
+			choices: help.includes('say an exact displayed choice or its number'),
+			custom: help.includes('say other followed by your answer'),
+			clarification: help.includes('Ambiguous replies ask for clarification without approving anything'),
+		}, { scoped: true, restart: true, editorInputs: true, approval: true, naturalConsent: true, choices: true, custom: true, clarification: true });
+	});
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
@@ -303,8 +349,8 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-			ensemble: help.includes('When Auto is presented as Ensemble, its details hold an "Effort Level" setting instead'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, ensemble: true });
+			fusion: help.includes('When Auto is presented as Fusion, its details hold an "Effort Level" setting instead'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {
@@ -468,8 +514,39 @@ suite('Chat Accessibility Help', () => {
 			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Ask Question'),
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
-			sessionsWindow: true,
+			sessionsWindow: isResponseSelectionSupported(),
 			regularWindow: false,
+		});
+	});
+
+	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, isResponseSelectionSupported({ isWeb: true, isMobile: true }));
+
+		assert.deepStrictEqual({
+			selectionPopUp: help.includes('Ask Question'),
+			requestOrigin: help.includes('Some requests include a source chat button'),
+			sessionResults: help.includes('Completed create-session, create-chat, and send-message operations'),
+		}, {
+			selectionPopUp: false,
+			requestOrigin: true,
+			sessionResults: true,
+		});
+	});
+
+	test('only describes session result pill activation in the sessions window', () => {
+		const keybindingService = new MockKeybindingService();
+		const describe = (help: string) => ({
+			focus: help.includes('Use Tab to focus it'),
+			open: help.includes('Enter or Space to open it normally'),
+			openToSide: help.includes('Alt+Enter (Option+Enter on macOS) to open it to the side'),
+		});
+
+		assert.deepStrictEqual({
+			sessionsWindow: describe(getAccessibilityHelpText('agentView', keybindingService, true, true)),
+			regularWindow: describe(getAccessibilityHelpText('agentView', keybindingService, true, false)),
+		}, {
+			sessionsWindow: { focus: true, open: true, openToSide: true },
+			regularWindow: { focus: false, open: false, openToSide: false },
 		});
 	});
 

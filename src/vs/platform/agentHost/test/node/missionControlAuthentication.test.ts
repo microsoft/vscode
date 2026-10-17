@@ -297,7 +297,7 @@ suite('Mission Control sealed authentication', () => {
 	});
 
 	for (const algorithm of ['x25519-sealedbox', 'hpke-x25519-hkdf-sha256-aes256gcm'] as const) {
-		test(`local credential opt-in validates the ${algorithm} remote owner before forwarding the local credential`, async () => {
+		test(`validates the ${algorithm} remote owner before forwarding the remote credential`, async () => {
 			const sealing = store.add(new MissionControlSealing());
 			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token' && key.algorithm === algorithm)!;
 			const envelope = await sealMissionControlCredential({ resource, token: 'mobile-token', key: { ...key, use: 'auth-token' } });
@@ -306,20 +306,19 @@ suite('Mission Control sealed authentication', () => {
 				requests.push(new Headers(init?.headers).get('Authorization')!);
 				return Response.json({ id: 123, type: 'User' });
 			};
-			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, fetcher, false, () => true, () => 'desktop-token'));
+			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, fetcher, false));
 			const accepted = await auth.authenticate({ resource, token: envelope, expiresIn: 1, scopes: ['mobile-only'] });
 			assert.deepStrictEqual({ accepted, requests, authorized: auth.authenticated }, {
-				accepted: { resource, token: 'desktop-token' },
-				requests: ['Bearer mobile-token', 'Bearer desktop-token'],
+				accepted: { resource, token: 'mobile-token', scopes: ['mobile-only'] },
+				requests: ['Bearer mobile-token'],
 				authorized: true,
 			});
 		});
 	}
 
-	test('local credential mode does not replace repository or MCP credentials', async () => {
+	test('preserves repository and MCP credentials and scopes', async () => {
 		const sealing = store.add(new MissionControlSealing());
-		const local = stub().returns('desktop-token');
-		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false, () => true, local));
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
 		await auth.authenticate({ resource, token: seal(sealing, 'mobile-token') });
 		const repository = `${resource}/repos`;
 		const mcp = 'https://mcp.example.test';
@@ -330,100 +329,34 @@ suite('Mission Control sealed authentication', () => {
 			{ resource: repository, token: 'repository-token', scopes: ['repo'] },
 			{ resource: mcp, token: 'mcp-token', expiresIn: 60 },
 		]);
-		assert.strictEqual(local.callCount, 2);
 	});
 
-	test('local credential mode cannot authorize a foreign remote user or a foreign local credential', async () => {
+	test('MCP waits until remote identity validation completes', async () => {
 		const sealing = store.add(new MissionControlSealing());
-		for (const foreign of ['mobile-token', 'desktop-token']) {
-			const local = stub().returns('desktop-token');
-			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async (_input, init) => Response.json({
-				id: new Headers(init?.headers).get('Authorization') === `Bearer ${foreign}` ? 456 : 123, type: 'User',
-			}), false, () => true, local));
-			await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'mobile-token') }), /registered owner/);
-			assert.deepStrictEqual({ authorized: auth.authenticated, localReads: local.callCount }, {
-				authorized: false, localReads: foreign === 'mobile-token' ? 0 : 1,
-			});
-		}
-	});
-
-	for (const localCredential of [undefined, 'expired-local-token']) {
-		test(`local credential mode fails closed when the local credential is ${localCredential ? 'rejected' : 'unavailable'}`, async () => {
-			const sealing = store.add(new MissionControlSealing());
-			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async (_input, init) =>
-				new Headers(init?.headers).get('Authorization') === 'Bearer expired-local-token'
-					? new Response('', { status: 401 })
-					: Response.json({ id: 123, type: 'User' }),
-				false, () => true, () => localCredential,
-			));
-			await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'mobile-token') }),
-				localCredential ? /GitHub identity validation failed/ : /local credential is unavailable/);
-			assert.strictEqual(auth.authenticated, false);
-		});
-	}
-
-	for (const transition of ['handshake', 'close', 'authority', 'local-token'] as const) {
-		test(`local credential validation cannot complete after ${transition} changes`, async () => {
-			const sealing = store.add(new MissionControlSealing());
-			const localValidation = new DeferredPromise<Response>();
-			const localStarted = new DeferredPromise<void>();
-			let current = true;
-			let localToken = 'desktop-token';
-			const fetcher: typeof fetch = async (_input, init) => {
-				if (new Headers(init?.headers).get('Authorization') === 'Bearer desktop-token') {
-					void localStarted.complete();
-					return localValidation.p;
-				}
-				return Response.json({ id: 123, type: 'User' });
-			};
-			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, fetcher, false, () => current, () => localToken));
-			const pending = auth.authenticate({ resource, token: seal(sealing, 'mobile-token') });
-			const rejection = assert.rejects(pending, /expired handshake|local credential changed/);
-			await localStarted.p;
-			if (transition === 'handshake') {
-				auth.beginHandshake();
-			} else if (transition === 'close') {
-				auth.dispose();
-			} else if (transition === 'authority') {
-				current = false;
-			} else {
-				localToken = 'new-desktop-token';
-			}
-			await localValidation.complete(Response.json({ id: 123, type: 'User' }));
-			await rejection;
-			assert.strictEqual(auth.authenticated, false);
-		});
-	}
-
-	test('MCP waits until local credential validation completes in delegated mode', async () => {
-		const sealing = store.add(new MissionControlSealing());
-		const localValidation = new DeferredPromise<Response>();
-		const localStarted = new DeferredPromise<void>();
-		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async (_input, init) => {
-			if (new Headers(init?.headers).get('Authorization') === 'Bearer desktop-token') {
-				void localStarted.complete();
-				return localValidation.p;
-			}
-			return Response.json({ id: 123, type: 'User' });
-		}, false, () => true, () => 'desktop-token'));
+		const identityValidation = new DeferredPromise<Response>();
+		const identityStarted = new DeferredPromise<void>();
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, () => {
+			void identityStarted.complete();
+			return identityValidation.p;
+		}, false));
 		const owner = auth.authenticate({ resource, token: seal(sealing, 'mobile-token') });
 		const mcpResource = 'https://mcp.example.test';
 		const mcp = auth.authenticate({ resource: mcpResource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcpResource) });
-		await localStarted.p;
+		await identityStarted.p;
 		assert.strictEqual(auth.authenticated, false);
-		await localValidation.complete(Response.json({ id: 123, type: 'User' }));
+		await identityValidation.complete(Response.json({ id: 123, type: 'User' }));
 		assert.deepStrictEqual(await Promise.all([owner, mcp]), [
-			{ resource, token: 'desktop-token' },
+			{ resource, token: 'mobile-token' },
 			{ resource: mcpResource, token: 'mcp-token' },
 		]);
 	});
 
-	test('local credential mode still enforces connection binding before accessing the local token', async () => {
+	test('enforces connection binding before validating identity', async () => {
 		const sealing = store.add(new MissionControlSealing());
-		const local = stub().returns('desktop-token');
-		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), true, () => true, local));
+		const fetcher = stub().resolves(Response.json({ id: 123, type: 'User' }));
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, fetcher, true));
 		await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'mobile-token') }), /connection-bound/);
-		assert.strictEqual(local.callCount, 0);
+		assert.strictEqual(fetcher.callCount, 0);
 	});
 
 	test('refuses failed identity validation and non-user principals', async () => {
@@ -744,24 +677,20 @@ suite('Mission Control sealed authentication', () => {
 		await rejected;
 	});
 
-	test('delegation cannot outlive the remote deadline while validating the local credential', async () => {
+	test('identity validation cannot authorize an elapsed remote deadline', async () => {
 		const clock = useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 		const sealing = store.add(new MissionControlSealing());
-		const localStarted = new DeferredPromise<void>();
-		const local = new DeferredPromise<Response>();
-		let calls = 0;
-		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => {
-			if (++calls === 1) {
-				return Response.json({ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': '2030-01-01T00:00:02Z' } });
-			}
-			void localStarted.complete();
-			return local.p;
-		}, false, () => true, () => 'desktop-token'));
+		const identityStarted = new DeferredPromise<void>();
+		const identity = new DeferredPromise<Response>();
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, () => {
+			void identityStarted.complete();
+			return identity.p;
+		}, false));
 		const pending = auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
 		const rejected = assert.rejects(pending, { code: AhpErrorCodes.AuthRequired });
-		await localStarted.p;
+		await identityStarted.p;
 		clock.tick(2000);
-		await local.complete(Response.json({ id: 123, type: 'User' }));
+		await identity.complete(Response.json({ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': '2030-01-01T00:00:02Z' } }));
 		await rejected;
 		assert.strictEqual(auth.authenticated, false);
 	});
