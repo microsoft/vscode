@@ -261,7 +261,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		this.widget?.setVisible(visible);
 
 		if (visible && this.widget) {
-			this.widget.layout(this.dimension.height, this.dimension.width);
+			this.widget.layout(this.dimension.height, this.dimension.width, true);
 		}
 	}
 
