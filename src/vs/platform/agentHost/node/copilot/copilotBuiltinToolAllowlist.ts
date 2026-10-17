@@ -15,9 +15,9 @@ import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.
  *
  * List only what the current runtime registers for a host-enabled feature.
  * A speculative name would turn on without review if a later runtime started
- * shipping it. To see what a runtime registers, compare
- * `session.rpc.tools.getCurrentMetadata()` with and without this filter
- * (see section 9 of `AGENTS.md`).
+ * shipping it. `copilotBuiltinToolAllowlist.integrationTest.ts` fails when this
+ * list and the runtime's registered built-ins disagree (see section 9 of
+ * `AGENTS.md`).
  */
 export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	// Shell. The runtime registers one family per platform and shell.

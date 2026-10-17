@@ -23,6 +23,7 @@ src/vs/platform/agentHost/node/copilot/toolSearchDeferral.ts @bhavyaus
 src/vs/platform/agentHost/test/node/serverToolGroups.test.ts @bhavyaus
 src/vs/platform/agentHost/test/node/toolSearchDeferral.test.ts @bhavyaus
 src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts @bhavyaus
+src/vs/platform/agentHost/test/node/providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts @bhavyaus
 src/vs/platform/agentHost/test/node/e2e/providers/__snapshots__/*.prompt.md @bhavyaus
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
