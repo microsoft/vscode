@@ -7,6 +7,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
+import { SCMGraphOpenFileInWorkingTreeSetting } from '../common/history.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity.js';
@@ -403,6 +404,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
+		},
+		[SCMGraphOpenFileInWorkingTreeSetting]: {
+			type: 'boolean',
+			description: localize('scm.graph.openFileInWorkingTree', "Controls whether the Open File action in the Source Control Graph view and in the multi-file diff editor of a history item opens the editable version of the file from the working tree instead of the read-only version from the history item. Falls back to the version from the history item if the file does not exist in the working tree. The multi-file diff editor applies this setting when it is opened."),
+			default: false
 		},
 		'scm.graph.showIncomingChanges': {
 			type: 'boolean',
