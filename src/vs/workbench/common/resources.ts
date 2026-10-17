@@ -147,6 +147,13 @@ export class ResourceGlobMatcher extends Disposable {
 
 			let massagedKey = key;
 
+			// Normalize relative paths that start with './' or '.\\'.
+			// so that they match correctly against relative resource paths.
+			// For example, './src/**' should match the same as 'src/**'.
+			if (massagedKey.startsWith('./') || massagedKey.startsWith('.\\')) {
+				massagedKey = massagedKey.substring(2);
+			}
+
 			const driveLetter = getDriveLetter(massagedKey, true /* probe for windows */);
 			if (driveLetter) {
 				const driveLetterLower = driveLetter.toLowerCase();
