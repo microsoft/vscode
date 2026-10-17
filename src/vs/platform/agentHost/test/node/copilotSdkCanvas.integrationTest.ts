@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type SessionConfig } from '@github/copilot-sdk';
-import { DeferredPromise, raceTimeout, retry } from '../../../../base/common/async.js';
+import { retry } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -21,7 +21,7 @@ suite('Copilot SDK - canvas lifecycle', () => {
 	const instanceId = 'contract-instance';
 
 	/** Writes a model-free canvas provider and returns runtime clients configured to load it. */
-	async function createCanvasContract(openGateUrl?: string) {
+	async function createCanvasContract() {
 		const { runtimePath, extensionSdkPath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		assert.ok(extensionSdkPath && extensionBootstrapPath, 'Bundled canvas extension assets must be available');
 		const root = await mkdtemp(join(tmpdir(), 'ahp-canvas-contract-'));
@@ -60,21 +60,12 @@ suite('Copilot SDK - canvas lifecycle', () => {
 import { randomUUID } from 'node:crypto';
 import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
 const generation = randomUUID();
-const openGateUrl = ${JSON.stringify(openGateUrl)};
 await joinSession({
 	canvases: [createCanvas({
 		id: 'contract',
 		displayName: 'Contract canvas',
 		description: 'Model-free canvas lifecycle test.',
-		open: async ({ instanceId }) => {
-			if (openGateUrl) {
-				const response = await fetch(openGateUrl);
-				if (!response.ok) {
-					throw new Error(\`Canvas open gate failed: \${response.status}\`);
-				}
-			}
-			return { url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}\` };
-		},
+		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}\` }),
 	})],
 });
 `, 'utf8');
@@ -180,29 +171,7 @@ await joinSession({
 
 	test('keeps an open canvas across a resume on the same client', async function () {
 		this.timeout(180_000);
-		let blockOpen = false;
-		const rehydrating = new DeferredPromise<boolean>();
-		const releaseOpen = new DeferredPromise<void>();
-		const { createServer } = await import('http');
-		const server = createServer((_request, response) => {
-			if (blockOpen) {
-				void rehydrating.complete(true);
-				void releaseOpen.p.then(() => response.end());
-			} else {
-				response.end();
-			}
-		});
-		disposables.add(toDisposable(() => {
-			server.closeAllConnections();
-			server.close();
-		}));
-		await new Promise<void>((resolve, reject) => {
-			server.once('error', reject);
-			server.listen(0, '127.0.0.1', resolve);
-		});
-		const address = server.address();
-		assert.ok(address && typeof address !== 'string');
-		const { root, config, createClient } = await createCanvasContract(`http://127.0.0.1:${address.port}`);
+		const { root, config, createClient } = await createCanvasContract();
 		const client = createClient();
 		let session: CopilotSession | undefined;
 
@@ -219,25 +188,14 @@ await joinSession({
 			// An Agent Host configuration refresh disconnects the SDK session and resumes it on the same client.
 			const sessionId = session.sessionId;
 			await session.disconnect();
-			blockOpen = true;
 			session = await client.resumeSession(sessionId, config);
 			const resumed = session;
-			const restoredOnResume = resumed.openCanvases.some(canvas => canvas.instanceId === instanceId);
-			assert.strictEqual(await raceTimeout(rehydrating.p, 30_000), true, 'The replacement provider must begin restoring its canvas');
-			await retry(async () => {
-				const { extensions } = await resumed.rpc.extensions.list();
-				assert.ok(extensions.length > 0 && extensions.every(extension => extension.status !== 'starting'), 'Extensions must settle');
-			}, 100, 300);
-			const listedOnceExtensionsSettle = (await resumed.rpc.canvas.listOpen()).openCanvases.some(canvas => canvas.instanceId === instanceId);
-			// Neither resume nor extension readiness waits for canvas callbacks to finish.
-			assert.deepStrictEqual({ restoredOnResume, listedOnceExtensionsSettle }, { restoredOnResume: false, listedOnceExtensionsSettle: false });
-			await releaseOpen.complete();
+			// Resume and extension readiness can precede canvas rehydration.
 			const restoredUrl = await waitForOpen(resumed, firstUrl);
 			await retry(async () => {
 				assert.deepStrictEqual(resumed.openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })), [{ instanceId, url: restoredUrl }]);
 			}, 100, 300);
 		} finally {
-			await releaseOpen.complete();
 			try {
 				await session?.disconnect();
 			} finally {

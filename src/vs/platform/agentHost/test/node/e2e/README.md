@@ -489,17 +489,6 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 
 ---
 
-### SDK canvas lifecycle
-
-[`../copilotSdkCanvas.integrationTest.ts`](../copilotSdkCanvas.integrationTest.ts) exercises the real bundled SDK/runtime with a model-free canvas extension. The same-client resume scenario gates the replacement provider's open callback with a local HTTP response: extensions can settle and resume can complete while canvas rehydration is still pending. Releasing that gate must restore the canvas with a new provider URL and update the SDK's live snapshot. No fixed delay, model replay, or credentials are needed.
-
-`rpc.canvas.listOpen()` reports ready instances, not complete durable membership. An empty listing during rehydration does not prove that an instance was closed. Agent Host handoff reconciliation uses the latest durable `session.canvas.recorded` / `session.canvas.removed` events for missing instances, preserving unavailable channels until restoration or an actual close. The focused `canvas handoff` unit tests cover this distinction, failed providers, paged history, and concurrent lifecycle changes.
-
-```bash
-./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkCanvas.integrationTest.ts
-./scripts/test.sh --run src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts --grep "canvas handoff"
-```
-
 ### Managed-settings schema snapshot
 
 [`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.

@@ -4116,72 +4116,34 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/** Reconciles ready sources separately from durable membership, which also includes canvases still rehydrating. */
+	/** Reopens handed-over canvases the runtime restored and drops the ones it no longer has open. */
 	private async _reconcileCanvasHandoff(wrapper: CopilotSessionWrapper): Promise<void> {
-		const handedOver = [...this._canvasByInstanceId.values()].filter(projection => projection.handedOver);
-		if (!wrapper.canvasRuntimeEnabled || handedOver.length === 0) {
+		if (!wrapper.canvasRuntimeEnabled || ![...this._canvasByInstanceId.values()].some(projection => projection.handedOver)) {
 			return;
 		}
-		let openCanvases: CopilotSession['openCanvases'] | undefined;
-		let durableOpen: ReadonlySet<string> | undefined;
+		let openCanvases: CopilotSession['openCanvases'];
 		try {
 			({ openCanvases } = await this._awaitControlPlaneRpc('rpc.canvas.listOpen', wrapper.session.rpc.canvas.listOpen()));
-			const ready = new Set(openCanvases.map(canvas => canvas.instanceId));
-			durableOpen = await this._readDurableCanvasMembership(wrapper, handedOver.filter(projection => !ready.has(projection.canvas.instanceId)).map(projection => projection.canvas.instanceId));
 		} catch (error) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile handed-over canvases: ${getErrorMessage(error)}`);
+			return;
 		}
-		if (this._store.isDisposed || !openCanvases) {
+		if (this._store.isDisposed) {
 			return;
 		}
 		const openByInstanceId = new Map(openCanvases.map(canvas => [canvas.instanceId, canvas]));
-		for (const projection of handedOver) {
-			if (this._canvasByInstanceId.get(projection.canvas.instanceId) !== projection) {
+		// Canvases the runtime reported while the request was pending are no longer marked, so they keep that newer state.
+		for (const projection of [...this._canvasByInstanceId.values()]) {
+			if (!projection.handedOver) {
 				continue;
 			}
 			const open = openByInstanceId.get(projection.canvas.instanceId);
 			if (open) {
 				this._projectOpenedCanvas(open);
-			} else if (durableOpen && !durableOpen.has(projection.canvas.instanceId)) {
+			} else {
 				this._canvasByInstanceId.delete(projection.canvas.instanceId);
 			}
 		}
-	}
-
-	private async _readDurableCanvasMembership(wrapper: CopilotSessionWrapper, instanceIds: readonly string[]): Promise<ReadonlySet<string>> {
-		const pending = new Set(instanceIds);
-		const open = new Set<string>();
-		const seenCursors = new Set<string>();
-		let cursor: string | undefined;
-		while (pending.size > 0) {
-			if (this._store.isDisposed) {
-				throw new CancellationError();
-			}
-			const page = await this._awaitControlPlaneRpc('rpc.eventLog.read', wrapper.session.rpc.eventLog.read({
-				cursor, max: 1000, direction: 'backward', agentScope: 'primary', includeEphemeral: false,
-				types: ['session.canvas.recorded', 'session.canvas.removed'],
-			}));
-			if (page.cursorStatus !== 'ok') {
-				throw new Error(localize('copilot.historyChanged', "Session history changed while it was loading. Reopen the session to try again."));
-			}
-			if (page.hasMore && (!page.cursor || seenCursors.has(page.cursor))) {
-				throw new Error(localize('copilot.invalidHistoryCursor', "The Copilot runtime returned an invalid history cursor. Reopen the session to try again."));
-			}
-			for (let index = page.events.length - 1; index >= 0; index--) {
-				const event = page.events[index];
-				if ((event.type === 'session.canvas.recorded' || event.type === 'session.canvas.removed') && !event.agentId && pending.delete(event.data.instanceId)) {
-					if (event.type === 'session.canvas.recorded') {
-						open.add(event.data.instanceId);
-					}
-				}
-			}
-			if (!page.hasMore) {
-				break;
-			}
-			seenCursors.add(page.cursor);
-			cursor = page.cursor;
-		}
-		return open;
 	}
 
 	private _publishCanvasState(projection: ICopilotCanvasProjection): void {

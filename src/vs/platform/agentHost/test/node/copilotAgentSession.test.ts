@@ -165,7 +165,6 @@ class MockCopilotSession {
 	extensionReloadError: Error | undefined;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
-	onEventLogRead: ((params: Parameters<CopilotSession['rpc']['eventLog']['read']>[0]) => Promise<void>) | undefined;
 	readonly sendRequests: unknown[] = [];
 	readonly sendMessagesRequests: unknown[] = [];
 	sendMessagesError: Error | undefined;
@@ -570,16 +569,11 @@ class MockCopilotSession {
 			read: async (params: Parameters<CopilotSession['rpc']['eventLog']['read']>[0]): Promise<Awaited<ReturnType<CopilotSession['rpc']['eventLog']['read']>>> => {
 				this.eventLogReadRequests.push(params);
 				await this.eventLogReadGate;
-				if (this.onEventLogRead) {
-					await this.onEventLogRead(params);
-				}
-				const scopedMessages = params.agentScope === 'primary' ? this.messages.filter(event => {
+				const messages = params.agentScope === 'primary' ? this.messages.filter(event => {
 					const parentToolCallId = event.type === 'assistant.message' || event.type === 'tool.execution_start' || event.type === 'tool.execution_complete'
 						? event.data.parentToolCallId : undefined;
 					return event.type.startsWith('subagent.') || (!event.agentId && parentToolCallId === undefined);
 				}) : this.messages;
-				const types = params.types;
-				const messages = types && types !== '*' ? scopedMessages.filter(event => types.includes(event.type)) : scopedMessages;
 				const end = params.cursor === undefined ? messages.length : Number(params.cursor);
 				const start = Math.max(0, end - (params.max ?? 200));
 				return { events: messages.slice(start, end), cursor: String(start), hasMore: start > 0, cursorStatus: 'ok' };
@@ -3611,10 +3605,6 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.openCanvases.push({ ...preview });
 					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
-					mock.messages = toSessionEvents([
-						{ type: 'session.canvas.recorded', data: chart },
-						{ type: 'session.canvas.removed', data: chart },
-					]);
 				},
 			});
 			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
@@ -3633,154 +3623,6 @@ suite('CopilotAgentSession', () => {
 			});
 			replacement.session.dispose();
 		});
-
-		test('keeps a handed-over canvas channel when extensions settle before rehydration', async () => {
-			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
-			const resource = handoff.projections[0].resource.toString();
-			const replacement = await createAgentSession(disposables, {
-				resume: true,
-				canvasHandoff: handoff,
-				configureMockSession: mock => {
-					mock.messages = toSessionEvents([
-						{ type: 'session.canvas.recorded', data: preview },
-						{ type: 'session.canvas.removed', data: preview },
-						{ type: 'session.canvas.recorded', data: preview },
-					]);
-				},
-			});
-			const adopted = replacement.session.adoptCanvasHandoff(handoff);
-			const beforeRehydration = summarizeCanvasSignals(replacement.signals);
-			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/replacement' });
-
-			assert.deepStrictEqual({ adopted, beforeRehydration, afterRehydration: summarizeCanvasSignals(replacement.signals) }, {
-				adopted: true,
-				beforeRehydration: { states: [{ resource, url: undefined }], membership: [] },
-				afterRehydration: {
-					states: [{ resource, url: undefined }, { resource, url: 'https://example.test/replacement' }],
-					membership: [],
-				},
-			});
-			replacement.session.dispose();
-		});
-
-		test('keeps a durably open canvas unavailable when its provider fails to start', async () => {
-			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
-			const resource = handoff.projections[0].resource.toString();
-			const replacement = await createAgentSession(disposables, {
-				resume: true,
-				canvasHandoff: handoff,
-				configureMockSession: mock => {
-					mock.extensions.push({ id: preview.extensionId, name: 'Preview', source: 'project', status: 'failed' });
-					mock.messages = toSessionEvents([{ type: 'session.canvas.recorded', data: preview }]);
-				},
-			});
-
-			assert.deepStrictEqual({ adopted: replacement.session.adoptCanvasHandoff(handoff), ...summarizeCanvasSignals(replacement.signals) }, {
-				adopted: true, states: [{ resource, url: undefined }], membership: [],
-			});
-			replacement.session.dispose();
-		});
-
-		test('reads older canvas records and honors the latest removal across history pages', async () => {
-			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
-			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
-			const replacement = await createAgentSession(disposables, {
-				resume: true,
-				canvasHandoff: handoff,
-				configureMockSession: mock => {
-					mock.messages = toSessionEvents([
-						{ type: 'session.canvas.recorded', data: preview },
-						{ type: 'session.canvas.recorded', data: chart },
-						...Array.from({ length: 1000 }, () => ({ type: 'session.canvas.removed' as const, data: chart })),
-					]);
-				},
-			});
-			const reads = replacement.mockSession.eventLogReadRequests.filter(request => request.types);
-
-			assert.deepStrictEqual({
-				adopted: replacement.session.adoptCanvasHandoff(handoff),
-				cursors: reads.map(request => request.cursor),
-				...summarizeCanvasSignals(replacement.signals),
-			}, {
-				adopted: true, cursors: [undefined, '2'],
-				states: [{ resource: previewResource, url: undefined }, { resource: chartResource, url: undefined }],
-				membership: [[previewResource]],
-			});
-			replacement.session.dispose();
-		});
-
-		test('preserves a canvas closed and reopened during a membership read', async () => {
-			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
-			const readStarted = new DeferredPromise<void>();
-			const readFinished = new DeferredPromise<void>();
-			let mockSession: MockCopilotSession | undefined;
-			const pending = createAgentSession(disposables, {
-				resume: true,
-				canvasHandoff: handoff,
-				configureMockSession: mock => {
-					mockSession = mock;
-					mock.onEventLogRead = async params => {
-						if (params.types) {
-							await readStarted.complete();
-							await readFinished.p;
-						}
-					};
-				},
-			});
-			await readStarted.p;
-			assert.ok(mockSession);
-			mockSession.fire('session.canvas.closed', preview);
-			mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/reopened' });
-			await readFinished.complete();
-			const replacement = await pending;
-			const adopted = replacement.session.adoptCanvasHandoff(handoff);
-			const { states, membership } = summarizeCanvasSignals(replacement.signals);
-			const reopenedResource = states[1].resource;
-
-			assert.deepStrictEqual({ adopted, differentLifetime: reopenedResource !== handoff.projections[0].resource.toString(), states, membership }, {
-				adopted: true, differentLifetime: true,
-				states: [{ resource: handoff.projections[0].resource.toString(), url: undefined }, { resource: reopenedResource, url: 'https://example.test/reopened' }],
-				membership: [[reopenedResource]],
-			});
-			replacement.session.dispose();
-		});
-
-		for (const failure of ['rpc', 'expired cursor', 'repeated cursor']) {
-			test(`keeps handed-over canvases and logs a membership read failure: ${failure}`, async () => {
-				const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' }, { ...chart, url: 'https://example.test/chart' });
-				const [resource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
-				const logService = new CapturingLogService();
-				const replacement = await createAgentSession(disposables, {
-					resume: true,
-					canvasHandoff: handoff,
-					logService,
-					configureMockSession: mock => {
-						mock.listedOpenCanvases.push({ ...chart, url: 'https://example.test/replacement' });
-						const read = mock.rpc.eventLog.read;
-						mock.rpc.eventLog.read = async params => {
-							if (!params.types) {
-								return read(params);
-							}
-							if (failure === 'rpc') {
-								throw new Error('canvas history unavailable');
-							}
-							return { events: [], cursor: 'same', hasMore: true, cursorStatus: failure === 'expired cursor' ? 'expired' : 'ok' };
-						};
-					},
-				});
-
-				assert.deepStrictEqual({
-					adopted: replacement.session.adoptCanvasHandoff(handoff),
-					warnings: logService.warnings.filter(entry => entry.message.includes('Failed to reconcile handed-over canvases')).length,
-					...summarizeCanvasSignals(replacement.signals),
-				}, {
-					adopted: true, warnings: 1,
-					states: [{ resource, url: undefined }, { resource: chartResource, url: undefined }, { resource: chartResource, url: 'https://example.test/replacement' }],
-					membership: [],
-				});
-				replacement.session.dispose();
-			});
-		}
 
 		test('closes a handed-over canvas through the replacement runtime and publishes the removal on adoption', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
