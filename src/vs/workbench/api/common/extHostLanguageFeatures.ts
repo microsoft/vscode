@@ -109,6 +109,11 @@ abstract class LanguageFeatureAdapterWithCommands {
 	protected _isDisposed = false;
 	protected readonly _disposables = new Map<number, DisposableStore>();
 
+	/**
+	 * Stops accepting provider results and transfers their command stores to the caller.
+	 * Existing results may still execute commands after provider unregistration, so
+	 * their stores can only be disposed once those results are released.
+	 */
 	retire(): Map<number, DisposableStore> {
 		this._isDisposed = true;
 		return this._disposables;
