@@ -158,7 +158,7 @@ suite('Sessions - Actions', () => {
 		}
 	});
 
-	test('updates the primary session row action from the experiment treatment', async () => {
+	test('uses the promoted session row action by default and preserves experiment assignments', async () => {
 		const assignmentsChanged = disposables.add(new Emitter<void>());
 		const treatments: string[] = [];
 		const warnings: string[] = [];
@@ -180,13 +180,19 @@ suite('Sessions - Actions', () => {
 		};
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		disposables.add(new SessionListActionsExperimentContribution(contextKeyService, assignmentService, logService));
+		const initialValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
 		await timeout(0);
 		const defaultValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
+
+		state.treatment = false;
+		assignmentsChanged.fire();
+		await timeout(0);
+		const explicitFalseValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
 
 		state.treatment = true;
 		assignmentsChanged.fire();
 		await timeout(0);
-		const enabledValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
+		const explicitTrueValue = SessionsListPromoteNewChatActionContext.getValue(contextKeyService);
 
 		state.fail = true;
 		assignmentsChanged.fire();
@@ -194,8 +200,10 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual({
 			treatments,
+			initialValue,
 			defaultValue,
-			enabledValue,
+			explicitFalseValue,
+			explicitTrueValue,
 			errorValue: SessionsListPromoteNewChatActionContext.getValue(contextKeyService),
 			warnings,
 		}, {
@@ -203,10 +211,13 @@ suite('Sessions - Actions', () => {
 				'sessions.promoteNewChatAction',
 				'sessions.promoteNewChatAction',
 				'sessions.promoteNewChatAction',
+				'sessions.promoteNewChatAction',
 			],
-			defaultValue: false,
-			enabledValue: true,
-			errorValue: false,
+			initialValue: true,
+			defaultValue: true,
+			explicitFalseValue: false,
+			explicitTrueValue: true,
+			errorValue: true,
 			warnings: ['[SessionListActionsExperimentContribution] Failed to resolve the promoted New Chat action treatment; using the default session row action.'],
 		});
 	});
