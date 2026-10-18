@@ -1373,7 +1373,9 @@ suite('Session storage identity compatibility', () => {
 			const creating = createService(db);
 			registerTestAgentProvider(creating, store.add(new MockAgent('copilotcli')));
 			const created = await creating.createSession({ legacyChatUris: false, provider: 'copilotcli' });
-			await db.close();
+			// Each restart must stop the previous host first, as a real restart does: its coalesced session.db mirror
+			// writes would otherwise fire on its own connection during the next host's restore (`SQLITE_BUSY` on Windows).
+			await creating.shutdown();
 
 			const second = await database();
 			const restarted = createService(second);
@@ -1397,7 +1399,7 @@ suite('Session storage identity compatibility', () => {
 			const subagent = state?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
 			const resolvedChat = subagent && await getTestAgentStateManager(restarted).resolveChatState(subagent.resource);
 			const subagentResource = subagent?.resource;
-			await second.close();
+			await restarted.shutdown();
 
 			const third = await database();
 			const again = createService(third);
@@ -1408,6 +1410,7 @@ suite('Session storage identity compatibility', () => {
 			await again.restoreSession(created);
 			await timeout(50);
 			const secondRestore = getTestAgentStateManager(again).getSessionState(created.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource);
+			await again.shutdown();
 			assert.deepStrictEqual({ resolved: resolvedChat !== undefined, secondRestore }, { resolved: true, secondRestore: [subagentResource] });
 			assert.deepStrictEqual({
 				origin: subagent?.origin,
