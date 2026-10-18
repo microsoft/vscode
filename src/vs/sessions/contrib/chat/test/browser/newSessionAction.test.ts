@@ -42,7 +42,9 @@ suite('NewChatInSessionsWindowAction', () => {
 				return options.creationFailed ? undefined : upcastPartial<IActiveSession>({ resource });
 			},
 		});
-		store.add(registerAction2(NewChatInSessionsWindowAction));
+		if (!CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID)) {
+			store.add(registerAction2(NewChatInSessionsWindowAction));
+		}
 		const command = CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID);
 		assert.ok(command);
 		return {
@@ -51,6 +53,21 @@ suite('NewChatInSessionsWindowAction', () => {
 			run: (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
 	}
+
+	test('reuses an already registered New Session command', async () => {
+		createCommand();
+		const command = CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID);
+		const fixture = createCommand();
+		assert.deepStrictEqual({
+			commandUnchanged: CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID) === command,
+			result: await fixture.run({ noWorkspace: true }),
+			opened: fixture.opened,
+		}, {
+			commandUnchanged: true,
+			result: resource,
+			opened: [{ target: undefined, preserveNavigation: true }],
+		});
+	});
 
 	test('the registered command returns the explicitly requested local Copilot session', async () => {
 		const fixture = createCommand({ active: true });
