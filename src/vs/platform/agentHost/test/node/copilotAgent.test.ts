@@ -3794,6 +3794,7 @@ suite('CopilotAgent', () => {
 		const worktree = join(tempRoot, 'repository.worktrees', 'session');
 		const escapedWorktree = join(tempRoot, 'repository.worktrees', 'escaped');
 		const swappedWorktree = join(tempRoot, 'repository.worktrees', 'swapped');
+		const ordinaryFolder = join(tempRoot, 'repository.worktrees', 'ordinary');
 		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
 		const modulePath = join(extensionDirectory, 'extension.mjs');
 		const untrustedExtensionDirectory = join(untrustedWorkspace, 'preview');
@@ -3808,6 +3809,7 @@ suite('CopilotAgent', () => {
 		await fs.mkdir(repository, { recursive: true });
 		await fs.mkdir(worktreeExtensionDirectory, { recursive: true });
 		await fs.mkdir(swappedWorktreeExtensionDirectory, { recursive: true });
+		await fs.mkdir(ordinaryFolder, { recursive: true });
 		await fs.writeFile(modulePath, '');
 		await fs.writeFile(join(untrustedExtensionDirectory, 'extension.mjs'), '');
 		await fs.writeFile(worktreeModulePath, '');
@@ -3822,7 +3824,7 @@ suite('CopilotAgent', () => {
 		const internals = agent as unknown as {
 			_acquireExtensionLaunchAdmission(directories: readonly URI[], inheritedTrust?: readonly { readonly directory: URI; readonly trustedFrom: URI }[]): Promise<IDisposable>;
 			_resolveExtensionLaunch(modulePath: string, source: 'project', extensionBootstrapPath: string): Promise<{ readonly launch?: unknown }>;
-			_resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined): Promise<readonly { readonly directory: URI; readonly trustedFrom: URI }[]>;
+			_resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined, allowDerivedRepository?: boolean): Promise<readonly { readonly directory: URI; readonly trustedFrom: URI }[]>;
 		};
 
 		try {
@@ -3873,6 +3875,7 @@ suite('CopilotAgent', () => {
 			const inheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(worktree), URI.file(repository));
 			const invalidInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(untrustedWorkspace), URI.file(repository));
 			const escapedInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(escapedWorktree), URI.file(repository));
+			const ordinaryFolderInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(ordinaryFolder), URI.file(ordinaryFolder));
 			const swappedInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(swappedWorktree), URI.file(repository));
 			await fs.rm(swappedWorktree, { recursive: true, force: true });
 			await fs.symlink(workspace, swappedWorktree, process.platform === 'win32' ? 'junction' : 'dir');
@@ -3901,6 +3904,7 @@ suite('CopilotAgent', () => {
 				inheritedTrust: inheritedTrust.map(item => ({ directory: item.directory.toString(), trustedFrom: item.trustedFrom.toString() })),
 				invalidInheritedTrust,
 				escapedInheritedTrust,
+				ordinaryFolderInheritedTrust,
 				swappedAfterValidation: !!swappedAfterValidation.launch,
 				inheritedWorktree: !!inheritedWorktree.launch,
 				inheritedWorktreeAfterRevocation: !!inheritedWorktreeAfterRevocation.launch,
@@ -3916,6 +3920,7 @@ suite('CopilotAgent', () => {
 				inheritedTrust: [{ directory: canonicalWorktree.toString(), trustedFrom: canonicalRepository.toString() }],
 				invalidInheritedTrust: [],
 				escapedInheritedTrust: [],
+				ordinaryFolderInheritedTrust: [],
 				swappedAfterValidation: false,
 				inheritedWorktree: true,
 				inheritedWorktreeAfterRevocation: false,
@@ -24061,6 +24066,7 @@ suite('CopilotAgent', () => {
 				await agent.chats.createChat(peer, exactChatContext(session, peer), {
 					workingDirectories: [worktree],
 					project: { uri: ownerRepository, displayName: 'owner' },
+					config: { [SessionConfigKey.Isolation]: 'worktree' },
 				});
 
 				assert.deepStrictEqual(launchPlans.map(plan => plan.extensionLaunchInheritedTrust?.map(item => ({
@@ -25907,8 +25913,8 @@ suite('CopilotAgent', () => {
 				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(worktree).toString());
 				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(worktree).toString()]));
 				await dbRef.object.setMetadata('copilot.project.resolved', 'true');
-				await dbRef.object.setMetadata('copilot.project.uri', URI.file(ownerRepository).toString());
-				await dbRef.object.setMetadata('copilot.project.displayName', 'owner');
+				await dbRef.object.setMetadata('copilot.project.uri', URI.file(peerRepository).toString());
+				await dbRef.object.setMetadata('copilot.project.displayName', 'peer');
 			} finally {
 				dbRef.dispose();
 			}

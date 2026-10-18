@@ -2281,7 +2281,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return canonicalTrustedUris.some(uri => uri && extUriBiasedIgnorePathCase.isEqualOrParent(resource, uri));
 	}
 
-	private async _resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined): Promise<readonly ICopilotExtensionLaunchInheritedTrust[]> {
+	private async _resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined, allowDerivedRepository = false): Promise<readonly ICopilotExtensionLaunchInheritedTrust[]> {
 		if (!workingDirectory || workingDirectory.scheme !== Schemas.file) {
 			return [];
 		}
@@ -2302,7 +2302,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// Fall through to deriving the repository from the canonical worktree.
 			}
 		}
-		if (!canonicalRepository) {
+		if (!canonicalRepository && allowDerivedRepository) {
 			const derivedRepository = getRepositoryRootFromWorktree(canonicalWorkingDirectory);
 			if (!derivedRepository) {
 				return [];
@@ -2313,7 +2313,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return [];
 			}
 		}
-		if (!isWorktreeUnderRepository(canonicalWorkingDirectory, canonicalRepository)) {
+		if (!canonicalRepository || !isWorktreeUnderRepository(canonicalWorkingDirectory, canonicalRepository)) {
 			return [];
 		}
 		return await this._isConfiguredWorkspaceTrusted(canonicalRepository)
@@ -6211,7 +6211,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const snapshot = await activeClient.snapshot(chat.toString(), anchor?.object, provisional.agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, owner, chat, storage, workingDirectory);
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
-			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, provisional.project?.uri);
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(
+				workingDirectory,
+				provisional.project?.uri,
+				this._configurationService.getSessionConfigValues(owner.toString())?.[SessionConfigKey.Isolation] === 'worktree',
+			);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -7223,7 +7227,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const storageScope = context.resource;
 			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
 			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
-			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, launchProject?.uri);
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(
+				workingDirectory,
+				launchProject?.uri,
+				options.config?.[SessionConfigKey.Isolation] === 'worktree'
+				|| this._configurationService.getSessionConfigValues(session.toString())?.[SessionConfigKey.Isolation] === 'worktree',
+			);
 			const effectiveProject = extensionLaunchInheritedTrust[0]
 				? { uri: extensionLaunchInheritedTrust[0].trustedFrom, displayName: resourceBasename(extensionLaunchInheritedTrust[0].trustedFrom) }
 				: launchProject;
