@@ -475,6 +475,7 @@ interface IWorkingDirectoryMetadataSnapshot {
 	readonly projectUri?: string;
 	readonly projectDisplayName?: string;
 	readonly projectResolved?: string;
+	readonly extensionLaunchTrust?: string;
 }
 
 /**
@@ -2321,6 +2322,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 			: [];
 	}
 
+	private async _resolvePersistedExtensionLaunchTrust(workingDirectory: URI, persisted: ICopilotExtensionLaunchInheritedTrust | undefined): Promise<readonly ICopilotExtensionLaunchInheritedTrust[]> {
+		if (!persisted) {
+			return [];
+		}
+		const resolved = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, persisted.trustedFrom);
+		return resolved[0] && isEqual(resolved[0].directory, persisted.directory) ? resolved : [];
+	}
+
+	private _parseExtensionLaunchTrust(value: string | undefined): ICopilotExtensionLaunchInheritedTrust | undefined {
+		if (!value) {
+			return undefined;
+		}
+		try {
+			const parsed = JSON.parse(value) as { directory?: unknown; trustedFrom?: unknown };
+			return typeof parsed.directory === 'string' && typeof parsed.trustedFrom === 'string'
+				? { directory: URI.parse(parsed.directory), trustedFrom: URI.parse(parsed.trustedFrom) }
+				: undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
 	// ---- auth ---------------------------------------------------------------
 
 	getDescriptor(): IAgentDescriptor {
@@ -2624,6 +2647,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory: directory.toString(),
 				workingDirectories: JSON.stringify([directory.toString()]),
 				customizationDirectory: directory.toString(),
+				extensionLaunchTrust: '',
 				sharedCustomizationDirectories: options.sharedCustomizationDirectories
 					? JSON.stringify(options.sharedCustomizationDirectories.map(directory => directory.toString()))
 					: undefined,
@@ -6216,7 +6240,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				provisional.project?.uri,
 				this._configurationService.getSessionConfigValues(owner.toString())?.[SessionConfigKey.Isolation] === 'worktree',
 			);
-			await this._storeExtensionLaunchTrustedFrom({ storage, owner }, extensionLaunchInheritedTrust[0]?.trustedFrom);
+			await this._storeExtensionLaunchTrust({ storage, owner }, extensionLaunchInheritedTrust[0]);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -7235,7 +7259,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const hasWorktreeProvenance = isEqual(storageScope, session) || additionalWorktree !== undefined;
 			const extensionLaunchInheritedTrust = hasWorktreeProvenance
 				? await this._resolveExtensionLaunchInheritedTrust(workingDirectory, launchProject?.uri)
-				: [];
+				: await this._resolvePersistedExtensionLaunchTrust(
+					workingDirectory,
+					(await this._readSessionMetadata(sessionMetadataScope(session))).extensionLaunchTrust,
+				);
 			const effectiveProject = extensionLaunchInheritedTrust[0]
 				? { uri: extensionLaunchInheritedTrust[0].trustedFrom, displayName: resourceBasename(extensionLaunchInheritedTrust[0].trustedFrom) }
 				: launchProject;
@@ -7312,7 +7339,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} else if (project) {
 				await this._storeSessionProjectResolution({ storage: storageScope, owner: session }, project);
 			}
-			await this._storeExtensionLaunchTrustedFrom({ storage: storageScope, owner: session }, extensionLaunchInheritedTrust[0]?.trustedFrom);
+			await this._storeExtensionLaunchTrust({ storage: storageScope, owner: session }, extensionLaunchInheritedTrust[0]);
 
 			let agentSession: CopilotAgentSession | undefined;
 			try {
@@ -7908,7 +7935,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const disabledRootMcpServers = await this._disabledRootMcpServers(ownerSession, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, ownerSession, chat, context.resource, workingDirectory);
 			const project = storedMetadata.project ?? (await readOwnerMetadata()).project;
-			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, storedMetadata.extensionLaunchTrustedFrom);
+			const extensionLaunchInheritedTrust = await this._resolvePersistedExtensionLaunchTrust(workingDirectory, storedMetadata.extensionLaunchTrust);
 			const effectiveProject = extensionLaunchInheritedTrust[0]
 				? { uri: extensionLaunchInheritedTrust[0].trustedFrom, displayName: resourceBasename(extensionLaunchInheritedTrust[0].trustedFrom) }
 				: project;
@@ -8713,7 +8740,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (storedMetadata.agent && !resolvedAgentName) {
 				this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);
 			}
-			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(resolvedWorkingDirectory, storedMetadata.extensionLaunchTrustedFrom);
+			const extensionLaunchInheritedTrust = await this._resolvePersistedExtensionLaunchTrust(resolvedWorkingDirectory, storedMetadata.extensionLaunchTrust);
 			const effectiveProject = extensionLaunchInheritedTrust[0]
 				? { uri: extensionLaunchInheritedTrust[0].trustedFrom, displayName: resourceBasename(extensionLaunchInheritedTrust[0].trustedFrom) }
 				: storedMetadata.project;
@@ -8788,7 +8815,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_PROJECT_RESOLVED = 'copilot.project.resolved';
 	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
 	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
-	private static readonly _META_EXTENSION_LAUNCH_TRUSTED_FROM = 'copilot.extensionLaunchTrustedFrom';
+	private static readonly _META_EXTENSION_LAUNCH_TRUST = 'copilot.extensionLaunchTrust';
 	/** Legacy persisted catalog of concrete chat backings, keyed by chatId. */
 	private static readonly _META_CHATS = 'copilot.chats';
 
@@ -8920,6 +8947,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[CopilotAgent._META_PROJECT_URI]: true,
 				[CopilotAgent._META_PROJECT_DISPLAY_NAME]: true,
 				[CopilotAgent._META_PROJECT_RESOLVED]: true,
+				[CopilotAgent._META_EXTENSION_LAUNCH_TRUST]: true,
 			});
 			const workingDirectory = metadata[CopilotAgent._META_CWD];
 			const customizationDirectory = metadata[CopilotAgent._META_CUSTOMIZATION_DIRECTORY];
@@ -8935,6 +8963,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					projectUri: metadata[CopilotAgent._META_PROJECT_URI],
 					projectDisplayName: metadata[CopilotAgent._META_PROJECT_DISPLAY_NAME],
 					projectResolved: metadata[CopilotAgent._META_PROJECT_RESOLVED],
+					extensionLaunchTrust: metadata[CopilotAgent._META_EXTENSION_LAUNCH_TRUST],
 				},
 			};
 		} finally {
@@ -8951,6 +8980,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[CopilotAgent._META_PROJECT_URI]: metadata.projectUri ?? '',
 			[CopilotAgent._META_PROJECT_DISPLAY_NAME]: metadata.projectDisplayName ?? '',
 			[CopilotAgent._META_PROJECT_RESOLVED]: metadata.projectResolved ?? '',
+			[CopilotAgent._META_EXTENSION_LAUNCH_TRUST]: metadata.extensionLaunchTrust ?? '',
 		};
 		if (isSessionStateScope(scope)) {
 			// The customization directories and project are session state: central first, then the session database mirror.
@@ -9018,7 +9048,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Reads chat metadata, preferring the host's workspaceless state over legacy provider storage. */
-	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; extensionLaunchTrustedFrom?: URI; workspaceless?: boolean }> {
+	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; extensionLaunchTrust?: ICopilotExtensionLaunchInheritedTrust; workspaceless?: boolean }> {
 		const workspaceless = this._sessionSettings.get(scope.owner)?.workspaceless;
 		const ref = await this._openMetadata(scope);
 		if (!ref) {
@@ -9033,14 +9063,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: true,
 				[CopilotAgent._META_PROJECT_URI]: true,
 				[CopilotAgent._META_PROJECT_DISPLAY_NAME]: true,
-				[CopilotAgent._META_EXTENSION_LAUNCH_TRUSTED_FROM]: true,
+				[CopilotAgent._META_EXTENSION_LAUNCH_TRUST]: true,
 				[AH_META_WORKSPACELESS_DB_KEY]: true,
 			});
 			const cwd = m[CopilotAgent._META_CWD];
 			const customizationDirectory = m[CopilotAgent._META_CUSTOMIZATION_DIRECTORY];
 			const projectUri = m[CopilotAgent._META_PROJECT_URI];
 			const projectDisplayName = m[CopilotAgent._META_PROJECT_DISPLAY_NAME];
-			const extensionLaunchTrustedFrom = m[CopilotAgent._META_EXTENSION_LAUNCH_TRUSTED_FROM];
+			const extensionLaunchTrust = this._parseExtensionLaunchTrust(m[CopilotAgent._META_EXTENSION_LAUNCH_TRUST]);
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			return {
 				model: this._parseModelSelection(m[CopilotAgent._META_MODEL]),
@@ -9049,7 +9079,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_CWDS], workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
 				project: projectUri && projectDisplayName ? { uri: URI.parse(projectUri), displayName: projectDisplayName } : undefined,
-				extensionLaunchTrustedFrom: extensionLaunchTrustedFrom ? URI.parse(extensionLaunchTrustedFrom) : undefined,
+				extensionLaunchTrust,
 				workspaceless: workspaceless ?? m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 			};
 		} finally {
@@ -9122,10 +9152,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._storeSessionMetadata(scope, undefined, undefined, undefined, undefined, project, true);
 	}
 
-	private async _storeExtensionLaunchTrustedFrom(scope: ICopilotMetadataScope, trustedFrom: URI | undefined): Promise<void> {
+	private async _storeExtensionLaunchTrust(scope: ICopilotMetadataScope, trust: ICopilotExtensionLaunchInheritedTrust | undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(scope.storage);
 		try {
-			await dbRef.object.setMetadata(CopilotAgent._META_EXTENSION_LAUNCH_TRUSTED_FROM, trustedFrom?.toString() ?? '');
+			await dbRef.object.setMetadata(CopilotAgent._META_EXTENSION_LAUNCH_TRUST, trust ? JSON.stringify({
+				directory: trust.directory.toString(),
+				trustedFrom: trust.trustedFrom.toString(),
+			}) : '');
 		} finally {
 			dbRef.dispose();
 		}
