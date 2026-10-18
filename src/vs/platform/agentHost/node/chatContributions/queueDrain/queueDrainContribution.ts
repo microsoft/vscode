@@ -207,9 +207,23 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				handoff.then(sent => {
 					if (!sent) {
 						this._onSteeringHandedBack(channel, message.id);
+					} else {
+						this._onSteeringHandoffSettled(channel);
 					}
 				}, error => this._logService.error('[QueueDrainContribution] Steering handoff failed', error));
 			}
+		}
+	}
+
+	/**
+	 * The provider finished with a steering message: it sent it, or dropped it because sending failed.
+	 * Handed-back steering waits while any handoff is still held, so in an idle chat this may be the last one.
+	 */
+	private _onSteeringHandoffSettled(channel: ProtocolURI): void {
+		const state = this._store.isDisposed ? undefined : this._stateManager.getChatState(channel);
+		// Cancellation clears pending steering, so this never starts queued work after a cancel.
+		if (state && !state.activeTurn && getPendingSteeringMessages(state).length > 0) {
+			this._tryConsumeNextQueuedMessage(channel);
 		}
 	}
 
