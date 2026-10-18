@@ -30,7 +30,7 @@ import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
-import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ResourceType, type ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -500,6 +500,40 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const sandbox of [false, true]) {
+		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
+			let resourceRequests = 0;
+			connection.resourceResolve = async params => {
+				resourceRequests++;
+				return { uri: params.uri, type: ResourceType.Directory };
+			};
+			connection.resourceList = async () => {
+				resourceRequests++;
+				return { entries: [] };
+			};
+			const provider = createProvider(disposables, connection, {
+				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
+			});
+			provider.seedSessions([createSession('worktree-session', {
+				project: { uri: URI.file('/repo'), displayName: 'repo' },
+				workingDirectory: URI.file('/repo.worktrees/worktree-session'),
+			})]);
+			const session = provider.getSessions()[0];
+
+			const sizeBytes = await provider.getSessionWorktreeDiskUsage(session.sessionId);
+
+			assert.deepStrictEqual({
+				hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
+				sizeBytes,
+				resourceRequests,
+			}, {
+				hasWorktree: true,
+				sizeBytes: sandbox ? undefined : 0,
+				resourceRequests: sandbox ? 0 : 2,
+			});
+		});
+	}
 
 	suite('Copilot head-branch PR metadata', () => {
 		const backend = URI.parse('ahp-session://tenant/opaque-session');
