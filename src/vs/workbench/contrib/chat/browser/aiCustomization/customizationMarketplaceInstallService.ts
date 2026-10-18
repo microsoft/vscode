@@ -31,7 +31,7 @@ import { getCustomizationMarketplaceInstallTelemetryContext, runCustomizationMar
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
+import { parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
@@ -1213,9 +1213,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (source?.kind !== 'providerPlugin' || !source.marketplaceSource) {
 			throw new Error(localize('customizationMarketplace.providerPluginIdentityUnavailable', "This plugin does not provide provider marketplace identity."));
 		}
-		const directReference = parseMarketplaceReference(source.marketplaceSource);
-		const githubSource = /^GitHub:\s+(?<source>.+)$/.exec(source.marketplaceSource)?.groups?.source;
-		const marketplaceReference = directReference ?? (githubSource ? parseMarketplaceReference(githubSource) : undefined);
+		const marketplaceReference = parseProviderMarketplaceReference(source.marketplaceSource);
 		if (!marketplaceReference) {
 			throw new Error(localize('customizationMarketplace.providerPluginUnavailable', "This featured plugin is no longer available from a registered marketplace. Refresh Browse and try again."));
 		}

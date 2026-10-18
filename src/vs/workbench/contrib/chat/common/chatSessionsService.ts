@@ -27,6 +27,17 @@ import { Target } from './promptSyntax/promptTypes.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 
+export const NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.sessions.newChat';
+
+export interface INewSessionInAgentsWindowOptions {
+	toSide?: boolean;
+	prompt?: string;
+	prefillPrompt?: boolean;
+	noWorkspace?: boolean;
+	/** Local Agent Host provider to use for a workspace-less session instead of inheriting the active target. */
+	agentHostProvider?: string;
+}
+
 export const enum ChatSessionsExtensions {
 	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
 }
