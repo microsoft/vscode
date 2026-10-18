@@ -46,7 +46,7 @@ export async function fetchAndExtractGitHubRepo(
 	targetDir: URI,
 	signal: AbortSignal,
 ): Promise<void> {
-	const tree = await content.getTree(repo.owner, repo.name, sha, signal, { caller: 'pluginGit.tree', query: { recursive: true } });
+	const tree = await content.getTree(repo.owner, repo.name, sha, signal, { caller: 'pluginGit.tree', noCache: true, query: { recursive: true } });
 	if (tree.truncated) {
 		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.name}@${sha} is truncated; some files will be missing from the install`);
 	}
@@ -94,7 +94,7 @@ export async function fetchAndExtractGitHubRepo(
 
 		await Promise.all(blobsToFetch.map(({ entry, dest }) => limiter.queue(async () => {
 			operationSignal.throwIfAborted();
-			const blob = await content.getBlob(repo.owner, repo.name, entry.sha, operationSignal, { caller: 'pluginGit.blob' });
+			const blob = await content.getBlob(repo.owner, repo.name, entry.sha, operationSignal, { caller: 'pluginGit.blob', noCache: true });
 			operationSignal.throwIfAborted();
 			await fileService.writeFile(dest, decodeBase64(blob.content.replace(/\s+/g, '')));
 		})));

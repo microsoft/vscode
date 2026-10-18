@@ -104,7 +104,9 @@ The [Cloud Sandbox repository picker](../../workbench/contrib/chat/browser/remot
 
 The [browser plugin Git service](../../workbench/contrib/chat/browser/pluginGitCommandService.ts) uses typed content ref, tree and blob reads. Installs preserve the existing authentication sequence: an available GitHub session, anonymous access after authentication/authorization rejection, then one explicit request for repository access. Updates and checkouts do not prompt or switch credentials after a failed read. Rate limits, malformed responses and other non-authentication failures retain their shared API classification rather than triggering sign-in.
 
-Each attempt owns one disposable client and cancels staged work on grant invalidation. Extraction preserves binary content, skipped symlinks/submodules/unsafe paths, and the existing truncated-tree warning behavior. Up to ten extraction tasks run concurrently, additionally constrained by the shared queue's eight active requests per caller. Failed or cancelled downloads drain before staging cleanup or an authentication retry; only a completed extraction replaces the target and updates persisted SHA metadata. Native Git execution and remote AHP directory transfer are unchanged.
+Tree and blob reads opt into `ApiRequestOptions.noCache`, so writing a file does not leave its encoded response body in the shared ETag cache. Ref resolution and per-target SHA metadata remain cacheable.
+
+Each attempt owns one disposable client and cancels staged work on grant invalidation. Cancellation takes precedence over an in-flight authentication error, so invalidating a grant cannot restart the attempt anonymously or prompt for another grant. Extraction preserves binary content, skipped symlinks/submodules/unsafe paths, and the existing truncated-tree warning behavior. Up to ten extraction tasks run concurrently, additionally constrained by the shared queue's eight active requests per caller. Failed or cancelled downloads drain before staging cleanup or an authentication retry; only a completed extraction replaces the target and updates persisted SHA metadata. Native Git execution and remote AHP directory transfer are unchanged.
 
 ### Legacy resource and mutation surface
 
@@ -153,6 +155,8 @@ The service never submits, discards, or replaces a pending review. Agent Merge r
 ### Request execution
 
 Portable `ApiRequestOptions.priority` selects an existing scheduling lane and is validated at local and IPC boundaries. REST, GraphQL, raw-content and Mission Control providers forward it to the engine; omission preserves each operation's current default. Priority changes queue scheduling, not credentials, quota identity, cache keys, retry policy or mutation-outcome handling.
+
+`ApiRequestOptions.noCache` bypasses transport response-cache reads and writes when `true`, without clearing another caller's stored representation. It is validated at local and IPC boundaries and applies to REST and Mission Control reads; omission or `false` preserves normal ETag revalidation. REST requests with different cache policies do not coalesce, while compatible non-retaining requests can still share in-flight work. GraphQL and raw downloads already do not retain response bodies.
 
 Callers use `background` for periodic PR/CI/review/issue polling, automatic branch discovery, cloud catalogue/history polling and deferred Agent Merge workflow checks; passive reads backing visible UI use `visible`. Optional personalized prompt options and commit-card metadata use `enrichment`. New user-awaited reads and writes retain their interactive and mutation defaults; failed PR creation lookups use `mutationReconciliation`.
 

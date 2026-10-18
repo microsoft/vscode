@@ -105,14 +105,14 @@ suite('BrowserPluginGitCommandService', () => {
 				readme: (await fileService.readFile(URI.joinPath(targetDir, 'README.md'))).value.toString(),
 				source: (await fileService.readFile(URI.joinPath(targetDir, 'src/index.js'))).value.toString(),
 				sha: await service.revParse(targetDir, 'HEAD'),
-				requests: github.requests.map(({ request }) => ({ path: request.path, accept: request.accept, caller: request.options?.caller, priority: request.options?.priority })),
+				requests: github.requests.map(({ request }) => ({ path: request.path, accept: request.accept, caller: request.options?.caller, priority: request.options?.priority, noCache: request.options?.noCache })),
 			}, {
 				readme: 'hello\n', source: 'console.log(1);', sha: sha1,
 				requests: [
-					{ path: '/repos/octocat/Hello-World/commits/main', accept: 'application/vnd.github.sha', caller: 'pluginGit.resolveSha', priority: undefined },
-					{ path: `/repos/octocat/Hello-World/git/trees/${sha1}?recursive=1`, accept: 'application/vnd.github+json', caller: 'pluginGit.tree', priority: undefined },
-					{ path: '/repos/octocat/Hello-World/git/blobs/b0', accept: 'application/vnd.github+json', caller: 'pluginGit.blob', priority: undefined },
-					{ path: '/repos/octocat/Hello-World/git/blobs/b1', accept: 'application/vnd.github+json', caller: 'pluginGit.blob', priority: undefined },
+					{ path: '/repos/octocat/Hello-World/commits/main', accept: 'application/vnd.github.sha', caller: 'pluginGit.resolveSha', priority: undefined, noCache: undefined },
+					{ path: `/repos/octocat/Hello-World/git/trees/${sha1}?recursive=1`, accept: 'application/vnd.github+json', caller: 'pluginGit.tree', priority: undefined, noCache: true },
+					{ path: '/repos/octocat/Hello-World/git/blobs/b0', accept: 'application/vnd.github+json', caller: 'pluginGit.blob', priority: undefined, noCache: true },
+					{ path: '/repos/octocat/Hello-World/git/blobs/b1', accept: 'application/vnd.github+json', caller: 'pluginGit.blob', priority: undefined, noCache: true },
 				],
 			});
 		});
@@ -315,6 +315,27 @@ suite('BrowserPluginGitCommandService', () => {
 			}, { settledBeforePeer: false, peerCancelled: true, sha: sha1, content: 'preserved', directories: ['hello'] });
 		});
 
+		test('grant invalidation during clone cancels without anonymous fallback or sign-in', async () => {
+			authentication.sessions = [session('existing', ['repo'])];
+			await clone();
+			queueResolve(github, sha2);
+			queueTree(github, sha2, [{ path: 'a.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'revoked' }]);
+			github.queue(/\/git\/blobs\/revoked$/, async signal => {
+				github.leases.at(-1)!.invalidate();
+				signal.throwIfAborted();
+				return jsonResponse(blob('revoked', VSBuffer.fromString('new')));
+			});
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'), { name: 'Canceled' });
+			assert.deepStrictEqual({
+				grants: github.leases.map(lease => lease.authorization?.sessionId),
+				prompts: authentication.createSessionCalls,
+				sha: await service.revParse(targetDir, 'HEAD'),
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'a.txt'))).value.toString(),
+				directories: (await fileService.resolve(dirname(targetDir))).children?.map(child => child.name),
+			}, { grants: ['existing', 'existing'], prompts: 0, sha: sha1, content: 'old', directories: ['hello'] });
+		});
+
 		for (const stop of ['cancel', 'invalidate'] as const) {
 			test(`${stop} during a blob read prevents publication and authentication retry`, async () => {
 				authentication.sessions = [session('existing', ['repo'])];
@@ -326,7 +347,7 @@ suite('BrowserPluginGitCommandService', () => {
 					if (stop === 'cancel') {
 						cancellation.cancel();
 					} else {
-						github.leases.at(-1)!.invalidated.fire();
+						github.leases.at(-1)!.invalidate();
 					}
 					return jsonResponse(blob('stopped', VSBuffer.fromString('new')));
 				});
@@ -461,7 +482,7 @@ type ResponseFactory = ApiResponse<string> | Error | ((signal: AbortSignal) => P
 class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 	private readonly responses: { path: RegExp; response: ResponseFactory }[] = [];
 	readonly requests: { request: Omit<ApiRequest, 'body'>; authorization: GitHubAuthorizationContext | undefined; signal: AbortSignal }[] = [];
-	readonly leases: { authorization: GitHubAuthorizationContext | undefined; invalidated: Emitter<void>; disposed: boolean }[] = [];
+	readonly leases: { authorization: GitHubAuthorizationContext | undefined; invalidate: () => void; disposed: boolean }[] = [];
 
 	constructor(private readonly store: DisposableStore) {
 		super();
@@ -486,9 +507,15 @@ class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 	private providers(authorization: GitHubAuthorizationContext | undefined) {
 		const lifetime = new DisposableStore();
 		const invalidated = lifetime.add(new Emitter<void>());
-		const lease = { authorization, invalidated, disposed: false };
-		this.leases.push(lease);
 		const controller = new AbortController();
+		const lease = {
+			authorization, disposed: false,
+			invalidate: () => {
+				controller.abort(new GitHubRequestError('GitHub client grant is no longer available', 'authentication'));
+				invalidated.fire();
+			},
+		};
+		this.leases.push(lease);
 		lifetime.add(toDisposable(() => { lease.disposed = true; controller.abort(); }));
 		const take = async (request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string>> => {
 			this.requests.push({ request, authorization, signal });

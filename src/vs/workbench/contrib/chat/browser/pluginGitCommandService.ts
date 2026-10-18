@@ -225,6 +225,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			signal.throwIfAborted();
 			return await operation(content, signal);
 		} catch (error) {
+			signal.throwIfAborted();
 			this._maybeLogTransientError(error, repo);
 			throw error;
 		} finally {
