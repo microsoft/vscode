@@ -13,7 +13,7 @@ They do this by recording the model traffic once (against real CAPI) into commit
 ## TL;DR
 
 ```bash
-# Run the complete deterministic suite in parallel.
+# Run the complete deterministic suite in parallel (same as ./scripts/test-agent-host-e2e.sh).
 npm run test-agent-host-e2e
 
 # Replay (default): deterministic, tokenless. This is what CI runs.
@@ -296,7 +296,9 @@ The complete-suite runner reuses Electron when its installed version matches the
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
-Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
+The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--grep`, `--build`, `--tfs`) and are what CI calls. `npm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step; in Azure DevOps it is the `integration-agent-host-e2e` test ID. Both run on the same machine as, and before, `🧪 Run integration tests (Electron)` (`integration-electron`), each with its own timeout and failure. In GitHub CI the integration tests also run after an Agent Host E2E failure. In ADO each passed test ID is checkpointed, so a rerun of the job skips the one that already passed.
+
+Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1` and `test-agent-host-e2e.sh` / `.bat` skip the suite.
 
 The Copilot managed-settings diagnostics suite waits for the authenticated provider's model catalog before requesting diagnostics. Authentication schedules runtime startup asynchronously; the catalog establishes a completed runtime RPC without creating a session or making a model request. The policy probe still fetches server settings afresh and retains the production 4.5-second overall and 3.5-second query deadlines. Cold-start deadline behavior is covered by the Copilot agent unit tests.
 

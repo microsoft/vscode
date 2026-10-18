@@ -381,6 +381,7 @@ extends:
                 VSCODE_JOB_NAME: Integration
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
                   - integration-electron
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
@@ -435,6 +436,7 @@ extends:
                 VSCODE_JOB_NAME: Integration
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
                   - integration-electron
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
@@ -490,6 +492,7 @@ extends:
                 VSCODE_JOB_NAME: Integration
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
                   - integration-electron
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
