@@ -5,7 +5,6 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
-import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -163,41 +162,24 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 	return configs;
 }
 
-/** A plugin's agents together with its on-disk location (if any). */
+/** The agents contributed by a plugin. */
 export interface IPluginAgentsForSdk {
-	readonly pluginDir?: URI;
 	readonly agents: readonly INamedPluginResource[];
 }
 
 /**
  * Builds the SDK's `customAgents` config for a session.
  *
- * Agents contributed by plugins materialized into an on-disk (file-scheme)
- * directory are normally left out of `customAgents` and discovered by the SDK
- * through `pluginDirectories` instead, to avoid duplicates. However, the SDK
- * validates the session-start `agent:` option against `customAgents` *by name
- * only* — it does NOT consult `pluginDirectories`. So a selected plugin or
- * extension agent (e.g. one chosen in the agent picker) would otherwise fail
- * with "Custom agent '<name>' not found". This forces the resolved selection
- * into `customAgents` so it can be activated, while every other file-dir agent
- * continues to load via `pluginDirectories`.
+ * The SDK treats an explicit `customAgents` array, including an empty one, as
+ * the complete agent catalog and does not merge agents discovered from
+ * `pluginDirectories`. VS Code always contributes built-in agents explicitly,
+ * so every enabled plugin agent must be projected here as well.
  */
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
-	resolvedAgentName: string | undefined,
 	fileService: IFileService,
 ): Promise<CustomAgentConfig[]> {
-	const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-	const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), fileService);
-	if (resolvedAgentName && !customAgents.some(agent => agent.name === resolvedAgentName)) {
-		const selectedAgents = plugins.flatMap(p => p.agents).filter(agent => agent.name === resolvedAgentName);
-		for (const config of await toSdkCustomAgents(selectedAgents, fileService)) {
-			if (!customAgents.some(agent => agent.name === config.name)) {
-				customAgents.push(config);
-			}
-		}
-	}
-	return customAgents;
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
 }
 
 /**

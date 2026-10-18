@@ -30,7 +30,7 @@ import { IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubTransport, GitHubTransportOptions } from '../../common/githubTransport.js';
 import { GitHubRequestError, IGitHubCredentialProvider, MissingCommitError } from '../../common/githubTypes.js';
-import { RequestFetch, RequestPriority } from '../../common/types.js';
+import { gitHubRequestDomains, RequestFetch, RequestPriority } from '../../common/types.js';
 import { getGitHubClientInternals } from './githubClientTestUtils.js';
 
 suite('LocalApiRequestProvider', () => {
@@ -57,6 +57,13 @@ suite('LocalApiRequestProvider', () => {
 		assert.deepStrictEqual(policies.map(noCache => parseRequest({ ...read, options: { noCache } }).options?.noCache), policies);
 		for (const noCache of [null, '', 'true', 0]) {
 			assert.throws(() => parseRequest({ ...read, options: { noCache } }), SchemaError);
+		}
+	});
+
+	test('accepts only fixed API domains in request metadata', () => {
+		assert.deepStrictEqual([undefined, ...gitHubRequestDomains].map(domain => parseRequest({ ...read, domain }).domain), [undefined, ...gitHubRequestDomains]);
+		for (const domain of [null, '', 1, 'private-owner/private-repository', 'content/private', 'https://private.example']) {
+			assert.throws(() => parseRequest({ ...read, domain }), SchemaError);
 		}
 	});
 
@@ -954,7 +961,7 @@ suite('LocalApiRequestProvider', () => {
 				return Response.json({ data: { viewer: { login: 'viewer' } } });
 			});
 			const core = new CoreClient(provider, provider);
-			const result = await core.graphql(query, { toJSON() { serializations++; return { name: 'value\n"quoted"' }; } }, signal(), parseViewer);
+			const result = await core.graphql('other', query, { toJSON() { serializations++; return { name: 'value\n"quoted"' }; } }, signal(), parseViewer);
 			assert.deepStrictEqual({ result, serializations, requests }, {
 				result: { viewer: { login: 'viewer' } }, serializations: 1,
 				requests: [{ url: `${apiBaseUri}/graphql`, body: JSON.stringify({ query, variables: { name: 'value\n"quoted"' } }), method: 'POST', authorization: true }],
@@ -980,7 +987,7 @@ suite('LocalApiRequestProvider', () => {
 				let parses = 0;
 				let calls = 0;
 				const provider = graphql(async () => { calls++; return new Response(responseBody, { headers: { 'X-GitHub-Request-Id': 'graphql-request' } }); });
-				await assert.rejects(new CoreClient(provider, provider).graphql(query, {}, signal(), value => {
+				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), value => {
 					parses++;
 					return parseViewer(value);
 				}), (error: unknown) => {
@@ -997,14 +1004,14 @@ suite('LocalApiRequestProvider', () => {
 		test('classifies errors-only schema responses using extension codes', async () => {
 			const errors = [{ message: 'Unknown field', extensions: { code: 'undefinedField' } }];
 			const provider = graphql(async () => Response.json({ errors }));
-			await assert.rejects(new CoreClient(provider, provider).graphql(query, {}, signal(), parseViewer), {
+			await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), parseViewer), {
 				kind: 'schema', statusCode: 200, graphQLErrors: errors,
 			});
 		});
 
 		test('preserves explicitly null data when the domain parser permits it', async () => {
 			const provider = graphql(async () => Response.json({ data: null }));
-			assert.deepStrictEqual(await new CoreClient(provider, provider).graphql(query, {}, signal(), parse.nullable(parseViewer)), null);
+			assert.deepStrictEqual(await new CoreClient(provider, provider).graphql('other', query, {}, signal(), parse.nullable(parseViewer)), null);
 		});
 
 		for (const body of [
@@ -1015,7 +1022,7 @@ suite('LocalApiRequestProvider', () => {
 			test(`rejects malformed GraphQL envelopes without retry: ${body}`, async () => {
 				let calls = 0;
 				const provider = graphql(async () => { calls++; return new Response(body); });
-				await assert.rejects(new CoreClient(provider, provider).graphql(query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 200 });
+				await assert.rejects(new CoreClient(provider, provider).graphql('other', query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 200 });
 				assert.strictEqual(calls, 1);
 			});
 		}
@@ -1024,8 +1031,8 @@ suite('LocalApiRequestProvider', () => {
 			let calls = 0;
 			const provider = graphql(async () => Response.json({ data: {} }, { status: ++calls === 1 ? 200 : 202 }));
 			const core = new CoreClient(provider, provider);
-			await assert.rejects(core.graphql(query, {}, signal(), parseViewer), error => error instanceof SchemaError);
-			await assert.rejects(core.graphql(query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 202 });
+			await assert.rejects(core.graphql('other', query, {}, signal(), parseViewer), error => error instanceof SchemaError);
+			await assert.rejects(core.graphql('other', query, {}, signal(), parseViewer), { kind: 'malformedResponse', statusCode: 202 });
 			assert.strictEqual(calls, 2);
 		});
 
@@ -1045,7 +1052,7 @@ suite('LocalApiRequestProvider', () => {
 							}
 							return Response.json({ data: { viewer: { login: 'viewer' } } });
 						});
-						const result = new CoreClient(provider, provider).graphql(operation, {}, signal(), parseViewer);
+						const result = new CoreClient(provider, provider).graphql('other', operation, {}, signal(), parseViewer);
 						if (operation === mutation) {
 							await assert.rejects(result, { kind: 'network' });
 						} else {
@@ -1061,7 +1068,7 @@ suite('LocalApiRequestProvider', () => {
 			let calls = 0;
 			const provider = graphql(async () => { calls++; return Response.json({ data: {} }); });
 			const core = new CoreClient(provider, provider);
-			await Promise.all([core.graphql(mutation, {}, signal(), parse.object({})), core.graphql(mutation, {}, signal(), parse.object({}))]);
+			await Promise.all([core.graphql('other', mutation, {}, signal(), parse.object({})), core.graphql('other', mutation, {}, signal(), parse.object({}))]);
 			assert.strictEqual(calls, 2);
 		});
 

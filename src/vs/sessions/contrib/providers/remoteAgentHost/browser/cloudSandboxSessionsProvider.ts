@@ -40,6 +40,15 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
 
+	/** Cloud sandbox storage is managed by the sandbox lifecycle, not worktree cleanup. */
+	override async getSessionWorktreeDiskUsage(_sessionId: string, _token = CancellationToken.None): Promise<number | undefined> {
+		return undefined;
+	}
+
+	protected override _validateBeforeCreate(): void {
+		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
+	}
+
 	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
 		return adopted?.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER

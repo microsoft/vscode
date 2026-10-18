@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
@@ -49,13 +50,12 @@ export interface IAgentsBannerOptions {
 	readonly source: 'welcomePage' | 'agentSessionsWelcome';
 	/** Override the default button label. */
 	readonly label?: string;
-	/** Optional callback invoked when the banner button is clicked. */
+	/** Optional callback invoked when the banner opens the Agents window. */
 	readonly onButtonClick?: () => void;
 }
 
 /**
- * Creates a banner that promotes the Agents app.
- * The banner contains a button that opens the Agents window.
+ * Creates a button that opens the Agents window, or offers GitHub sign-in when enabled and an account service is provided.
  */
 export function createAgentsBanner(
 	options: IAgentsBannerOptions,
@@ -63,16 +63,14 @@ export function createAgentsBanner(
 	telemetryService: ITelemetryService,
 	configurationService: IConfigurationService,
 	chatEntitlementService: IChatEntitlementService,
+	defaultAccountService?: IDefaultAccountService,
 ): IAgentsBannerResult {
 	const disposables = new DisposableStore();
 	const label = options.label ?? localize('agentsBanner.tryAgentsAppLabel', "Try out the new Agents window");
 
-	const button = $<HTMLButtonElement>('button.agents-banner-button', {
-		title: label,
-	},
-		$('.codicon.codicon-agent.icon-widget', { 'aria-hidden': 'true' }),
-		$('span.category-title', {}, label),
-	);
+	const icon = $('.codicon.icon-widget', { 'aria-hidden': 'true' });
+	const buttonLabel = $('span.category-title');
+	const button = $<HTMLButtonElement>('button.agents-banner-button', {}, icon, buttonLabel);
 	const element = $(`.${options.cssClass}`, {}, button);
 	const updateVisibility = () => {
 		const visible = canShowAgentsBanner(chatEntitlementService, configurationService);
@@ -86,8 +84,42 @@ export function createAgentsBanner(
 			updateVisibility();
 		}
 	}));
+	let accountResolved = false;
+	const shouldOfferSignIn = () => accountResolved && defaultAccountService?.currentDefaultAccount === null && configurationService.getValue<boolean>(ChatConfiguration.WelcomePageSignInEnabled) !== false;
+	const updateButton = () => {
+		const offerSignIn = shouldOfferSignIn();
+		const buttonText = offerSignIn ? localize('agentsBanner.signIn', "Sign in to GitHub") : label;
+		button.title = buttonText;
+		buttonLabel.textContent = buttonText;
+		icon.classList.toggle('codicon-github', offerSignIn);
+		icon.classList.toggle('codicon-agent', !offerSignIn);
+	};
+	updateButton();
+	if (defaultAccountService) {
+		disposables.add(defaultAccountService.onDidChangeDefaultAccount(() => {
+			accountResolved = true;
+			updateButton();
+		}));
+		disposables.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.WelcomePageSignInEnabled)) {
+				updateButton();
+			}
+		}));
+		defaultAccountService.getDefaultAccount().then(() => {
+			if (!disposables.isDisposed) {
+				accountResolved = true;
+				updateButton();
+			}
+		}).catch(onUnexpectedError);
+	}
 
 	disposables.add(addDisposableListener(button, 'click', () => {
+		if (defaultAccountService && shouldOfferSignIn()) {
+			telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'signIn' });
+			defaultAccountService.signIn().catch(onUnexpectedError);
+			return;
+		}
+
 		options.onButtonClick?.();
 		telemetryService.publicLog2<AgentsBannerClickedEvent, AgentsBannerClickedClassification>('agentsBanner.clicked', { source: options.source, action: 'openAgentsWindow' });
 		const source = options.source === 'welcomePage' ? AgentsWindowOpenSource.WelcomeTryOut : AgentsWindowOpenSource.WelcomeViewAll;

@@ -270,14 +270,14 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			listCalls,
 		}, {
 			allSources: [
-				[sourceId, 'vscode-team-kit'],
-				[unavailableSourceId, 'unavailable-kit'],
 				[CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.displayName],
 				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+				[unavailableSourceId, 'unavailable-kit'],
+				[sourceId, 'vscode-team-kit'],
 			],
 			enabledSources: [
-				[sourceId, 'vscode-team-kit'],
 				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
+				[sourceId, 'vscode-team-kit'],
 			],
 			disabledSources: [
 				[CustomizationMarketplaceSources.CopilotConnectors.id, 'Copilot Connectors'],
@@ -338,7 +338,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			items: page.items.map(item => [item.sourceId, item.displayName]),
 			platformCalls, githubFeedCalls, pluginCalls,
 		}, {
-			sources: [customSourceId, CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			sources: [CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id, customSourceId],
 			items: [[customSourceId, 'Review']],
 			platformCalls: 1,
 			githubFeedCalls: 0,
@@ -378,8 +378,8 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			before,
 			after: service.allSources.map(source => source.id),
 		}, {
-			before: [CustomizationMarketplaceSources.PluginMarketplaces.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id],
-			after: [CustomizationMarketplaceSources.PluginMarketplaces.id, getPluginCustomizationMarketplaceSourceId(reference), CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			before: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id, CustomizationMarketplaceSources.PluginMarketplaces.id],
+			after: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id, CustomizationMarketplaceSources.PluginMarketplaces.id, getPluginCustomizationMarketplaceSourceId(reference)],
 		});
 	});
 
