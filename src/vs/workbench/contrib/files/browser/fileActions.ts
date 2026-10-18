@@ -1136,6 +1136,13 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 
 	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);
 
+	// The clipboard may have been replaced (e.g. by another application) since the cut,
+	// so only move files that are still marked as cut in the explorer and copy otherwise
+	const shouldMove = pasteShouldMove && toPaste.type === 'paths' && toPaste.files.every(fileToPaste => {
+		const item = explorerService.findClosest(fileToPaste);
+		return !!item && uriIdentityService.extUri.isEqual(item.resource, fileToPaste) && explorerService.isCut(item);
+	});
+
 	if (confirmPasteNative && toPaste.files.length >= 1) {
 		const message = toPaste.files.length > 1 ?
 			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.files.length) :
@@ -1206,7 +1213,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 					fileService,
 					dialogService,
 					target,
-					{ resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove || incrementalNaming === 'disabled' },
+					{ resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: shouldMove || incrementalNaming === 'disabled' },
 					incrementalNaming
 				);
 
@@ -1219,7 +1226,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 
 			if (sourceTargetPairs.length >= 1) {
 				// Move/Copy File
-				if (pasteShouldMove) {
+				if (shouldMove) {
 					const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { overwrite: incrementalNaming === 'disabled' }));
 					const options = {
 						confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,

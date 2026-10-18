@@ -20,32 +20,59 @@ import { ExplorerItem } from '../../common/explorerModel.js';
 suite('Files - Paste', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('cut reports an existing destination without claiming the source was deleted (#206471)', async () => {
+	function setup(applyBulkEdit: IExplorerService['applyBulkEdit']) {
 		const configurationService = new TestConfigurationService({ explorer: { incrementalNaming: 'simple' } });
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
 		const fileService = instantiationService.get(IFileService);
 		const clipboardService = new TestClipboardService();
 		instantiationService.stub(IClipboardService, clipboardService);
-		const notification = instantiationService.spy(INotificationService, 'error');
 
 		const source = new ExplorerItem(URI.file('/workspace/some-file'), fileService, configurationService, NullFilesConfigurationService, undefined, false);
 		const destination = new ExplorerItem(URI.file('/workspace/some-folder'), fileService, configurationService, NullFilesConfigurationService, undefined, true);
-		const error = new FileOperationError('The target already exists at the destination.', FileOperationResult.FILE_MOVE_CONFLICT);
-		let context = [source];
+		const explorer = { context: [source], cutItems: [] as ExplorerItem[] };
 		instantiationService.stub(IExplorerService, {
-			getContext: () => context,
+			getContext: () => explorer.context,
 			getEditable: () => undefined,
-			setToCopy: async items => {
+			setToCopy: async (items, cut) => {
+				explorer.cutItems = cut ? items : [];
 				await clipboardService.writeResources(items.map(item => item.resource));
 			},
-			applyBulkEdit: async () => { throw error; }
+			isCut: item => explorer.cutItems.includes(item),
+			findClosest: resource => [source, destination].find(item => item.resource.toString() === resource.toString()) ?? null,
+			select: async () => { },
+			applyBulkEdit
 		});
 
+		return { instantiationService, clipboardService, explorer, destination };
+	}
+
+	test('cut reports an existing destination without claiming the source was deleted (#206471)', async () => {
+		const error = new FileOperationError('The target already exists at the destination.', FileOperationResult.FILE_MOVE_CONFLICT);
+		const { instantiationService, explorer, destination } = setup(async () => { throw error; });
+		const notification = instantiationService.spy(INotificationService, 'error');
+
 		await instantiationService.invokeFunction(cutFileHandler);
-		context = [destination];
+		explorer.context = [destination];
 		await instantiationService.invokeFunction(pasteFileHandler);
 
 		assert.deepStrictEqual(notification.args, [[error.message]]);
+	});
+
+	test('paste copies instead of moving when the clipboard was replaced after a cut', async () => {
+		const edits: { oldResource: string | undefined; copy: boolean }[] = [];
+		const { instantiationService, clipboardService, explorer, destination } = setup(async resourceFileEdits => {
+			for (const edit of resourceFileEdits) {
+				edits.push({ oldResource: edit.oldResource?.toString(), copy: !!edit.options.copy });
+			}
+		});
+
+		await instantiationService.invokeFunction(cutFileHandler);
+		// another application (e.g. a Linux file manager) now owns the clipboard
+		await clipboardService.writeResources([URI.file('/external/other-file')]);
+		explorer.context = [destination];
+		await instantiationService.invokeFunction(pasteFileHandler);
+
+		assert.deepStrictEqual(edits, [{ oldResource: URI.file('/external/other-file').toString(), copy: true }]);
 	});
 });
 
