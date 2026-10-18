@@ -7,7 +7,13 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getSizeRegistry, registerSize, size, sizeForAllThemes, sizeValueToCss, asCssVariableName, asCssVariable } from '../../common/sizeRegistry.js';
 // Import baseSizes to ensure base size tokens are registered
-import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, strokeThickness } from '../../common/sizes/baseSizes.js';
+import { bodyFontSize, bodyFontSizeSmall, codiconFontSize, cornerRadiusMedium, cornerRadiusSmall, cornerRadiusLarge, iconSizeSmall, strokeThickness } from '../../common/sizes/baseSizes.js';
+
+function getSizeTokenDefaults(prefix: string) {
+	return Object.fromEntries(getSizeRegistry().getSizes()
+		.filter(size => size.id.startsWith(prefix))
+		.map(size => [size.id, size.defaults]));
+}
 
 suite('Size Registry', () => {
 
@@ -65,7 +71,39 @@ suite('Size Registry', () => {
 		assert.ok(sizes.find(s => s.id === cornerRadiusMedium), 'cornerRadius.medium should be registered');
 		assert.ok(sizes.find(s => s.id === cornerRadiusSmall), 'cornerRadius.small should be registered');
 		assert.ok(sizes.find(s => s.id === cornerRadiusLarge), 'cornerRadius.large should be registered');
+		assert.ok(sizes.find(s => s.id === iconSizeSmall), 'iconSize.small should be registered');
 		assert.ok(sizes.find(s => s.id === strokeThickness), 'strokeThickness should be registered');
+	});
+
+	test('icon size tokens should use the expected scale', () => {
+		assert.deepStrictEqual(getSizeTokenDefaults('iconSize.'), {
+			'iconSize.xSmall': sizeForAllThemes(12, 'px'),
+			'iconSize.small': sizeForAllThemes(16, 'px'),
+			'iconSize.medium': sizeForAllThemes(20, 'px'),
+			'iconSize.large': sizeForAllThemes(24, 'px'),
+			'iconSize.xLarge': sizeForAllThemes(32, 'px'),
+		});
+	});
+
+	test('spacing size tokens should use the expected scale', () => {
+		assert.deepStrictEqual(getSizeTokenDefaults('spacing.'), {
+			'spacing.sizeNone': sizeForAllThemes(0, 'px'),
+			'spacing.size10': sizeForAllThemes(1, 'px'),
+			'spacing.size20': sizeForAllThemes(2, 'px'),
+			'spacing.size30': sizeForAllThemes(3, 'px'),
+			'spacing.size40': sizeForAllThemes(4, 'px'),
+			'spacing.size60': sizeForAllThemes(6, 'px'),
+			'spacing.size80': sizeForAllThemes(8, 'px'),
+			'spacing.size100': sizeForAllThemes(10, 'px'),
+			'spacing.size120': sizeForAllThemes(12, 'px'),
+			'spacing.size160': sizeForAllThemes(16, 'px'),
+			'spacing.size200': sizeForAllThemes(20, 'px'),
+			'spacing.size240': sizeForAllThemes(24, 'px'),
+			'spacing.size280': sizeForAllThemes(28, 'px'),
+			'spacing.size320': sizeForAllThemes(32, 'px'),
+			'spacing.size360': sizeForAllThemes(36, 'px'),
+			'spacing.size400': sizeForAllThemes(40, 'px'),
+		});
 	});
 
 	test('sizeForAllThemes should create same value for all themes', () => {
