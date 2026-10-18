@@ -28,7 +28,7 @@ import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -2781,6 +2781,54 @@ suite('getCopilotAutoTier', () => {
 			autoModeTiers.map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
 			[...autoModeTiers]
 		);
+	});
+
+	test('accepts exactly the provider-advertised tiers while the provider sends Auto metadata', () => {
+		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
+		let advertised, noneRunnable;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'premium-v2']);
+			advertised = tiersOf();
+			setAdvertisedAutoModeTiers([]);
+			noneRunnable = tiersOf();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual({ advertised, noneRunnable, noMetadata: tiersOf() }, {
+			advertised: ['balance', 'hydrafusion', undefined, 'premium-v2'],
+			noneRunnable: [undefined, undefined, undefined, undefined],
+			noMetadata: ['balance', undefined, 'efficiency', undefined],
+		});
+	});
+
+	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
+		const log = new NullLogService();
+		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
+		let withBalance, withoutBalance;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'balance']);
+			withBalance = resolve();
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			withoutBalance = resolve();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'balance' });
+	});
+
+	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
+		const configurationService = {
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
+		} as Parameters<typeof resolveCopilotAutoTier>[1];
+		let tier;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			tier = resolveCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }, configurationService, new NullLogService(), 'session');
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.strictEqual(tier, undefined);
 	});
 
 	test('resolves the override before picker preferences', () => {

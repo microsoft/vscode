@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { realTimeApi, runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -142,7 +142,9 @@ function createTestPeer(): ITestPeer {
 
 function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 	return new Promise((resolve, reject) => {
-		const timeout = setTimeout(() => {
+		// A real-time watchdog for the stream I/O, so that it does not fire
+		// prematurely when called within `runWithFakedTimers`.
+		const timeout = realTimeApi.setTimeout(() => {
 			cleanup();
 			reject(new Error('Timed out waiting for Codex request'));
 		}, 1_000);
@@ -155,7 +157,7 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 			}
 		};
 		const cleanup = () => {
-			clearTimeout(timeout);
+			realTimeApi.clearTimeout(timeout);
 			stream.off('data', onData);
 		};
 		stream.once('data', onData);
@@ -2295,22 +2297,20 @@ suite('CodexAgent workspace conversion', () => {
 	});
 
 	for (const disconnect of [false, true]) {
-		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, async () => {
+		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = await createWorkspaceHarness();
 			const { agent, peer, session, chat, folder } = harness;
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
-				const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
-				const request = await readNextRequest(peer.outbound);
-				peer.push({ id: request.id, result: {} });
-				if (disconnect) {
-					const connection = agent['_connection'];
-					assert.ok(connection.kind === 'ready');
-					agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
-				}
-				await rejected;
-			});
-		});
+			const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
+			const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
+			const request = await readNextRequest(peer.outbound);
+			peer.push({ id: request.id, result: {} });
+			if (disconnect) {
+				const connection = agent['_connection'];
+				assert.ok(connection.kind === 'ready');
+				agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
+			}
+			await rejected;
+		}));
 	}
 
 	test('chat isolation rethrows a definitive Codex rejection instead of signaling quarantine', async () => {
@@ -2605,19 +2605,17 @@ suite('CodexAgent workspace conversion', () => {
 		}
 	});
 
-	test('bounds a queued update that never publishes applied settings', async () => {
+	test('bounds a queued update that never publishes applied settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { agent, peer, session, chat, scratch, folder, entry } = await createWorkspaceHarness();
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const changing = agent.setWorkingDirectory(chat, session, folder);
-			const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
-			const request = await readNextRequest(peer.outbound);
-			peer.push({ id: request.id, result: {} });
-			await rejected;
-		});
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		await rejected;
 		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, pending: agent['_workingDirectoryMutations'].has(entry), needsResume: entry.needsResume }, {
 			cwd: scratch.fsPath, pending: false, needsResume: true,
 		});
-	});
+	}));
 
 	for (const refreshFailure of [false, true]) {
 		test(`reports the applied cwd after ${refreshFailure ? 'a refresh failure' : 'Codex applies a different directory'}`, async () => {

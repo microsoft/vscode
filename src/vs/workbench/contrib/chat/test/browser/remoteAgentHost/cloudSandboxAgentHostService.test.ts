@@ -522,7 +522,7 @@ suite('CloudSandboxAgentHostService', () => {
 		new CloudSandboxAuthenticationRequiredError(),
 		new CancellationError(),
 		new Error('Unexpected credential response'),
-		...[400, 401, 403, 404, 408, 409, 429, 500, 503].map(status => new CloudSandboxRequestError(status, `HTTP ${status}`)),
+		...[400, 401, 403, 404, 408, 409, 500, 503].map(status => new CloudSandboxRequestError(status, `HTTP ${status}`)),
 	]) {
 		test(`does not retry a credential failure with an explicit response or no network classification: ${failure.message}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const fixture = createService(store, [
@@ -535,6 +535,82 @@ suite('CloudSandboxAgentHostService', () => {
 			}, { requests: 1, ready: undefined });
 		}));
 	}
+
+	for (const status of [403, 429]) {
+		test(`retries HTTP ${status} rate-limited admission after the server delay`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const started = Date.now();
+			const times: number[] = [];
+			let attempts = 0;
+			const fixture = createService(store, [async () => {
+				times.push(Date.now() - started);
+				if (attempts++ === 0) {
+					throw new CloudSandboxRequestError(status, 'rate limited', 45, { code: 'rate_limit_exceeded', limitedResource: 'token_mint' });
+				}
+				return { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') };
+			}]);
+			await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+			fixture.service.dispose();
+			assert.deepStrictEqual({ times, requests: fixture.requestCalls() }, { times: [0, 45_000], requests: 2 });
+		}));
+	}
+
+	test('rate-limited admission stops after three retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const failure = new CloudSandboxRequestError(429, 'rate limited', undefined, { code: 'rate_limit_exceeded' });
+		const fixture = createService(store, [failure]);
+		await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), error => error === failure);
+		assert.strictEqual(fixture.requestCalls(), 4);
+	}));
+
+	test('successful waking polls do not consume the admission failure deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const failure = new CloudSandboxRequestError(429, 'rate limited', 5, { code: 'rate_limit_exceeded' });
+		const fixture = createService(store, [
+			failure,
+			{ kind: 'waking', waking: { retryAfterSeconds: 130 } },
+			failure,
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		fixture.service.dispose();
+		const elapsed = Date.now() - started;
+		assert.deepStrictEqual({ requests: fixture.requestCalls(), respectedDelays: elapsed >= 140_000 && elapsed <= 141_000 }, { requests: 4, respectedDelays: true });
+	}));
+
+	test('successful waking polls reset consecutive admission failure counts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const failure = new CloudSandboxRequestError(429, 'rate limited', 5, { code: 'rate_limit_exceeded' });
+		const responses: ScriptedConnectResult[] = Array.from({ length: 4 }, (): ScriptedConnectResult[] => [
+			failure, { kind: 'waking', waking: { retryAfterSeconds: 1 } },
+		]).flat();
+		const fixture = createService(store, [...responses, { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') }]);
+		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		fixture.service.dispose();
+		assert.strictEqual(fixture.requestCalls(), 9);
+	}));
+
+	test('rate-limited credential completion keeps the client identity and waits for a sealed token', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const fixture = createService(store, [
+			{ kind: 'token', token: clientToken(undefined, 'initial-client') },
+			new CloudSandboxRequestError(403, 'rate limited', 45, { code: 'rate_limit_exceeded', limitedResource: 'token_mint' }),
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready', 'initial-client') },
+		]);
+		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		fixture.service.dispose();
+		assert.deepStrictEqual({
+			elapsed: Date.now() - started, token: fixture.service.sealedTokenAtEstablish,
+			requests: fixture.requests.map(request => ({ method: request.method, clientId: request.clientId })),
+		}, {
+			elapsed: 45_000, token: 'copilot-sealed.v1.key.ready',
+			requests: [{ method: 'connect', clientId: undefined }, { method: 'reconnect', clientId: 'initial-client' }, { method: 'reconnect', clientId: 'initial-client' }],
+		});
+	}));
+
+	test('does not shorten a rate-limit wait that exceeds the retry budget', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const failure = new CloudSandboxRequestError(429, 'rate limited', 300, { code: 'rate_limit_exceeded' });
+		const fixture = createService(store, [failure]);
+		await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), error => error === failure);
+		assert.strictEqual(fixture.requestCalls(), 1);
+	}));
 
 	for (const readyAfterMs of [60_000, 590_000]) {
 		test(`one-second pending responses can reach readiness after ${readyAfterMs}ms without exhausting a poll count`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
@@ -1088,9 +1164,9 @@ suite('CloudSandboxAgentHostService', () => {
 	test('preserves the refresh failure limit across automatic client replacements', () => runWithFakedTimers({}, async () => {
 		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(503, 'unavailable'); });
 		await assert.rejects(fixture.prepareReconnect(), /could not be refreshed/);
-		await timeout(180_001);
+		await timeout(30_000);
 		const callsBeforeReplacement = fixture.refreshCalls();
-		for (let attempt = 1; attempt < 10; attempt++) {
+		for (let attempt = 1; attempt < 4; attempt++) {
 			await fixture.redial();
 			await assert.rejects(fixture.prepareReconnect(), /could not be refreshed/);
 		}
@@ -1106,8 +1182,8 @@ suite('CloudSandboxAgentHostService', () => {
 			stops: fixture.events.filter(event => event.eventName === 'cloudSandboxCredentialRefreshStopped').map(event => event.data),
 		}, {
 			callsBeforeReplacement: 1,
-			calls: 10,
-			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 10, statusCode: undefined }],
+			calls: 4,
+			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 4, statusCode: 503 }],
 		});
 	}));
 

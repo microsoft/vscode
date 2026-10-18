@@ -65,6 +65,27 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
 	}
 
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.installSandboxCertificate) {
+			throw new Error('Sandbox certificate installation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.installSandboxCertificate!(chat, scopeId));
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.rotateSandboxCertificate) {
+			throw new Error('Sandbox certificate rotation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.rotateSandboxCertificate!(chat, scopeId));
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this._agentService.removeSandboxCertificate) {
+			throw new Error('Sandbox certificate removal is unavailable');
+		}
+		return this._runMutation(() => this._agentService.removeSandboxCertificate!(chat, scopeId));
+	}
+
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		if (!this._agentService.createDetachedWorktree) {
 			throw new Error('Agent Host detached worktrees are unavailable');

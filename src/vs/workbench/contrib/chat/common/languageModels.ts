@@ -241,10 +241,23 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
+			/** Enum values shown but not selectable, parallel to `enum`; `enumDescriptions` says why. */
+			enumItemDisabled?: boolean[];
 			/** When `true`, the property is displayed but cannot be modified by the user. */
 			readOnly?: boolean;
 		};
 	};
+}
+
+export interface IAutoModelTierPromotion {
+	readonly id: string;
+	readonly message?: string;
+	readonly discountPercent: number;
+	readonly tierIds: readonly string[];
+	readonly startsAt?: string;
+	readonly endsAt?: string;
+	/** Published with the promotion so the metadata changes, and pickers refresh, when it starts. */
+	readonly upcoming?: boolean;
 }
 
 export interface ILanguageModelChatMetadata {
@@ -268,6 +281,10 @@ export interface ILanguageModelChatMetadata {
 	readonly autoModelDiscountPercent?: number;
 	/** How the agent host presents its Auto model as Fusion, when it does. */
 	readonly autoModelFusion?: { readonly balanceUsesHydraFusion: boolean };
+	/** Set only on the agent host's Auto model presented as Fusion. */
+	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
+	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
+	readonly autoModelProviderTiers?: boolean;
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -424,6 +441,35 @@ export namespace ILanguageModelChatMetadata {
 		}
 		const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
+	}
+
+	export function getPromoStartsAtLabel(startsAt: string | undefined): string | undefined {
+		const startsAtDate = startsAt ? new Date(startsAt) : undefined;
+		if (!startsAtDate || isNaN(startsAtDate.getTime())) {
+			return undefined;
+		}
+		const formattedDate = startsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		return localize('chat.promo.startsAt', "Starts {0}.", formattedDate);
+	}
+
+	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
+		return !(promotion.startsAt && now < Date.parse(promotion.startsAt)) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
+	}
+
+	export function isAutoTierPromotionUpcoming(promotion: IAutoModelTierPromotion, now: number): boolean {
+		return !!promotion.startsAt && now < Date.parse(promotion.startsAt) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
+	}
+
+	/** The active promotion with the largest discount, else the one starting soonest. */
+	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
+		const promotions = (metadata.autoModelTierPromotions ?? []).filter(promotion => typeof tier === 'string' && promotion.tierIds.includes(tier));
+		const active = promotions.filter(promotion => isAutoTierPromotionActive(promotion, now)).sort((a, b) => b.discountPercent - a.discountPercent)[0];
+		return active ?? promotions.filter(promotion => isAutoTierPromotionUpcoming(promotion, now)).sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!))[0];
+	}
+
+	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
+		const promotion = getAutoTierPromotion(metadata, tier, now);
+		return promotion && promotion.discountPercent > 0 && isAutoTierPromotionActive(promotion, now) ? promotion.discountPercent : metadata.autoModelDiscountPercent;
 	}
 
 	/**
@@ -1155,7 +1201,7 @@ export function createModelConfigurationActions(
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: !propSchema.readOnly,
+				enabled: !propSchema.readOnly && propSchema.enumItemDisabled?.[index] !== true,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)

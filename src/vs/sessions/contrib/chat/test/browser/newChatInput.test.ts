@@ -16,6 +16,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -721,7 +722,7 @@ suite('NewChatInputWidget', () => {
 		assert.strictEqual(composerFocused, true);
 	});
 
-	test('delays initialization progress to avoid flicker for fast workspace changes', async () => {
+	test('delays initialization progress to avoid flicker for fast workspace changes', () => runWithFakedTimers({}, async () => {
 		const loadingSpinner = document.createElement('div');
 		const loading = { value: true };
 		const loadingDelayDisposable = disposables.add(new MutableDisposable<IDisposable>());
@@ -757,7 +758,7 @@ suite('NewChatInputWidget', () => {
 			visibleAfterDelay: true,
 			visibleAfterLoading: false,
 		});
-	});
+	}));
 
 	test('keeps the input model alive until reference acquisition settles during disposal', async () => {
 		const referenceDeferred = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
