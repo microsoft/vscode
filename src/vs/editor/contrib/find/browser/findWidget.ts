@@ -91,11 +91,11 @@ const MAX_REGEX_PATTERN_LENGTH_IN_ERROR = 60;
 // How much of the pattern to show before and after the error location.
 const REGEX_ERROR_CONTEXT_BEFORE = 50;
 const REGEX_ERROR_CONTEXT_AFTER = 10;
-// Locating the error compiles O(log n) prefixes of the pattern. Up to this length
-// that takes a few milliseconds (about 1.5ms for 40k characters, 12ms for 400k),
-// which stays well within a single frame. Longer patterns skip the search and
-// only show the start of the pattern, so typing never becomes sluggish.
-const MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR = 100_000;
+// Locating the error scans the pattern once and compiles O(log n) prefixes of it.
+// Up to this length that takes a few milliseconds (about 10ms for 40k characters),
+// which stays within a single frame. Longer patterns skip the search and only show
+// the start of the pattern, so typing never becomes sluggish.
+const MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR = 50_000;
 
 function getRegexError(pattern: string, flags: string): string | undefined {
 	try {
@@ -118,27 +118,110 @@ function parseRegexError(message: string, pattern: string, flags: string): { pre
 	return { prefix: message.substring(0, index), reason: message.substring(index + source.length) };
 }
 
-function getRegexErrorReason(pattern: string, flags: string): string | undefined {
-	const message = getRegexError(pattern, flags);
-	return message === undefined ? undefined : parseRegexError(message, pattern, flags)?.reason ?? message;
+interface IRegexCutPoint {
+	/** Length of the prefix. */
+	readonly offset: number;
+	/** Number of groups that are open at the end of the prefix. */
+	readonly openGroups: number;
+	/** Whether the prefix ends inside a character class. */
+	readonly inCharacterClass: boolean;
 }
 
 /**
- * Finds the length of the shortest prefix of `pattern` that fails with the same
- * error reason as the whole pattern, which is where the error is located.
+ * Returns the offsets at which the pattern can be cut without splitting an escape sequence,
+ * a group opening such as `(?<name>` or a `{n,m}` quantifier, together with the open
+ * character class and groups at that offset.
  */
-function locateRegexError(pattern: string, flags: string, reason: string): number {
-	let low = 1;
-	let high = pattern.length;
+function getRegexCutPoints(pattern: string): IRegexCutPoint[] {
+	const result: IRegexCutPoint[] = [{ offset: 0, openGroups: 0, inCharacterClass: false }];
+	let openGroups = 0;
+	let inCharacterClass = false;
+	let i = 0;
+	while (i < pattern.length) {
+		const ch = pattern.charAt(i);
+		if (ch === '\\') {
+			const kind = pattern.charAt(i + 1);
+			i += 2;
+			if ((kind === 'u' || kind === 'p' || kind === 'P') && pattern.charAt(i) === '{') {
+				const close = pattern.indexOf('}', i);
+				i = close === -1 ? pattern.length : close + 1;
+			} else if (kind === 'k' && pattern.charAt(i) === '<') {
+				const close = pattern.indexOf('>', i);
+				i = close === -1 ? pattern.length : close + 1;
+			} else if (kind === 'u') {
+				i += 4;
+			} else if (kind === 'x') {
+				i += 2;
+			} else if (kind === 'c') {
+				i += 1;
+			}
+		} else if (inCharacterClass) {
+			if (ch === ']') {
+				inCharacterClass = false;
+			}
+			i++;
+		} else if (ch === '[') {
+			inCharacterClass = true;
+			i++;
+			if (pattern.charAt(i) === '^') {
+				i++;
+			}
+		} else if (ch === '(') {
+			openGroups++;
+			i++;
+			if (pattern.charAt(i) === '?') {
+				const groupStart = /^\?(?:[:=!]|<[=!]|<[^>]*>|[a-z-]*:)/.exec(pattern.substring(i, i + 64));
+				i += groupStart ? groupStart[0].length : 1;
+			}
+		} else if (ch === ')') {
+			openGroups--;
+			i++;
+		} else if (ch === '{') {
+			const quantifier = /^\{\d+(?:,\d*)?\}/.exec(pattern.substring(i, i + 64));
+			i += quantifier ? quantifier[0].length : 1;
+		} else {
+			i++;
+		}
+		result.push({ offset: Math.min(i, pattern.length), openGroups, inCharacterClass });
+	}
+	return result;
+}
+
+/**
+ * Returns the offset in `pattern` right after the error.
+ *
+ * A prefix of the pattern is completable if closing its open character class and groups
+ * makes it a valid regular expression. Every prefix of a completable prefix is completable
+ * too, so a binary search finds the first prefix that is not completable, which ends right
+ * after the error. This only relies on whether a regular expression is valid, not on the
+ * engine specific error messages. A backreference to a group that is defined later in the
+ * pattern makes its prefixes invalid, so such a reference may be reported as the error.
+ */
+function locateRegexError(pattern: string, flags: string): number {
+	const cutPoints = getRegexCutPoints(pattern);
+	const isCompletable = (cutPoint: IRegexCutPoint) => {
+		if (cutPoint.openGroups < 0) {
+			return false;
+		}
+		const completion = (cutPoint.inCharacterClass ? ']' : '') + ')'.repeat(cutPoint.openGroups);
+		return getRegexError(pattern.substring(0, cutPoint.offset) + completion, flags) === undefined;
+	};
+
+	let low = 0;
+	let high = cutPoints.length - 1;
+	if (isCompletable(cutPoints[high])) {
+		// the error is only detected at the end, e.g. a reference to a group that does not exist
+		return pattern.length;
+	}
 	while (low < high) {
 		const mid = Math.floor((low + high) / 2);
-		if (getRegexErrorReason(pattern.substring(0, mid), flags) === reason) {
-			high = mid;
-		} else {
+		if (isCompletable(cutPoints[mid])) {
 			low = mid + 1;
+		} else {
+			high = mid;
 		}
 	}
-	return low;
+	return cutPoints[low].offset;
 }
 
 /**
@@ -169,7 +252,7 @@ export function getRegexValidationErrorMessage(pattern: string, flags: string): 
 	if (pattern.length > MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR) {
 		snippet = strings.truncate(pattern, MAX_REGEX_PATTERN_LENGTH_IN_ERROR);
 	} else {
-		const errorEnd = locateRegexError(pattern, flags, reason);
+		const errorEnd = locateRegexError(pattern, flags);
 		const start = Math.max(0, errorEnd - REGEX_ERROR_CONTEXT_BEFORE);
 		const end = Math.min(pattern.length, errorEnd + REGEX_ERROR_CONTEXT_AFTER);
 		snippet = (start > 0 ? strings.Ellipsis : '') + pattern.substring(start, end) + (end < pattern.length ? strings.Ellipsis : '');
