@@ -113,7 +113,8 @@ export class InlineEditInputBox extends Disposable {
 				if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 					// Keep editing while a context menu of the input box is open
 					await Event.toPromise(this._contextMenuService.onDidHideContextMenu, this._store);
-				} else if (ownerDocument.hasFocus() && DOM.isActiveElement(inputBox.inputElement)) {
+				} else if (ownerDocument.activeElement === inputBox.inputElement) {
+					// A compositor grab can blur the window without moving DOM focus.
 					return;
 				} else {
 					break;
