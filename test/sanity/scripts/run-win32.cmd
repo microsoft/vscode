@@ -89,7 +89,7 @@ set "ROOTFS_ZIP=%TEMP%\ubuntu-rootfs.tar.gz"
 set "ROOTFS_DIR=%LOCALAPPDATA%\WSL\Ubuntu"
 
 echo Downloading Ubuntu rootfs from %ROOTFS_URL% to %ROOTFS_ZIP%
-curl -L -o "%ROOTFS_ZIP%" "%ROOTFS_URL%"
+curl --fail --location --retry 5 --retry-all-errors --retry-max-time 120 --connect-timeout 30 --max-time 300 -o "%ROOTFS_ZIP%" "%ROOTFS_URL%"
 
 echo Importing Ubuntu into WSL at %ROOTFS_DIR% from %ROOTFS_ZIP%
 mkdir "%ROOTFS_DIR%" 2>nul
