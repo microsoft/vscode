@@ -41,7 +41,10 @@ function getForgettableHiddenSettings(registry: IConfigurationRegistry, configur
 		if (visible[key] || !(property.experiment || property.agentHost && mirrored.has(key))) {
 			continue;
 		}
-		// The registry does not expose which node registered a setting, but it records the node's section on the setting
+		// The registry does not expose which node registered a setting, but it records the node's section on the setting.
+		// Nodes can share a section (nodes without an id, or several with the same id), so this can pick another node with
+		// the same section. The setting then belongs to that node, which only matters when one of the two is deregistered
+		// on its own: tests only do that with nodes they registered themselves.
 		const { section } = property;
 		const node = nodes.find(node => node.id === section?.id && node.title === section?.title && node.order === section?.order && node.extensionInfo === section?.extensionInfo);
 		if (node) {
