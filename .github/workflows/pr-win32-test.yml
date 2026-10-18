@@ -22,6 +22,14 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      stress_workers:
+        description: 'TEMPORARY (parallel stress test) worker mode: serial, auto, two or over'
+        type: string
+        default: auto
+      stress_iterations:
+        description: TEMPORARY (parallel stress test) how often the unit tests run
+        type: number
+        default: 1
       smoke_shard_index:
         description: 1-based index of the Electron smoke test shard to run
         type: number
@@ -177,17 +185,58 @@ jobs:
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
+        timeout-minutes: 75
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests" --workers
+        run: |
+          # TEMPORARY (parallel stress test): run the Electron unit tests repeatedly, without stopping at a failure
+          switch ($env:STRESS_WORKERS) {
+            'serial' { $workersArgs = @() }
+            'auto' { $workersArgs = @('--workers') }
+            'two' { $workersArgs = @('--workers', '2') }
+            'over' { $workersArgs = @('--workers', (node -e "const os = require('os'); console.log(Math.max(2, Math.min(os.availableParallelism() * 2, Math.floor(os.totalmem() / (1.8 * 1024 ** 3)))))")) }
+            default { Write-Host "Unknown STRESS_WORKERS=$env:STRESS_WORKERS"; exit 1 }
+          }
+          $failed = @()
+          for ($i = 1; $i -le [int]$env:STRESS_ITERATIONS; $i++) {
+            Write-Host "===== STRESS electron iteration $i/$($env:STRESS_ITERATIONS) (mode=$($env:STRESS_WORKERS) args=$($workersArgs -join ' ')) ====="
+            & .\scripts\test.bat --tfs "Unit Tests" @workersArgs
+            $code = $LASTEXITCODE
+            Write-Host "===== STRESS RESULT electron iteration $i/$($env:STRESS_ITERATIONS) exit=$code ====="
+            if ($code -ne 0) { $failed += $i }
+          }
+          if ($failed.Count -gt 0) { Write-Host "STRESS electron failed iterations: $($failed -join ' ')"; exit 1 }
+          exit 0
         env:
+          STRESS_WORKERS: ${{ inputs.stress_workers }}
+          STRESS_ITERATIONS: ${{ inputs.stress_iterations }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
+        if: ${{ !cancelled() && inputs.electron_tests && inputs.unit_tests }}
+        timeout-minutes: 45
         shell: pwsh
-        run: npm run test-node -- --workers
+        run: |
+          # TEMPORARY (parallel stress test): run the node.js unit tests repeatedly, without stopping at a failure
+          switch ($env:STRESS_WORKERS) {
+            'serial' { $workersArgs = @() }
+            'auto' { $workersArgs = @('--workers') }
+            'two' { $workersArgs = @('--workers', '2') }
+            'over' { $workersArgs = @('--workers', (node -e "const os = require('os'); console.log(Math.max(2, Math.min(os.availableParallelism() * 2, Math.floor(os.totalmem() / (1.8 * 1024 ** 3)))))")) }
+            default { Write-Host "Unknown STRESS_WORKERS=$env:STRESS_WORKERS"; exit 1 }
+          }
+          $failed = @()
+          for ($i = 1; $i -le [int]$env:STRESS_ITERATIONS; $i++) {
+            Write-Host "===== STRESS node iteration $i/$($env:STRESS_ITERATIONS) (mode=$($env:STRESS_WORKERS) args=$($workersArgs -join ' ')) ====="
+            & npm run test-node -- @workersArgs
+            $code = $LASTEXITCODE
+            Write-Host "===== STRESS RESULT node iteration $i/$($env:STRESS_ITERATIONS) exit=$code ====="
+            if ($code -ne 0) { $failed += $i }
+          }
+          if ($failed.Count -gt 0) { Write-Host "STRESS node failed iterations: $($failed -join ' ')"; exit 1 }
+          exit 0
+        env:
+          STRESS_WORKERS: ${{ inputs.stress_workers }}
+          STRESS_ITERATIONS: ${{ inputs.stress_iterations }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}

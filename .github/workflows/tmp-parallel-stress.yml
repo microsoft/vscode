@@ -1,0 +1,76 @@
+name: Parallel unit test stress (temporary, do not merge)
+
+# TEMPORARY (parallel stress test): runs only the Electron and node.js unit tests, repeatedly, in parallel workers with
+# different worker counts, and once serially as a baseline, on every platform.
+
+on:
+  push:
+    branches:
+      - agents/tmp-parallel-stress
+
+permissions:
+  contents: read
+
+jobs:
+  linux-auto-a:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with: { job_name: Stress-Auto-A, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: auto, stress_iterations: 3 }
+  linux-auto-b:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with: { job_name: Stress-Auto-B, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: auto, stress_iterations: 3 }
+  linux-over:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with: { job_name: Stress-Oversubscribed, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: over, stress_iterations: 3 }
+  linux-two:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with: { job_name: Stress-Two-Workers, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: two, stress_iterations: 3 }
+  linux-serial:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with: { job_name: Stress-Serial-Baseline, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: serial, stress_iterations: 1 }
+
+  macos-auto-a:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with: { job_name: Stress-Auto-A, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: auto, stress_iterations: 3 }
+  macos-auto-b:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with: { job_name: Stress-Auto-B, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: auto, stress_iterations: 3 }
+  macos-over:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with: { job_name: Stress-Oversubscribed, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: over, stress_iterations: 3 }
+  macos-two:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with: { job_name: Stress-Two-Workers, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: two, stress_iterations: 3 }
+  macos-serial:
+    name: macOS
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with: { job_name: Stress-Serial-Baseline, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: serial, stress_iterations: 1 }
+
+  windows-auto-a:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with: { job_name: Stress-Auto-A, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: auto, stress_iterations: 3 }
+  windows-auto-b:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with: { job_name: Stress-Auto-B, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: auto, stress_iterations: 3 }
+  windows-over:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with: { job_name: Stress-Oversubscribed, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: over, stress_iterations: 3 }
+  windows-two:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with: { job_name: Stress-Two-Workers, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: two, stress_iterations: 3 }
+  windows-serial:
+    name: Windows
+    uses: ./.github/workflows/pr-win32-test.yml
+    with: { job_name: Stress-Serial-Baseline, electron_tests: true, integration_tests: false, smoke_tests: false, stress_workers: serial, stress_iterations: 1 }
