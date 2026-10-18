@@ -54,3 +54,76 @@ jobs:
           name: wsl-probe-logs-${{ matrix.index }}-${{ github.run_attempt }}
           path: .build/logs
           if-no-files-found: ignore
+
+  # Diagnoses why the wsl-desktop-x64 sanity test's Code.exe exits with -1 right after launch.
+  wsl-desktop-launch:
+    name: WSL desktop launch diagnostic
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=wsl-desktop-launch-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            .github/actions
+            build/azure-pipelines/common
+            build/checksums
+
+      - name: Restore WSL installer
+        uses: ./.github/actions/restore-wsl-installer
+
+      - name: Launch Code with the wsl-desktop-x64 arguments
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module ./build/azure-pipelines/common/wsl.psm1
+          Install-Wsl -CacheDirectory .build/wsl-installer
+          $rootfs = Join-Path $env:RUNNER_TEMP 'ubuntu.tar.gz'
+          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors -o $rootfs 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz'
+          $distroDir = Join-Path $env:RUNNER_TEMP 'ubuntu'
+          New-Item -ItemType Directory -Force $distroDir | Out-Null
+          $import = Invoke-WslExe -ArgumentList '--import', 'Ubuntu', $distroDir, $rootfs, '--version', '2' -TimeoutSeconds 180
+          Write-Host "Import: exit $($import.ExitCode) $($import.Output)"
+          Write-Host (Invoke-WslExe -ArgumentList '--list', '--verbose').Output
+
+          $commit = '16d22415b62f4bd6b056011027f53c3e9978fbf4'
+          $metadata = Invoke-RestMethod "https://update.code.visualstudio.com/api/versions/commit:$commit/win32-x64-archive/insider"
+          $zip = Join-Path $env:RUNNER_TEMP 'code.zip'
+          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors -o $zip $metadata.url
+          $appRoot = Join-Path $env:RUNNER_TEMP 'code'
+          Expand-Archive -LiteralPath $zip -DestinationPath $appRoot
+          $exe = Get-ChildItem -LiteralPath $appRoot -Recurse -Filter 'Code - Insiders.exe' | Select-Object -First 1 -ExpandProperty FullName
+          $dataDir = Join-Path (Split-Path -Parent $exe) 'data'
+          New-Item -ItemType Directory -Force $dataDir | Out-Null
+          Write-Host "Executable: $exe"
+
+          $env:ELECTRON_ENABLE_LOGGING = '1'
+          $extensions = Join-Path $env:RUNNER_TEMP 'extensions'
+          New-Item -ItemType Directory -Force $extensions | Out-Null
+          $playwright = @('--inspect=0', '--remote-debugging-port=0')
+          $userData = @('--extensions-dir', $extensions, '--user-data-dir', (Join-Path $dataDir 'user-data'))
+          $folder = @('--folder-uri', 'vscode-remote://wsl+Ubuntu/tmp')
+          $variants = [ordered]@{
+            'A portable, no args (like desktop-win32-x64-archive)' = $playwright
+            'B + extensions/user-data dirs' = $playwright + $userData
+            'C + folder-uri only' = $playwright + $folder
+            'D exact wsl-desktop-x64 args' = $playwright + $userData + $folder
+            'E exact args without Playwright switches' = $userData + $folder
+            'F folder-uri with a lowercase distro' = $playwright + $userData + @('--folder-uri', 'vscode-remote://wsl+ubuntu/tmp')
+            'G local folder-uri' = $playwright + $userData + @('--folder-uri', 'file:///C:/Windows/Temp')
+          }
+          foreach ($name in $variants.Keys) {
+            Get-Process -Name 'Code - Insiders' -ErrorAction SilentlyContinue | Stop-Process -Force
+            Start-Sleep -Seconds 2
+            $out = Join-Path $env:RUNNER_TEMP "out-$($name[0]).log"
+            $err = Join-Path $env:RUNNER_TEMP "err-$($name[0]).log"
+            $arguments = $variants[$name] | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }
+            $process = Start-Process -FilePath $exe -ArgumentList ($arguments + '--verbose') -RedirectStandardOutput $out -RedirectStandardError $err -PassThru
+            $null = $process.Handle
+            $exited = $process.WaitForExit(30000)
+            Write-Host "::group::$name => $(if ($exited) { "exited with $($process.ExitCode) after $([int]($process.ExitTime - $process.StartTime).TotalMilliseconds)ms" } else { 'still running after 30s' })"
+            Write-Host "--- stdout"; Get-Content $out -Tail 40 -ErrorAction SilentlyContinue
+            Write-Host "--- stderr"; Get-Content $err -Tail 40 -ErrorAction SilentlyContinue
+            Write-Host '::endgroup::'
+          }
+          Get-Process -Name 'Code - Insiders' -ErrorAction SilentlyContinue | Stop-Process -Force
