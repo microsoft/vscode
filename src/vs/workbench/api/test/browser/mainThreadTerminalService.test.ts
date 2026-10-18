@@ -155,6 +155,32 @@ suite('MainThreadTerminalService', () => {
 		}
 	});
 
+	test('splits from a parent terminal referenced by its extension identifier', async () => {
+		await service.$createTerminal('parent-terminal', { name: 'Parent', shellPath: '/test-shell' });
+		await service.$createTerminal('child-terminal', { name: 'Child', shellPath: '/test-shell', location: { parentTerminal: 'parent-terminal' } });
+		const [parent, child] = terminals.instances;
+		try {
+			assert.strictEqual(groups.getGroupForInstance(child), groups.getGroupForInstance(parent));
+		} finally {
+			child.dispose();
+			parent.dispose();
+		}
+	});
+
+	test('splits from a parent terminal referenced by its instance id', async () => {
+		// Once a terminal has opened, the extension host refers to it by its instance id
+		await service.$createTerminal('parent-terminal', { name: 'Parent', shellPath: '/test-shell' });
+		const parent = terminals.instances[0];
+		await service.$createTerminal('child-terminal', { name: 'Child', shellPath: '/test-shell', location: { parentTerminal: parent.instanceId } });
+		const child = terminals.instances[1];
+		try {
+			assert.strictEqual(groups.getGroupForInstance(child), groups.getGroupForInstance(parent));
+		} finally {
+			child.dispose();
+			parent.dispose();
+		}
+	});
+
 	test('a terminal closed during creation releases its extension identifier', async () => {
 		store.add(terminals.onDidChangeInstances(() => terminals.instances[0]?.dispose()));
 		await service.$createTerminal('early-closed-terminal', { name: 'Early close', shellPath: '/test-shell', hideFromUser: true });
