@@ -27,17 +27,59 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { IChatSessionFileChange2, SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IChatSessionCost } from '../../../../common/model/chatModel.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('refreshes model picker visibility when a live contribution arrives after history', () => {
+		const inputStore = store.add(new DisposableStore());
+		const availabilityChanged = store.add(new Emitter<void>());
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+		const targetedModels = ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService);
+		let requiresCustomModels = false;
+		const inputPart: { registerChatSessionPickerListeners(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_store: inputStore,
+			options: {},
+			_widget: { viewModel: { model: { sessionResource: URI.parse('remote-example-agent:/history') } } },
+			chatSessionHasTargetedModels: targetedModels,
+			chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
+			chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
+			chatSessionOptionsValid: ChatContextKeys.chatSessionOptionsValid.bindTo(contextKeyService),
+			_updateInputContentContextKeys: () => { },
+			chatSessionsService: upcastPartial<IChatSessionsService>({
+				onDidChangeAvailability: availabilityChanged.event,
+				onDidChangeSessionOptions: Event.None,
+				onDidChangeOptionGroups: Event.None,
+				requiresCustomModelsForSessionType: () => requiresCustomModels,
+				getCustomAgentTargetForSessionType: () => Target.Undefined,
+				getOptionGroupsForSessionType: () => [],
+			}),
+		});
+		inputPart.registerChatSessionPickerListeners();
+		const states = [targetedModels.get()];
+		requiresCustomModels = true;
+		availabilityChanged.fire();
+		states.push(targetedModels.get());
+		requiresCustomModels = false;
+		availabilityChanged.fire();
+		states.push(targetedModels.get());
+		inputStore.dispose();
+		requiresCustomModels = true;
+		availabilityChanged.fire();
+		states.push(targetedModels.get());
+		assert.deepStrictEqual(states, [false, true, false, false]);
+	});
 
 	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' })) {
 		const configurationService = new TestConfigurationService();

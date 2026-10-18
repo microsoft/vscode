@@ -5236,6 +5236,41 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('observes a late host working directory without creating a workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('quick-late-directory', { quickChat: true }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-late-directory').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const state: SessionState = {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [],
+			_meta: withSessionWorkspaceless(undefined, true),
+			chats: [{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		};
+		agentHost.setSessionState('quick-late-directory', 'copilotcli', state);
+		const directories: (string | undefined)[] = [];
+		disposables.add(autorun(reader => directories.push(provider.getWorkingDirectory(session.sessionId, reader))));
+
+		agentHost.setSessionState('quick-late-directory', 'copilotcli', { ...state, workingDirectories: ['file:///root'] });
+
+		assert.deepStrictEqual({
+			directories,
+			workspace: session.workspace.get(),
+		}, {
+			directories: [undefined, 'file:///root'],
+			workspace: undefined,
+		});
+	}));
+
 	test('authoritative session state converts a quick chat to a workspace session in place', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const scratchDirectory = URI.file('/tmp/copilot-scratch/quick-converted');
 		const workspaceDirectory = URI.file('/home/user/project');
