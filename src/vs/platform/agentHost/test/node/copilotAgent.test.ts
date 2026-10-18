@@ -24048,7 +24048,7 @@ suite('CopilotAgent', () => {
 			const ownerRepository = URI.file(join(tempRoot, 'owner'));
 			const peerRepository = URI.file(join(tempRoot, 'peer'));
 			const worktree = URI.file(join(tempRoot, 'peer.worktrees', 'session'));
-			const ordinaryFolder = URI.file(join(tempRoot, 'peer.worktrees', 'ordinary'));
+			const ordinaryFolder = URI.file(join(tempRoot, 'owner.worktrees', 'ordinary'));
 			await fs.mkdir(ownerRepository.fsPath, { recursive: true });
 			await fs.mkdir(peerRepository.fsPath, { recursive: true });
 			await fs.mkdir(worktree.fsPath, { recursive: true });
@@ -24088,6 +24088,7 @@ suite('CopilotAgent', () => {
 				});
 				const peerDb = sessionDataService.openDatabase(peer);
 				const persistedProject = await peerDb.object.getMetadata('copilot.project.uri');
+				const persistedTrustedFrom = await peerDb.object.getMetadata('copilot.extensionLaunchTrustedFrom');
 				peerDb.dispose();
 
 				assert.deepStrictEqual({
@@ -24096,12 +24097,14 @@ suite('CopilotAgent', () => {
 						trustedFrom: item.trustedFrom.toString(),
 					}))),
 					persistedProject,
+					persistedTrustedFrom,
 				}, {
 					launchPlans: [[{
 						directory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
 						trustedFrom: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
 					}], []],
 					persistedProject: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
+					persistedTrustedFrom: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
 				});
 			} finally {
 				await fs.rm(tempRoot, { recursive: true, force: true });
@@ -25942,6 +25945,7 @@ suite('CopilotAgent', () => {
 				await dbRef.object.setMetadata('copilot.project.resolved', 'true');
 				await dbRef.object.setMetadata('copilot.project.uri', URI.file(peerRepository).toString());
 				await dbRef.object.setMetadata('copilot.project.displayName', 'peer');
+				await dbRef.object.setMetadata('copilot.extensionLaunchTrustedFrom', URI.file(peerRepository).toString());
 			} finally {
 				dbRef.dispose();
 			}
