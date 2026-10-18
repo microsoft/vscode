@@ -581,6 +581,8 @@ export interface IProtocolServerConfig {
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
 	readonly sessionConfigAdapter?: ISessionConfigAdapter;
+	/** Filters session summaries in discovery responses and catalogue notifications for this listener. */
+	readonly sessionSummaryFilter?: (summary: SessionSummary) => boolean;
 	/** Projects visible, current session summaries for this listener's listSessions responses. */
 	readonly sessionListAdapter?: (sessions: readonly SessionSummary[]) => SessionSummary[];
 	/** Locally known workspace/content roots exposed to relay clients. */
@@ -2161,6 +2163,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
+				.filter(summary => !this._config.sessionSummaryFilter || this._config.sessionSummaryFilter(summary))
 				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.resource, item.chats, chat => chat.resource)] } : item);
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
@@ -3767,13 +3770,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		switch (notification.type) {
 			case 'root/sessionAdded': {
 				const summary = notification.summary;
-				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))) {
+				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))
+					|| (this._config.sessionSummaryFilter && !this._config.sessionSummaryFilter(summary))) {
 					return undefined;
 				}
 				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.resource, summary.chats, chat => chat.resource)] } } : notification;
 			}
 			case 'root/sessionSummaryChanged': {
 				if (!this._isSessionVisible(client, notification.session)) {
+					return undefined;
+				}
+				const summary = this._stateManager.getSessionSummary(notification.session) ?? this._stateManager.getSurfacedSessionSummary(notification.session);
+				if (summary && this._config.sessionSummaryFilter && !this._config.sessionSummaryFilter(summary)) {
 					return undefined;
 				}
 				const chats = notification.changes.chats;

@@ -6673,7 +6673,7 @@ suite('ProtocolServerHandler', () => {
 		const relay = disposables.add(new MockProtocolServer());
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay,
-			{ sessionListAdapter: toMissionControlSessionList },
+			{ sessionSummaryFilter: summary => !readSessionExternal(summary._meta), sessionListAdapter: toMissionControlSessionList },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
@@ -6681,6 +6681,78 @@ suite('ProtocolServerHandler', () => {
 		relay.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { clientId, clientInfo, protocolVersions: [PROTOCOL_VERSION] }));
 		return transport;
+	}
+
+	test('Mission Control excludes external sessions from listings without changing local, SSH or tunnel listings', async () => {
+		for (const external of [false, true]) {
+			for (const archived of [false, true]) {
+				agentService.listedSessions.push({
+					session: URI.parse(`copilot:/session-${external}-${archived}`),
+					startTime: 0, modifiedTime: 1,
+					status: archived ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+					_meta: withSessionExternal(undefined, external),
+				});
+			}
+		}
+		const listed = [];
+		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel, AgentHostClientConnectionKind.MissionControl]) {
+			const transport = connectionKind === AgentHostClientConnectionKind.MissionControl
+				? connectMissionControlListClient('external-list')
+				: connectClient(`external-list-${connectionKind}`, undefined, undefined, { 'vscode.clientConnectionKind': connectionKind });
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			listed.push(hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined);
+		}
+		assert.deepStrictEqual(listed, [
+			...Array.from({ length: 3 }, () => agentService.listedSessions.map(item => item.session.toString())),
+			agentService.listedSessions.filter(item => !readSessionExternal(item._meta)).map(item => item.session.toString()),
+		]);
+	});
+
+	test('Mission Control filters listings using current session provenance', async () => {
+		for (const external of [false, true]) {
+			const summary = { ...makeSessionSummary(`copilot:/current-${external}`), _meta: withSessionExternal(undefined, external) };
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource), startTime: 0, modifiedTime: 1,
+				_meta: withSessionExternal(undefined, !external),
+			});
+		}
+		const transport = connectMissionControlListClient('current-provenance');
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		assert.deepStrictEqual(hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined,
+			['copilot:/current-false']);
+	});
+
+	for (const restored of [false, true]) {
+		test(`Mission Control excludes external session catalogue additions and changes (${restored ? 'restored' : 'surfaced'})`, () => {
+			const local = connectClient('external-local', ['ahp-root://']);
+			const missionControl = connectMissionControlListClient('external-relay');
+			local.sent.length = 0;
+			missionControl.sent.length = 0;
+			for (const external of [false, true]) {
+				const summary = { ...makeSessionSummary(`copilot:/notification-${external}`), _meta: withSessionExternal(undefined, external) };
+				if (restored) {
+					stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+					stateManager.setSessionSummaryPublished(summary.resource, true);
+					stateManager.dispatchServerAction(summary.resource, { type: ActionType.SessionTitleChanged, title: 'Retitled' });
+					stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(summary.resource)!]);
+				} else {
+					stateManager.announceSurfacedSession(summary);
+					stateManager.updateSurfacedSessionTitle(summary.resource, 'Retitled');
+				}
+			}
+			assert.deepStrictEqual([local, missionControl].map(client => ({
+				added: findNotifications(client.sent, 'root/sessionAdded').map(message => (message.params as SessionAddedParams).summary.resource),
+				changed: findNotifications(client.sent, 'root/sessionSummaryChanged').map(message => (message.params as SessionSummaryChangedParams).session),
+			})), [
+				{ added: ['copilot:/notification-false', 'copilot:/notification-true'], changed: ['copilot:/notification-false', 'copilot:/notification-true'] },
+				{ added: ['copilot:/notification-false'], changed: ['copilot:/notification-false'] },
+			]);
+		});
 	}
 
 	test('listSessions retains all archived sessions on listeners without a session-list adapter', async () => {
