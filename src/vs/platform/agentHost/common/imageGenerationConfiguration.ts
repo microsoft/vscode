@@ -6,7 +6,7 @@
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
-import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from './copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId, CopilotImageGenerationWatermarkSettingId, copilotCliConfigSchema } from './copilotCliConfig.js';
 
 /** The {@link CopilotImageGenerationModelSettingId} value that turns image generation off. */
 export const CopilotImageGenerationOff = 'off';
@@ -69,6 +69,14 @@ export const imageGenerationConfigurationProperties = {
 			// Hosts keep receiving an on/off flag because the runtime serves one image model and takes no model option.
 			transform: isImageGenerationModelSelected,
 		},
+	},
+	[CopilotImageGenerationWatermarkSettingId]: {
+		type: 'boolean',
+		markdownDescription: copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGenerationWatermark].protocol.description,
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		tags: ['preview', 'experimental'],
+		agentHost: { key: CopilotCliConfigKey.ImageGenerationWatermark },
 	},
 	// Stays registered as an application setting so its migration can read and remove it from the default profile while another profile is active.
 	[CopilotImageGenerationEnabledSettingId]: {

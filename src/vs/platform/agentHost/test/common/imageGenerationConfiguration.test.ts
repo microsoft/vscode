@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
-import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId, CopilotImageGenerationWatermarkSettingId, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { getDefaultImageGenerationModel, imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
 
 suite('ImageGenerationConfiguration', () => {
@@ -24,13 +24,25 @@ suite('ImageGenerationConfiguration', () => {
 			scope: property.scope,
 			agentHostKey: property.agentHost.key,
 		}, {
-			settingIds: ['chat.copilot.imageGeneration.model', 'chat.copilot.imageGeneration.enabled'],
+			settingIds: ['chat.copilot.imageGeneration.model', 'chat.copilot.imageGeneration.watermark', 'chat.copilot.imageGeneration.enabled'],
 			type: 'string',
 			enum: ['off', 'gpt-image-2.5-flare'],
 			enumItemLabels: ['Off', 'GPT Image 2.5 Flare'],
 			markdownEnumDescriptions: 2,
 			scope: ConfigurationScope.APPLICATION,
 			agentHostKey: CopilotCliConfigKey.ImageGeneration,
+		});
+	});
+
+	test('watermark is an independent default-off application setting', () => {
+		const properties: Record<string, IConfigurationPropertySchema> = imageGenerationConfigurationProperties;
+		assert.deepStrictEqual(properties[CopilotImageGenerationWatermarkSettingId], {
+			type: 'boolean',
+			markdownDescription: copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGenerationWatermark].protocol.description,
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'experimental'],
+			agentHost: { key: CopilotCliConfigKey.ImageGenerationWatermark },
 		});
 	});
 
