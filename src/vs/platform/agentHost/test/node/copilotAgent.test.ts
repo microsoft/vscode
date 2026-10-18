@@ -15526,6 +15526,62 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	for (const metadataKind of ['empty', 'project', 'native'] as const) {
+		test(`legacy archive metadata remains authoritative with ${metadataKind} Agent Host metadata until adoption`, async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/legacy-archive-metadata-`));
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/legacy-archive-cwd-`);
+			const sessionId = `legacy-archive-${metadataKind}`;
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const reference = sessionDataService.openDatabase(session);
+			await reference.object.setMetadataValues({
+				[AH_META_IS_ARCHIVED_DB_KEY]: '',
+				...(metadataKind !== 'empty' ? {
+					'copilot.project.resolved': 'true',
+					'copilot.project.uri': 'https://github.com/microsoft/vscode',
+					'copilot.project.displayName': 'vscode',
+				} : {}),
+				...(metadataKind === 'native' ? { 'copilot.workingDirectory': URI.file(workingDirectory).toString() } : {}),
+			});
+			reference.dispose();
+			await writeExtensionHostMarker(userHome, sessionId, { origin: 'vscode', archived: true });
+			const agent = createTestAgent(disposables, {
+				sessionDataService,
+				copilotClient: new TestCopilotClient([sdkSession(sessionId, workingDirectory)]),
+				userHome,
+			});
+			try {
+				const chat = defaultChatUri(session);
+				const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
+				const catalog = await agent.listChatsToMigrate();
+				const stored = await sessionDataService.tryOpenDatabase(session);
+				try {
+					assert.deepStrictEqual({
+						adoptable: readSessionEhcliAdoptable(metadata?._meta) === true,
+						archived: metadata?.status !== undefined && (metadata.status & SessionStatus.IsArchived) !== 0,
+						migrated: catalog?.map(entry => sessionIdOfChat(entry.chat)),
+						projectWrites: sessionDataService.metadataWrites(session).filter(entry => entry.key === 'copilot.project.resolved').length,
+						persistedArchive: await stored?.object.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+						adopted: await stored?.object.getMetadata(AH_META_EHCLI_ADOPTED_DB_KEY),
+					}, {
+						adoptable: metadataKind !== 'native',
+						archived: metadataKind !== 'native',
+						migrated: metadataKind === 'native' ? [sessionId] : [],
+						projectWrites: metadataKind === 'empty' ? 0 : 1,
+						persistedArchive: '',
+						adopted: undefined,
+					});
+				} finally {
+					stored?.dispose();
+				}
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+			}
+		});
+	}
+
 	test('getChatMetadata infers workspace-less from the Copilot chats folder only when the host recorded no marker', async () => {
 		const userHome = URI.file('/home/user');
 		const chatDirectory = URI.joinPath(userHome, '.copilot', 'chats', '2026-09-23', 'app-chat').fsPath;
