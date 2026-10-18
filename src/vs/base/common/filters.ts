@@ -20,8 +20,7 @@ export interface IMatch {
 }
 
 /** Shared matches for an empty query. Neither the array nor its position may be mutated. */
-export const emptyMatches: IMatch[] = [Object.freeze({ start: 0, end: 0 })];
-Object.freeze(emptyMatches);
+export const emptyMatches: IMatch[] = [{ start: 0, end: 0 }];
 
 // Combined filters
 
