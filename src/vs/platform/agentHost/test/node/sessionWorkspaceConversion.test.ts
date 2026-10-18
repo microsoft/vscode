@@ -2066,7 +2066,8 @@ suite('SessionWorkspaceConversionService', () => {
 		assert.strictEqual(hydrated, turns);
 	});
 
-	test.skip('restores one durable transition before provider output after service restart', async () => {
+	// TEMPORARY (flaky test flush-out): the same body with a 2s (mocha default) and a 10s budget, interleaved.
+	const durableRestartTest = async () => {
 		const temporaryDirectory = await fs.promises.mkdtemp(join(tmpdir(), `workspace-transition-${generateUuid()}-`));
 		const databasePath = join(temporaryDirectory, 'session.db');
 		let conversionDatabase: SessionDatabase | undefined;
@@ -2156,7 +2157,11 @@ suite('SessionWorkspaceConversionService', () => {
 			await Promise.all([conversionDatabase?.close(), restoredDatabase?.close()]);
 			await fs.promises.rm(temporaryDirectory, { recursive: true, force: true });
 		}
-	});
+	};
+	for (let __i = 0; __i < Number(process.env.FLAKE_ITERATIONS ?? 500); __i++) {
+		test(`restores one durable transition before provider output after service restart [budget-2s] #${__i}`, durableRestartTest).timeout(2000);
+		test(`restores one durable transition before provider output after service restart [budget-10s] #${__i}`, durableRestartTest).timeout(10_000);
+	}
 
 	test('restores every persisted workspace conversion at its own turn boundary', async () => {
 		const database = new TestSessionDatabase();

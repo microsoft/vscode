@@ -1925,6 +1925,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const operation = (previous?.catch(() => undefined) ?? Promise.resolve()).then(async () => {
 			await restoring?.catch(() => undefined);
 			await this._sessionResidency.waitForRelease(request.session);
+			// A turn that just started or finished leaves a debounced summary change. Publish it now so the list-visible
+			// catalog write it queues is drained below instead of landing on top of the archive with the pre-archive state.
+			this._stateManager.flushPendingSessionSummary(key);
 			await this._whenBackgroundCatalogStateWritesIdle(key);
 			// The continuation changes the source session and checks the destination's catalog; no other session's writes matter.
 			await this._peerChatStore.whenSessionsIdle([request.session, request.destination]);

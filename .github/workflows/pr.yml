@@ -25,6 +25,7 @@ jobs:
   # checks. Jobs also run when change detection fails.
   changes:
     name: Detect Changes
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: ubuntu-24.04
     outputs:
       cli: ${{ steps.detect.outputs.cli }}
@@ -44,6 +45,7 @@ jobs:
 
   compile:
     name: Compile & Hygiene
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
@@ -140,7 +142,7 @@ jobs:
   linux-cli-tests:
     name: Linux
     needs: changes
-    if: ${{ !cancelled() }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       rustup_toolchain: 1.88
@@ -149,7 +151,7 @@ jobs:
   linux-copilot-shim-tests:
     name: Linux Copilot Shim
     needs: changes
-    if: ${{ !cancelled() }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       rustup_toolchain: 1.88
@@ -170,6 +172,7 @@ jobs:
 
   linux-electron-tests:
     name: Linux
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Electron
@@ -179,6 +182,7 @@ jobs:
 
   linux-electron-smoke-test-shards:
     name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     strategy:
       fail-fast: false
       matrix:
@@ -194,6 +198,7 @@ jobs:
 
   linux-browser-test-parts:
     name: Linux (${{ matrix.part }})
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     strategy:
       fail-fast: false
       matrix:
@@ -212,6 +217,7 @@ jobs:
 
   linux-remote-tests:
     name: Linux
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-linux-test.yml
     with:
       job_name: Remote
@@ -219,6 +225,7 @@ jobs:
 
   macos-electron-unit-tests:
     name: macOS
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron-Unit
@@ -228,6 +235,7 @@ jobs:
 
   macos-electron-tests:
     name: macOS
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Electron
@@ -237,6 +245,7 @@ jobs:
 
   macos-electron-smoke-test-shards:
     name: macOS (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     strategy:
       fail-fast: false
       matrix:
@@ -252,6 +261,7 @@ jobs:
 
   macos-browser-test-parts:
     name: macOS (${{ matrix.part }})
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     strategy:
       fail-fast: false
       matrix:
@@ -270,6 +280,7 @@ jobs:
 
   macos-remote-tests:
     name: macOS
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
       job_name: Remote
@@ -286,6 +297,7 @@ jobs:
 
   windows-electron-tests:
     name: Windows
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
@@ -295,6 +307,7 @@ jobs:
 
   windows-electron-smoke-test-shards:
     name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     strategy:
       fail-fast: false
       matrix:
@@ -310,6 +323,7 @@ jobs:
 
   windows-browser-test-parts:
     name: Windows (${{ matrix.part }})
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     strategy:
       fail-fast: false
       matrix:
@@ -328,6 +342,7 @@ jobs:
 
   windows-remote-tests:
     name: Windows
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Remote
@@ -338,7 +353,7 @@ jobs:
   electron-smoke-checks:
     name: ${{ matrix.check }}
     needs: [linux-electron-smoke-test-shards, macos-electron-smoke-test-shards, windows-electron-smoke-test-shards]
-    if: ${{ always() }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -359,7 +374,7 @@ jobs:
   browser-checks:
     name: ${{ matrix.check }}
     needs: [linux-browser-test-parts, macos-browser-test-parts, windows-browser-test-parts]
-    if: ${{ always() }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -378,7 +393,7 @@ jobs:
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -425,7 +440,7 @@ jobs:
   copilot-check-telemetry:
     name: Copilot - Check Telemetry
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -446,7 +461,7 @@ jobs:
   copilot-linux-tests:
     name: Copilot - Test (Linux)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -546,7 +561,7 @@ jobs:
   copilot-windows-tests:
     name: Copilot - Test (Windows)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -620,7 +635,7 @@ jobs:
   chat-lib-linux-tests:
     name: chat-lib tests (ubuntu-latest)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -635,7 +650,7 @@ jobs:
   chat-lib-macos-tests:
     name: chat-lib tests (macos-latest)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
@@ -650,7 +665,7 @@ jobs:
   chat-lib-windows-tests:
     name: chat-lib tests (windows-latest)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    if: false # TEMPORARY (flaky test flush-out): only the Electron-Unit jobs run
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:

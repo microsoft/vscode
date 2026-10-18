@@ -187,16 +187,36 @@ jobs:
             }
           }
 
+      # TEMPORARY (flaky test flush-out): run ONLY the looped AgentHostSavedChatContinuation
+      # 'records a busy source completion ...' test (300 iterations per run, 3 runs).
+      # Revert to `.\scripts\test.bat --tfs "Unit Tests"` when done.
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
+        timeout-minutes: 60
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests"
+        run: |
+          $passing = 0; $failing = 0
+          # Saturate every core like a busy full-suite run, so the 100ms summary debounce can overlap the archive.
+          $load = @(); for ($c = 0; $c -lt [Environment]::ProcessorCount; $c++) { $load += Start-Process node -ArgumentList '-e', 'for(;;){}' -PassThru -WindowStyle Hidden }
+          Write-Host "CPU load processes: $($load.Count)"
+          New-Item -ItemType Directory -Force .build\flush | Out-Null
+          for ($r = 1; $r -le 3; $r++) {
+            $log = ".build\flush\run$r.log"
+            & .\scripts\test.bat --run src/vs/platform/agentHost/test/node/agentHostSavedChatContinuation.test.ts --grep "records a busy source completion" *> $log
+            $p = [int](([regex]::Match((Get-Content $log -Raw), '(\d+) passing')).Groups[1].Value + '0') / 10
+            $f = [int](([regex]::Match((Get-Content $log -Raw), '(\d+) failing')).Groups[1].Value + '0') / 10
+            $passing += $p; $failing += $f
+            Write-Host "run ${r}: passing=$p failing=$f"
+            Select-String -Path $log -Pattern '^\s+[+-]\s+(before|archived)' | ForEach-Object { $_.Line.Trim() } | Group-Object | ForEach-Object { Write-Host "  $($_.Count)x $($_.Name)" }
+          }
+          $load | Stop-Process -Force -ErrorAction SilentlyContinue
+          Write-Host "SUMMARY records-a-busy-source-completion: passing=$passing failing=$failing"
+          if ($failing -gt 0) { exit 1 }
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the Electron loop
         timeout-minutes: 15
         shell: pwsh
         run: npm run test-node

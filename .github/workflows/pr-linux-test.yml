@@ -302,17 +302,54 @@ jobs:
           done
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the node.js loop
         timeout-minutes: 15
         run: ./scripts/test.sh --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # TEMPORARY (flaky test flush-out): run ONLY the looped SessionWorkspaceConversionService
+      # 'restores one durable transition ...' test with a 2s (before) and 10s (after) budget.
+      # Revert to `npm run test-node` when done.
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: npm run test-node
+        timeout-minutes: 60
+        run: |
+          set +e
+          FILE=src/vs/platform/agentHost/test/node/sessionWorkspaceConversion.test.ts
+          TMP=$(node -p "require('os').tmpdir()")
+          echo "tmpdir=$TMP"; df -hT "$TMP"; nproc
+          mkdir -p .build/flush
+          run() { # <label> <runs>
+            for r in $(seq 1 "$2"); do
+              timeout 25m npx mocha test/unit/node/index.js --delay --ui=tdd --exit --run "$FILE" > ".build/flush/$1-$r.log" 2>&1
+              echo "[$1] run $r: $(grep -Eo '[0-9]+ (passing|failing)' ".build/flush/$1-$r.log" | tr '\n' ' ')"
+            done
+          }
+          summarize() { # <label>
+            for budget in 2s 10s; do
+              P=$(cat .build/flush/$1-*.log | grep -cE "✔ restores one durable transition .*\[budget-$budget\]")
+              F=$(cat .build/flush/$1-*.log | grep -cE "^ +[0-9]+\) restores one durable transition .*\[budget-$budget\]")
+              echo "SUMMARY $1 budget-$budget: passing=$P failing=$F"
+            done
+            echo "Slowest iterations ($1):"
+            cat .build/flush/$1-*.log | grep -Eo "\[budget-[0-9]+s\] #[0-9]+ \([0-9]+ms\)" | sort -t'(' -k2 -n | tail -8
+          }
+          run quiet 1
+          # Heavy disk contention: 4 writers doing direct I/O with fsync on the tmpdir disk.
+          LOADS=()
+          for w in 1 2 3 4; do
+            ( while true; do dd if=/dev/zero of="$TMP/flush-io-load-$w" bs=4M count=128 oflag=direct conv=fsync status=none; done ) &
+            LOADS+=($!)
+          done
+          FLAKE_ITERATIONS=150 run heavyio 2
+          kill "${LOADS[@]}"; rm -f "$TMP"/flush-io-load-*
+          summarize quiet; summarize heavyio
+          sudo apt-get install -y -qq strace > /dev/null 2>&1
+          FLAKE_ITERATIONS=1 strace -f -c -e trace=fsync,fdatasync -o .build/flush/strace.txt npx mocha test/unit/node/index.js --delay --ui=tdd --exit --run "$FILE" > .build/flush/strace-run.log 2>&1
+          echo "fsync syscalls for ONE iteration of each budget variant:"; cat .build/flush/strace.txt
+          if grep -qE "^ +[0-9]+\) restores one durable transition .*\[budget-10s\]" .build/flush/*.log; then echo "budget-10s variant failed"; exit 1; fi
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
