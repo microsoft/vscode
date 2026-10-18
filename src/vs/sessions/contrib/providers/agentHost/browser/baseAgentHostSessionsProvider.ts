@@ -6623,7 +6623,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return sessionState?.customizations ?? [];
 	}
 
-	getWorkingDirectory(sessionId: string): string | undefined {
+	getWorkingDirectory(sessionId: string, reader?: IReader): string | undefined {
+		this._backendSessionsChanged.read(reader);
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.workingDirectories?.[0];
 	}

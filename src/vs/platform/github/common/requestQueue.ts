@@ -13,6 +13,8 @@ export interface RequestQueueOptions {
 	readonly maximumConcurrency: number;
 	/** Maximum active requests for one case-insensitive host, across accounts and callers. */
 	readonly maximumHostConcurrency: number;
+	/** Maximum active requests for one host/account pair, across callers and credentials. */
+	readonly maximumAccountConcurrency: number;
 	/** Maximum active requests for one caller, across hosts and accounts. */
 	readonly maximumCallerConcurrency: number;
 	/** Maximum retained requests across the queue, including active, queued, and cooldown-waiting requests. */
@@ -26,9 +28,10 @@ export interface RequestQueueOptions {
 }
 
 const defaultOptions: RequestQueueOptions = {
-	maximumConcurrency: 4,
-	maximumHostConcurrency: 2,
-	maximumCallerConcurrency: 2,
+	maximumConcurrency: 12,
+	maximumHostConcurrency: 12,
+	maximumAccountConcurrency: 10,
+	maximumCallerConcurrency: 8,
 	maximumRequests: 256,
 	maximumAccountRequests: 64,
 	maximumCallerRequests: 64,
@@ -284,7 +287,7 @@ export class RequestQueue extends Disposable {
 			const active = [...this._active];
 			const delay = getDelay(candidate);
 			if (delay > 0
-				|| active.some(request => request.accountKey === candidate.accountKey)
+				|| active.filter(request => request.accountKey === candidate.accountKey).length >= this._options.maximumAccountConcurrency
 				|| active.filter(request => request.host === candidate.host).length >= this._options.maximumHostConcurrency
 				|| active.filter(request => request.context.caller === candidate.context.caller).length >= this._options.maximumCallerConcurrency) {
 				continue;

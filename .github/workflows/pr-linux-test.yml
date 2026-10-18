@@ -345,13 +345,25 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
-      - name: 🧪 Run integration tests (Electron)
+      - name: 🧪 Run Agent Host E2E tests (Electron)
+        id: agent-host-e2e
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        timeout-minutes: 15
+        run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests"
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when Agent Host E2E failed, so that one does not hide the other.
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
           AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'

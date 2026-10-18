@@ -70,6 +70,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 			accept: metadata.accept,
 			responseBody: metadata.redirect === 'manual' ? 'none' : metadata.responseBody,
 			followRedirects: metadata.redirect === 'manual' ? false : undefined,
+			etag: metadata.options?.noCache ? false : undefined,
 			caller: metadata.options?.caller,
 			deadline: metadata.options?.deadline,
 			priority: metadata.options?.priority,

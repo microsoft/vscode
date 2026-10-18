@@ -833,6 +833,33 @@ suite('GitHub authenticated IPC clients', () => {
 		), ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation']);
 	});
 
+	for (const authenticated of [false, true]) {
+		test(`honors noCache for typed blob reads through IPC (authenticated=${authenticated})`, async () => {
+			const validators: (string | null)[] = [];
+			let version = 0;
+			const sha = 'a'.repeat(40);
+			const { connect } = setup(async (input, init) => {
+				if (new URL(String(input)).pathname === '/user') {
+					return Response.json({ id: 101 });
+				}
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 }) : Response.json({
+					sha, node_id: `blob-${++version}`, url: String(input), size: 1, encoding: 'base64', content: 'AA==',
+				}, { headers: { etag: `"${version}"` } });
+			});
+			const { remote } = connect();
+			const client = store.add(await (authenticated ? remote.acquireClient(authorization, signal()) : remote.acquireAnonymousClient(signal())));
+			const nodes: string[] = [];
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				nodes.push((await client.content.getBlob('o', 'r', sha, signal(), { noCache })).node_id);
+			}
+			assert.deepStrictEqual({ nodes, validators }, {
+				nodes: ['blob-1', 'blob-2', 'blob-2', 'blob-3', 'blob-2'], validators: [null, null, '"2"', null, '"2"'],
+			});
+		});
+	}
+
 	for (const sameContext of [false, true]) {
 		test(`isolates credentials and private ETags across physical connections (same context: ${sameContext})`, async () => {
 			const requests: { token: string | null; etag: string | null }[] = [];
@@ -2233,16 +2260,69 @@ suite('GitHub authenticated IPC clients', () => {
 		test('preserves documented API diagnostics and indeterminate HTTP failures without raw bodies', async () => {
 			const details = { message: 'Unavailable', documentation_url: 'https://docs.example.test', errors: [{ code: 'custom', message: 'Retry later' }] };
 			const { client } = await acquire(async () => Response.json({ ...details, secret: 'not-retained' }, {
-				status: 503, headers: { 'X-GitHub-Request-Id': 'request', 'Retry-After': '2' },
+				status: 503, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '2' },
 			}));
 			await assert.rejects(client.automations.create(repository, definition, signal()), (error: unknown) => {
 				assert.ok(error instanceof ApiRequestError);
 				assert.deepStrictEqual({
 					status: error.statusCode, response: error.response, requestId: error.requestId, retry: error.retryAfterSeconds, outcome: error.outcome, raw: error.responseBody,
-				}, { status: 503, response: details, requestId: 'request', retry: 2, outcome: 'indeterminate', raw: undefined });
+				}, { status: 503, response: details, requestId: 'ABCD:1234:5678:90AB:CDEF', retry: 2, outcome: 'indeterminate', raw: undefined });
 				return true;
 			});
 		});
+
+		for (const failure of [
+			{ status: 403, body: { error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, code: 'rate_limit_exceeded', limitedResource: 'token_mint' },
+			{ status: 409, body: { code: 'environment_compute_terminal' }, code: 'environment_compute_terminal', limitedResource: undefined },
+			{ status: 409, body: { error_code: 'future_code' }, code: 'future_code', limitedResource: undefined },
+		]) {
+			test(`preserves credential-free ${failure.code} diagnostics across IPC`, async () => {
+				const { client } = await acquire(async () => Response.json({
+					...failure.body, message: 'private credential', access_token: 'private credential',
+				}, { status: failure.status, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '5' } }));
+				await assert.rejects(client.environments.connect('env', signal()), error => {
+					assert.ok(error instanceof ApiRequestError);
+					assert.deepStrictEqual({
+						code: error.code, limitedResource: error.limitedResource, status: error.statusCode,
+						requestId: error.requestId, retryAfterSeconds: error.retryAfterSeconds,
+						response: error.response, raw: error.responseBody, privateContent: JSON.stringify(error).includes('private credential'),
+					}, {
+						code: failure.code, limitedResource: failure.limitedResource, status: failure.status,
+						requestId: 'ABCD:1234:5678:90AB:CDEF', retryAfterSeconds: 5,
+						response: undefined, raw: undefined, privateContent: false,
+					});
+					return true;
+				});
+			});
+		}
+
+		test('honors noCache for Mission Control reads through IPC', async () => {
+			const validators: (string | null)[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 }) : Response.json({ tasks: [] }, { headers: { etag: '"tasks"' } });
+			});
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				await client.tasks.list(signal(), { noCache });
+			}
+			assert.deepStrictEqual(validators, [null, null, '"tasks"', null, '"tasks"']);
+		});
+
+		test('sandbox rate-limit policy survives IPC without blocking task reads', () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				times.push(Date.now());
+				return init?.method === 'POST'
+					? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'Retry-After': '2' } })
+					: Response.json({ tasks: [] });
+			});
+			const request = { prompt: 'test', environment_id: 'github-sandbox' };
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			await client.tasks.list(signal());
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			assert.deepStrictEqual(times.map(time => time - times[0]), [0, 0, 2000]);
+		}));
 
 		test('malformed dispatched write responses remain indeterminate', async () => {
 			const { client } = await acquire(async () => new Response('not JSON', { status: 201 }));

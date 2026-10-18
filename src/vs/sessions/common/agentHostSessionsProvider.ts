@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
-import { IObservable } from '../../base/common/observable.js';
+import { IObservable, IReader } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -387,9 +387,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
-	 * Returns the working directory for the session, if provided by the host.
+	 * Returns the host-provided working directory, tracking updates when a reader is supplied.
 	 */
-	getWorkingDirectory(sessionId: string): string | undefined;
+	getWorkingDirectory(sessionId: string, reader?: IReader): string | undefined;
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session

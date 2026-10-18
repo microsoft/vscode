@@ -215,6 +215,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	get sandboxCertificateInstallationSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateInstallationSupported ?? constObservable(false);
+	}
+
+	get sandboxCertificateRotationSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRotationSupported ?? constObservable(false);
+	}
+
+	get sandboxCertificateRemovalSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRemovalSupported ?? constObservable(false);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -272,6 +284,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {
 		return this._requireClient().diagnosticsFetch(url);
+	}
+
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().removeSandboxCertificate(chat, scopeId);
 	}
 
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {

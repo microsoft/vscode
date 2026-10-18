@@ -76,6 +76,8 @@ export const enum CopilotCliConfigKey {
 	Fusion = 'fusion',
 	/** With {@link Fusion}, Fusion's High uses HydraFusion. Off by default. */
 	FusionHighUsesHydraFusion = 'fusionBalanceUsesHydraFusion',
+	/** Launch the runtime with `DYNAMIC_AUTO_TIERS`. Startup key; off by default. */
+	DynamicAutoTiers = 'dynamicAutoTiers',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -145,6 +147,7 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
 export type AgentHostHydraFusionSettingValue = boolean | 'v2' | 'multiRoot';
 export const AgentHostFusionEnabledSettingId = 'chat.copilot.ensemble.enabled';
 export const AgentHostFusionHighUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
+export const AgentHostDynamicAutoTiersEnabledSettingId = 'chat.copilot.dynamicAutoTiers.enabled';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -365,6 +368,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.fusionHighUsesHydraFusion.title', "Fusion High Uses HydraFusion"),
 		description: localize('agentHost.config.fusionHighUsesHydraFusion.description', "When enabled together with Fusion and HydraFusion, Fusion's High tier uses HydraFusion."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.DynamicAutoTiers]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.dynamicAutoTiers.title', "Dynamic Auto Tiers"),
+		description: localize('agentHost.config.dynamicAutoTiers.description', "When enabled, Auto's \"Optimize for\" tiers come from the Copilot service instead of the built-in list. Takes effect when the Copilot runtime restarts."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({

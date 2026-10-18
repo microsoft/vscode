@@ -1734,6 +1734,13 @@ configurationRegistry.registerConfiguration({
 			agentHost: { key: CopilotCliConfigKey.ImageGeneration },
 		},
 		...fusionConfigurationProperties,
+		[ChatConfiguration.FusionModelPickerInlineTiers]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.modelPicker.fusionInlineTiers', "Show Fusion tiers directly in the model picker when `#{0}#` is enabled.", AgentHostFusionEnabledSettingId),
+			default: false,
+			included: false,
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostFusionHighUsesHydraFusionSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Fusion's High tier uses HydraFusion v2. When HydraFusion is unavailable, Fusion High routes like Auto's Intelligence.", AgentHostFusionEnabledSettingId),
@@ -2434,24 +2441,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.titleBar.signIn.enabled', "Controls whether the Copilot Sign In button is shown in the title bar when signed out. When disabled, the Sign In affordance falls back to the status bar."),
 			default: true,
 		},
-		[ChatConfiguration.WelcomePageSignInEnabled]: {
-			type: 'boolean',
-			description: nls.localize('chat.welcomePage.signIn.enabled', "Controls whether the Welcome page shows a GitHub sign-in button instead of the Agents window button when signed out."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
-		},
-		[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.openInAgentsWindow.revealCurrentSession', "Controls whether Open in Agents Window reveals the current local Agent Host session instead of opening a new session."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../common/configurations.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -287,15 +288,13 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), undefined);
 	});
 
-	test('change: when policy is added', async () => {
+	test('change: when policy is added', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingB': 'policyValueB', 'PolicySettingC': 'policyValueC' })));
-			await promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingB': 'policyValueB', 'PolicySettingC': 'policyValueC' })));
+		await promise;
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueA');
@@ -303,17 +302,15 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA', 'policy.settingB']);
 		assert.deepStrictEqual(acutal.overrides, []);
-	});
+	}));
 
-	test('change: when policy is updated', async () => {
+	test('change: when policy is updated', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueAChanged' })));
-			await promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueAChanged' })));
+		await promise;
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.settingA'), 'policyValueAChanged');
@@ -321,17 +318,15 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, ['policy.settingA']);
 		assert.deepStrictEqual(acutal.overrides, []);
-	});
+	}));
 
-	test('change: when policy is removed', async () => {
+	test('change: when policy is removed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));
 		await testObject.initialize();
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
-			await promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
+		await promise;
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.settingA'), undefined);
@@ -339,7 +334,7 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(acutal.getValue('nonPolicy.setting'), undefined);
 		assert.deepStrictEqual(acutal.keys, []);
 		assert.deepStrictEqual(acutal.overrides, []);
-	});
+	}));
 
 	test('initialize: an owning policy applies to both the owner and its references', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
@@ -480,20 +475,18 @@ suite('PolicyConfiguration', () => {
 		assert.strictEqual(testObject.configurationModel.getValue('policy.orphanReferenceSetting'), false);
 	});
 
-	test('change: an owning policy update propagates to both the owner and its references', async () => {
+	test('change: an owning policy update propagates to both the owner and its references', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyShared': false })));
 		await testObject.initialize();
 
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
-			await promise;
-		});
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({})));
+		await promise;
 
 		const acutal = testObject.configurationModel;
 		assert.strictEqual(acutal.getValue('policy.ownerSetting'), undefined);
 		assert.strictEqual(acutal.getValue('policy.referenceSetting'), undefined);
-	});
+	}));
 
 	test('change: when policy setting is registered', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingC': 'policyValueC' })));
@@ -510,7 +503,9 @@ suite('PolicyConfiguration', () => {
 				localization: { description: { key: '', value: '' }, },
 			}
 		};
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(deepClone(policyConfigurationNode));
+		const registeredNode = deepClone(policyConfigurationNode);
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(registeredNode);
+		disposables.add(toDisposable(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([registeredNode])));
 		await promise;
 
 		const acutal = testObject.configurationModel;

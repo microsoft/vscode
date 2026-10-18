@@ -1363,35 +1363,35 @@ suite('ChatListRenderer', () => {
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
 			});
+		});
 
-			suite('endsWithCompletedQuestionInteraction', () => {
-				test('resumes working progress after completed ask interactions', () => {
-					const completedTool: IChatToolInvocationSerialized = {
-						kind: 'toolInvocationSerialized',
-						toolCallId: 'ask-1',
-						toolId: 'ask_user',
-						invocationMessage: 'Waiting for answer...',
-						originMessage: undefined,
-						pastTenseMessage: undefined,
-						isComplete: true,
-						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
-						presentation: undefined,
-						source: ToolDataSource.Internal,
-					};
-					const completedQuestion: IChatQuestionCarousel = {
-						kind: 'questionCarousel',
-						questions: [],
-						allowSkip: true,
-						isUsed: true,
-					};
+		suite('endsWithCompletedQuestionInteraction', () => {
+			test('resumes working progress after completed ask interactions', () => {
+				const completedTool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'ask-1',
+					toolId: 'ask_user',
+					invocationMessage: 'Waiting for answer...',
+					originMessage: undefined,
+					pastTenseMessage: undefined,
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+				};
+				const completedQuestion: IChatQuestionCarousel = {
+					kind: 'questionCarousel',
+					questions: [],
+					allowSkip: true,
+					isUsed: true,
+				};
 
-					assert.deepStrictEqual([
-						endsWithCompletedQuestionInteraction([completedTool]),
-						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
-						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
-						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
-					], [true, true, false, false]);
-				});
+				assert.deepStrictEqual([
+					endsWithCompletedQuestionInteraction([completedTool]),
+					endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+					endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+					endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+				], [true, true, false, false]);
 			});
 		});
 	});
@@ -4766,6 +4766,131 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	test('image batches wrap natural-width thumbnails without internal scrolling', async () => {
+		const { instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		container.style.width = '760px';
+		renderer.layout(container.clientWidth);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced() { return true; }
+		}());
+		const dimensions = [[1024, 1024], [1356, 1024], [1024, 1356], [1356, 1024], [1024, 1356]];
+		for (let index = 0; index < 10; index++) {
+			const [width, height] = dimensions[index % dimensions.length];
+			const value = dom.$<HTMLCanvasElement>('canvas', { width, height }).toDataURL('image/png').split(',')[1];
+			const tool = new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `grid-image-${index}`, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool({
+				content: [], toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
+			});
+		}
+		renderer.renderElement(node, 0, template);
+		const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+		const grid = batch.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnails')!;
+		const buttons = [...grid.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+		await retry(async () => {
+			const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
+			assert.strictEqual(images.length, 10);
+			await Promise.all(images.map(image => image.decode()));
+		}, 10, 50);
+		const snapshot = () => {
+			const rows = [...grid.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail-row')];
+			return {
+				rowCounts: rows.map(row => row.children.length),
+				leftAlignedWithSpareSpace: rows.length > 0 && rows.every(row => {
+					const first = row.firstElementChild!.getBoundingClientRect();
+					const last = row.lastElementChild!.getBoundingClientRect();
+					const bounds = grid.getBoundingClientRect();
+					return Math.abs(first.left - bounds.left) < 1 && last.right < bounds.right - 1;
+				}),
+				preservesAspectRatios: buttons.every((button, index) => {
+					const bounds = button.getBoundingClientRect();
+					const [width, height] = dimensions[index % dimensions.length];
+					return Math.abs(bounds.width / bounds.height - width / height) < 0.02;
+				}),
+				noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
+				noScrollbar: !batch.querySelector('.monaco-scrollable-element'),
+			};
+		};
+		await retry(async () => assert.deepStrictEqual(snapshot(), {
+			rowCounts: [5, 5], leftAlignedWithSpareSpace: true, preservesAspectRatios: true, noOverflow: true, noScrollbar: true,
+		}), 10, 50);
+		buttons[1].click();
+		buttons[1].focus();
+		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === buttons[6],
+			selected: buttons[6].getAttribute('aria-pressed'),
+		}, { focused: true, selected: 'true' });
+		container.style.width = '360px';
+		renderer.layout(container.clientWidth);
+		await retry(async () => assert.deepStrictEqual(snapshot(), {
+			rowCounts: [3, 3, 2, 2], leftAlignedWithSpareSpace: true, preservesAspectRatios: true, noOverflow: true, noScrollbar: true,
+		}), 10, 50);
+		assert.strictEqual(dom.getActiveElement(), buttons[6], 'resizing must preserve keyboard focus');
+		buttons[6].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === buttons[3],
+			selected: buttons[3].getAttribute('aria-pressed'),
+			sameButtons: buttons.every((button, index) => grid.querySelectorAll('.chat-image-generation-batch-thumbnail')[index] === button),
+		}, { focused: true, selected: 'true', sameButtons: true });
+	});
+
+	for (const width of [360, 760, 1000]) {
+		test(`image batch rows stay stable without padding image tiles (${width}px)`, async () => {
+			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = `${width}px`;
+			renderer.layout(container.clientWidth);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return true; }
+			}());
+			const dimensions = [[1024, 1356], [1024, 1536], [1536, 1024], [1356, 1024], [1024, 1024], [1600, 400]];
+			const tools = Array.from({ length: 10 }, (_, index) => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `natural-grid-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const grid = template.value.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnails')!;
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			await nextFrame();
+			const heights = () => [...grid.querySelectorAll('.chat-image-generation-batch-thumbnail-row')].map(row => row.getBoundingClientRect().height);
+			const initial = heights();
+			assert.ok(initial.length > 0);
+			const snapshots = [];
+			for (const [index, tool] of tools.entries()) {
+				const [imageWidth, imageHeight] = dimensions[index % dimensions.length];
+				const value = dom.$<HTMLCanvasElement>('canvas', { width: imageWidth, height: imageHeight }).toDataURL('image/png').split(',')[1];
+				await tool.didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
+				});
+				await retry(async () => {
+					const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
+					assert.strictEqual(images.length, index + 1);
+					await Promise.all(images.map(image => image.decode()));
+				}, 10, 50);
+				await nextFrame();
+				snapshots.push({
+					stableRows: heights().every((height, row) => Math.abs(height - initial[row]) < 1),
+					noPaddedTiles: [...grid.querySelectorAll('img')].every(image => {
+						const bounds = image.parentElement!.getBoundingClientRect();
+						return Math.abs(bounds.width / bounds.height - image.naturalWidth / image.naturalHeight) < 0.02;
+					}),
+					noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
+				});
+			}
+			assert.deepStrictEqual(snapshots, tools.map(() => ({
+				stableRows: true, noPaddedTiles: true, noOverflow: true,
+			})));
+		});
+	}
+
 	for (const [theme, border, selectedBorder] of [
 		['dark', 'rgb(60, 60, 60)', 'rgb(0, 127, 212)'],
 		['light', 'rgb(212, 212, 212)', 'rgb(0, 144, 241)'],
@@ -4823,7 +4948,7 @@ suite('ChatListRenderer', () => {
 					betweenThumbnails: buttons[1].getBoundingClientRect().left - firstButtonBounds.right,
 					thumbnailsToSummary: summary.getBoundingClientRect().top - firstButtonBounds.bottom,
 				},
-				countsBelowThumbnails: thumbnails.parentElement?.nextElementSibling === summary,
+				countsBelowThumbnails: thumbnails.nextElementSibling === summary,
 				oneTool: template.value.querySelectorAll('.chat-tool-invocation-part').length,
 				focusedSelection: mainWindow.document.activeElement === buttons[0],
 			}, {

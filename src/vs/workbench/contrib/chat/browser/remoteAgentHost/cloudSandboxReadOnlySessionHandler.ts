@@ -27,10 +27,16 @@ const LOG_PREFIX = '[CloudSandboxReadOnly]';
 export interface ICloudSandboxReadOnlyConfig {
 	/** Mission Control task owning the session, which is what persisted history is addressed by. */
 	readonly taskId: string;
+	/** Resolve the owning task when several sessions share this environment's provider. */
+	readonly getTaskId?: (resource: URI) => string | undefined;
 	/** Chat participant id. Matches the live handler, where `agentId === sessionType`. */
 	readonly agentId: string;
 	/** Sanitized agent-host authority used to rewrite resource URIs in history. */
 	readonly connectionAuthority: string;
+}
+
+export function getCloudSandboxTaskId(config: ICloudSandboxReadOnlyConfig, resource: URI): string | undefined {
+	return config.getTaskId ? config.getTaskId(resource) : config.taskId;
 }
 
 /** A resolved chat session backed entirely by read-only history. */
@@ -67,7 +73,11 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 	}
 
 	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string, onCachedSession?: (session: IChatSession) => void, hasHistory = false): Promise<IChatSession> {
-		const replayed = await this._apiService.getSessionHistory(this._config.taskId, token, diagnosticId, onCachedSession && (history => {
+		const taskId = getCloudSandboxTaskId(this._config, sessionResource);
+		if (!taskId) {
+			throw new Error(localize('cloudSandbox.sessionTaskMissing', "Recorded history for this session is unavailable."));
+		}
+		const replayed = await this._apiService.getSessionHistory(taskId, token, diagnosticId, onCachedSession && (history => {
 			const session = this._findSession(sessionResource, history);
 			const chatResource = session && this._getChatResource(sessionResource, session);
 			const chat = chatResource ? session?.chats.get(chatResource) : undefined;
@@ -104,6 +114,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		// Resolve from the *requested* resource, not the handler's config: one handler serves a
 		// whole session type, and an environment can own several sessions.
 		const sessionId = AgentSession.id(sessionResource);
+		const taskId = getCloudSandboxTaskId(this._config, sessionResource);
 		const session = this._findSession(sessionResource, replayed);
 		const chatResource = session && this._getChatResource(sessionResource, session);
 		const chat = chatResource ? session?.chats.get(chatResource) : undefined;
@@ -112,7 +123,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		}
 		if (!session) {
 			// A newly created task may not have recorded a conversation yet.
-			this._logService.warn(`${LOG_PREFIX} No persisted history for session ${sessionId} in task ${this._config.taskId} (replayed sessions: [${replayed?.sessions.map(s => s.session).join(', ') ?? 'none'}]); opening an empty read-only session.`);
+			this._logService.warn(`${LOG_PREFIX} No persisted history for session ${sessionId} in task ${taskId} (replayed sessions: [${replayed?.sessions.map(s => s.session).join(', ') ?? 'none'}]); opening an empty read-only session.`);
 			return new ReadOnlyChatSession(sessionResource, [], undefined, this._isReadOnly);
 		}
 
@@ -150,7 +161,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		if (replayed?.truncated) {
 			// A partial tail must not read as a complete transcript, so say so in the conversation
 			// itself — a log line is invisible to the person reading it.
-			this._logService.warn(`${LOG_PREFIX} History for task ${this._config.taskId} is truncated; the final exchange may be incomplete.`);
+			this._logService.warn(`${LOG_PREFIX} History for task ${taskId} is truncated; the final exchange may be incomplete.`);
 			history.push({
 				type: 'response',
 				parts: [{

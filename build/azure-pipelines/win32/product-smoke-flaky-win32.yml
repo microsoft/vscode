@@ -159,12 +159,28 @@ jobs:
                     $AppNameShort = $AppProductJson.nameShort
                     $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
                     $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
+                    exec { .\scripts\test-agent-host-e2e.bat --build --tfs "Integration Tests" }
+                  env:
+                    VSCODE_SKIP_PRELAUNCH: '1'
+                  displayName: "🧪 Agent Host E2E iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+                  continueOnError: true
+                  # Agent Host E2E takes ~10-19 minutes on Windows.
+                  timeoutInMinutes: 30
+                - powershell: |
+                    . build/azure-pipelines/win32/exec.ps1
+                    $ErrorActionPreference = "Stop"
+                    $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+                    $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+                    $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+                    $AppNameShort = $AppProductJson.nameShort
+                    $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+                    $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)"
                     exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
                   env:
                     VSCODE_SKIP_PRELAUNCH: '1'
                   displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
                   continueOnError: true
-                  # A Windows iteration currently takes ~24 minutes.
+                  # Without Agent Host E2E, a Windows iteration takes ~10-12 minutes.
                   timeoutInMinutes: 30
 
             # Force-kill any lingering test processes that still hold integration-test

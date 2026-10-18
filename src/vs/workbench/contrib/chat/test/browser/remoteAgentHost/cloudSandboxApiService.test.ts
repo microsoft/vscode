@@ -338,7 +338,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				await assert.rejects(action === 'connect'
 					? service.connect(request, CancellationToken.None)
 					: service.reconnect(request, 'client-1', CancellationToken.None), {
-					name: 'CloudSandboxNetworkError', message: failure.message, cause: failure,
+					name: 'CloudSandboxNetworkError', message: 'Mission Control connection request failed',
 				});
 			});
 		}
@@ -391,7 +391,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				retryAfterSeconds: 45,
 			});
 			assert.deepStrictEqual(logService.errors, [
-				`[CloudSandboxApi] ${action} failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45 message=Failed to open relay; token=[redacted]`,
+				`[CloudSandboxApi] Mission Control ${action} failed: HTTP 500 (requestId=${requestId})`,
 			]);
 		}));
 
@@ -466,7 +466,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				message: 'Mission Control connect failed: HTTP 500',
 			});
 			assert.deepStrictEqual(logService.errors, [
-				'[CloudSandboxApi] connect failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none message=private response body',
+				'[CloudSandboxApi] Mission Control connect failed: HTTP 500',
 			]);
 		}));
 	}
@@ -505,6 +505,80 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.strictEqual(requestedUrls.length, 1);
 		});
 	}
+
+	for (const response of [
+		{ status: 403, body: { error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, code: 'rate_limit_exceeded', resource: 'token_mint' },
+		{ status: 409, body: { code: 'environment_compute_terminal' }, code: 'environment_compute_terminal', resource: undefined },
+		{ status: 409, body: { code: 'future_conflict' }, code: 'future_conflict', resource: undefined },
+	]) {
+		test(`preserves structured HTTP ${response.status} diagnostics: ${response.code}`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({ ...response.body, message: 'private', access_token: 'private' }, response.status, {
+					'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '5',
+				}),
+			});
+			await assert.rejects(service.connect(request, CancellationToken.None), error => {
+				assert.ok(error instanceof Error);
+				assert.deepStrictEqual({
+					...error, message: error.message, privateContent: JSON.stringify(error).includes('private'),
+				}, {
+					name: 'CloudSandboxRequestError', statusCode: response.status, retryAfterSeconds: 5,
+					code: response.code, limitedResource: response.resource, requestId: 'ABCD:1234:5678:90AB:CDEF',
+					message: `Mission Control connect failed: HTTP ${response.status} code=${response.code} (requestId=ABCD:1234:5678:90AB:CDEF)`,
+					privateContent: false,
+				});
+				return true;
+			});
+		});
+	}
+
+	for (const replacement of ['new credential', 'same credential', 'other account', 'rejected again', 'cancelled', 'unavailable'] as const) {
+		test(`a 401 resolves credentials once and fences retries: ${replacement}`, async () => {
+			const source = store.add(new CancellationTokenSource());
+			let lookups = 0;
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => {
+					const initial = lookups++ === 0;
+					if (!initial && replacement === 'unavailable') {
+						throw new Error('provider unavailable');
+					}
+					if (!initial && replacement === 'cancelled') {
+						source.cancel();
+					}
+					return [{
+						id: 's', scopes: [], accessToken: initial || replacement === 'same credential' ? 'old' : 'new',
+						account: { id: !initial && replacement === 'other account' ? 'other' : 'a', label: 'a' },
+					}];
+				},
+				onRequest: () => requestedUrls.length === 1 || replacement === 'rejected again'
+					? jsonResponse({ error_code: 'unauthenticated' }, 401) : jsonResponse(clientToken('client-1')),
+			});
+			const connecting = service.connect(request, source.token);
+			if (replacement === 'new credential') {
+				await connecting;
+			} else {
+				await assert.rejects(connecting, replacement === 'cancelled' ? isCancellationError : { statusCode: 401, code: 'unauthenticated' });
+			}
+			assert.deepStrictEqual({ lookups, requests: requestedUrls.length }, {
+				lookups: 2, requests: replacement === 'new credential' || replacement === 'rejected again' ? 2 : 1,
+			});
+		});
+	}
+
+	test('a rejected mutation is not replayed through the authentication recovery path', async () => {
+		let lookups = 0;
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{
+				id: 's', scopes: [], accessToken: ++lookups === 1 ? 'old' : 'replacement', account: { id: 'a', label: 'a' },
+			}],
+			onRequest: () => jsonResponse({ error_code: 'unauthenticated' }, 401),
+		});
+		await assert.rejects(service.createSession({ prompt: 'test' }, CancellationToken.None), { statusCode: 401, code: 'unauthenticated' });
+		assert.deepStrictEqual({ lookups, requests: requestedUrls.length }, { lookups: 1, requests: 1 });
+	});
 });
 
 suite('CloudSandboxApiService history timings', () => {
@@ -2648,32 +2722,30 @@ suite('CloudSandboxApiService session creation', () => {
 		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
 
 		assert.deepStrictEqual(warnings.filter(w => w.includes('task-10')), [
-			'[CloudSandboxApi] Could not clean up sandbox task task-10: Mission Control task delete failed: HTTP 500 - {}. It remains and can only be removed server-side.',
+			'[CloudSandboxApi] Could not clean up sandbox task task-10: Mission Control task delete failed: HTTP 500. It remains and can only be removed server-side.',
 		]);
 	});
 
-	test('keeps the failure message when the response names no task', async () => {
-		// The body is read once: reading it again would discard the failure's explanation.
-		const { service, calls } = createServiceForCreate(store, { message: 'failed to create agent compute' }, 500);
+	test('keeps the failure code when the response names no task', async () => {
+		const { service, calls } = createServiceForCreate(store, { message: 'private details', error_code: 'backend_error' }, 500);
 
 		await assert.rejects(
 			() => service.createSession({ prompt: 'hello' }, CancellationToken.None),
-			/HTTP 500 - .*failed to create agent compute/,
+			/HTTP 500 code=backend_error/,
 		);
 
 		assert.deepStrictEqual(calls.map(c => c.type), ['POST']);
 	});
 
-	test('logs the request id and raw body when a create fails, so the failure can be escalated', async () => {
-		// The failure message masks its cause, so the request id is what gets escalated.
+	test('logs safe diagnostics instead of private bodies when creation fails', async () => {
 		const { service, errors } = createServiceForCreate(store,
-			{ message: 'failed to create agent compute' }, 500,
-			{ responseHeaders: { 'x-github-request-id': 'ABCD:1234:5678', 'x-sweagentd-retry': 'compute_resource_locked' } });
+			{ message: 'private credential', access_token: 'private credential', error_code: 'backend_error' }, 500,
+			{ responseHeaders: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'x-sweagentd-retry': 'private header' } });
 
 		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
 
-		assert.deepStrictEqual(errors.filter(e => e.includes('Task create failed.')), [
-			'[CloudSandboxApi] Task create failed. HTTP 500 | x-github-request-id: ABCD:1234:5678 | x-sweagentd-retry: compute_resource_locked | body: {"message":"failed to create agent compute"}',
+		assert.deepStrictEqual(errors, [
+			'[CloudSandboxApi] Mission Control task create failed: HTTP 500 code=backend_error (requestId=ABCD:1234:5678:90AB:CDEF)',
 		]);
 	});
 });
