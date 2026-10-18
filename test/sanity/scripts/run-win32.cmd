@@ -25,9 +25,13 @@ if errorlevel 1 (
     if errorlevel 1 call :install_ubuntu
 
     echo Ensuring Ubuntu runs with WSL2
-    call :run_wsl --set-version Ubuntu 2
+    REM Converting a distribution that already runs on WSL2 fails, so only convert it when needed.
+    powershell -NoProfile -Command "if ((wsl -l -v) -replace [char]0, '' -match '^[*]?\s*Ubuntu\s+\S+\s+2\s*$') { exit 0 } else { exit 1 }"
     if errorlevel 1 (
-        echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
+        call :run_wsl --set-version Ubuntu 2
+        if errorlevel 1 (
+            echo WARNING: Failed to switch Ubuntu to WSL2. WSL1 fallback workaround will be used for Node 24 server binaries.
+        )
     )
 
     echo WSL distributions:
