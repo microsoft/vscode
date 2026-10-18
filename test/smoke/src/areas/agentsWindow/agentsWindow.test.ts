@@ -323,14 +323,7 @@ export function setup(logger: Logger, quality: Quality) {
 			if (transport !== 'wsl') {
 				installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
 			}
-			before(function () {
-				// PR CI tolerates a failed WSL provisioning step (an infrastructure flake). Skip at runtime,
-				// not at registration, so that every shard computes the same split.
-				const wslSetupOutcome = process.env.VSCODE_SMOKE_TEST_WSL_SETUP_OUTCOME;
-				if (required && wslSetupOutcome === 'failure') {
-					logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): WSL provisioning failed; see the 'Prepare WSL Dev Container smoke tests' step.`);
-					this.skip();
-				}
+			before(() => {
 				if (required) {
 					assert.ok(supportedPlatform, 'Required WSL smoke tests need Windows.');
 					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_DISTRO, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_DISTRO from successful provisioning.');

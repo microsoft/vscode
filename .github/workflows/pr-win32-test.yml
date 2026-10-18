@@ -53,15 +53,10 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
         uses: ./.github/actions/restore-wsl-installer
 
-      # Provisioning only sets up test infrastructure (current WSL, a WSL2 distro, Docker, a pinned server), and
-      # the WSL2 utility VM sometimes hangs or crashes processes right after boot. So a failure here doesn't fail
-      # the job: the WSL suite skips itself instead, and the product build still requires it.
-      # A healthy setup takes about 2-3 minutes, so a hang is cut off early.
       - name: Prepare WSL Dev Container smoke tests
         id: wsl-dev-container
         if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
-        continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 15
         shell: pwsh
         run: .\test\smoke\wslDevContainer.ps1
         env:
@@ -295,12 +290,9 @@ jobs:
           VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
           VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
-          VSCODE_SMOKE_TEST_WSL_SETUP_OUTCOME: ${{ steps.wsl-dev-container.outcome }}
 
       - name: Clean up WSL Dev Container smoke tests
         if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
-        # Best effort after a failed setup, since WSL may still be unresponsive
-        continue-on-error: ${{ steps.wsl-dev-container.outcome != 'success' }}
         timeout-minutes: 5
         shell: pwsh
         env:
