@@ -833,6 +833,33 @@ suite('GitHub authenticated IPC clients', () => {
 		), ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation']);
 	});
 
+	for (const authenticated of [false, true]) {
+		test(`honors noCache for typed blob reads through IPC (authenticated=${authenticated})`, async () => {
+			const validators: (string | null)[] = [];
+			let version = 0;
+			const sha = 'a'.repeat(40);
+			const { connect } = setup(async (input, init) => {
+				if (new URL(String(input)).pathname === '/user') {
+					return Response.json({ id: 101 });
+				}
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 }) : Response.json({
+					sha, node_id: `blob-${++version}`, url: String(input), size: 1, encoding: 'base64', content: 'AA==',
+				}, { headers: { etag: `"${version}"` } });
+			});
+			const { remote } = connect();
+			const client = store.add(await (authenticated ? remote.acquireClient(authorization, signal()) : remote.acquireAnonymousClient(signal())));
+			const nodes: string[] = [];
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				nodes.push((await client.content.getBlob('o', 'r', sha, signal(), { noCache })).node_id);
+			}
+			assert.deepStrictEqual({ nodes, validators }, {
+				nodes: ['blob-1', 'blob-2', 'blob-2', 'blob-3', 'blob-2'], validators: [null, null, '"2"', null, '"2"'],
+			});
+		});
+	}
+
 	for (const sameContext of [false, true]) {
 		test(`isolates credentials and private ETags across physical connections (same context: ${sameContext})`, async () => {
 			const requests: { token: string | null; etag: string | null }[] = [];
@@ -2268,6 +2295,19 @@ suite('GitHub authenticated IPC clients', () => {
 				});
 			});
 		}
+
+		test('honors noCache for Mission Control reads through IPC', async () => {
+			const validators: (string | null)[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 }) : Response.json({ tasks: [] }, { headers: { etag: '"tasks"' } });
+			});
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				await client.tasks.list(signal(), { noCache });
+			}
+			assert.deepStrictEqual(validators, [null, null, '"tasks"', null, '"tasks"']);
+		});
 
 		test('sandbox rate-limit policy survives IPC without blocking task reads', () => runWithFakedTimers({}, async () => {
 			const times: number[] = [];
