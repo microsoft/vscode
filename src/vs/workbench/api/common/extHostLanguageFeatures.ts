@@ -10,11 +10,11 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { NotImplementedError, isCancellationError } from '../../../base/common/errors.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
-import { DisposableStore, Disposable as CoreDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, Disposable as CoreDisposable } from '../../../base/common/lifecycle.js';
 import { equals, mixin } from '../../../base/common/objects.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
-import { assertType, isObject } from '../../../base/common/types.js';
+import { assertType, hasKey, isObject } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -104,25 +104,33 @@ class DocumentSymbolAdapter {
 	}
 }
 
-abstract class LanguageFeatureAdapterWithCommands {
+class LanguageFeatureCommandStores extends DisposableMap<number, DisposableStore> {
 
-	protected _isDisposed = false;
-	protected readonly _disposables = new Map<number, DisposableStore>();
+	private _isRetired = false;
+
+	get isRetired(): boolean {
+		return this._isRetired;
+	}
 
 	/**
-	 * Stops accepting provider results and transfers their command stores to the caller.
+	 * Stops accepting provider results without disposing their command stores.
 	 * Existing results may still execute commands after provider unregistration, so
 	 * their stores can only be disposed once those results are released.
 	 */
-	retire(): Map<number, DisposableStore> {
-		this._isDisposed = true;
-		return this._disposables;
+	retire(): void {
+		this._isRetired = true;
+	}
+
+	override dispose(): void {
+		this.retire();
+		super.dispose();
 	}
 }
 
-class CodeLensAdapter extends LanguageFeatureAdapterWithCommands {
+class CodeLensAdapter {
 
 	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -131,20 +139,18 @@ class CodeLensAdapter extends LanguageFeatureAdapterWithCommands {
 		private readonly _extension: IExtensionDescription,
 		private readonly _extTelemetry: ExtHostTelemetry,
 		private readonly _logService: ILogService,
-	) {
-		super();
-	}
+	) { }
 
 	async provideCodeLenses(resource: URI, token: CancellationToken): Promise<extHostProtocol.ICodeLensListDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 
 		const lenses = await this._provider.provideCodeLenses(doc, token);
-		if (!lenses || token.isCancellationRequested || this._isDisposed) {
+		if (!lenses || token.isCancellationRequested || this.commandStores.isRetired) {
 			return undefined;
 		}
 		const cacheId = this._cache.add(lenses);
 		const disposables = new DisposableStore();
-		this._disposables.set(cacheId, disposables);
+		this.commandStores.set(cacheId, disposables);
 		const result: extHostProtocol.ICodeLensListDto = {
 			cacheId,
 			lenses: [],
@@ -182,10 +188,10 @@ class CodeLensAdapter extends LanguageFeatureAdapterWithCommands {
 			resolvedLens = lens;
 		}
 
-		if (token.isCancellationRequested || this._isDisposed) {
+		if (token.isCancellationRequested || this.commandStores.isRetired) {
 			return undefined;
 		}
-		const disposables = symbol.cacheId && this._disposables.get(symbol.cacheId[0]);
+		const disposables = symbol.cacheId && this.commandStores.get(symbol.cacheId[0]);
 		if (!disposables) {
 			// disposed in the meantime
 			return undefined;
@@ -203,8 +209,6 @@ class CodeLensAdapter extends LanguageFeatureAdapterWithCommands {
 	}
 
 	releaseCodeLenses(cachedId: number): void {
-		this._disposables.get(cachedId)?.dispose();
-		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
 }
@@ -469,10 +473,11 @@ export interface CustomCodeAction extends extHostProtocol.ICodeActionDto {
 	_isSynthetic?: boolean;
 }
 
-class CodeActionAdapter extends LanguageFeatureAdapterWithCommands {
+class CodeActionAdapter {
 	private static readonly _maxCodeActionsPerFile: number = 1000;
 
 	private readonly _cache = new Cache<vscode.CodeAction | vscode.Command>('CodeAction');
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -482,9 +487,7 @@ class CodeActionAdapter extends LanguageFeatureAdapterWithCommands {
 		private readonly _logService: ILogService,
 		private readonly _extension: IExtensionDescription,
 		private readonly _apiDeprecation: IExtHostApiDeprecationService,
-	) {
-		super();
-	}
+	) { }
 
 	async provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: languages.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
 
@@ -510,13 +513,13 @@ class CodeActionAdapter extends LanguageFeatureAdapterWithCommands {
 		};
 
 		const commandsOrActions = await this._provider.provideCodeActions(doc, ran, codeActionContext, token);
-		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested || this._isDisposed) {
+		if (!isNonEmptyArray(commandsOrActions) || token.isCancellationRequested || this.commandStores.isRetired) {
 			return undefined;
 		}
 
 		const cacheId = this._cache.add(commandsOrActions);
 		const disposables = new DisposableStore();
-		this._disposables.set(cacheId, disposables);
+		this.commandStores.set(cacheId, disposables);
 		const actions: CustomCodeAction[] = [];
 		for (let i = 0; i < commandsOrActions.length; i++) {
 			const candidate = commandsOrActions[i];
@@ -578,7 +581,7 @@ class CodeActionAdapter extends LanguageFeatureAdapterWithCommands {
 
 
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
-		if (this._isDisposed) {
+		if (this.commandStores.isRetired) {
 			return {};
 		}
 
@@ -589,7 +592,7 @@ class CodeActionAdapter extends LanguageFeatureAdapterWithCommands {
 
 		let resolvedCommand: extHostProtocol.ICommandDto | undefined;
 		if (resolvedItem.command) {
-			const disposables = this._disposables.get(sessionId);
+			const disposables = this.commandStores.get(sessionId);
 			if (disposables) {
 				resolvedCommand = this._commands.toInternal(resolvedItem.command, disposables);
 			}
@@ -599,8 +602,6 @@ class CodeActionAdapter extends LanguageFeatureAdapterWithCommands {
 	}
 
 	releaseCodeActions(cachedId: number): void {
-		this._disposables.get(cachedId)?.dispose();
-		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
 
@@ -1168,13 +1169,14 @@ class DocumentRangeSemanticTokensAdapter {
 	}
 }
 
-class CompletionsAdapter extends LanguageFeatureAdapterWithCommands {
+class CompletionsAdapter {
 
 	static supportsResolving(provider: vscode.CompletionItemProvider): boolean {
 		return typeof provider.resolveCompletionItem === 'function';
 	}
 
 	private _cache = new Cache<vscode.CompletionItem>('CompletionItem');
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1182,9 +1184,7 @@ class CompletionsAdapter extends LanguageFeatureAdapterWithCommands {
 		private readonly _provider: vscode.CompletionItemProvider,
 		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 		private readonly _extension: IExtensionDescription,
-	) {
-		super();
-	}
+	) { }
 
 	async provideCompletionItems(resource: URI, position: IPosition, context: languages.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
 
@@ -1200,7 +1200,7 @@ class CompletionsAdapter extends LanguageFeatureAdapterWithCommands {
 		const sw = new StopWatch();
 		const itemsOrList = await this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context));
 
-		if (!itemsOrList || this._isDisposed) {
+		if (!itemsOrList || this.commandStores.isRetired) {
 			// undefined and null are valid results
 			return undefined;
 		}
@@ -1216,7 +1216,7 @@ class CompletionsAdapter extends LanguageFeatureAdapterWithCommands {
 		// keep result for providers that support resolving
 		const pid: number = CompletionsAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
 		const disposables = new DisposableStore();
-		this._disposables.set(pid, disposables);
+		this.commandStores.set(pid, disposables);
 
 		const completions: extHostProtocol.ISuggestDataDto[] = [];
 		const result: extHostProtocol.ISuggestResultDto = {
@@ -1252,7 +1252,7 @@ class CompletionsAdapter extends LanguageFeatureAdapterWithCommands {
 
 		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
-		if (!resolvedItem || this._isDisposed) {
+		if (!resolvedItem || this.commandStores.isRetired) {
 			return undefined;
 		}
 
@@ -1289,14 +1289,12 @@ class CompletionsAdapter extends LanguageFeatureAdapterWithCommands {
 	}
 
 	releaseCompletionItems(id: number): any {
-		this._disposables.get(id)?.dispose();
-		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
 
 	private _convertCompletionItem(item: vscode.CompletionItem, id: extHostProtocol.ChainedCacheId, defaultInsertRange?: vscode.Range, defaultReplaceRange?: vscode.Range): extHostProtocol.ISuggestDataDto {
 
-		const disposables = this._disposables.get(id[0]);
+		const disposables = this.commandStores.get(id[0]);
 		if (!disposables) {
 			throw Error('DisposableStore is missing...');
 		}
@@ -1664,9 +1662,10 @@ class SignatureHelpAdapter {
 	}
 }
 
-class InlayHintsAdapter extends LanguageFeatureAdapterWithCommands {
+class InlayHintsAdapter {
 
 	private _cache = new Cache<vscode.InlayHint>('InlayHints');
+	readonly commandStores = new LanguageFeatureCommandStores();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1674,16 +1673,14 @@ class InlayHintsAdapter extends LanguageFeatureAdapterWithCommands {
 		private readonly _provider: vscode.InlayHintsProvider,
 		private readonly _logService: ILogService,
 		private readonly _extension: IExtensionDescription
-	) {
-		super();
-	}
+	) { }
 
 	async provideInlayHints(resource: URI, ran: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const range = typeConvert.Range.to(ran);
 
 		const hints = await this._provider.provideInlayHints(doc, range, token);
-		if (this._isDisposed) {
+		if (this.commandStores.isRetired) {
 			return undefined;
 		}
 		if (!Array.isArray(hints) || hints.length === 0) {
@@ -1697,7 +1694,7 @@ class InlayHintsAdapter extends LanguageFeatureAdapterWithCommands {
 			return undefined;
 		}
 		const pid = this._cache.add(hints);
-		this._disposables.set(pid, new DisposableStore());
+		this.commandStores.set(pid, new DisposableStore());
 		const result: extHostProtocol.IInlayHintsDto = { hints: [], cacheId: pid };
 		for (let i = 0; i < hints.length; i++) {
 			if (this._isValidInlayHint(hints[i], range)) {
@@ -1717,7 +1714,7 @@ class InlayHintsAdapter extends LanguageFeatureAdapterWithCommands {
 			return undefined;
 		}
 		const hint = await this._provider.resolveInlayHint(item, token);
-		if (!hint || this._isDisposed) {
+		if (!hint || this.commandStores.isRetired) {
 			return undefined;
 		}
 		if (!this._isValidInlayHint(hint)) {
@@ -1727,8 +1724,6 @@ class InlayHintsAdapter extends LanguageFeatureAdapterWithCommands {
 	}
 
 	releaseHints(id: number): any {
-		this._disposables.get(id)?.dispose();
-		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
 
@@ -1746,7 +1741,7 @@ class InlayHintsAdapter extends LanguageFeatureAdapterWithCommands {
 
 	private _convertInlayHint(hint: vscode.InlayHint, id: extHostProtocol.ChainedCacheId): extHostProtocol.IInlayHintDto {
 
-		const disposables = this._disposables.get(id[0]);
+		const disposables = this.commandStores.get(id[0]);
 		if (!disposables) {
 			throw Error('DisposableStore is missing...');
 		}
@@ -2193,9 +2188,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private readonly _adapter = new Map<number, AdapterData>();
-	// Result owners can release their command stores after the provider has gone.
-	// Keep only the stores here, without retaining the provider or its adapter.
-	private readonly _retiredCommandStores = new Map<number, Map<number, DisposableStore>>();
+	private readonly _commandStores = this._register(new DisposableMap<number, LanguageFeatureCommandStores>());
 
 	private _inlineCompletionsUnificationState: vscode.InlineCompletionsUnificationState;
 	public get inlineCompletionsUnificationState(): vscode.InlineCompletionsUnificationState {
@@ -2217,22 +2210,6 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	) {
 		super();
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
-		this._register(toDisposable(() => {
-			for (const { adapter } of this._adapter.values()) {
-				if (adapter instanceof LanguageFeatureAdapterWithCommands) {
-					for (const store of adapter.retire().values()) {
-						store.dispose();
-					}
-				}
-			}
-			for (const stores of this._retiredCommandStores.values()) {
-				for (const store of stores.values()) {
-					store.dispose();
-				}
-			}
-			this._adapter.clear();
-			this._retiredCommandStores.clear();
-		}));
 		this._inlineCompletionsUnificationState = {
 			codeUnification: false,
 			modelUnification: false,
@@ -2241,35 +2218,33 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 		};
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._adapter.clear();
+	}
+
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
 	}
 
 	private _createDisposable(handle: number): Disposable {
 		return new Disposable(() => {
-			const adapter = this._adapter.get(handle)?.adapter;
 			this._adapter.delete(handle);
-			if (adapter instanceof LanguageFeatureAdapterWithCommands) {
-				const stores = adapter.retire();
-				if (stores.size > 0) {
-					this._retiredCommandStores.set(handle, stores);
-				}
+			const stores = this._commandStores.get(handle);
+			stores?.retire();
+			if (stores?.size === 0) {
+				this._commandStores.deleteAndDispose(handle);
 			}
 			this._proxy.$unregister(handle);
 		});
 	}
 
-	private _releaseRetiredCommandStore(handle: number, cacheId: number): boolean {
-		const stores = this._retiredCommandStores.get(handle);
-		if (!stores) {
-			return false;
+	private _releaseCommandStore(handle: number, cacheId: number): void {
+		const stores = this._commandStores.get(handle);
+		stores?.deleteAndDispose(cacheId);
+		if (stores?.isRetired && stores.size === 0) {
+			this._commandStores.deleteAndDispose(handle);
 		}
-		stores.get(cacheId)?.dispose();
-		stores.delete(cacheId);
-		if (stores.size === 0) {
-			this._retiredCommandStores.delete(handle);
-		}
-		return true;
 	}
 
 	private _nextHandle(): number {
@@ -2319,6 +2294,9 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	private _addNewAdapter(adapter: Adapter, extension: IExtensionDescription): number {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(adapter, extension));
+		if (hasKey(adapter, { commandStores: true })) {
+			this._commandStores.set(handle, adapter.commandStores);
+		}
 		return handle;
 	}
 
@@ -2346,10 +2324,9 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	// --- code lens
 
 	registerCodeLensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeLensProvider): vscode.Disposable {
-		const handle = this._nextHandle();
+		const handle = this._addNewAdapter(new CodeLensAdapter(this._documents, this._commands.converter, provider, extension, this._extensionTelemetry, this._logService), extension);
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider, extension, this._extensionTelemetry, this._logService), extension));
 		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector, extension), eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -2370,9 +2347,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseCodeLenses(handle: number, cacheId: number): void {
-		if (this._releaseRetiredCommandStore(handle, cacheId)) {
-			return;
-		}
+		this._releaseCommandStore(handle, cacheId);
 		this._withAdapter(handle, CodeLensAdapter, adapter => Promise.resolve(adapter.releaseCodeLenses(cacheId)), undefined, undefined, true);
 	}
 
@@ -2548,9 +2523,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {
-		if (this._releaseRetiredCommandStore(handle, cacheId)) {
-			return;
-		}
+		this._releaseCommandStore(handle, cacheId);
 		this._withAdapter(handle, CodeActionAdapter, adapter => Promise.resolve(adapter.releaseCodeActions(cacheId)), undefined, undefined);
 	}
 
@@ -2708,9 +2681,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseCompletionItems(handle: number, id: number): void {
-		if (this._releaseRetiredCommandStore(handle, id)) {
-			return;
-		}
+		this._releaseCommandStore(handle, id);
 		this._withAdapter(handle, CompletionsAdapter, adapter => adapter.releaseCompletionItems(id), undefined, undefined);
 	}
 
@@ -2855,9 +2826,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	$releaseInlayHints(handle: number, id: number): void {
-		if (this._releaseRetiredCommandStore(handle, id)) {
-			return;
-		}
+		this._releaseCommandStore(handle, id);
 		this._withAdapter(handle, InlayHintsAdapter, adapter => adapter.releaseHints(id), undefined, undefined);
 	}
 
