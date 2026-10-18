@@ -100,11 +100,9 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return configuredSessionsWindowSupport;
 		}
 
-		if ((isBuiltin || this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY)) && manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
-			const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
-			if (declaredSessionsWindowSupport !== undefined) {
-				return declaredSessionsWindowSupport;
-			}
+		const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
+		if (declaredSessionsWindowSupport !== undefined && (isBuiltin || this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY))) {
+			return declaredSessionsWindowSupport;
 		}
 
 		if (isBuiltin) {
@@ -112,7 +110,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return !contributes?.debuggers && !contributes?.views && !contributes?.viewsContainers && !contributes?.walkthroughs;
 		}
 
-		// In the sessions window only extensions that have no code are currently allowed to run
+		// Extensions without declared support must not have executable code.
 		if (manifest.main || manifest.browser) {
 			return false;
 		}

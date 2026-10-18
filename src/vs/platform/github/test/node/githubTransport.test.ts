@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GitHubGraphQLError } from '../../common/githubTypes.js';
 import { AccountHandle } from '../../common/types.js';
-import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubRequestError, GitHubRestTextRequest, GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubRequestMetadata } from '../../common/githubRequestMetadata.js';
 import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubNotModifiedResponse, gitHubRateLimitResponse, gitHubRawResponse, gitHubRedirectResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
@@ -21,6 +23,14 @@ const accountOnOtherHost: AccountHandle = { host: 'other.example.test', accountI
 
 function signal(): AbortSignal {
 	return new AbortController().signal;
+}
+
+function opaqueRedirectResponse(): Response {
+	return Object.defineProperty(Response.error(), 'type', { value: 'opaqueredirect' });
+}
+
+function responseAt(response: Response, url: string): Response {
+	return Object.defineProperty(response, 'url', { value: url });
 }
 
 suite('GitHubTransport', () => {
@@ -34,6 +44,143 @@ suite('GitHubTransport', () => {
 			await server.disposeAsync();
 		}
 	}
+
+	for (const method of ['GET', 'HEAD'] as const) {
+		test(`follows an opaque browser repository ${method} redirect`, async () => {
+			const redirects: (RequestRedirect | undefined)[] = [];
+			const finalUrl = 'https://github.example.test/repositories/1';
+			const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+				redirects.push(init?.redirect);
+				return redirects.length === 1 ? opaqueRedirectResponse() : responseAt(new Response('result'), finalUrl);
+			}, undefined, false, undefined, { useBrowserRedirects: true }));
+			const response = await transport.restText(accountA, 'token', {
+				method, url: 'https://github.example.test/repos/old/repo', responseBody: 'text',
+			}, signal());
+			assert.deepStrictEqual({ redirects, value: response.data, finalUrl: response.finalUrl }, {
+				redirects: ['manual', 'follow'], value: 'result', finalUrl,
+			});
+		});
+	}
+
+	test('sanitizes the browser follow attempt and resumes conditional reads at the canonical URL', async () => {
+		const origin = 'https://api.github.com';
+		const originalUrl = `${origin}/repos/old/repo`;
+		const finalUrl = `${origin}/repositories/1`;
+		const requests: { url: string; redirect?: RequestRedirect; credentials?: RequestCredentials; referrerPolicy?: ReferrerPolicy; headers: Record<string, string> }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			requests.push({
+				url: String(input), redirect: init?.redirect, credentials: init?.credentials,
+				referrerPolicy: init?.referrerPolicy, headers: Object.fromEntries(new Headers(init?.headers)),
+			});
+			switch (requests.length) {
+				case 1: return responseAt(Response.json({ value: 1 }, { headers: { etag: '"before"' } }), originalUrl);
+				case 2: return opaqueRedirectResponse();
+				case 3: return responseAt(Response.json({ value: 2 }, { headers: { etag: '"after"' } }), finalUrl);
+				default: return responseAt(new Response(null, { status: 304 }), finalUrl);
+			}
+		}, undefined, false, undefined, {
+			useBrowserRedirects: true,
+			requestMetadata: new GitHubRequestMetadata({
+				application: 'vscode/1.0.0', source: 'vscode-workbench/1.0.0', egress: 'node',
+			}, { onDidChange: Event.None, getApiBaseUri: () => origin, getGraphQlUri: () => `${origin}/graphql` }),
+		}));
+		const account = { host: 'api.github.com', accountId: '1' };
+		const request = { method: 'GET' as const, url: originalUrl, caller: 'github.query', integrationId: 'private-integration' };
+		const values: (number | undefined)[] = [];
+		for (let index = 0; index < 3; index++) {
+			values.push((await transport.rest<{ value: number }>(account, 'private-token', request, signal())).data?.value);
+		}
+		assert.deepStrictEqual({
+			values,
+			urls: requests.map(request => request.url),
+			modes: requests.map(request => request.redirect),
+			follow: requests[2],
+			validators: requests.map(request => request.headers['if-none-match']),
+			identified: requests.map(request => !!request.headers['x-client-application']),
+		}, {
+			values: [1, 2, 2],
+			urls: [originalUrl, originalUrl, originalUrl, finalUrl],
+			modes: ['manual', 'manual', 'follow', 'manual'],
+			follow: {
+				url: originalUrl, redirect: 'follow', credentials: 'omit', referrerPolicy: 'no-referrer',
+				headers: { accept: 'application/vnd.github+json', authorization: 'Bearer private-token', 'x-github-api-version': '2022-11-28' },
+			},
+			validators: [undefined, '"before"', undefined, '"after"'],
+			identified: [true, true, false, true],
+		});
+	});
+
+	const excludedBrowserRedirects: { name: string; enabled: boolean; request: Partial<GitHubRestTextRequest> }[] = [
+		{ name: 'default non-browser binding', enabled: false, request: {} },
+		{ name: 'non-repository read', enabled: true, request: { url: 'https://github.example.test/user' } },
+		{ name: 'explicit manual redirect', enabled: true, request: { followRedirects: false } },
+		{ name: 'mutation', enabled: true, request: { method: 'POST', bodyText: '{}' } },
+		{ name: 'read with a body', enabled: true, request: { bodyText: '{}' } },
+		{ name: 'dispatch-sensitive operation', enabled: true, request: { onDidDispatch: () => { } } },
+		{ name: 'Agents operation', enabled: true, request: { rateLimitResource: 'agents' } },
+		{ name: 'Agents sandbox operation', enabled: true, request: { rateLimitResource: 'agents:sandbox' } },
+		{ name: 'Agents token-minting operation', enabled: true, request: { rateLimitResource: 'agents:token_mint' } },
+	];
+	for (const { name, enabled, request } of excludedBrowserRedirects) {
+		test(`does not use browser-native redirects for ${name}`, async () => {
+			const redirects: (RequestRedirect | undefined)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+				redirects.push(init?.redirect);
+				return opaqueRedirectResponse();
+			}, undefined, false, undefined, { useBrowserRedirects: enabled }));
+			await assert.rejects(transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/repos/o/r', retry: false, ...request,
+			}, signal()), { kind: 'unknown' });
+			assert.deepStrictEqual(redirects, ['manual']);
+		});
+	}
+
+	for (const finalUrl of ['https://elsewhere.example/api/v3/repositories/1', 'https://github.example.test/outside']) {
+		test(`rejects browser redirect results outside the approved API: ${finalUrl}`, async () => {
+			let calls = 0;
+			let cancelled = 0;
+			const account = { kind: 'anonymous' as const, host: 'github.example.test', origin: 'https://github.example.test' };
+			const transport = disposables.add(new GitHubTransport(async () => {
+				if (++calls === 1) {
+					return opaqueRedirectResponse();
+				}
+				const body = new ReadableStream<Uint8Array>({
+					start: controller => { controller.enqueue(new TextEncoder().encode('{}')); controller.close(); },
+					cancel: () => { cancelled++; },
+				});
+				return responseAt(new Response(body, { headers: { 'retry-after': '60', 'x-ratelimit-remaining': '0' } }), finalUrl);
+			}, undefined, false, undefined, { useBrowserRedirects: true }));
+			await assert.rejects(transport.anonymousRestText(account, '/api/v3/', {
+				method: 'GET', url: `${account.origin}/api/v3/repos/o/r`, retry: false,
+			}, signal()), { kind: 'authorization' });
+			assert.deepStrictEqual({ calls, cancelled, cooldown: transport.rateLimits.getRequestDelay(account, 'core') }, {
+				calls: 2, cancelled: 1, cooldown: 0,
+			});
+		});
+	}
+
+	test('bounds the browser fallback and requires an exposed final URL', async () => {
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			return opaqueRedirectResponse();
+		}, undefined, false, undefined, { useBrowserRedirects: true }));
+		await assert.rejects(transport.restText(accountA, 'token', {
+			method: 'GET', url: 'https://github.example.test/repos/o/r',
+		}, signal()), { kind: 'malformedResponse' });
+		assert.strictEqual(calls, 2);
+	});
+
+	test('keeps response size limits on browser-followed repository reads', async () => {
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => ++calls === 1
+			? opaqueRedirectResponse()
+			: responseAt(new Response('too large'), 'https://github.example.test/repositories/1'),
+			undefined, false, undefined, { useBrowserRedirects: true, maximumResponseBytes: 3 }));
+		await assert.rejects(transport.restText(accountA, 'token', {
+			method: 'GET', url: 'https://github.example.test/repos/o/r',
+		}, signal()), { kind: 'responseTooLarge' });
+	});
 
 	test('uses fetch cache mode without a Cache-Control request header', async () => {
 		await withServer(async server => {
@@ -664,6 +811,43 @@ suite('GitHubTransport', () => {
 		await Promise.all([first, last, rejected]);
 		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
 	});
+
+	for (const [field, code, retryable] of [
+		['error_code', 'not_implemented', false],
+		['code', 'not_implemented', false],
+		['error_code', 'internal_error', true],
+		['error_code', 'future_server_error', true],
+	] as const) {
+		test(`Mission Control transport classifies ${field}=${code} before retrying a 500`, () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				times.push(Date.now());
+				return Response.json({ [field]: code }, { status: 500 });
+			}));
+			await assert.rejects(transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal()), { statusCode: 500 });
+			assert.deepStrictEqual({
+				attempts: times.length, paced: times.length < 2 || times[1] - times[0] >= 1000 && times[1] - times[0] < 1250,
+			}, { attempts: retryable ? 2 : 1, paced: true });
+		}));
+	}
+
+	for (const header of ['45', 'Thu, 01 Jan 2026 00:00:45 GMT']) {
+		test(`Mission Control timeout retries honor Retry-After: ${header}`, () => runWithFakedTimers({ startTime: Date.UTC(2026, 0, 1) }, async () => {
+			const times: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				times.push(Date.now());
+				return times.length === 1
+					? Response.json({ error_code: 'request_timeout' }, { status: 408, headers: { 'Retry-After': header } })
+					: Response.json({ value: 1 });
+			}, undefined, undefined, undefined, { requestTimeout: 60_000 }));
+			const result = await transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal());
+			assert.deepStrictEqual({ times: times.map(time => time - times[0]), data: result.data }, { times: [0, 45_000], data: '{"value":1}' });
+		}));
+	}
 
 	for (const api of ['REST', 'GraphQL'] as const) {
 		for (const firstFailure of ['fetch', 'server', 'body'] as const) {

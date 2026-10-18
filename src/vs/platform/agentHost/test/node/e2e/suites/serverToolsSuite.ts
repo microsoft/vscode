@@ -32,7 +32,7 @@ import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, re
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
-import { createTestDirectory } from '../harness/testDirectories.js';
+import { createTestDirectory, ownCodexProtectedDirectories } from '../harness/testDirectories.js';
 
 interface IServerToolTestSession {
 	readonly sessionUri: string;
@@ -113,13 +113,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	async function createSession(prefix: string, stableResource = false, beforeCreateSession?: () => Promise<void>): Promise<IServerToolTestSession> {
 		const workspace = createTestDirectory(join(tmpdir(), `ahp-server-tools-${prefix}-`));
 		tempDirs.push(workspace);
-		if (config.provider === 'codex' && context.isLinux) {
-			// Concurrent Codex 0.153.0 starts can race cleanup of synthetic sandbox mount targets.
-			// Own the protected directories before either chat starts so cleanup preserves them.
-			for (const directory of ['.git', '.agents', '.codex']) {
-				mkdirSync(join(workspace, directory));
-			}
-		}
+		ownCodexProtectedDirectories(workspace, config.provider, context.isLinux);
 		if (!stableResource) {
 			const sessionUri = await createRealSession(
 				context.client,

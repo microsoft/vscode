@@ -22,7 +22,7 @@ import type { AgentHostClientFileSystemProvider } from '../../common/agentHostCl
 import { parseAnnotationsUri } from '../../common/annotationsUri.js';
 import { changesetSession, parseChangesetUri } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { isAhpChatChannel } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, readSessionExternal } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
@@ -32,6 +32,7 @@ import { MissionControlEnvironment } from './missionControlEnvironment.js';
 import type { MissionControlProtocolServer, MissionControlPublishDiagnostic } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import { MissionControlSessionPublisher } from './missionControlSessionPublisher.js';
 import { MissionControlProjects } from './missionControlProjects.js';
 import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
 import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
@@ -397,6 +398,7 @@ export class MissionControlHost extends Disposable {
 				ahpLogDirectory: this._ahpLogDirectory,
 				advertisedModelProviders: ['copilotcli'],
 				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				sessionSummaryFilter: summary => !readSessionExternal(summary._meta),
 				sessionListAdapter: toMissionControlSessionList,
 				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
@@ -425,7 +427,8 @@ export class MissionControlHost extends Disposable {
 		const mirror = this._instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
 		const sources = new DisposableStore();
 		try {
-			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled));
+			const publisher = sources.add(this._instantiationService.createInstance(MissionControlSessionPublisher, mirror, () => this.environment.isEnabled));
+			const sdk = sources.add(this._instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => this.environment.isEnabled, session => publisher.registerSession(session)));
 			const attachPlanHints = (provider: IAgent) => {
 				if (provider.getSessionPlan && provider.onDidChatSessionEvent) {
 					sources.add(provider.onDidChatSessionEvent(event => this._publishPlanHint(event)));
@@ -435,7 +438,6 @@ export class MissionControlHost extends Disposable {
 			for (const provider of this._providerService.getProviders()) {
 				attachPlanHints(provider);
 			}
-			const registered = new Set<string>();
 			sources.add(this._stateManager.onDidEmitEnvelope(envelope => {
 				const changeset = parseChangesetUri(envelope.channel);
 				const getChatOwner = (chat: string) => this._chatOwnership.getChatOwner(chat);
@@ -444,22 +446,11 @@ export class MissionControlHost extends Disposable {
 					: changeset ? changesetSession(changeset, getChatOwner) : parseAnnotationsUri(envelope.channel)?.sessionUri ?? envelope.channel;
 				const session = channel !== undefined ? this._stateManager.getSessionSummary(channel) : undefined;
 				// Mirroring a provisional draft would create a persistent task before its first message.
-				if (!session || this._stateManager.isIdleProvisionalSession(session.resource)) {
+				if (!session || readSessionExternal(session._meta) || this._stateManager.isIdleProvisionalSession(session.resource)) {
 					return;
 				}
 				try {
-					if (!this.environment.isEnabled) {
-						if (registered.has(session.resource)) {
-							mirror.reportSourceLag(session.resource, 1);
-						}
-						return;
-					}
-					if (!registered.has(session.resource)) {
-						mirror.registerSession(session.resource);
-						registered.add(session.resource);
-						mirror.setLifecycle(session.resource, 'started');
-					}
-					mirror.enqueue(envelope, session.resource);
+					publisher.enqueue(envelope, session.resource);
 					sdk.observeSession(session.resource);
 				} catch (error) {
 					this._logService.error('[AgentHost] Mission Control mirror admission failed', error);

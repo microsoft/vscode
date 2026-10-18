@@ -310,7 +310,7 @@
             "default": false,
             "included": true,
             "agentHost": {
-                "status": "partial"
+                "status": "enforced"
             },
             "referencedSettings": [
                 "github.copilot.chat.otel.enabled"
@@ -341,7 +341,7 @@
                     },
                     {
                         "key": "chat.agentHost.otel.protocol.policy.file",
-                        "value": "File exporter is not selected by enterprise managed settings."
+                        "value": "Use the enterprise-managed file exporter."
                     }
                 ]
             },
@@ -432,7 +432,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agentHost.otel.outfile.policy",
-                    "value": "Prevents local file export when enterprise-managed Copilot OpenTelemetry export is configured."
+                    "value": "Controls the enterprise-managed file export destination for Copilot OpenTelemetry and prevents local file export when an enterprise OTLP destination is configured."
                 }
             },
             "type": "string",

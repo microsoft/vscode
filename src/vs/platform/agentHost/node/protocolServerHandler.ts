@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createChatUriError } from '../common/agentHostChatMinting.js';
+import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
+import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -433,6 +435,7 @@ interface IConnectedClient {
 	 * the same logical channel collapse to one entry.
 	 */
 	readonly subscriptions: Map<string, ChannelSubscription>;
+	readonly knownSessionSummaries: Set<string>;
 	readonly pendingAuthenticationSubscriptions: Set<string>;
 	readonly disposables: DisposableStore;
 	readonly initializationDisposables: DisposableStore;
@@ -548,7 +551,7 @@ export interface IProtocolServerExtension {
 	readonly requests: ReadonlyMap<string, IProtocolServerExtensionRequest>;
 	/** Public capability metadata, also advertised before authentication. */
 	readonly rootMeta: Record<string, unknown>;
-	/** Listener-owned configuration overlaid onto the authenticated relay's host configuration. */
+	/** Listener-owned configuration overlaid onto the relay's host configuration, including before authentication. */
 	readonly rootConfig: RootConfigState;
 	/** Already-sequenced, listener-owned actions that do not update shared host configuration. */
 	readonly onDidEmitAction: Event<ActionEnvelope>;
@@ -579,6 +582,8 @@ export interface IProtocolServerConfig {
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
 	readonly sessionConfigAdapter?: ISessionConfigAdapter;
+	/** Filters session summaries in discovery responses and catalogue notifications for this listener. */
+	readonly sessionSummaryFilter?: (summary: SessionSummary) => boolean;
 	/** Projects visible, current session summaries for this listener's listSessions responses. */
 	readonly sessionListAdapter?: (sessions: readonly SessionSummary[]) => SessionSummary[];
 	/** Locally known workspace/content roots exposed to relay clients. */
@@ -954,6 +959,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			isReconnect: this._clientConnections.hasSeenClient(params.clientId),
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
+			knownSessionSummaries: new Set(),
 			pendingAuthenticationSubscriptions: new Set(),
 			disposables,
 			initializationDisposables,
@@ -1011,8 +1017,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...transport.relayHandshakeMeta,
 					} : {
 						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true),
+						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateInstallationCapability]: true } : {}),
+						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateRotationCapability]: true } : {}),
+						...(this._config.allowExtensionMethods !== false && this._agentService.removeSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateRemovalCapability]: true } : {}),
 						...transport.relayHandshakeMeta,
-					}), ...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
+					}),
+					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
@@ -1215,6 +1228,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			isReconnect,
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
+			knownSessionSummaries: new Set(),
 			pendingAuthenticationSubscriptions: new Set(),
 			disposables,
 			initializationDisposables,
@@ -2166,6 +2180,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
+				.filter(summary => !this._config.sessionSummaryFilter || this._config.sessionSummaryFilter(summary))
 				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.resource, item.chats, chat => chat.resource)] } : item);
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
@@ -2179,7 +2194,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}));
 				prepared = granted.filter(isDefined);
 			}
-			return { items: this._config.sessionListAdapter ? this._config.sessionListAdapter(prepared) : prepared };
+			const listed = this._config.sessionListAdapter ? this._config.sessionListAdapter(prepared) : prepared;
+			if (this._config.sessionSummaryFilter) {
+				for (const summary of listed) {
+					client.knownSessionSummaries.add(summary.resource);
+				}
+			}
+			return { items: listed };
 		},
 		listAutomationTriggerDefinitions: async (_client, params) => {
 			return this._agentService.listAutomationTriggerDefinitions(params);
@@ -2830,18 +2851,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
-		if (client.transport.relayAuthentication?.authenticated === true) {
-			if (!this._config.extension) {
-				return snapshot;
-			}
-			const config = deepClone(snapshot.state.config ?? this._config.extension.rootConfig);
+		const config = this._config.extension
+			? deepClone(snapshot.state.config ?? this._config.extension.rootConfig)
+			: snapshot.state.config;
+		if (this._config.extension) {
 			mixin(config, this._config.extension.rootConfig);
-			return { ...snapshot, state: { ...snapshot.state, config } };
+		}
+		if (client.transport.relayAuthentication?.authenticated === true) {
+			return this._config.extension ? { ...snapshot, state: { ...snapshot.state, config } } : snapshot;
 		}
 		return {
 			...snapshot,
 			state: {
 				agents: projectDiscoveryAgents(snapshot.state.agents),
+				config,
 				_meta: {
 					...this._config.relayRootMeta,
 					...this._config.extension?.rootMeta,
@@ -3290,6 +3313,33 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		switch (method) {
+			case InstallSandboxCertificateExtensionMethod:
+			case RotateSandboxCertificateExtensionMethod:
+			case RemoveSandboxCertificateExtensionMethod: {
+				const operation = method === InstallSandboxCertificateExtensionMethod
+					? 'installSandboxCertificate'
+					: method === RotateSandboxCertificateExtensionMethod
+						? 'rotateSandboxCertificate'
+						: 'removeSandboxCertificate';
+				if (!this._agentService[operation] || client.transport.relayClientId !== undefined || client.transport.relayPassive) {
+					return undefined;
+				}
+				const validated = sandboxCertificateParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				const { chat, scopeId } = validated.content;
+				let resource: URI;
+				try {
+					resource = URI.parse(chat, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI'));
+				}
+				if (!resource.scheme || !scopeId.trim()) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat and scopeId must be non-empty'));
+				}
+				return this._agentService[operation]!(chat, scopeId);
+			}
 			case 'shutdown':
 				return this._agentService.shutdown();
 			case 'getNetworkDiagnosticsInfo':
@@ -3743,8 +3793,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		switch (notification.type) {
 			case 'root/sessionAdded': {
 				const summary = notification.summary;
-				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))) {
+				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))
+					|| (this._config.sessionSummaryFilter && !this._config.sessionSummaryFilter(summary))) {
 					return undefined;
+				}
+				if (this._config.sessionSummaryFilter) {
+					client.knownSessionSummaries.add(summary.resource);
 				}
 				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.resource, summary.chats, chat => chat.resource)] } } : notification;
 			}
@@ -3752,10 +3806,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!this._isSessionVisible(client, notification.session)) {
 					return undefined;
 				}
+				const summary = this._stateManager.getSessionSummary(notification.session) ?? this._stateManager.getSurfacedSessionSummary(notification.session);
+				if (summary && this._config.sessionSummaryFilter) {
+					if (!this._config.sessionSummaryFilter(summary)) {
+						return undefined;
+					}
+					if (!client.knownSessionSummaries.has(notification.session)) {
+						return this._projectNotificationForClient(client, { type: 'root/sessionAdded', channel: notification.channel, summary });
+					}
+				}
 				const chats = notification.changes.chats;
 				return chats ? { ...notification, changes: { ...notification.changes, chats: [...this._filterVisibleChats(client, notification.session, chats, chat => chat.resource)] } } : notification;
 			}
 			case 'root/sessionRemoved':
+				client.knownSessionSummaries.delete(notification.session);
 				return this._isSessionVisible(client, notification.session) ? notification : undefined;
 			default:
 				return notification;
@@ -3863,10 +3927,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		if (client.transport.relayAuthentication?.authenticated === false
 			&& (!isAhpRootChannel(envelope.channel) || envelope.rejectionReason
-				|| (envelope.action.type !== ActionType.RootAgentsChanged && envelope.action.type !== ActionType.RootActiveSessionsChanged))) {
-			return false;
-		}
-		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true) {
+				|| (envelope.action.type !== ActionType.RootAgentsChanged && envelope.action.type !== ActionType.RootActiveSessionsChanged && envelope.action.type !== ActionType.RootConfigChanged))) {
 			return false;
 		}
 		if (!this._isChannelVisible(client, envelope.channel)) {

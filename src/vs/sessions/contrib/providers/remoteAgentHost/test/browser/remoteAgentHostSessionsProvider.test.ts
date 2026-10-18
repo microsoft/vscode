@@ -33,7 +33,7 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -197,6 +197,24 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 			this._sessionStateValues.set(key, { entries: [] });
 		}
 		return this._getSubscription<T>(key);
+	}
+
+	override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		const key = resource.toString();
+		const emitter = this._sessionStateEmitters.get(key);
+		const errorEmitter = this._sessionStateErrorEmitters.get(key);
+		if (!emitter || !errorEmitter) {
+			return undefined;
+		}
+		const self = this;
+		return {
+			get value() { return self._sessionStateValues.get(key) as ComponentToState[T] | Error | undefined; },
+			get verifiedValue() { return self._sessionStateValues.get(key) as ComponentToState[T] | undefined; },
+			onDidChange: emitter.event as Event<ComponentToState[T]>,
+			onDidError: errorEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
 	}
 
 	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {
@@ -4358,6 +4376,17 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		}) as CloudSandboxSessionsProvider;
 	}
 
+	test('rejects new drafts on an environment backend before allocating a host session', async () => {
+		const provider = createSandboxProvider();
+		provider.setConnection(connection);
+		await timeout(0);
+		const type = provider.sessionTypes[0].id;
+		assert.throws(() => provider.createNewSession(toAgentHostUri(URI.file('/project'), agentHostAuthority(provider.remoteAddress)), type), /Start new cloud sessions/);
+		assert.throws(() => provider.createQuickChat(type), /Start new cloud sessions/);
+		await timeout(0);
+		assert.deepStrictEqual({ created: connection.createdSessionUris, sessions: provider.getSessions() }, { created: [], sessions: [] });
+	});
+
 	test('resolves initial configuration before the host knows the provisional session', async () => {
 		const provider = createSandboxProvider();
 		provider.seedProvisionalSession(metadata);
@@ -5691,6 +5720,39 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		});
 	});
 
+	test('keeps archive handlers for multiple tasks in one environment', async () => {
+		const mutations: string[] = [];
+		const provider = createSandboxProvider({ setArchived: async archived => { mutations.push(`first:${archived}`); } });
+		provider.setTaskArchiveHandler('second-session', async archived => { mutations.push(`second:${archived}`); });
+		provider.seedSessions([metadata, { ...metadata, session: AgentSession.uri('ahp-session', 'second-session') }]);
+		const sessions = provider.getSessions();
+		for (const session of sessions) {
+			await provider.archiveSession(session.sessionId);
+		}
+		await provider.unarchiveSession(sessions[0].sessionId);
+		assert.deepStrictEqual({ mutations, archived: sessions.map(session => session.isArchived.get()), actions: connection.dispatchedActions }, {
+			mutations: ['first:true', 'second:true', 'first:false'], archived: [false, true], actions: [],
+		});
+	});
+
+	test('marks recorded conversations read and unread offline and persists the state', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const provider = createSandboxProvider({ storageService: storage });
+		provider.seedSessions([{ ...metadata, status: ProtocolSessionStatus.Idle }]);
+		const session = provider.getSessions()[0];
+		const states = [session.mainChat.get().isRead.get()];
+		await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+		states.push(session.mainChat.get().isRead.get());
+		await storage.flush();
+		provider.dispose();
+		const restored = createSandboxProvider({ storageService: storage });
+		const restoredSession = restored.getSessions()[0];
+		states.push(restoredSession.mainChat.get().isRead.get());
+		await restored.setChatReadState(restoredSession.sessionId, restoredSession.mainChat.get().resource, false);
+		states.push(restoredSession.mainChat.get().isRead.get());
+		assert.deepStrictEqual({ states, actions: connection.dispatchedActions }, { states: [false, true, true, false], actions: [] });
+	});
+
 	test('retains archive state when Mission Control rejects a mutation', async () => {
 		const provider = createSandboxProvider({ setArchived: async () => { throw new Error('archive rejected'); } });
 		provider.seedSessions([metadata]);
@@ -5780,6 +5842,24 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		await assert.rejects(provider.archiveSession(session.sessionId), /Connect to the environment/);
 		assert.strictEqual(session.isArchived.get(), false);
 	});
+
+	test('routes a live conversation through AHP after discovery removes its task ownership', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const taskArchives: boolean[] = [];
+		const provider = createSandboxProvider({ setArchived: async archived => { taskArchives.push(archived); } });
+		connection.addSession(metadata);
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.removeTaskOwnership('sandbox-session');
+		await provider.archiveSession(session.sessionId);
+		assert.deepStrictEqual({
+			sessions: provider.getSessions(), taskArchives,
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			sessions: [session], taskArchives: [],
+			actions: [{ channel: backendResource.toString(), action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	}));
 
 	test('uses AHP for additional sessions sharing the sandbox', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createSandboxProvider();

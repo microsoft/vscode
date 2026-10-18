@@ -38,10 +38,10 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import { isAutoModeRoutingTier, type AutoModeRoutingTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, isSupportedAutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -95,6 +95,7 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, parseSpilledShellCompletion, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
+import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
@@ -166,8 +167,8 @@ function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource
 }
 
 /** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. */
-function getCommittedAutoTier(model: string | undefined, autoTier: unknown): AutoModeRoutingTier | undefined {
-	return isAutoModel(model) && isAutoModeRoutingTier(autoTier) ? autoTier : undefined;
+function getCommittedAutoTier(model: string | undefined, autoTier: unknown): string | undefined {
+	return isAutoModel(model) && (isAutoModeRoutingTier(autoTier) || isSupportedAutoModeTier(autoTier)) ? autoTier : undefined;
 }
 
 /** How the runtime settled an Auto resolution, for the info log: identifiers, flags and numbers only; `''` when none were reported. */
@@ -184,7 +185,7 @@ function formatAutoModeRoutingForLog(data: { readonly routingMethod?: string; re
 }
 
 /** A known tier, or the pending runtime read for the configuration in effect when it was captured. */
-type AutoTierSnapshot = AutoModeRoutingTier | undefined | Promise<AutoModeRoutingTier | undefined>;
+type AutoTierSnapshot = string | undefined | Promise<string | undefined>;
 
 const AUTO_TIER_READ_TIMEOUT = 5_000;
 
@@ -634,6 +635,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
 	readonly launchPlan: CopilotSessionLaunchPlan;
+	readonly sandboxCertificate: CopilotSandboxCertificate;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
@@ -1151,7 +1153,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private _committedAutoTier: AutoTierSnapshot;
-	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, AutoModeRoutingTier>();
+	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, string>();
 	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _pendingSubagentLifecycleCompletions = new Map<string, { readonly toolCallId: string; readonly activityRevision: number | undefined; readonly outcome?: SubagentTurnOutcome }>();
 	private readonly _subagentTaskCompletionDelay: number;
@@ -1284,6 +1286,23 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get hasActiveSubagents(): boolean { return this._subagents.hasActiveAgents; }
 	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
+
+	installSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.installCertificate(scopeId);
+	}
+
+	rotateSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.rotateCertificate(scopeId);
+	}
+
+	removeSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.removeCertificate(scopeId);
+	}
+
+	refreshSandboxCertificate(): Promise<void> {
+		return this._sandbox.refreshCertificateDiagnostics();
+	}
+
 	get usesScopedGitHubCredentials(): boolean { return this._launchPlan.githubCredentials.usesScopedCredential; }
 
 	assertScopedCredential(credential: IAgentHostScopedCredential): void {
@@ -1762,7 +1781,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
-	private _hydraFusionV2ExperimentTriggerPending = false;
+	private readonly _pendingSettingExperimentTriggers = new Set<string>();
 	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<CopilotActivitySource, string | undefined> = { intent: undefined, command: undefined, fusion: undefined, localModel: undefined };
 	private _publishedActivity: string | undefined;
@@ -1883,6 +1902,10 @@ export class CopilotAgentSession extends Disposable {
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
+			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
+			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			shellManager: options.shellManager,
 		}));
@@ -3678,7 +3701,7 @@ export class CopilotAgentSession extends Disposable {
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
+			defer: def.deferLoading !== false && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
@@ -6842,14 +6865,24 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Marks where HydraFusion starts routing as v1 or v2, in every arm of a HydraFusion version
-	 * experiment. Held until the workbench forwards its assignment context, because
+	 * Holds setting exposure until the workbench forwards its assignment context, because
 	 * agent host telemetry cannot be attributed to an experiment before then.
 	 */
-	private _reportHydraFusionV2ExperimentTrigger(): void {
-		this._hydraFusionV2ExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._hydraFusionV2ExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostHydraFusionEnabledSettingId);
+	private _reportSettingExperimentTrigger(settingId: string): void {
+		const defaultControlledKey = settingId === AgentHostCopilotExecutionSubagentEnabledSettingId
+			? CopilotCliConfigKey.ExecutionSubagentDefaultControlled
+			: settingId === AgentHostCopilotExecutionSubagentModelSettingId
+				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
+				: undefined;
+		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			return;
+		}
+		if (typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string') {
+			this._pendingSettingExperimentTriggers.add(settingId);
+		} else {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			logSettingExperimentTrigger(this._telemetryService, settingId);
 		}
 	}
 
@@ -6859,11 +6892,13 @@ export class CopilotAgentSession extends Disposable {
 			void this._syncImageGenerationAfterConfigChange();
 			// The forwarded shell init setting lives in root config.
 			void this._syncShellInitScript();
-			if (this._hydraFusionV2ExperimentTriggerPending) {
+			if (this._pendingSettingExperimentTriggers.size > 0) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._hydraFusionV2ExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportHydraFusionV2ExperimentTrigger();
+					if (!this._store.isDisposed) {
+						for (const settingId of this._pendingSettingExperimentTriggers) {
+							this._reportSettingExperimentTrigger(settingId);
+						}
 					}
 				});
 			}
@@ -10355,7 +10390,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (event.type === 'session.fusion_route_started') {
-			this._reportHydraFusionV2ExperimentTrigger();
+			this._reportSettingExperimentTrigger(AgentHostHydraFusionEnabledSettingId);
 		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {
@@ -10415,11 +10450,11 @@ export class CopilotAgentSession extends Disposable {
 
 	/** `session.start`/`session.resume` fire before this session subscribes. A result superseded by a later model change resolves as unknown. */
 	private _readCommittedAutoTier(wrapper: CopilotSessionWrapper): void {
-		const result = new DeferredPromise<AutoModeRoutingTier | undefined>();
+		const result = new DeferredPromise<string | undefined>();
 		const read = result.p;
 		this._committedAutoTier = read;
 		void (async () => {
-			let tier: AutoModeRoutingTier | undefined;
+			let tier: string | undefined;
 			try {
 				const current = await raceTimeout(wrapper.session.rpc.model.getCurrent(), AUTO_TIER_READ_TIMEOUT);
 				tier = current && this._committedAutoTier === read && this._wrapper === wrapper ? getCommittedAutoTier(current.modelId, current.autoTier) : undefined;
@@ -10679,6 +10714,10 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
 				if (this._currentTurn.value) {
+					// Runtime assignments can override the enablement default. Include both
+					// setting experiments without excluding unavailable-model treatments.
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentEnabledSettingId);
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentModelSettingId);
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					this._hasFusionRootTurnBoundary = true;

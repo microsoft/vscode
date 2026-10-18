@@ -9,6 +9,8 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { compareRequestPriority, RequestPriority } from '../../../../../platform/github/common/types.js';
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../common/types.js';
 import { GitHubApiClient } from '../githubApiClient.js';
 import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
@@ -51,6 +53,8 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	readonly initialRefreshCompleted: IObservable<boolean> = this._initialRefreshCompleted;
 
 	private _refreshPromise: Promise<void> | undefined;
+	private _refreshPriority: RequestPriority = 'interactive';
+	private _refreshVersion = 0;
 
 	private _pollingClientCount = 0;
 	private readonly _pollScheduler: RunOnceScheduler;
@@ -74,35 +78,37 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 				this._initialRefreshCompleted.set(false, tx);
 			});
 			if (shouldRefresh) {
-				void this.refresh();
+				void this.refresh(false, { priority: 'background' });
 			}
 		}));
 	}
 
 	/** Refreshes review threads. */
-	refresh(force = false): Promise<void> {
+	refresh(force = false, options?: ApiRequestOptions): Promise<void> {
 		if (force && this._refreshPromise) {
-			return this._refreshPromise.then(() => this.refresh(true));
+			return this.refresh(false, options).then(() => this.refresh(true, options));
 		}
 
-		if (force) {
-			return this._refresh();
+		const priority = options?.priority ?? 'interactive';
+		if (!this._refreshPromise || compareRequestPriority(priority, this._refreshPriority) < 0) {
+			this._refreshPriority = priority;
+			const pending = this._refresh(options).finally(() => {
+				if (this._refreshPromise === pending) {
+					this._refreshPromise = undefined;
+				}
+			});
+			this._refreshPromise = pending;
 		}
-
-		const pending = this._refreshPromise ??= this._refresh().finally(() => {
-			if (this._refreshPromise === pending) {
-				this._refreshPromise = undefined;
-			}
-		});
-		return pending;
+		return this._refreshPromise;
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _refresh(options?: ApiRequestOptions): Promise<void> {
 		const generation = this._fetcher.client.generation;
+		const version = ++this._refreshVersion;
 		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshing review threads for ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
-			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber, this._token);
-			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+			const data = await this._fetcher.getReviewThreads(this.owner, this.repo, this.prNumber, this._token, options);
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation || version !== this._refreshVersion) {
 				return;
 			}
 			transaction(tx => {
@@ -113,7 +119,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 			const unresolved = data.filter(thread => !thread.isResolved).length;
 			this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Refreshed review threads for ${this.owner}/${this.repo}#${this.prNumber}: ${data.length} thread(s), ${unresolved} unresolved`);
 		} catch (err) {
-			if (!this._store.isDisposed && generation === this._fetcher.client.generation) {
+			if (!this._store.isDisposed && generation === this._fetcher.client.generation && version === this._refreshVersion) {
 				this._initialRefreshCompleted.set(true, undefined);
 			}
 			if (!isCancellationError(err)) {
@@ -161,7 +167,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 
 	private async _poll(): Promise<void> {
 		this._logService.trace(`${TRACE_PREFIX} [ReviewThreadsModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
-		await this.refresh();
+		await this.refresh(false, { priority: 'background' });
 		if (!this._store.isDisposed && this._pollingClientCount > 0) {
 			this._pollScheduler.schedule();
 		}

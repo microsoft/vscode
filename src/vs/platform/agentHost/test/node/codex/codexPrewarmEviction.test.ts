@@ -5,13 +5,14 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -33,6 +34,7 @@ import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/commo
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, fixedChatOwnerRef } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
@@ -1792,6 +1794,147 @@ suite('CodexAgent prewarm eviction', () => {
 			// Output the database did not retain stays as the thread recorded it.
 			[{ type: ToolResultContentType.Text, text: output }],
 		]);
+		peer.exit();
+	});
+
+	test('a prewarmed thread starts through the thread-creation sequencer, keyed by its workspace roots', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const runs = spy(agent['_threadCreations'], 'run');
+		const folder = URI.file('/repo/folder');
+		const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'prewarm-thread' } } });
+		await entry.materializePromise;
+
+		// The request ran as the sequenced task: its result is what the sequencer returned.
+		assert.deepStrictEqual({
+			method: start.method,
+			roots: runs.args.map(([roots]) => roots),
+			threads: (await Promise.all(runs.returnValues) as { readonly thread: { readonly id: string } }[]).map(result => result.thread.id),
+		}, { method: 'thread/start', roots: [[folder.fsPath, folder.fsPath]], threads: ['prewarm-thread'] });
+		peer.exit();
+	});
+
+	test('a cold thread resumes through the thread-creation sequencer, keyed by its workspace roots', async () => {
+		const database = new TestSessionDatabase();
+		const repo = URI.file('/repo');
+		await database.setMetadata('codex.threadId', 'restored-thread');
+		await database.setMetadata('codex.cwd', repo.toString());
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const runs = spy(agent['_threadCreations'], 'run');
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored' }));
+
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'restored-thread', modelProvider: 'vscode-proxy' } } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'restored-thread', turns: [] }, runtimeWorkspaceRoots: [] } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			method: resume.method,
+			roots: runs.args.map(([roots]) => roots),
+			threads: (await Promise.all(runs.returnValues) as { readonly thread: { readonly id: string } }[]).map(result => result.thread.id),
+		}, { method: 'thread/resume', roots: [[repo.fsPath, repo.fsPath]], threads: ['restored-thread'] });
+		peer.exit();
+	});
+
+	/** Holds every thread creation in the queue, as behind another creation in its workspace root, until released. */
+	function holdThreadCreations(agent: CodexAgent) {
+		const queued = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		stub(agent['_threadCreations'], 'run').callsFake(async (_roots, task) => {
+			queued.complete();
+			await release.p;
+			return task();
+		});
+		return { queued: queued.p, release: () => release.complete() };
+	}
+
+	/** What a queued creation does once released: the request it sent to app-server first, or how it ended without one. */
+	function firstOutcome(peer: ITestPeer, settled: Promise<unknown>): Promise<string> {
+		return Promise.race([
+			readNextRequest(peer.outbound).then(request => `sent ${request.method}`, () => 'closed'),
+			settled.then(() => 'completed', error => isCancellationError(error) ? 'cancelled' : `failed: ${error}`),
+		]);
+	}
+
+	test('a thread start whose Workspace Trust changed while it was queued is cancelled, not sent with its earlier hook grants', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const held = holdThreadCreations(agent);
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await held.queued;
+		const materializing = entry.materializePromise!;
+
+		agent['_configurationService'].updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } });
+		held.release();
+
+		assert.strictEqual(await firstOutcome(peer, materializing), 'cancelled');
+		peer.exit();
+	});
+
+	test('a thread resume whose Workspace Trust changed while it was queued is not sent with its earlier hook grants', async () => {
+		const database = new TestSessionDatabase();
+		await database.setMetadata('codex.threadId', 'restored-thread');
+		await database.setMetadata('codex.cwd', URI.file('/repo').toString());
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const held = holdThreadCreations(agent);
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored' }));
+
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'restored-thread', modelProvider: 'vscode-proxy' } } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		await held.queued;
+
+		agent['_configurationService'].updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } });
+		held.release();
+
+		assert.notStrictEqual(await firstOutcome(peer, sending), 'sent thread/resume');
 		peer.exit();
 	});
 

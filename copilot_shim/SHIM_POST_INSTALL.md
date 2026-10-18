@@ -102,9 +102,9 @@ terminal or the shim.
 
 ### macOS workbench install-only flow
 
-The [macOS Shell Command action](./REQUIREMENTS.md#macos-shell-command-installation) uses the shim's [interactive install-only mode](./REQUIREMENTS.md#install) after collecting consent. This mode reports a usable CLI's availability path on stderr and exits without launching it; the linked command contract defines discovery, installation, and exit-code behavior.
+The [macOS Shell Command action](./REQUIREMENTS.md#macos-shell-command-installation) uses the shim's [interactive install-only mode](./REQUIREMENTS.md#install) after collecting consent. When initial discovery finds an existing CLI, this mode writes `GitHub Copilot CLI is already installed.` followed by `Location: <discovered absolute candidate.path>` to stderr; when installation and rediscovery find one, it instead writes `GitHub Copilot CLI installed successfully.` followed by the same location form. The location is the unchanged discovery path from the existing executable-file and shim-exclusion checks, not a canonicalized path or runtime verification; the mode exits without launching the CLI.
 
-This route does not repeat the shim's first-use prompt. Normal `copilot` invocation retains its own prompt, installation, rediscovery, and final CLI launch behavior. Linux install-only behavior and Windows setup/result-file statuses are unchanged.
+This route does not repeat the shim's first-use prompt. Normal `copilot` invocation retains its own prompt, installation, rediscovery, and final CLI launch behavior. The dedicated VS Code terminal, not the Rust shim, prints its localized `Press any key to close this terminal.` `waitOnExit` message after success, failure, or handled cancellation using standard product-message formatting; the Rust shim neither prints that hint nor waits for a key. Linux install-only behavior and Windows setup/result-file statuses are unchanged.
 
 Neither the macOS workbench action nor the shim creates a `/usr/local/bin/copilot` link or otherwise owns Copilot CLI files, PATH entries, updates, or uninstallation. The installer may offer its own profile edit: accepting it can require a new terminal before the profile takes effect, while declining it leaves the existing PATH unchanged and can require the CLI's absolute path or manual PATH configuration.
 

@@ -93,7 +93,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			}
 
 			const model = this._gitHubService.activeSessionPullRequestObs.read(reader);
-			model?.refresh();
+			model?.refresh({ priority: 'visible' });
 		}));
 
 		// Pull request CI model
@@ -108,7 +108,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			model.refresh();
+			model.refresh(false, { priority: 'visible' });
 			reader.store.add(model.startPolling());
 		}));
 
@@ -124,7 +124,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 				return;
 			}
 
-			model.refresh();
+			model.refresh(false, { priority: 'visible' });
 			reader.store.add(model.startPolling());
 		}));
 
@@ -258,7 +258,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 		// Fetch once so we learn the PR state and can render the title and icon —
 		// even for a merged PR that won't keep polling.
-		model.refresh();
+		model.refresh({ priority: 'background' });
 
 		// Gate the repeating poll loop on a stable boolean so poll results (which
 		// update `pullRequest`) don't toggle the loop on every refresh.
@@ -291,7 +291,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting CI polling for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
 
 			const ciModelRef = statusReader.store.add(this._gitHubService.createPullRequestCIModelReference(owner, repo, prNumber, prDetails.headSha));
-			ciModelRef.object.refresh();
+			ciModelRef.object.refresh(false, { priority: 'background' });
 
 			if (prDetails.isDraft) {
 				const shouldPollDraftCiObs = derived(this, pollReader => this._isActiveSession(session, pollReader));
@@ -300,7 +300,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 						return;
 					}
 					this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} activated; refreshing and polling draft CI for ${owner}/${repo}#${prNumber}@${prDetails.headSha}`);
-					ciModelRef.object.refresh();
+					ciModelRef.object.refresh(false, { priority: 'visible' });
 					pollReader.store.add(ciModelRef.object.startPolling());
 				}));
 			} else {
@@ -313,7 +313,7 @@ export class GitHubPullRequestPollingContribution extends Disposable implements 
 
 			this._logService.trace(`${TRACE_PREFIX} [PollingContribution] Session ${session.sessionId} starting review-thread polling for ${owner}/${repo}#${prNumber}`);
 			const reviewThreadsModelRef = statusReader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, prNumber));
-			reviewThreadsModelRef.object.refresh();
+			reviewThreadsModelRef.object.refresh(false, { priority: 'background' });
 			statusReader.store.add(reviewThreadsModelRef.object.startPolling());
 		}));
 
