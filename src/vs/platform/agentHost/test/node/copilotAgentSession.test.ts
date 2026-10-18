@@ -63,7 +63,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatUsageAction, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -95,6 +95,9 @@ import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -1309,7 +1312,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	onProgress: Event<AgentSignal>;
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
-	storedFileContents: ReadonlyMap<string, string>;
+	storedFileContents: Map<string, string>;
 	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
@@ -1709,6 +1712,64 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		},
 		storageService,
 	};
+}
+
+/**
+ * Starts turn `turn-edit` with `count` edits, each changing `/repo/file-<index>.txt`
+ * from `before` to `after` through the edit hooks. Persisting the edit of tool call
+ * `<index>` starts before this returns and finishes once `writes[index].release` settles;
+ * the tool's result then carries the edit.
+ */
+async function startGatedEdits(disposables: DisposableStore, count = 1, options?: Parameters<typeof createAgentSession>[1]) {
+	const sessionDatabase = new TestSessionDatabase();
+	const writes = Array.from({ length: count }, () => ({
+		started: new DeferredPromise<void>(),
+		release: new DeferredPromise<void>(),
+	}));
+	sessionDatabase.storeFileEdit = async edit => {
+		const write = writes[Number(edit.toolCallId)];
+		await write.started.complete();
+		await write.release.p;
+		sessionDatabase.addEdit(edit);
+	};
+	const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+	const result = await createAgentSession(disposables, {
+		editServices: {
+			attribution: new NullAgentEditAttributionService(),
+			survival: { _serviceBrand: undefined, launch: () => Disposable.None },
+		},
+		...options,
+		sessionDatabase,
+		captureRuntime: capturedRuntime,
+	});
+	result.session.resetTurnState('turn-edit');
+	result.mockSession.fire('user.message', { content: 'Edit the files' });
+	for (let index = 0; index < count; index++) {
+		const toolCallId = String(index);
+		const path = `/repo/file-${index}.txt`;
+		const hook = {
+			sessionId: 'test-session-1',
+			timestamp: new Date(0),
+			workingDirectory: '/repo',
+			toolName: 'edit',
+			toolArgs: { path, old_str: 'before', new_str: 'after' },
+		};
+		result.storedFileContents.set(URI.file(path).toString(), 'before');
+		await capturedRuntime.current!.handlePreToolUse(hook);
+		result.storedFileContents.set(URI.file(path).toString(), 'after');
+		await capturedRuntime.current!.handlePostToolUse({
+			...hook,
+			toolResult: { textResultForLlm: '', resultType: 'success' },
+		});
+		result.mockSession.fire('tool.execution_start', {
+			toolCallId,
+			toolName: hook.toolName,
+			arguments: hook.toolArgs,
+		});
+		result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+		await writes[index].started.p;
+	}
+	return { ...result, sessionDatabase, writes };
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -13765,6 +13826,44 @@ Use the attached image as context.
 				return turn?.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [{ toolCallId: part.toolCall.toolCallId, status: part.toolCall.status }] : []);
 			}
 
+			/**
+			 * Runs {@link startGatedEdits} under a real host. Stop takes the client's
+			 * path: the host cancels the turn the chat shows and its subagents' turns,
+			 * then aborts the session.
+			 */
+			async function startHostedGatedEdit() {
+				const host = disposables.add(createTestAgentService(new NullLogService(), disposables.add(new FileService(new NullLogService())), createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				let abortChat = async () => { };
+				const agent = disposables.add(new class extends MockAgent {
+					override abortSession(session: URI): Promise<void> {
+						void super.abortSession(session);
+						return abortChat();
+					}
+				}('copilot'));
+				registerTestAgentProvider(host, agent);
+				const sessionUri = await host.createSession({ legacyChatUris: true, provider: 'copilot' });
+				const chat = buildDefaultChatUri(sessionUri);
+				const stateManager = getTestAgentStateManager(host);
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-edit', startedAt: new Date(0).toISOString(), message: { text: 'Edit the files', origin: { kind: MessageKind.User } } });
+				const edit = await startGatedEdits(disposables, 1, { sessionUri, chatChannelUri: URI.parse(chat) });
+				abortChat = () => edit.session.abort();
+				// Deliver what the session emitted while starting, then everything after it.
+				for (const signal of edit.signals) {
+					agent.fireProgress(signal);
+				}
+				disposables.add(edit.onProgress(signal => agent.fireProgress(signal)));
+				const turns = (chatUri: string) => {
+					const state = stateManager.getChatState(chatUri);
+					return { running: state?.activeTurn?.message.text, ended: state?.turns.map(turn => ({ message: turn.message.text, state: turn.state })) };
+				};
+				return {
+					...edit,
+					stop: () => host.dispatchAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-edit', duration: 0 }, 'client', 1),
+					turns: () => turns(chat),
+					subagentTurns: (toolCallId: string) => turns(buildSubagentChatUri(sessionUri, toolCallId)),
+				};
+			}
+
 			test('keeps a background subagent running and routed after steering preempts its turn', async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
 				session.resetTurnState('turn-original');
@@ -13803,29 +13902,47 @@ Use the attached image as context.
 			});
 
 			test('completes a file edit whose result is still being recorded when steering preempts the turn', async () => {
-				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
-				session.resetTurnState('turn-original');
-				mockSession.fire('user.message', { content: 'Edit the file' } as SessionEventPayload<'user.message'>['data']);
-				mockSession.fire('tool.execution_start', { toolCallId: 'tc-edit', toolName: 'edit', arguments: { path: '/workspace/a.ts', old_str: 'a', new_str: 'b' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startGatedEdits(disposables);
 				await session.sendSteering({ id: 'steer-1', message: { text: 'Then run the tests', origin: { kind: MessageKind.User } } });
 				// The runtime finishes the tool round and emits the queued steering before the next model request.
-				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-edit', success: true, result: { content: 'Edited a.ts' } } as SessionEventPayload<'tool.execution_complete'>['data']);
 				mockSession.fire('user.message', { content: 'Then run the tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
 				mockSession.fire('assistant.message_delta', { messageId: 'msg-steer', deltaContent: 'Running tests' } as SessionEventPayload<'assistant.message_delta'>['data']);
-				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart);
-				await timeout(0);
+				const order = () => getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatResponsePart ? [action.type] : []);
+				const orderWhileRecording = order();
+				await writes[0].release.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatResponsePart));
 
 				const actions = getActions(signals);
 				const steeringTurn = actions.find(action => action.type === ActionType.ChatTurnStarted);
 				const steeringResponse = actions.find(action => action.type === ActionType.ChatResponsePart);
+				const editResult = actions.find((action): action is ChatToolCallCompleteAction => action.type === ActionType.ChatToolCallComplete && action.toolCallId === '0');
+				const snapshot = await sessionDatabase.readFileEditContent('0', '/repo/file-0.txt');
+				const fileUri = URI.file('/repo/file-0.txt').toString();
+				const sessionUri = AgentSession.uri('copilot', 'test-session-1').toString();
 				assert.deepStrictEqual({
-					root: rootToolCalls(signals, 'turn-original'),
-					order: actions.flatMap(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatResponsePart ? [action.type] : []),
+					orderWhileRecording,
+					order: order(),
 					responseInSteeringTurn: steeringResponse?.turnId === steeringTurn?.turnId,
+					root: rootToolCalls(signals, 'turn-edit'),
+					fileEdits: editResult?.result.content?.filter(part => part.type === ToolResultContentType.FileEdit),
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turnId: edit.turnId, toolCallId: edit.toolCallId, filePath: edit.filePath })),
+					snapshot: {
+						before: snapshot?.beforeContent && VSBuffer.wrap(snapshot.beforeContent).toString(),
+						after: snapshot?.afterContent && VSBuffer.wrap(snapshot.afterContent).toString(),
+					},
 				}, {
-					root: [{ toolCallId: 'tc-edit', status: ToolCallStatus.Completed }],
+					orderWhileRecording: [],
 					order: [ActionType.ChatToolCallComplete, ActionType.ChatTurnComplete, ActionType.ChatTurnStarted, ActionType.ChatResponsePart],
 					responseInSteeringTurn: true,
+					root: [{ toolCallId: '0', status: ToolCallStatus.Completed }],
+					fileEdits: [{
+						type: ToolResultContentType.FileEdit,
+						before: { uri: fileUri, content: { uri: buildSessionDbUri(sessionUri, '0', '/repo/file-0.txt', 'before') } },
+						after: { uri: fileUri, content: { uri: buildSessionDbUri(sessionUri, '0', '/repo/file-0.txt', 'after') } },
+						diff: { added: 0, removed: 0 },
+					}],
+					persisted: [{ turnId: 'turn-edit', toolCallId: '0', filePath: '/repo/file-0.txt' }],
+					snapshot: { before: 'before', after: 'after' },
 				});
 			});
 
@@ -13917,6 +14034,60 @@ Use the attached image as context.
 				}, {
 					types: [ActionType.ChatTurnComplete, ActionType.ChatTurnStarted, ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
 					steeringTurn: 1,
+				});
+			});
+
+			test('Stop leaves no request an extension started running while results were recorded', async () => {
+				const { session, mockSession, writes, stop, turns } = await startHostedGatedEdit();
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Then run the tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', { content: 'Then run the tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('assistant.message_delta', { messageId: 'msg-steer', deltaContent: 'Tests pass' } as SessionEventPayload<'assistant.message_delta'>['data']);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				// An extension sends its own request through the SDK before the edit is recorded.
+				mockSession.fire('user.message', { content: 'Summarize the changes', messageId: 'message-extension', turnId: 'sdk-turn-extension' } as SessionEventPayload<'user.message'>['data']);
+				await stop();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+				await writes[0].release.complete();
+				await timeout(0);
+
+				assert.deepStrictEqual(turns(), {
+					running: undefined,
+					ended: [
+						{ message: 'Edit the files', state: TurnState.Cancelled },
+						{ message: 'Then run the tests', state: TurnState.Complete },
+					],
+				});
+			});
+
+			test('Stop does not reopen a subagent that resumed while results were recorded, and keeps one that finished', async () => {
+				const { session, mockSession, writes, stop, turns, subagentTurns } = await startHostedGatedEdit();
+				for (const [toolCallId, agentId] of [['tc-task-1', 'agent-1'], ['tc-task-2', 'agent-2']]) {
+					mockSession.fire('tool.execution_start', { toolCallId, toolName: 'task', arguments: { description: 'Check', prompt: 'Check a.ts', mode: 'background' } } as SessionEventPayload<'tool.execution_start'>['data']);
+					mockSession.fire('subagent.started', { toolCallId, agentName: 'general-purpose', agentDisplayName: 'General', agentDescription: 'Checks' } as SessionEventPayload<'subagent.started'>['data'], { agentId });
+					mockSession.fire('tool.execution_complete', { toolCallId, success: true, result: { content: `Agent started in background with agent_id: ${agentId}.` } } as SessionEventPayload<'tool.execution_complete'>['data']);
+					mockSession.fire('subagent.completed', { toolCallId, agentName: 'general-purpose', agentDisplayName: 'General' } as SessionEventPayload<'subagent.completed'>['data'], { agentId });
+				}
+				await timeout(0);
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Then run the tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', { content: 'Then run the tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				// Both agents get more work before the edit is recorded; only the first finishes it before Stop.
+				for (const agentId of ['agent-1', 'agent-2']) {
+					mockSession.fire('user.message', { content: 'Also check b.ts' } as SessionEventPayload<'user.message'>['data'], { agentId });
+					mockSession.fire('tool.execution_start', { toolCallId: `tc-view-${agentId}`, toolName: 'view', arguments: { path: '/workspace/b.ts' } } as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+				}
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-view-agent-1', success: true, result: { content: 'b' } } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('subagent.completed', { toolCallId: 'tc-task-1', agentName: 'general-purpose', agentDisplayName: 'General' } as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+				await timeout(0);
+				await stop();
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+				await writes[0].release.complete();
+				await timeout(0);
+
+				const firstTask = { message: 'Check a.ts', state: TurnState.Complete };
+				assert.deepStrictEqual({ chat: turns(), finished: subagentTurns('tc-task-1'), stillRunning: subagentTurns('tc-task-2') }, {
+					chat: { running: undefined, ended: [{ message: 'Edit the files', state: TurnState.Cancelled }] },
+					finished: { running: undefined, ended: [firstTask, { message: 'Also check b.ts', state: TurnState.Complete }] },
+					stillRunning: { running: undefined, ended: [firstTask] },
 				});
 			});
 		});
@@ -18248,47 +18419,6 @@ Use the attached image as context.
 		});
 
 		suite('asynchronous edit completion', () => {
-			async function startEdits(count = 1) {
-				const sessionDatabase = new TestSessionDatabase();
-				const writes = Array.from({ length: count }, () => ({
-					started: new DeferredPromise<void>(),
-					release: new DeferredPromise<void>(),
-				}));
-				sessionDatabase.storeFileEdit = async edit => {
-					const write = writes[Number(edit.toolCallId)];
-					await write.started.complete();
-					await write.release.p;
-					sessionDatabase.addEdit(edit);
-				};
-				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
-				const result = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime });
-				result.session.resetTurnState('turn-edit');
-				result.mockSession.fire('user.message', { content: 'Edit the files' });
-				for (let index = 0; index < count; index++) {
-					const toolCallId = String(index);
-					const hook = {
-						sessionId: 'test-session-1',
-						timestamp: new Date(0),
-						workingDirectory: '/repo',
-						toolName: 'edit',
-						toolArgs: { path: `/repo/file-${index}.txt`, old_str: 'before', new_str: 'after' },
-					};
-					await capturedRuntime.current!.handlePreToolUse(hook);
-					await capturedRuntime.current!.handlePostToolUse({
-						...hook,
-						toolResult: { textResultForLlm: '', resultType: 'success' },
-					});
-					result.mockSession.fire('tool.execution_start', {
-						toolCallId,
-						toolName: hook.toolName,
-						arguments: hook.toolArgs,
-					});
-					result.mockSession.fire('tool.execution_complete', { toolCallId, success: true });
-					await writes[index].started.p;
-				}
-				return { ...result, sessionDatabase, writes };
-			}
-
 			test('claims multi-file and same-file edits in order while an Auto tier read is pending', async () => {
 				const sessionDatabase = new TestSessionDatabase();
 				const tierRead = new DeferredPromise<void>();
@@ -18360,7 +18490,7 @@ Use the attached image as context.
 			});
 
 			test('idle drains every pending edit before completing the original turn', async () => {
-				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
+				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startGatedEdits(disposables, 2);
 				mockSession.fire('session.idle', {});
 				assert.deepStrictEqual({
 					turnId: session.currentTurnId,
@@ -18392,7 +18522,7 @@ Use the attached image as context.
 			});
 
 			test('failed edit persistence still lets the tool and turn complete', async () => {
-				const { mockSession, signals, waitForSignal, writes } = await startEdits();
+				const { mockSession, signals, waitForSignal, writes } = await startGatedEdits(disposables);
 				mockSession.fire('session.idle', {});
 				await writes[0].release.error(new Error('Persistence failed'));
 				await waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
@@ -18407,7 +18537,7 @@ Use the attached image as context.
 			});
 
 			test('a replacement turn completes without waiting for an aborted turn edit', async () => {
-				const { session, mockSession, signals, writes } = await startEdits();
+				const { session, mockSession, signals, writes } = await startGatedEdits(disposables);
 				mockSession.fire('session.idle', {});
 				await session.abort();
 				mockSession.fire('session.idle', { aborted: true });
@@ -18434,7 +18564,7 @@ Use the attached image as context.
 
 			for (const ending of ['abort', 'error', 'dispose', 'replace'] as const) {
 				test(`${ending} does not wait for edit persistence or complete a replacement turn`, async () => {
-					const { session, mockSession, signals, writes } = await startEdits();
+					const { session, mockSession, signals, writes } = await startGatedEdits(disposables);
 					mockSession.fire('session.idle', {});
 					switch (ending) {
 						case 'abort':
