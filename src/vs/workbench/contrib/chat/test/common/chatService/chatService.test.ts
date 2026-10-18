@@ -4722,6 +4722,8 @@ suite('ChatService', () => {
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
 				const service = createChatService();
+				// A clock that never advances fits every history update into one slice, so each is applied before the snapshots below are taken.
+				service.setRemoteHistoryScheduler(createManualHistoryReplayClock().scheduler);
 				const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 				const model = ref.object;
 				const request = model.getRequests()[0];
