@@ -1,0 +1,83 @@
+name: Sanity WSL diagnostic (TEMPORARY, remove before merge)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  sanity:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: wsl-desktop only
+            grep: wsl-desktop-x64
+          - name: system setup, then wsl-desktop
+            grep: desktop-win32-x64(?!-)|wsl-desktop-x64
+          - name: archive, then wsl-desktop
+            grep: desktop-win32-x64-archive|wsl-desktop-x64
+          - name: user setup, then wsl-desktop
+            grep: desktop-win32-x64-user|wsl-desktop-x64
+          - name: wsl tests only
+            grep: wsl-
+          - name: all Windows x64 tests
+            grep: ''
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=sanity-wsl-${{ strategy.job-index }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            .github/actions
+            build/azure-pipelines/common
+            build/checksums
+            test/sanity
+            .nvmrc
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Restore WSL installer
+        uses: ./.github/actions/restore-wsl-installer
+
+      - name: Install and compile sanity tests
+        working-directory: test/sanity
+        shell: pwsh
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: |
+          New-Item -ItemType Directory -Force screenshots, crash-dumps | Out-Null
+          npm ci
+          npm run compile
+
+      - name: Run sanity tests
+        shell: cmd
+        working-directory: test/sanity
+        env:
+          WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+          DEBUG: pw:browser*
+          ELECTRON_ENABLE_LOGGING: '1'
+          GREP: ${{ matrix.grep }}
+        run: |
+          if defined GREP (
+            call scripts\run-win32.cmd -c 16d22415b62f4bd6b056011027f53c3e9978fbf4 -q insider -t "%GITHUB_WORKSPACE%\test\sanity\results.xml" -s "%GITHUB_WORKSPACE%\test\sanity\screenshots" -d "%GITHUB_WORKSPACE%\test\sanity\crash-dumps" -v -g "%GREP%"
+          ) else (
+            call scripts\run-win32.cmd -c 16d22415b62f4bd6b056011027f53c3e9978fbf4 -q insider -t "%GITHUB_WORKSPACE%\test\sanity\results.xml" -s "%GITHUB_WORKSPACE%\test\sanity\screenshots" -d "%GITHUB_WORKSPACE%\test\sanity\crash-dumps" -v
+          )
+
+      - name: Upload screenshots and crash dumps
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sanity-wsl-${{ strategy.job-index }}-${{ github.run_attempt }}
+          path: |
+            test/sanity/screenshots
+            test/sanity/crash-dumps
+            test/sanity/results.xml
+          if-no-files-found: ignore
