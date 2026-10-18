@@ -12,6 +12,7 @@ import { CancellationError, getErrorCode, transformErrorForSerialization, transf
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,7 +27,7 @@ import { McpAuthRequiredReason } from '../../common/state/protocol/channels-sess
 import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
-import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -134,10 +135,10 @@ class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagement
 	trustedUris: URI[] = [];
 	workspaceTrusted = false;
 	workspaceTrustForced = false;
-	authorityTrusted = false;
+	trustedAuthorities = new Set<string>();
 	override isWorkspaceTrusted(): boolean { return this.workspaceTrusted; }
 	override isWorkspaceTrustForced(): boolean { return this.workspaceTrustForced; }
-	override isAuthorityTrusted(): boolean { return this.authorityTrusted; }
+	override isAuthorityTrusted(scheme: string, authority: string): boolean { return this.trustedAuthorities.has(`${scheme}://${authority}`); }
 	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
@@ -970,8 +971,22 @@ suite('AgentHostProtocolClient', () => {
 	test('workspace trust forwards effective remote authority trust', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
 		const trustService = new TestWorkspaceTrustManagementService();
-		trustService.authorityTrusted = true;
+		trustService.trustedAuthorities.add(`${Schemas.vscodeRemote}://ssh-remote+test`);
 		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
+		await connectClient(client, transport);
+		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
+			enabled: true,
+			trustedUris: [],
+			trustedAuthority: true,
+		});
+	});
+
+	test('workspace trust forwards registered cloud sandbox authority trust', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const trustService = new TestWorkspaceTrustManagementService();
+		const identity = 'cloudsandbox:test';
+		trustService.trustedAuthorities.add(`${AGENT_HOST_SCHEME}://${agentHostAuthority(identity)}`);
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
 		await connectClient(client, transport);
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
 			enabled: true,
