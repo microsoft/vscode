@@ -210,7 +210,7 @@ configurationRegistry.registerConfiguration({
 				'enumDescriptions': Object.keys(GUESSABLE_ENCODINGS).map(key => GUESSABLE_ENCODINGS[key].labelLong)
 			},
 			'default': [],
-			'markdownDescription': nls.localize('candidateGuessEncodings', "List of character set encodings that the editor should attempt to guess in the order they are listed. In case it cannot be determined, {0} is respected", '`#files.encoding#`'),
+			'markdownDescription': nls.localize('candidateGuessEncodings', "List of character set encodings that the editor should attempt to guess. If guessing fails for non-UTF-8 content, a legacy encoding is used only if it is the only lossless match among the candidates. If no encoding can be determined, {0} is respected.", '`#files.encoding#`'),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {

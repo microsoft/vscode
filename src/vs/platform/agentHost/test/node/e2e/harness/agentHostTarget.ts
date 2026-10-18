@@ -31,7 +31,7 @@ export interface IAgentHostTargetLaunchOptions {
 	/** Absolute path to the Codex home directory. */
 	readonly codexHomeDir: string;
 	/** Record/replay proxy configuration fronting the model boundary. */
-	readonly capiReplay: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly real?: boolean; readonly recordingModelResponse?: ICapiReplayResponse };
+	readonly capiReplay: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly real?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse };
 	/** Existing replay proxy whose consumed exchange sequence must survive a target restart. */
 	readonly existingCapiReplay?: CapiReplayProxy;
 	/** Optional dev override for a locally installed Claude SDK root. */

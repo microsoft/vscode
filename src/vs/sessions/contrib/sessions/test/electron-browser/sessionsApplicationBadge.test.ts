@@ -16,6 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IApplicationBadge, INativeHostService } from '../../../../../platform/native/common/native.js';
 import product from '../../../../../platform/product/common/product.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -88,12 +89,13 @@ suite('SessionsApplicationBadge', () => {
 
 		const nativeHost = new TestNativeHostService();
 		const blockedSessions = new TestBlockedSessions();
+		const telemetryService = new TestExperimentTriggerTelemetryService();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stubInstance(BlockedSessions, blockedSessions);
 
-		store.add(new SessionsApplicationBadge(management, nativeHost, configuration, new TestThemeService(), instantiationService));
+		store.add(new SessionsApplicationBadge(management, nativeHost, configuration, new TestThemeService(), telemetryService, instantiationService));
 
-		return { management, nativeHost, configuration, blockedSessions };
+		return { management, nativeHost, configuration, blockedSessions, telemetryService };
 	}
 
 	function createBadge(sessions: ISession[], enabled = true, options: Partial<typeof SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT> = {}) {
@@ -249,6 +251,23 @@ suite('SessionsApplicationBadge', () => {
 			{ count: 1, description: '1 session needs your attention' },
 			{ count: undefined, description: undefined },
 		]);
+	});
+
+	test('reports experiment eligibility independently of badge visibility', () => {
+		const session = createSession('session', {});
+		const { nativeHost, telemetryService } = createBadge([session.session], false);
+
+		session.status.set(SessionStatus.NeedsInput, undefined);
+		session.status.set(SessionStatus.InProgress, undefined);
+		session.status.set(SessionStatus.NeedsInput, undefined);
+
+		assert.deepStrictEqual({
+			badges: badgeCounts(nativeHost),
+			triggers: telemetryService.triggers,
+		}, {
+			badges: [],
+			triggers: ['config.sessions.showApplicationBadge'],
+		});
 	});
 
 	test('follows input-needed status changes with the default options', () => {

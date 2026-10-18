@@ -8,14 +8,54 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { getDictationShortcutOperation, runDictationShortcut } from '../../../browser/actions/chatSpeechToTextActions.js';
+import { getDictationShortcutOperation, registerChatSpeechToTextActions, runDictationShortcut, ToggleChatSpeechToTextAction } from '../../../browser/actions/chatSpeechToTextActions.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../browser/speechToText/chatSpeechToTextService.js';
 import { IDictationOnboardingService } from '../../../browser/speechToText/dictationOnboarding.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 
 suite('Chat Speech to Text Actions', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('disables the dictation action during session preparation', () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const contextKeyService = store.add(new ContextKeyService(configuration));
+		const preparing = ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService);
+		const action = new ToggleChatSpeechToTextAction();
+		preparing.set(true);
+		const duringPreparation = contextKeyService.contextMatchesRules(action.desc.precondition);
+		preparing.set(false);
+		assert.deepStrictEqual({
+			duringPreparation,
+			afterPreparation: contextKeyService.contextMatchesRules(action.desc.precondition),
+		}, { duringPreparation: false, afterPreparation: true });
+	});
+
+	test('dictation commands do not record into the disabled preparation input', async () => {
+		store.add(registerChatSpeechToTextActions());
+		const instantiationService = store.add(new TestInstantiationService());
+		const widget = new class extends mock<IChatWidget>() {
+			override readonly isTranscriptProgressActive = true;
+		};
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override readonly lastFocusedWidget = widget;
+		});
+		instantiationService.stub(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() { });
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { });
+
+		for (const commandId of [ToggleChatSpeechToTextAction.ID, 'workbench.action.chat.holdToSpeechToText']) {
+			const command = CommandsRegistry.getCommand(commandId)!;
+			await command.handler(instantiationService);
+			await command.handler(instantiationService, { widget });
+		}
+	});
 
 	test('resolves the dictation toggle operation', () => {
 		assert.deepStrictEqual([

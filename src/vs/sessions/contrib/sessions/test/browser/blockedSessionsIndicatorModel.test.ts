@@ -15,6 +15,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IChat, ISession, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -35,6 +36,7 @@ suite('BlockedSessionsIndicatorModel', () => {
 		const approvalModel = new TestApprovalModel();
 		const ciFixModel = new TestCIFixModel();
 		const sessionsService = new TestSessionsService();
+		const filterService = new TestAgentHostFilterService(store.add(new Emitter<void>()));
 		const productService = { quality: options?.quality ?? 'insider' } as unknown as IProductService;
 		const instantiationService = new class extends mock<IInstantiationService>() { }();
 		const model = store.add(new BlockedSessionsIndicatorModel(
@@ -47,10 +49,11 @@ suite('BlockedSessionsIndicatorModel', () => {
 			options?.logService ?? new NullLogService(),
 			storageService,
 			sessionsManagementService,
+			filterService,
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));
-		return { model, blockedModel, approvalModel, ciFixModel, sessionsService, storageService, sessionsManagementService };
+		return { model, blockedModel, approvalModel, ciFixModel, sessionsService, storageService, sessionsManagementService, filterService };
 	}
 
 	function blockedIds(model: BlockedSessionsIndicatorModel): string[] {
@@ -64,6 +67,107 @@ suite('BlockedSessionsIndicatorModel', () => {
 		blockedModel.setBlocked([needsInput(s1), needsInput(s2)]);
 		sessionsService.setVisible([s1]);
 		assert.deepStrictEqual(blockedIds(model), ['s2']);
+	});
+
+	test('scopes the blocked set, count and label to the selected host providers', () => {
+		const { model, blockedModel, approvalModel, filterService } = createModel();
+		const remote = new TestSession('remote', 'remote-host');
+		const sandboxOne = new TestSession('sandbox-one', 'sandbox-one-host');
+		const sandboxTwo = new TestSession('sandbox-two', 'sandbox-two-host');
+		approvalModel.setApproval(remote.resource, approval(AgentSessionApprovalKind.Question));
+		approvalModel.setApproval(sandboxOne.resource, approval(AgentSessionApprovalKind.Terminal));
+		approvalModel.setApproval(sandboxTwo.resource, approval(AgentSessionApprovalKind.Terminal));
+		blockedModel.setBlocked([needsInput(remote), needsInput(sandboxOne), needsInput(sandboxTwo)]);
+
+		const snapshot = () => {
+			const ids = blockedIds(model);
+			return { ids, label: ids.length ? model.getRequiresInputLabel(ids.length, model.requiresInputKind.get()) : undefined };
+		};
+		filterService.setSelectedProviders(['remote-host']);
+		const remoteScope = snapshot();
+		filterService.setSelectedProviders(['sandbox-one-host', 'sandbox-two-host']);
+		const groupedScope = snapshot();
+		filterService.setSelectedProviders([]);
+		const emptyGroup = snapshot();
+		filterService.setSelectedProviders(['sandbox-two-host']);
+		const changedMembership = snapshot();
+		filterService.setSelectedProviders(undefined);
+
+		assert.deepStrictEqual({ remoteScope, groupedScope, emptyGroup, changedMembership, unscoped: snapshot() }, {
+			remoteScope: { ids: ['remote'], label: '1 session has a question' },
+			groupedScope: { ids: ['sandbox-one', 'sandbox-two'], label: '2 sessions require terminal approval' },
+			emptyGroup: { ids: [], label: undefined },
+			changedMembership: { ids: ['sandbox-two'], label: '1 session requires terminal approval' },
+			unscoped: { ids: ['remote', 'sandbox-one', 'sandbox-two'], label: '3 sessions require input' },
+		});
+	});
+
+	test('does not request a blink for an excluded host or when switching into its scope', () => {
+		const { model, blockedModel, filterService } = createModel();
+		filterService.setSelectedProviders(['remote-host']);
+		let blinkRequests = 0;
+		store.add(model.onDidRequestBlink(() => blinkRequests++));
+		blockedModel.setBlocked([needsInput(new TestSession('sandbox', 'sandbox-host'))]);
+		const excluded = { ids: blockedIds(model), blink: model.consumePendingBlink(), blinkRequests };
+		filterService.setSelectedProviders(['sandbox-host']);
+
+		assert.deepStrictEqual({ excluded, selected: { ids: blockedIds(model), blink: model.consumePendingBlink(), blinkRequests } }, {
+			excluded: { ids: [], blink: false, blinkRequests: 0 },
+			selected: { ids: ['sandbox'], blink: false, blinkRequests: 0 },
+		});
+	});
+
+	test('drops a queued blink when its host is excluded before the blink plays', () => {
+		const { model, blockedModel, filterService } = createModel();
+		filterService.setSelectedProviders(['sandbox-host']);
+		blockedModel.setBlocked([needsInput(new TestSession('sandbox', 'sandbox-host'))]);
+		filterService.setSelectedProviders(['remote-host']);
+		filterService.setSelectedProviders(['sandbox-host']);
+
+		assert.deepStrictEqual({ ids: blockedIds(model), blink: model.consumePendingBlink() }, { ids: ['sandbox'], blink: false });
+	});
+
+	test('ignore all acknowledges only the selected host and survives scope changes', () => {
+		const { model, blockedModel, filterService } = createModel();
+		const remote = new TestSession('remote', 'remote-host');
+		const sandbox = new TestSession('sandbox', 'sandbox-host');
+		blockedModel.setBlocked([needsInput(remote), needsInput(sandbox)]);
+		filterService.setSelectedProviders(['remote-host']);
+		model.ignoreAllSessions();
+		filterService.setSelectedProviders(['sandbox-host']);
+		const sandboxScope = blockedIds(model);
+		filterService.setSelectedProviders(['remote-host']);
+		const remoteScope = blockedIds(model);
+		filterService.setSelectedProviders(undefined);
+
+		assert.deepStrictEqual({ sandboxScope, remoteScope, unscoped: blockedIds(model) }, {
+			sandboxScope: ['sandbox'],
+			remoteScope: [],
+			unscoped: ['sandbox'],
+		});
+	});
+
+	test('tracks requests arriving and resolving while their host is excluded', () => {
+		const { model, blockedModel, filterService } = createModel();
+		const sandbox = new TestSession('sandbox', 'sandbox-host');
+		filterService.setSelectedProviders(['sandbox-host']);
+		blockedModel.setBlocked([needsInput(sandbox)]);
+		model.ignoreAllSessions();
+		filterService.setSelectedProviders(['remote-host']);
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([needsInput(sandbox)]);
+		const excluded = blockedIds(model);
+		filterService.setSelectedProviders(['sandbox-host']);
+		const newRequest = blockedIds(model);
+		filterService.setSelectedProviders(['remote-host']);
+		blockedModel.setBlocked([]);
+		filterService.setSelectedProviders(['sandbox-host']);
+
+		assert.deepStrictEqual({ excluded, newRequest, resolved: blockedIds(model) }, {
+			excluded: [],
+			newRequest: ['sandbox'],
+			resolved: [],
+		});
 	});
 
 	test('excludes sessions whose CI fix is being submitted', () => {
@@ -650,10 +754,25 @@ class TestSession extends mock<ISession>() {
 	override readonly status = observableValue('status', SessionStatus.Completed);
 	override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('remoteConnectionStatus', { kind: 'connected' });
 
-	constructor(override readonly sessionId: string) {
+	constructor(override readonly sessionId: string, override readonly providerId: string = 'test-provider') {
 		super();
 		this.resource = URI.parse(`test-session:/${sessionId}`);
 		this.chats = constObservable([upcastPartial<IChat>({ resource: this.resource })]);
+	}
+}
+
+class TestAgentHostFilterService extends mock<IAgentHostFilterService>() {
+	override readonly onDidChange;
+	override selectedHost: IAgentHostFilterEntry | undefined;
+
+	constructor(private readonly _onDidChange: Emitter<void>) {
+		super();
+		this.onDidChange = _onDidChange.event;
+	}
+
+	setSelectedProviders(providerIds: readonly string[] | undefined): void {
+		this.selectedHost = providerIds === undefined ? undefined : upcastPartial<IAgentHostFilterEntry>({ providerIds });
+		this._onDidChange.fire();
 	}
 }
 

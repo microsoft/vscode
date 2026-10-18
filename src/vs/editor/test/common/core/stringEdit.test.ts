@@ -22,7 +22,7 @@ suite('Edit', () => {
 			assert.deepStrictEqual(result, '0123xyz6789');
 		});
 
-		test('inverse', () => {
+		suite('inverse', () => {
 			for (let i = 0; i < 1000; i++) {
 				test('case' + i, () => {
 					runTest(i);

@@ -25,7 +25,7 @@ import '../../browser/agentSessionSettings.contribution.js';
 suite('Agent Host session link actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('contributes chat link copying in a separate menu group', () => {
+	test('contributes chat link copying in the final menu group', () => {
 		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID);
@@ -37,7 +37,7 @@ suite('Agent Host session link actions', () => {
 			when: item.when?.serialize(),
 		}, {
 			title: 'Copy Link',
-			group: '2_copy',
+			group: '3_copy',
 			order: 1,
 			when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 		});
@@ -56,6 +56,7 @@ suite('Agent Host session link actions', () => {
 				group: item.group,
 				order: item.order,
 				when: item.when?.serialize(),
+				precondition: item.command.precondition?.serialize(),
 			}));
 		const sessionMenuCommandIds = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isIMenuItem)
@@ -83,12 +84,14 @@ suite('Agent Host session link actions', () => {
 				group: 'navigation',
 				order: 1,
 				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+				precondition: '!sessionItem.isMultiSelection',
 			}, {
 				id: 'sessionsViewPane.openHostSettings',
 				title: 'Open Host Settings',
 				group: 'navigation',
 				order: 2,
 				when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+				precondition: '!sessionItem.isMultiSelection && sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 			}],
 			hasCopyBranchName: false,
 		});
@@ -102,9 +105,9 @@ suite('Agent Host session link actions', () => {
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
-			override resolveSessionResourceIdentity(): IAgentHostSessionIdentity {
+			override resolveSessionResourceIdentity(resource: URI): IAgentHostSessionIdentity {
 				return upcastPartial<IAgentHostSessionIdentity>({
-					backendSession: URI.parse('copilotcli:/session-1'),
+					backendSession: URI.parse(`copilotcli:${resource.path}`),
 				});
 			}
 		};
@@ -115,17 +118,22 @@ suite('Agent Host session link actions', () => {
 		)));
 		const session = upcastPartial<ISession>({
 			resource: URI.parse('agent-host-copilotcli:/session-1'),
+			providerId: 'local-agent-host',
+		});
+		const secondSession = upcastPartial<ISession>({
+			resource: URI.parse('agent-host-copilotcli:/session-2'),
+			providerId: 'local-agent-host',
 		});
 		const chat = upcastPartial<IChat>({
 			resource: session.resource.with({ fragment: 'chat-2' }),
 			title: constObservable('Chat 2'),
 		});
 
-		await instantiationService.invokeFunction(CommandsRegistry.getCommand(COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID)!.handler, session);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID)!.handler, [session, secondSession]);
 		await instantiationService.invokeFunction(CommandsRegistry.getCommand(COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID)!.handler, { session, chat });
 
 		assert.deepStrictEqual(copied, [
-			'vscode-insiders://agents/agent-host-session/copilotcli/session-1',
+			'vscode-insiders://agents/agent-host-session/copilotcli/session-1\nvscode-insiders://agents/agent-host-session/copilotcli/session-2',
 			'vscode-insiders://agents/agent-host-session/copilotcli/session-1/chat/chat-2',
 		]);
 	});

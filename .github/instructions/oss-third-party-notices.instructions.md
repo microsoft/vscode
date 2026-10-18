@@ -16,7 +16,7 @@ The product-quality pipeline in `build/azure-pipelines/product-quality-checks.ym
 2. `scan-licenses.ts` scans local sources CG misses and writes `ThirdPartyNotices.extensions.txt`, plus sibling index files used by the merge step.
 3. `merge-notices.ts` merges the CG output and scanner output, then applies `cglicenses.json` overrides through `apply-overrides.ts`.
 4. `check-pr-dependencies.ts` is used by `pr-oss-check.yml` as a PR-time gate. It blocks dependency additions that have no license source.
-5. If CG is down or `notice@0` emits an empty/non-trivial failure output, the pipeline substitutes the last good `ThirdPartyNotices.generated.txt` artifact from the same branch, then from `main`. Only the CG portion is cached; local scanning and overrides still run fresh against the current commit.
+5. If CG is down or `notice@0` emits an empty/non-trivial failure output, the pipeline substitutes the last good `ThirdPartyNotices.generated.txt` artifact. On `main` and `release/*`, fallback checks the same branch, then `main`; other branches use only `main`. Only the CG portion is cached; local scanning and overrides still run fresh against the current commit.
 
 Final merge output is uploaded as `ThirdPartyNotices.new.txt` in the `notice_output` artifact.
 
@@ -26,7 +26,7 @@ In `product-quality-checks.yml`:
 
 1. Component Detection runs with `ComponentGovernanceComponentDetection@0`.
 2. `notice@0` writes `$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt` and is `continueOnError: true`.
-3. The cache fallback checks whether the CG file exists and is larger than 1 KB. If not, it downloads the latest `notice_output` artifact for the current branch, then `main`, and copies the cached `ThirdPartyNotices.generated.txt` into place.
+3. The cache fallback checks whether the CG file exists and is larger than 1 KB. If not, `DownloadBuildArtifacts@1` uses `latestFromBranch` with the `cg-notice-baseline` build tag and the branch order above. Scanner-only CI builds remain untagged and cannot hide a usable baseline. The apply step still validates the downloaded CG file and preserves its provenance.
 4. TypeScript compiles the OSS scripts into `.oss-build-out`:
    - `apply-overrides.ts`
    - `scan-licenses.ts`
@@ -35,6 +35,16 @@ In `product-quality-checks.yml`:
 5. `scan-licenses.js` runs with `--repo`, `--cg`, and `--output`.
 6. `merge-notices.js` runs with `--cg`, `--extensions`, `--cglicenses`, and `--output`.
 7. The generated CG file, scanner file, final merged file, and optional cache metadata are uploaded under `notice_output`.
+
+### Cache eligibility and rollout
+
+Only non-CI builds on `main` and `release/*` can produce tagged baselines. Other branches still generate and upload their NOTICE artifacts, but skip tag updates, readback, and same-branch cache lookup.
+
+Before replacing an eligible baseline, the publisher clears this build's tag (30-second limit); failure stops replacement. After merged NOTICE and sourcemap uploads, a one-minute readback lets `common/tagNoticeBaseline.ts` verify that the CG base (>1 KB) and nonempty provenance match the staged files before re-tagging. This prevents continued upload failures from advertising incomplete baselines.
+
+Fresh and carried-forward baselines qualify; carry-forward preserves original provenance. Scanner-only output stays untagged. Errors remain visible and nonfatal under `continueOnError`. The tag does not certify freshness or license completeness; no cache age limit is enforced.
+
+Bootstrap with a successful tagged producer or an explicitly approved, verified historical `main`/`release/*` build. Untagged builds are excluded; until seeded, generation failures follow the existing no-cache path.
 
 ## Applying the NOTICE (cutover)
 
@@ -54,7 +64,7 @@ Only the 7 desktop targets that bundle a notice run these steps (win32 x64/arm64
 `downloadNotice.ts` is **non-fatal — it always exits 0.** A notice problem must never break packaging. The outcomes, in order:
 
 1. **CG fresh** — the `notice_output` artifact is present and valid → overwrite with it.
-2. **Cached CG** — if CG generation failed upstream, the Quality stage substitutes the last good `ThirdPartyNotices.generated.txt` (same branch, then `main`) before the artifact is published — so the consumer still gets a CG notice.
+2. **Cached CG** — if CG generation failed upstream, the Quality stage substitutes the last good `ThirdPartyNotices.generated.txt` using the branch order above before the artifact is published — so the consumer still gets a CG notice.
 3. **Legacy** — if no usable artifact is available, the legacy mixin notice that `mixin-quality.ts` already laid down is left in place. `mixin-quality.ts` is deliberately left untouched (it's a shared chokepoint used by 8+ pipelines), which is what guarantees we never ship with *no* notice.
 
 The accept-gate validates the *extracted content* (file present AND non-trivial) inside the poll loop — it does not trust the artifact listing alone. A mid-upload miss re-polls rather than falling back, which prevents a "mixed notice" race where one platform ships legacy while its siblings ship CG.

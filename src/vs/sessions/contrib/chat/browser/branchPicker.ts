@@ -14,6 +14,8 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { CheckboxChip } from './checkboxChip.js';
 import './media/branchPicker.css';
 
+export const NEW_WORKTREE_LABEL = localize('branchPicker.newWorktree', "New Worktree");
+
 const FILTER_THRESHOLD = 10;
 let descriptionIdPool = 0;
 
@@ -65,6 +67,7 @@ export interface IBranchPickerOptions {
 	readonly keepDisabledFocusable?: boolean;
 	readonly renderDisabledAsStatic?: boolean;
 	readonly ariaLive?: 'off' | 'polite' | 'assertive';
+	readonly contextViewLayer?: number;
 	readonly isolation?: IBranchPickerIsolationOptions;
 }
 
@@ -249,6 +252,7 @@ export class BranchPicker extends Disposable {
 			branchCount > FILTER_THRESHOLD
 				? { showFilter: true, filterPlaceholder: localize('branchPicker.filter', "Filter branches…") }
 				: undefined,
+			this._options.contextViewLayer,
 		);
 	}
 

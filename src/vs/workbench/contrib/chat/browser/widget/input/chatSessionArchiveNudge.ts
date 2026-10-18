@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
+import { captureAnimationTarget, triggerConfettiAnimation } from '../../../../../../base/browser/ui/animations/animations.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../../base/common/actions.js';
@@ -17,14 +17,18 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { getIconRegistry } from '../../../../../../platform/theme/common/iconRegistry.js';
+import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import './media/chatSessionArchiveNudge.css';
 
@@ -34,6 +38,7 @@ export const CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT = 'chatSessionArchiveNudg
 export interface IChatSessionArchiveNudgeOptions {
 	readonly hasWorktree: boolean;
 	readonly pullRequestCount: number;
+	readonly compact?: boolean;
 	readonly onArchive: () => Promise<void>;
 	readonly onDismiss: () => void;
 	readonly onOpenCleanupSettings: () => Promise<unknown>;
@@ -43,6 +48,9 @@ export interface IChatSessionArchiveNudgeOptions {
 export class ChatSessionArchiveNudge extends Disposable {
 	readonly domNode: HTMLElement;
 
+	private readonly contentElement: HTMLElement;
+	private readonly bodyElement: HTMLElement;
+	private readonly footerElement: HTMLElement;
 	private readonly iconElement: HTMLElement;
 	private readonly titleElement: HTMLElement;
 	private readonly descriptionElement: HTMLElement;
@@ -64,18 +72,28 @@ export class ChatSessionArchiveNudge extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
+		@IHoverService hoverService: IHoverService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
+
+		// Every arm of the copy experiments renders the suggestion; they only change its title and icon.
+		logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT);
+		logExperimentTrigger(this.telemetryService, CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT);
 
 		const id = generateUuid();
 		this.domNode = dom.$('.chat-session-archive-nudge', { role: 'group', 'aria-labelledby': `${id}-title` });
 		this._register(toDisposable(() => this.domNode.remove()));
 
 		const header = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-header'));
-		this.iconElement = dom.append(header, renderIcon(Codicon.gitMerge));
+		this.contentElement = dom.append(header, dom.$('.chat-session-archive-nudge-content'));
+		const heading = dom.append(this.contentElement, dom.$('.chat-session-archive-nudge-heading'));
+		this.iconElement = dom.append(heading, renderIcon(Codicon.gitMerge));
 		this.iconElement.classList.add('chat-session-archive-nudge-icon');
 		this.iconElement.setAttribute('aria-hidden', 'true');
-		this.titleElement = dom.append(header, dom.$('h3.chat-session-archive-nudge-title', { id: `${id}-title` }));
+		this.titleElement = dom.append(heading, dom.$('h3.chat-session-archive-nudge-title', { id: `${id}-title` }));
+		this._register(hoverService.setupDelayedHover(this.titleElement, () => ({ content: this.titleElement.textContent ?? '' })));
 		const actions = dom.append(header, dom.$('.chat-session-archive-nudge-actions'));
 		this.dismissAction = this._register(new Action(
 			'chat.sessionArchiveNudge.dismiss',
@@ -89,7 +107,7 @@ export class ChatSessionArchiveNudge extends Disposable {
 		}));
 		toolbar.setActions([this.dismissAction]);
 
-		const body = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-body'));
+		const body = this.bodyElement = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-body'));
 		this.descriptionElement = dom.append(body, dom.$('p.chat-session-archive-nudge-description', { id: `${id}-description` }));
 		const details = dom.append(body, dom.$('details.chat-session-archive-nudge-details'));
 		const summary = dom.append(details, dom.$('summary.chat-session-archive-nudge-summary'));
@@ -100,12 +118,11 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.recoveryElement = dom.append(details, dom.$('p'));
 		this.worktreeElement = dom.append(details, dom.$('p.chat-session-archive-nudge-worktree'));
 
-		const footer = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
+		const footer = this.footerElement = dom.append(this.domNode, dom.$('.chat-session-archive-nudge-footer'));
 		this.archiveButton = this._register(new Button(footer, defaultButtonStyles));
 		this.archiveButton.element.setAttribute('aria-describedby', this.descriptionElement.id);
 		this._register(this.archiveButton.onDidClick(() => this.archive()));
 		this.cleanupSettingsButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true }));
-		this.cleanupSettingsButton.label = localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
 		this._register(this.cleanupSettingsButton.onDidClick(() => void this.openCleanupSettings()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
@@ -131,6 +148,21 @@ export class ChatSessionArchiveNudge extends Disposable {
 		this.options = options;
 		this.updateTitle();
 		this.worktreeElement.hidden = !options.hasWorktree;
+		const compact = !!options.compact;
+		this.domNode.classList.toggle('compact', compact);
+		this.bodyElement.hidden = compact;
+		this.cleanupSettingsButton.label = compact
+			? localize('chat.sessionArchiveNudge.configure', "Configure")
+			: localize('chat.sessionArchiveNudge.configureAutomaticCleanup', "Configure Automatic Cleanup");
+		const parent = compact ? this.contentElement : this.domNode;
+		if (this.footerElement.parentElement !== parent) {
+			const focusedElement = dom.getActiveElement();
+			const restoreFocus = dom.isHTMLElement(focusedElement) && this.footerElement.contains(focusedElement);
+			parent.appendChild(this.footerElement);
+			if (restoreFocus) {
+				focusedElement.focus();
+			}
+		}
 	}
 
 	private updateTitle(): void {
@@ -219,12 +251,17 @@ export class ChatSessionArchiveNudge extends Disposable {
 			return;
 		}
 
-		if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
-			triggerConfettiAnimation(this.archiveButton.element);
+		const animationTarget = captureAnimationTarget(this.archiveButton.element);
+		if (!this.accessibilityService.isMotionReduced()) {
+			logSettingExperimentTrigger(this.telemetryService, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING);
 		}
 		this.setArchiving(true);
 		try {
 			await this.options.onArchive();
+			if (this.configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING) && !this.accessibilityService.isMotionReduced()) {
+				triggerConfettiAnimation(animationTarget);
+				this.accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
+			}
 		} catch (error) {
 			this.notificationService.error(this.markAsDone
 				? localize('chat.sessionArchiveNudge.doneError', "Unable to mark the session as done: {0}", toErrorMessage(error))

@@ -29,6 +29,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|
 |`--timeout <sec>`||Set the test-case timeout in seconds (default: 600 seconds)|
 |`--artifacts-dir <path>`||Resolve builds from downloaded pipeline artifacts instead of the update service|
+|`--setuid-sandbox`||Launch installed DEB/RPM desktop apps with the namespace sandbox disabled; requires a non-root runner and a root owned `4755` sandbox helper|
 |`--verbose`|`-v`|Enable verbose logging|
 |`--help`|`-h`|Show this help message|
 
@@ -126,6 +127,12 @@ Some containers include web browser used for validating web server targets.
 
 Sanity tests run in Azure Pipelines via the `product-sanity-tests.yml` pipeline.
 
+Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pass whether they are published or resolved from build artifacts. It checks the installed `chrome-sandbox` ownership and mode, then exercises the UI with `--disable-namespace-sandbox` to force Chromium's setuid sandbox. Published runs select both package formats; artifact backed runs select only the DEB/RPM formats included in the job's downloads and use the same `--artifacts-dir` as the normal sanity pass. Native host, Alpine, ARM32, and archive only artifact jobs do not run this additional pass. Both passes publish separate JUnit results.
+
+The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. It installs `sudo` when needed and allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
+
+Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. ARM32 remains download/CLI-only: its QEMU emulated containers cannot execute Chromium's setuid sandbox.
+
 ### Pipeline Parameters
 
 |Parameter|Description|
@@ -165,6 +172,19 @@ For the following platforms only downloads are validated (and not install/runtim
 
 - [product-sanity-tests.yml](../../build/azure-pipelines/product-sanity-tests.yml) - Main pipeline definition
 - [sanity-tests.yml](../../build/azure-pipelines/common/sanity-tests.yml) - Reusable job template
+
+### macOS Diagnostics
+
+macOS jobs log the exact OS version/build, hardware configuration, memory pressure, swap usage,
+VM page counters, and process memory rankings before dependency setup, before and after the tests,
+and every minute while tests run. These snapshots help distinguish application regressions from
+unhealthy build VMs even when the pool image name and Darwin kernel version have not changed.
+
+Process rankings include memory footprint, compressed memory, RSS, and summed RSS by executable.
+RSS sums can double-count shared pages and exclude compressed/nonresident memory; they are not
+total physical usage. Only executable names are collected, not process arguments or environment
+variables. Diagnostic commands have bounded execution times and report failures as warnings;
+the monitored test command retains its exit status and the existing test timeouts.
 
 ## References
 

@@ -106,6 +106,30 @@ suite('trustedDomains', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://sub.api.github.com'), ['https://*.github.com']), true);
 		});
 
+		test('IDN trusted domains match equivalent spellings without trusting unrelated hosts', () => {
+			const hosts = ['bücher.example.test', 'xn--bcher-kva.example.test'];
+			const patterns = ['bücher.example.test', 'xn--bcher-kva.example.test'];
+
+			assert.deepStrictEqual(
+				hosts.map(host => patterns.map(pattern => ({
+					exact: isURLDomainTrusted(URI.parse(`https://${host}/page`), [`https://${pattern}`]),
+					wildcard: isURLDomainTrusted(URI.parse(`https://x.${host}/page`), [`https://*.${pattern}`]),
+					unrelated: isURLDomainTrusted(URI.parse('https://other.example.test'), [`https://*.${pattern}`]),
+					suffix: isURLDomainTrusted(URI.parse(`https://${host}.evil.test`), [`https://*.${pattern}`]),
+					userInfo: isURLDomainTrusted(URI.parse(`https://${host}%2F@evil.test`), [`https://*.${pattern}`]),
+					outsidePath: isURLDomainTrusted(URI.parse(`https://${host}/allowed/../outside`), [`https://${pattern}/allowed`]),
+				}))),
+				hosts.map(() => patterns.map(() => ({
+					exact: true,
+					wildcard: true,
+					unrelated: false,
+					suffix: false,
+					userInfo: false,
+					outsidePath: false,
+				})))
+			);
+		});
+
 		test('path matching', () => {
 			assert.strictEqual(isURLDomainTrusted(URI.parse('https://example.com/api/v1'), ['https://example.com/api/*']), true);
 			// Path without trailing content doesn't match a wildcard pattern requiring more path segments

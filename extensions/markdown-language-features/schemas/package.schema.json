@@ -178,6 +178,17 @@
 									"exclusiveMinimum": 0,
 									"description": "Initial placeholder height before the editor reports its measured height"
 								},
+								"presentation": {
+									"type": "object",
+									"additionalProperties": false,
+									"description": "Host-owned Markdown editor presentation controls. Supported even when the embedded page does not implement the editor protocol.",
+									"properties": {
+										"resizable": { "type": "boolean", "description": "Allow users to resize the editor height." },
+										"fullWidth": { "type": "boolean", "description": "Offer a toggle to use the available document width." },
+										"fullView": { "type": "boolean", "description": "Offer a toggle to fill the Markdown editor viewport." },
+										"minHeight": { "type": "number", "exclusiveMinimum": 0, "maximum": 10000, "description": "Minimum inline content height in CSS pixels." }
+									}
+								},
 								"sandbox": {
 									"type": "object",
 									"additionalProperties": false,

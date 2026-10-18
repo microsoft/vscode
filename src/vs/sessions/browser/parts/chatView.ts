@@ -10,11 +10,14 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IAgentsWindowDraft } from '../../../platform/window/common/window.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -26,6 +29,8 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
+	readonly hostVisible?: IObservable<boolean>;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -34,6 +39,11 @@ export interface ISelectWorkspaceOptions {
 	readonly selectionOrigin?: WorkspaceSelectionOrigin;
 	/** Only replace an automatic default in a fresh, empty composer. */
 	readonly isDefault?: boolean;
+}
+
+export interface ISelectNoWorkspaceOptions {
+	readonly userSelection?: boolean;
+	readonly preserveNavigation?: boolean;
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
@@ -51,6 +61,8 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
+	/** Content-only inset kept on each side; scrollable viewports retain the leaf's full width. */
+	protected contentInset = 0;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -75,6 +87,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	focusWorkspacePicker(): void {
+		// no-op by default
+	}
+
+	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
@@ -89,13 +109,22 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	readonly isLoadingTranscript: IObservable<boolean> = constObservable(false);
 
+	/** Whether an input notification already explains a temporary sending restriction. */
+	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined> = constObservable(undefined);
+
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.
 	 */
-	setChat(_chat: IChat, _historyKey?: string, _session?: ISession): void {
+	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
+	}
+
+	/** Retry a failed load when the user explicitly opens the selected chat again. */
+	reopenChat(_resource: URI): Promise<void> {
+		return Promise.resolve();
 	}
 
 	/**
@@ -106,7 +135,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return 'notReady';
 	}
 
-	selectNoWorkspace(): void {
+	applyDraft(_draft: IAgentsWindowDraft, _folderUri: URI | undefined, _options: ISelectWorkspaceOptions, _token: CancellationToken): Promise<WorkspaceSelectionResult> {
+		return Promise.resolve('notReady');
+	}
+
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
 		// no-op by default
 	}
 
@@ -161,10 +194,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it occupies the first group in the chat grid.
-	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 * Notifies the view of its position and whether the chat grid is split.
+	 * Session-scoped UI can use this to avoid repeating across split groups and adapt its layout.
 	 */
-	setPrimary(_primary: boolean): void {
+	setPrimary(_primary: boolean, _split = false): void {
 		// no-op by default
 	}
 
@@ -195,8 +228,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number): void {
+	layout(width: number, height: number, top: number, left: number, contentInset = 0): void {
 		size(this.element, width, height);
+		this.contentInset = contentInset;
+		this.element.classList.toggle('has-session-activity-bar', contentInset > 0);
+		this.element.style.setProperty('--session-activity-bar-reserved-width', `${contentInset}px`);
 		this.doLayout(width, height, top, left);
 	}
 

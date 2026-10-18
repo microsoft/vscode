@@ -75,6 +75,9 @@ export interface SessionChatRemovedAction {
  * SHOULD then wait for a {@link SessionChatAddedAction | `session/chatAdded`}.
  *
  * Mirrors the root-channel `root/sessionSummaryChanged` notification.
+ * When `changes.status` changes, the host MUST project that exact value into
+ * the matching `SessionChatSummary.status` field and publish
+ * the updated compact chat catalog through `root/sessionSummaryChanged`.
  *
  * @category Session Actions
  * @version 1
@@ -102,6 +105,24 @@ export interface SessionDefaultChatChangedAction {
 	type: ActionType.SessionDefaultChatChanged;
 	/** New default chat URI, or `undefined` to clear the hint. */
 	defaultChat?: URI;
+}
+
+/**
+ * The owning session's authoritative chat catalog order changed.
+ *
+ * Host-emitted convergence signal; it never originates from a client
+ * dispatch. `chats` is the complete resulting order and MUST contain every
+ * chat currently in the session exactly once. Reducers replace the catalog
+ * order while preserving each matching summary. Invalid or incomplete orders
+ * are ignored.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionChatsReorderedAction {
+	type: ActionType.SessionChatsReordered;
+	/** Every chat URI in authoritative catalog order. */
+	chats: URI[];
 }
 
 /**
@@ -510,6 +531,36 @@ export interface SessionMcpServerStateChangedAction {
 export interface SessionMcpServerStartRequestedAction {
 	type: ActionType.SessionMcpServerStartRequested;
 	/** The id of the {@link McpServerCustomization} to start. */
+	id: string;
+}
+
+/**
+ * Requests that the host background the startup of an existing
+ * {@link McpServerCustomization} that is currently blocking message
+ * processing (see {@link McpServerStartingState.blocking}), so that new
+ * messages can be processed without waiting for the server to finish
+ * starting.
+ *
+ * The server keeps starting in the background; backgrounding only stops the
+ * host from holding message processing on it.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. When the
+ * server is {@link McpServerStatus.Starting | `starting`} with
+ * `blocking: true`, the reducer optimistically sets `blocking` to `false`,
+ * preserving the rest of the entry. Is a no-op otherwise (no matching
+ * `McpServerCustomization`, a different lifecycle state, or not blocking).
+ * The host remains authoritative and MAY reject the request by following with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * restoring `blocking: true`.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerBackgroundRequestedAction {
+	type: ActionType.SessionMcpServerBackgroundRequested;
+	/** The id of the {@link McpServerCustomization} to background. */
 	id: string;
 }
 

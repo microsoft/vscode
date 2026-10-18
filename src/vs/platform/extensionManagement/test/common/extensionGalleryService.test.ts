@@ -27,10 +27,11 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
+import { ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, sortExtensionVersions } from '../../common/extensionGalleryService.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -89,7 +90,23 @@ function galleryQueryResponse(extensions: object[]): object {
 	};
 }
 
-function rawLatestExtension() {
+function rawVersion(version: string, flags?: string, preRelease = false) {
+	const date = '2026-01-01T00:00:00Z';
+	return {
+		version,
+		lastUpdated: date,
+		assetUri: `https://marketplace.test/assets/publisher/extension/${version}`,
+		fallbackAssetUri: `https://marketplace.test/fallback/publisher/extension/${version}`,
+		files: [],
+		properties: [
+			{ key: 'Microsoft.VisualStudio.Code.Engine', value: '*' },
+			...(preRelease ? [{ key: 'Microsoft.VisualStudio.Code.PreRelease', value: 'true' }] : [])
+		],
+		flags
+	};
+}
+
+function rawLatestExtension(versions = [rawVersion('1.0.0')]) {
 	const date = '2026-01-01T00:00:00Z';
 	return {
 		extensionId: 'extension-uuid',
@@ -101,14 +118,7 @@ function rawLatestExtension() {
 			publisherId: 'publisher-id',
 			publisherName: 'publisher'
 		},
-		versions: [{
-			version: '1.0.0',
-			lastUpdated: date,
-			assetUri: 'https://marketplace.test/assets/publisher/extension/1.0.0',
-			fallbackAssetUri: 'https://marketplace.test/fallback/publisher/extension/1.0.0',
-			files: [],
-			properties: []
-		}],
+		versions,
 		statistics: [],
 		tags: [],
 		releaseDate: date,
@@ -220,6 +230,127 @@ suite('Extension Gallery Service', () => {
 			extensions: [{ id: 'publisher.extension', uuid: 'extension-uuid', version: '1.0.0' }],
 			errors: []
 		});
+	});
+
+	test('getExtensions skips a blocked latest version in display queries', async () => {
+		let request = 0;
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([
+			request++ === 0
+				? rawLatestExtension([rawVersion('2.0.0', 'blocked')])
+				: rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')])
+		])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			extensions: extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			requests: requestService.requests
+		}, {
+			extensions: [{ version: '1.0.0', blockingInfo: undefined }],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
+	test('getExtensions fallback skips a blocked latest version', async () => {
+		let request = 0;
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([
+			request++ === 0
+				? rawLatestExtension([rawVersion('2.0.0', 'blocked', true)])
+				: rawLatestExtension([rawVersion('2.0.0', 'blocked', true), rawVersion('1.0.0', undefined, true)])
+		])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			versions: extensions.map(extension => extension.version),
+			requests: requestService.requests
+		}, {
+			versions: ['1.0.0'],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
+	test('getExtensions skips a blocked latest version in compatible queries', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ compatible: true, targetPlatform: TargetPlatform.UNIVERSAL, productVersion: { version: product.version, date: product.date } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(
+			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			[{ version: '1.0.0', blockingInfo: undefined }]
+		);
+	});
+
+	test('getExtensions returns no compatible extension when every version is blocked', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0', 'blocked')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension' }],
+			{ compatible: true, targetPlatform: TargetPlatform.UNIVERSAL, productVersion: { version: product.version, date: product.date } },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual({
+			extensions,
+			requests: requestService.requests
+		}, {
+			extensions: [],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
+	});
+
+	test('getExtensions returns no result for an explicitly requested blocked version', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension', version: '2.0.0' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(extensions, []);
+	});
+
+	test('getExtensions can return blocking metadata for an explicitly requested version', async () => {
+		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		const galleryService = createExtensionGalleryService(requestService);
+
+		const extensions = await galleryService.getExtensions(
+			[{ id: 'publisher.extension', version: '2.0.0' }],
+			{ targetPlatform: TargetPlatform.UNIVERSAL, includeBlockedVersions: true },
+			CancellationToken.None
+		);
+
+		assert.deepStrictEqual(
+			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			[{ version: '2.0.0', blockingInfo: { origin: ExtensionBlockingOrigin.Service } }]
+		);
 	});
 
 	test('sorting single extension version without target platform', async () => {
@@ -621,5 +752,56 @@ suite('Extension Gallery Service', () => {
 			assert.ok(result.includes(versions[1])); // 0.14.0 universal (release)
 		});
 
+	});
+
+	suite('getBlockingInfo', () => {
+
+		const notBlocked = { flags: 'public, validated' };
+
+		test('absent flag and object is not blocked', () => {
+			assert.strictEqual(getBlockingInfo(notBlocked, {}), undefined);
+		});
+
+		test('extension flag without object is blocked', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, validated, blocked' }, {}), {
+				origin: ExtensionBlockingOrigin.Service
+			});
+		});
+
+		test('extension object without flag is blocked', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public', blocking: { origin: 'policy' } }, {}), {
+				origin: ExtensionBlockingOrigin.Policy
+			});
+		});
+
+		test('a blocked version blocks the extension in hand, by flag or by object', () => {
+			assert.deepStrictEqual(
+				[{ flags: 'validated, blocked' }, { blocking: { origin: 'policy' } }]
+					.map(version => getBlockingInfo(notBlocked, version)?.origin),
+				[ExtensionBlockingOrigin.Service, ExtensionBlockingOrigin.Policy]);
+		});
+
+		test('an extension block outranks a version block', () => {
+			assert.deepStrictEqual(
+				getBlockingInfo({ flags: 'blocked', blocking: { origin: 'service' } }, { flags: 'blocked', blocking: { origin: 'policy' } }),
+				{ origin: ExtensionBlockingOrigin.Service });
+		});
+
+		test('unrecognized, absent, and wrong-typed origins degrade to service without failing', () => {
+			assert.deepStrictEqual(
+				[{ origin: 'tenant' }, {}, { origin: 5 }, { origin: null }, { origin: {} }]
+					.map(blocking => getBlockingInfo({ flags: 'blocked', blocking: blocking as IRawGalleryExtensionBlocking }, {})?.origin),
+				new Array(5).fill(ExtensionBlockingOrigin.Service));
+		});
+
+		test('unknown flag tokens do not fail parsing', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, quarantined, blocked, embargoed' }, {}), {
+				origin: ExtensionBlockingOrigin.Service
+			});
+		});
+
+		test('blocked is matched as a whole token', () => {
+			assert.strictEqual(getBlockingInfo({ flags: 'public, unblocked' }, { flags: 'unblocked' }), undefined);
+		});
 	});
 });

@@ -7,65 +7,77 @@ import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
-import { SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, type IAgentHostAuthTokenRequest } from '../../common/agent.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
-import type { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
-import type { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentHostChangesetService, StaticChangesetKind } from '../../common/agentHostChangesetService.js';
+import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 class TestGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly calls: string[] = [];
+	readonly workingDirectories: string[] = [];
 	uncommitted = true;
+	currentBranchName: string | undefined = 'feature/test';
+	currentBranch: string | undefined = 'feature/test';
 	diffs: readonly ISessionFileDiff[] | undefined = [{
 		after: { uri: 'file:///repo/file.ts', content: { uri: 'file:///repo/file.ts' } },
 		diff: { added: 1, removed: 0 },
 	}];
 
-	async getCurrentBranch(): Promise<string | undefined> { return 'feature/test'; }
+	async getCurrentBranch(): Promise<string | undefined> { return this.currentBranch; }
+	async getHEAD(): Promise<IBranch | undefined> { return undefined; }
+	async getCurrentBranchName(): Promise<string | undefined> { return this.currentBranchName; }
 	async getDefaultBranch(): Promise<IDefaultBranch | undefined> { return { name: 'main', startPoint: 'main' }; }
+	async getDefaultBranch2(): Promise<IBranch | undefined> { return undefined; }
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
+	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
+	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async createBranch(): Promise<void> { }
 	async checkout(): Promise<void> { }
-	async hasUncommittedChanges(): Promise<boolean> {
+	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		this.calls.push('hasUncommittedChanges');
+		this.workingDirectories.push(workingDirectory.toString());
 		return this.uncommitted;
 	}
 	async createStash(): Promise<void> { }
-	async commitAll(_workingDirectory: URI, message: string): Promise<void> {
+	async commitAll(workingDirectory: URI, message: string): Promise<void> {
 		this.calls.push(`commitAll:${message}`);
+		this.workingDirectories.push(workingDirectory.toString());
 		this.uncommitted = false;
 	}
 	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
+	async fetch(): Promise<void> { }
 	async pull(): Promise<void> { }
 	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
-	async computeSessionFileDiffs(): Promise<readonly ISessionFileDiff[] | undefined> {
+	async computeSessionFileDiffs(workingDirectory: URI): Promise<readonly ISessionFileDiff[] | undefined> {
 		this.calls.push('computeSessionFileDiffs');
+		this.workingDirectories.push(workingDirectory.toString());
 		return this.diffs;
 	}
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -79,6 +91,7 @@ class TestGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<[]> { return []; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
@@ -122,9 +135,6 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly calls: string[] = [];
 	registerStaticChangesets(): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
-	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
-	applyPersistedStaticChangesets(_sessionUri: string, _diffs: IRestoredChangesetDiffs): void { }
-	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	getListMetadataKeys(_sessionUri: string): Record<string, true> | undefined { return undefined; }
@@ -140,17 +150,22 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
+	openTrackedTurnDatabase(): undefined { return undefined; }
+	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
+	onFileEditsDiscarded(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
-function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {
-	return {
-		_serviceBrand: undefined,
-		onDidChangeAuthToken: Event.None,
-		getAuthToken: () => token,
-	};
+function createAuthenticationService(disposables: Pick<DisposableStore, 'add'>, token: string | undefined): IAgentHostAuthenticationService {
+	return disposables.add(new class extends AgentHostAuthenticationService {
+		override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0], source?: Parameters<IAgentHostAuthenticationService['getAuthToken']>[1]) {
+			return source ? source.getCredential(request)?.token : token;
+		}
+	}(new NullLogService()));
 }
 
-function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; committedSessions: string[] } {
+function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitService, copilotApiService: TestCopilotApiService, changesets: TestChangesetService, options?: { readonly onCommittedError?: Error }): { handler: AgentHostCommitOperationHandler; session: URI; stateManager: AgentHostStateManager; committedSessions: string[] } {
 	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	const session = URI.parse('agent:/session');
 	const committedSessions: string[] = [];
@@ -162,6 +177,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		createdAt: new Date(1).toISOString(),
 		modifiedAt: new Date(1).toISOString(),
 		workingDirectories: [URI.file('/repo').toString()],
+		defaultChat: buildDefaultChatUri(session.toString()),
 	});
 	stateManager.setSessionMeta(session.toString(), withSessionGitState(undefined, {
 		branchName: 'feature/test',
@@ -174,8 +190,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			if (options?.onCommittedError) {
 				throw options.onCommittedError;
 			}
-		}, createAuthenticationService('gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService()),
+		}, createAuthenticationService(disposables, 'gh-repo-token'), createTestGitHubEndpointService(), gitService, copilotApiService, new NullLogService(), stateManager),
 		session,
+		stateManager,
 		committedSessions,
 	};
 }
@@ -183,13 +200,40 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 suite('AgentHostCommitOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const available of [false, true]) {
+		test(`uses only the requester credential for commit generation (${available ? 'available' : 'missing'})`, async () => {
+			const git = new TestGitService();
+			const api = new TestCopilotApiService();
+			const { handler, session } = setup(disposables, git, api, new TestChangesetService());
+			const requests: IAgentHostAuthTokenRequest[] = [];
+			const operation = handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None, {
+				getCredential: request => {
+					requests.push(request);
+					return available ? { resource: request.resource, token: 'requester-token', expiresAt: undefined, revision: 1 } : undefined;
+				},
+			});
+			if (available) {
+				await operation;
+			} else {
+				await assert.rejects(operation, { code: AHP_AUTH_REQUIRED });
+			}
+			assert.deepStrictEqual({ requests, tokens: api.calls.map(call => call.token) }, {
+				requests: [
+					{ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, session: session.toString() },
+					{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, session: session.toString() },
+				],
+				tokens: available ? ['requester-token'] : [],
+			});
+		});
+	}
+
 	test('generates a commit message, commits all changes, and invokes post-commit refresh', async () => {
 		const gitService = new TestGitService();
 		const copilotApiService = new TestCopilotApiService();
 		const changesets = new TestChangesetService();
 		const { handler, session, committedSessions } = setup(disposables, gitService, copilotApiService, changesets);
 
-		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(buildDefaultChatUri(session.toString())), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			message: result.message,
@@ -201,8 +245,47 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session'],
-			committedSessions: ['agent:/session'],
+			changesetCalls: [`onCommitted:${buildDefaultChatUri(session.toString())}`],
+			committedSessions: [buildDefaultChatUri(session.toString())],
+		});
+	});
+
+	test('runs and refreshes a peer-chat operation in the peer working directory', async () => {
+		const gitService = new TestGitService();
+		const changesets = new TestChangesetService();
+		const { handler, session, stateManager, committedSessions } = setup(disposables, gitService, new TestCopilotApiService(), changesets);
+		const peer = buildChatUri(session.toString(), 'peer');
+		stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), { workingDirectories: [URI.file('/peer-repo').toString()] });
+
+		await handler.invoke({ channel: buildUncommittedChangesetUri(peer), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			workingDirectories: gitService.workingDirectories,
+			committedSessions,
+		}, {
+			workingDirectories: ['file:///peer-repo', 'file:///peer-repo', 'file:///peer-repo'],
+			committedSessions: [peer],
+		});
+	});
+
+	test('commits changes from a detached HEAD', async () => {
+		const gitService = new TestGitService();
+		gitService.currentBranchName = undefined;
+		gitService.currentBranch = 'abc1234';
+		const copilotApiService = new TestCopilotApiService();
+		const changesets = new TestChangesetService();
+		const { handler, session } = setup(disposables, gitService, copilotApiService, changesets);
+
+		const result = await handler.invoke({ channel: buildUncommittedChangesetUri(session.toString()), operationId: AgentHostCommitOperationHandler.OPERATION_COMMIT }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			message: result.message,
+			prompt: copilotApiService.calls[0]?.request.messages[1]?.content,
+			gitCalls: gitService.calls,
+		}, {
+			message: { markdown: 'Committed changes with message: `Update session changes`' },
+			prompt: `Repository: repo\nBranch: abc1234\nChanged files:\n- Create: ${URI.file('/repo/file.ts').fsPath} (+1 -0)`,
+			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 		});
 	});
 
