@@ -134,8 +134,10 @@ class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagement
 	trustedUris: URI[] = [];
 	workspaceTrusted = false;
 	workspaceTrustForced = false;
+	authorityTrusted = false;
 	override isWorkspaceTrusted(): boolean { return this.workspaceTrusted; }
 	override isWorkspaceTrustForced(): boolean { return this.workspaceTrustForced; }
+	override isAuthorityTrusted(): boolean { return this.authorityTrusted; }
 	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
@@ -968,6 +970,19 @@ suite('AgentHostProtocolClient', () => {
 	test('workspace trust forwards effective remote authority trust', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
 		const trustService = new TestWorkspaceTrustManagementService();
+		trustService.authorityTrusted = true;
+		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
+		await connectClient(client, transport);
+		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
+			enabled: true,
+			trustedUris: [],
+			trustedAuthority: true,
+		});
+	});
+
+	test('workspace trust does not infer remote authority trust from an empty trusted workspace', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const trustService = new TestWorkspaceTrustManagementService();
 		trustService.workspaceTrusted = true;
 		trustService.workspaceTrustForced = true;
 		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
@@ -975,7 +990,6 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
 			enabled: true,
 			trustedUris: [],
-			trustedAuthority: true,
 		});
 	});
 

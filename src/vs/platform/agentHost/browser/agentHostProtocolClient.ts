@@ -1413,8 +1413,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const remoteAuthority = typeof this._resourceIdentity === 'string' && this._resourceIdentity.startsWith(`${Schemas.vscodeRemote}://`)
 			? URI.parse(this._resourceIdentity).authority : undefined;
 		const trustedAuthority = remoteAuthority !== undefined
-			&& this._workspaceTrustManagementService.isWorkspaceTrustForced()
-			&& this._workspaceTrustManagementService.isWorkspaceTrusted();
+			&& this._workspaceTrustManagementService.isAuthorityTrusted(Schemas.vscodeRemote, remoteAuthority);
 		const trustedUris = this._workspaceTrustManagementService.getTrustedUris()
 			.filter(uri => this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 				? uri.scheme === Schemas.file
