@@ -131,6 +131,7 @@ import { registerPendingEditContentProvider } from '../../node/copilot/pendingEd
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
+import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
@@ -1086,6 +1087,7 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly connectorReconciliations: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	readonly rpc = {
+		sendMessages: async (): Promise<void> => { },
 		connectors: {
 			getCapabilities: async () => ({ availability: 'enabled', sessionAccountSelection: true }),
 			getAccount: async () => ({ accountId: this.sessionId, authInfo: { type: 'token', host: 'https://github.com', login: 'octocat' } }),
@@ -7532,6 +7534,7 @@ suite('CopilotAgent', () => {
 			sessionId: 'resume-failure',
 			sessionUri: session,
 			chatUri: chat,
+			appliedSnapshot: { tools: [], plugins: [], mcpServers: {} },
 			get hasActiveTurn() { return active; },
 			currentTurnClientContext: undefined,
 			resume: async (...args: Parameters<CopilotAgentSession['resume']>) => {
@@ -24338,6 +24341,7 @@ suite('CopilotAgent', () => {
 			clientChats(clientId: string): readonly string[];
 			contributesTo(clientId: string, chatKey: string): boolean;
 			toolsForChat(chatKey: string): readonly ToolDefinition[];
+			setPreferredClient(chatKey: string, clientId: string | undefined): void;
 			snapshot(chatKey?: string): Promise<IActiveClientSnapshot>;
 			getRestartReason(snap: IActiveClientSnapshot, chatKey?: string): Promise<string | undefined>;
 		};
@@ -24351,6 +24355,45 @@ suite('CopilotAgent', () => {
 
 		const toolA: ToolDefinition = { name: 'tool_a', description: 'from A', inputSchema: { type: 'object', properties: {} } };
 		const toolB: ToolDefinition = { name: 'tool_b', description: 'from B', inputSchema: { type: 'object', properties: {} } };
+
+		test('host names are reserved and sender priority is scoped to exact chat membership', async () => {
+			const agent = createTestAgent(disposables);
+			agent.setServerToolHost(new class extends mock<IAgentServerToolHost>() {
+				override readonly toolNames = ['create_session'];
+			}());
+			const session = AgentSession.uri('copilotcli', 'tool-priority');
+			const chat = defaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			const sharedA: ToolDefinition = { ...toolA, name: 'shared' };
+			const sharedB: ToolDefinition = { ...toolB, name: 'shared' };
+			try {
+				agent.getOrCreateActiveClient(chat, session, { clientId: 'client-A' }).tools = [sharedA, { name: 'create_session' }];
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+				agent.getOrCreateActiveClient(chat, session, { clientId: 'client-B' }).tools = [sharedB, toolB];
+				const active = membership(agent, session);
+				const firstSnapshot = await active.snapshot(chat.toString());
+				active.setPreferredClient(chat.toString(), 'client-B');
+				active.setPreferredClient(peer.toString(), 'client-B');
+
+				assert.deepStrictEqual({
+					first: firstSnapshot.tools,
+					selected: (await active.snapshot(chat.toString())).tools,
+					observed: active.toolsForChat(chat.toString()),
+					peer: (await active.snapshot(peer.toString())).tools,
+					refresh: await active.getRestartReason(firstSnapshot, chat.toString()),
+					unscoped: (await active.snapshot()).tools,
+				}, {
+					first: [sharedA, toolB],
+					selected: [sharedB, toolB],
+					observed: [sharedB, toolB],
+					peer: [sharedA],
+					refresh: 'clientToolsChanged',
+					unscoped: [sharedA, toolB],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('adding a chat to a client\'s membership extends its reach without touching other clients', async () => {
 			const agent = createTestAgent(disposables);
@@ -24688,6 +24731,75 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('config-driven session refresh', () => {
+		test('send and resume refresh conflicting client schemas to prefer their sender', async () => {
+			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/sender-tool-priority-`);
+			const workingDirectories = [URI.file(workingDirectory)];
+			const sessionId = 'sender-tool-priority';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const launches: Array<{ kind: string; tools: readonly { name: string; parameters: unknown }[] }> = [];
+			const runtimes: MockCopilotSession[] = [];
+			client.createSession = async config => {
+				launches.push({ kind: 'create', tools: (config.tools ?? []).filter(tool => tool.name === 'shared').map(({ name, parameters }) => ({ name, parameters })) });
+				const runtime = new MockCopilotSession(config.sessionId ?? sessionId);
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			client.resumeSession = async (id, config) => {
+				launches.push({ kind: 'resume', tools: (config?.tools ?? []).filter(tool => tool.name === 'shared').map(({ name, parameters }) => ({ name, parameters })) });
+				const runtime = new MockCopilotSession(id);
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true });
+			const actions: (SessionAction | ChatAction)[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action') {
+					actions.push(signal.action);
+				}
+			}));
+			const toolA: ToolDefinition = { name: 'shared', description: 'A', inputSchema: { type: 'object', properties: { fromA: { type: 'string' } } } };
+			const toolB: ToolDefinition = { name: 'shared', description: 'B', inputSchema: { type: 'object', properties: { fromB: { type: 'string' } } } };
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.chats.createChat(chat, context, { deferBacking: true, workingDirectories });
+				agent.getOrCreateActiveClient(chat, context, { clientId: 'client-A' }).tools = [toolA];
+				agent.getOrCreateActiveClient(chat, context, { clientId: 'client-B' }).tools = [toolB];
+				await agent.chats.prepareTurn!(chat, 'turn-1', workingDirectories, context);
+				await agent.chats.sendMessage(chat, 'from B', workingDirectories, undefined, 'turn-1', 'client-B', undefined, context);
+				runtimes.at(-1)!.emit({
+					id: 'event-from-B', parentId: null, timestamp: new Date().toISOString(),
+					type: 'tool.execution_start', data: { toolCallId: 'from-B', toolName: 'shared', arguments: { fromB: 'value' } },
+				});
+				await agent.chats.resumeTurn!(chat, 'turn-2', context, 'client-A');
+				runtimes.at(-1)!.emit({
+					id: 'event-from-A', parentId: null, timestamp: new Date().toISOString(),
+					type: 'tool.execution_start', data: { toolCallId: 'from-A', toolName: 'shared', arguments: { fromA: 'value' } },
+				});
+
+				assert.deepStrictEqual({
+					launches,
+					owners: actions.flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+				}, {
+					launches: [
+						{ kind: 'create', tools: [{ name: 'shared', parameters: toolA.inputSchema }] },
+						{ kind: 'resume', tools: [{ name: 'shared', parameters: toolB.inputSchema }] },
+						{ kind: 'resume', tools: [{ name: 'shared', parameters: toolA.inputSchema }] },
+					],
+					owners: [
+						{ kind: ToolCallContributorKind.Client, clientId: 'client-B' },
+						{ kind: ToolCallContributorKind.Client, clientId: 'client-A' },
+					],
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(workingDirectory, { recursive: true, force: true });
+			}
+		}).timeout(30_000);
+
 		class RefreshLogService extends NullLogService {
 			readonly messages: string[] = [];
 
