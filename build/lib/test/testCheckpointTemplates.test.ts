@@ -652,8 +652,7 @@ suite('Product test checkpoint templates', () => {
 		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
 		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
 		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
-			{ displayName: 'Set WSL kernel cache day', condition: gated },
-			{ displayName: 'Restore WSL kernel installer cache', condition: gated },
+			{ displayName: 'Restore WSL installer cache', condition: gated },
 			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
 			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
 		]);
