@@ -3792,6 +3792,7 @@ suite('CopilotAgent', () => {
 		const untrustedWorkspace = join(tempRoot, 'untrusted-workspace');
 		const repository = join(tempRoot, 'repository');
 		const worktree = join(tempRoot, 'repository.worktrees', 'session');
+		const escapedWorktree = join(tempRoot, 'repository.worktrees', 'escaped');
 		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
 		const modulePath = join(extensionDirectory, 'extension.mjs');
 		const untrustedExtensionDirectory = join(untrustedWorkspace, 'preview');
@@ -3808,6 +3809,7 @@ suite('CopilotAgent', () => {
 		await fs.writeFile(worktreeModulePath, '');
 		await fs.symlink(workspace, trustedAlias, process.platform === 'win32' ? 'junction' : 'dir');
 		await fs.symlink(untrustedExtensionDirectory, escapedExtensionDirectory, process.platform === 'win32' ? 'junction' : 'dir');
+		await fs.symlink(workspace, escapedWorktree, process.platform === 'win32' ? 'junction' : 'dir');
 		const { agent: createdAgent, configurationService } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([]),
 		});
@@ -3865,6 +3867,9 @@ suite('CopilotAgent', () => {
 			});
 			const inheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(worktree), URI.file(repository));
 			const invalidInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(untrustedWorkspace), URI.file(repository));
+			const escapedInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(escapedWorktree), URI.file(repository));
+			const canonicalWorktree = URI.file(await fs.realpath(worktree));
+			const canonicalRepository = URI.file(await fs.realpath(repository));
 			const worktreeAdmission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(worktree)], inheritedTrust));
 			const inheritedWorktree = await internals._resolveExtensionLaunch(worktreeModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 			configurationService.updateRootConfig({
@@ -3884,6 +3889,7 @@ suite('CopilotAgent', () => {
 				noAdmission: !!noAdmission.launch,
 				inheritedTrust: inheritedTrust.map(item => ({ directory: item.directory.toString(), trustedFrom: item.trustedFrom.toString() })),
 				invalidInheritedTrust,
+				escapedInheritedTrust,
 				inheritedWorktree: !!inheritedWorktree.launch,
 				inheritedWorktreeAfterRevocation: !!inheritedWorktreeAfterRevocation.launch,
 			}, {
@@ -3895,8 +3901,9 @@ suite('CopilotAgent', () => {
 				revokedDuringResolution: false,
 				trustDisabled: true,
 				noAdmission: false,
-				inheritedTrust: [{ directory: URI.file(worktree).toString(), trustedFrom: URI.file(repository).toString() }],
+				inheritedTrust: [{ directory: canonicalWorktree.toString(), trustedFrom: canonicalRepository.toString() }],
 				invalidInheritedTrust: [],
+				escapedInheritedTrust: [],
 				inheritedWorktree: true,
 				inheritedWorktreeAfterRevocation: false,
 			});

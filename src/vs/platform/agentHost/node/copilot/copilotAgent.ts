@@ -2284,18 +2284,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined): Promise<readonly ICopilotExtensionLaunchInheritedTrust[]> {
 		if (!workingDirectory || !repository
 			|| workingDirectory.scheme !== Schemas.file
-			|| repository.scheme !== Schemas.file
-			|| !isWorktreeUnderRepository(workingDirectory, repository)) {
+			|| repository.scheme !== Schemas.file) {
 			return [];
 		}
+		let canonicalWorkingDirectory: URI;
 		let canonicalRepository: URI;
 		try {
+			canonicalWorkingDirectory = URI.file(await this._realpath(workingDirectory.fsPath));
 			canonicalRepository = URI.file(await this._realpath(repository.fsPath));
 		} catch {
 			return [];
 		}
+		if (!isWorktreeUnderRepository(canonicalWorkingDirectory, canonicalRepository)) {
+			return [];
+		}
 		return await this._isConfiguredWorkspaceTrusted(canonicalRepository)
-			? [{ directory: workingDirectory, trustedFrom: repository }]
+			? [{ directory: canonicalWorkingDirectory, trustedFrom: canonicalRepository }]
 			: [];
 	}
 
