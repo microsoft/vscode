@@ -1109,7 +1109,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, admittedCredentials, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
+	return { service, stateManager, session, chat, agent: mockAgent, pendingMessages, pendingMessageSenders, admitted, admittedCredentials, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1785,6 +1785,39 @@ suite('AgentHostChatContributions', () => {
 			senders: queue.pendingMessageSenders,
 			pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
 		}, { delivered: ['a', 'b'], senders: ['client-a', 'client-b'], pending: ['b'] });
+	});
+
+	test('queue drain withdraws steering the user removes mid-turn, but not steering the agent consumed', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const withdrawn: string[] = [];
+		queue.agent.withdrawSteeringMessage = (_chat, id) => { withdrawn.push(id); };
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		for (const id of ['removed-by-user', 'consumed-by-agent']) {
+			const steer: IAppliedClientAction['action'] = {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			};
+			queue.stateManager.dispatchServerAction(queue.chat, steer);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steer));
+		}
+		const userRemoval: IAppliedClientAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'removed-by-user' };
+		queue.stateManager.dispatchServerAction(queue.chat, userRemoval);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, userRemoval));
+		const agentCleanup: IDispatchedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'consumed-by-agent' };
+		queue.stateManager.dispatchServerAction(queue.chat, agentCleanup);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, agentCleanup));
+
+		assert.deepStrictEqual({
+			handedToAgent: queue.pendingMessages.map(message => message?.id),
+			withdrawn,
+		}, {
+			handedToAgent: ['removed-by-user', 'consumed-by-agent'],
+			withdrawn: ['removed-by-user'],
+		});
 	});
 
 	test('queue drain holds independent steering until a turn starts', () => {
