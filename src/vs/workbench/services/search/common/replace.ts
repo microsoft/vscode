@@ -235,8 +235,11 @@ export class ReplacePattern {
 						this._hasParameters = true;
 						break;
 					case CharCode.DollarSign:
-						// $$ => $ (escape, consistent with in-editor find/replace)
-						replaceWithCharacter = '$';
+						// $$ => keep as $$ (escape). When no parameters are present the
+						// pattern is used verbatim (collapsed to a single $ below), while
+						// when parameters are present String.replace() must see $$ so it is
+						// interpreted as a literal $ during the final substitution.
+						replaceWithCharacter = '$$';
 						break;
 					default: {
 						// check if it is a valid string parameter $n (0 <= n <= 99). $0 is already handled by now.
@@ -279,7 +282,15 @@ export class ReplacePattern {
 			return;
 		}
 
-		this._replacePattern = result + replaceString.substring(substrFrom);
+		let final = result + replaceString.substring(substrFrom);
+		if (!this._hasParameters) {
+			// Escape-only patterns are not passed to String.replace(), so collapse the
+			// escaped $$ back to a single literal $ here. When parameters are present
+			// the $$ pair must be kept intact for String.replace() to treat it as a
+			// literal $ during the final substitution.
+			final = final.replace(/\$\$/g, '$');
+		}
+		this._replacePattern = final;
 	}
 
 	private between(value: number, from: number, to: number): boolean {

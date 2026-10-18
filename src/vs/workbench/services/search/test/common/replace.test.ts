@@ -158,6 +158,23 @@ suite('Replace Pattern test', () => {
 		assert.strictEqual(testObject.getReplaceString('some_line'), 'a$0b');
 	});
 
+	test('escaped dollar sign mixed with capture and whole-match references', () => { // #299365
+		// escaped $ followed by a real capture reference
+		let testObject = new ReplacePattern('$$1-$1', { pattern: '(foo)', isRegExp: true });
+		assert.strictEqual(testObject.hasParameters, true);
+		assert.strictEqual(testObject.getReplaceString('foo'), '$1-foo');
+
+		// escaped $$ followed by a real whole-match reference
+		testObject = new ReplacePattern('$$$0', { pattern: '(foo)', isRegExp: true });
+		assert.strictEqual(testObject.hasParameters, true);
+		assert.strictEqual(testObject.getReplaceString('foo'), '$foo');
+
+		// escaped $0 (literal) followed by a real $0 (whole match)
+		testObject = new ReplacePattern('$$0-$0', { pattern: '(foo)', isRegExp: true });
+		assert.strictEqual(testObject.hasParameters, true);
+		assert.strictEqual(testObject.getReplaceString('foo'), '$0-foo');
+	});
+
 	test('case operations', () => {
 		const testObject = new ReplacePattern('a\\u$1l\\u\\l\\U$2M$3n', { pattern: 'a(l)l(good)m(e)n', isRegExp: true });
 		const actual = testObject.getReplaceString('allgoodmen');
