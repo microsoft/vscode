@@ -156,7 +156,7 @@ suite('Agent Host PR test selection', () => {
 				agentHostCondition: '${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected != \'false\' }}',
 				agentHostProfile: profile,
 				agentHostReason: reason,
-				integrationCondition: '${{ inputs.electron_tests && inputs.integration_tests && (success() || steps.agent-host-e2e.outcome == \'failure\') }}',
+				integrationCondition: '${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\') }}',
 				integrationProfile: profile,
 				integrationReason: reason,
 				integrationSkip: '1',
