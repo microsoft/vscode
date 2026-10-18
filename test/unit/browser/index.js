@@ -320,7 +320,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	} catch (err) {
 		console.error(err);
 	} finally {
-		stallWatchdog.dispose();
+		await stallWatchdog.dispose();
 	}
 	if (!isDebug) {
 		server?.dispose();
@@ -387,18 +387,27 @@ class TestProgress {
  */
 function startStallWatchdog(page, browserType, progress) {
 	if (!stallTimeoutMs) {
-		return { dispose: () => { } };
+		return { dispose: async () => { } };
 	}
 
+	/** @type {Promise<void> | undefined} */
+	let diagnostics;
 	progress.lastEventTime = Date.now();
 	const handle = setInterval(() => {
 		if (Date.now() - progress.lastEventTime >= stallTimeoutMs) {
 			clearInterval(handle);
-			reportStallAndExit(page, browserType, progress);
+			diagnostics = reportStallAndExit(page, browserType, progress);
 		}
 	}, Math.min(10_000, stallTimeoutMs));
 
-	return { dispose: () => clearInterval(handle) };
+	return {
+		// Once a stall was detected the run must fail, even if the page recovers
+		// while diagnostics are collected, so wait for them (they exit the process).
+		dispose: async () => {
+			clearInterval(handle);
+			await diagnostics;
+		}
+	};
 }
 
 async function reportStallAndExit(page, browserType, progress) {
@@ -432,21 +441,48 @@ function raceTimeout(promise, ms) {
 }
 
 /**
- * Logs the browser's processes (CPU usage tells a busy loop from a deadlock)
- * and, on macOS, writes native stack samples next to the other CI logs.
+ * Logs the browser processes launched by this runner (CPU usage tells a busy
+ * loop from a deadlock) and, on macOS, writes native stack samples next to
+ * the other CI logs.
  */
 async function dumpBrowserProcesses(browserType, log) {
 	if (process.platform === 'win32') {
 		return;
 	}
 
-	const executable = playwright[browserType].executablePath();
-	const installRoot = /^(.*[\\/]ms-playwright[\\/][^\\/]+)/.exec(executable)?.[1] ?? path.dirname(executable);
 	const execFileAsync = promisify(execFile);
-	const { stdout } = await execFileAsync('ps', ['-A', '-ww', '-o', 'pid=,pcpu=,rss=,etime=,command='], { maxBuffer: 16 * 1024 * 1024 });
-	const processes = stdout.split('\n').map(line => line.trim()).filter(line => line.includes(installRoot));
-	log(`  Browser processes (pid, %cpu, rss KiB, elapsed, command):`);
-	for (const line of processes) {
+	const { stdout } = await execFileAsync('ps', ['-A', '-ww', '-o', 'pid=,ppid=,pcpu=,rss=,etime=,command='], { maxBuffer: 16 * 1024 * 1024 });
+	const all = stdout.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+		const [pid, ppid, cpu, rss, elapsed, ...command] = line.split(/\s+/);
+		return { pid: Number(pid), ppid: Number(ppid), cpu, rss, elapsed, command: command.join(' ') };
+	});
+
+	// The launched browser (bundled, headless shell or an installed channel) and
+	// its helpers are descendants of this process. WebKit's XPC services on macOS
+	// are spawned by launchd instead, so also include processes running from the
+	// same Playwright browser installation as a launched process.
+	const pids = new Set([process.pid]);
+	for (let size = 0; size !== pids.size;) {
+		size = pids.size;
+		for (const p of all) {
+			if (pids.has(p.ppid)) {
+				pids.add(p.pid);
+			}
+		}
+	}
+	pids.delete(process.pid);
+	const installRoots = new Set();
+	for (const p of all) {
+		const installRoot = pids.has(p.pid) ? /^(.*?[\\/]ms-playwright[\\/][^\\/]+[\\/])/.exec(p.command)?.[1] : undefined;
+		if (installRoot) {
+			installRoots.add(installRoot);
+		}
+	}
+	const processes = all.filter(p => !p.command.startsWith('ps -A') && (pids.has(p.pid) || [...installRoots].some(root => p.command.includes(root))));
+
+	log(`  Browser processes (pid, ppid, %cpu, rss KiB, elapsed, command):`);
+	for (const p of processes) {
+		const line = `${p.pid} ${p.ppid} ${p.cpu} ${p.rss} ${p.elapsed} ${p.command}`;
 		log(`    ${line.length > 300 ? `${line.slice(0, 300)}...` : line}`);
 	}
 
@@ -456,8 +492,7 @@ async function dumpBrowserProcesses(browserType, log) {
 
 	const outDir = path.join(rootDir, '.build', 'logs', 'browser-unit-stall');
 	await fs.promises.mkdir(outDir, { recursive: true });
-	await Promise.all(processes.map(async line => {
-		const pid = line.split(/\s+/)[0];
+	await Promise.all(processes.map(async ({ pid }) => {
 		const file = path.join(outDir, `${browserType}-${pid}.sample.txt`);
 		try {
 			await execFileAsync('sample', [pid, '3', '-file', file], { timeout: 180_000 }); // symbolication of browser frameworks is slow
