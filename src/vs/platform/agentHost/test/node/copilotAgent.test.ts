@@ -13265,7 +13265,7 @@ suite('CopilotAgent', () => {
 					const created = createAgentSessionThroughAgent(agent, instantiationService);
 					const session = disposables.add(created.session);
 					await session.initializeSession();
-					assert.deepStrictEqual(created.createOptions()?.imageGeneration, { enabled: enabled === true, watermark: false });
+					assert.deepStrictEqual(created.createOptions()?.imageGeneration, { enabled: enabled === true });
 				} finally {
 					await disposeAgent(agent);
 				}
