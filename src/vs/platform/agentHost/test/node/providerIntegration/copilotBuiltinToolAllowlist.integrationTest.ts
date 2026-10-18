@@ -52,10 +52,9 @@ const NOT_EXERCISED: Readonly<Record<string, string>> = {
 		? { bash: 'POSIX shell', read_bash: 'POSIX shell', stop_bash: 'POSIX shell', list_bash: 'POSIX shell' }
 		: { powershell: 'Windows shell', read_powershell: 'Windows shell', stop_powershell: 'Windows shell', list_powershell: 'Windows shell' }),
 	local_shell: 'runtime shell variant not selected for these models',
-	lsp: 'registered only when language servers are configured',
-	fetch_copilot_cli_documentation: 'not registered for this client in the current runtime',
-	catalog_search: 'CATALOG_SEARCH feature flag and catalog availability',
-	catalog_select: 'CATALOG_SEARCH feature flag and catalog availability',
+	str_replace_editor: 'editing profile of oswe-magpie and oswe-rook, which are not in the synthetic model catalog',
+	lsp: 'registered only when an LSP config exists in the project, the user config or a plugin',
+	fetch_copilot_cli_documentation: 'needs the cli-documentation capability, which only general-purpose subagents get in SDK sessions',
 	search_code_subagent: 'runtime feature flag',
 	execution_subagent: 'host setting overridden by runtime experiment assignments',
 	image_generation: 'host setting and an authorized image model',
