@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { suite, test } from 'vitest';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../../util/vs/base/common/event';
@@ -14,6 +15,8 @@ import { ResponseStreamWithLinkification } from '../../common/responseStreamWith
 import { createMockWorkspaceService, createTestLinkifierService } from './util';
 
 suite('Response stream linkifier lifetime', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('each response owns its disposable contributed linkifiers', () => {
 		const store = new DisposableStore();
 		try {
