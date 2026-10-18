@@ -8,17 +8,19 @@ import * as sinon from 'sinon';
 import type * as vscode from 'vscode';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CodeActionTriggerType, CompletionTriggerKind } from '../../../../editor/common/languages.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { ICodeActionListDto, ICodeLensListDto, IInlayHintsDto, ISuggestResultDto } from '../../common/extHost.protocol.js';
+import { ICodeActionListDto, ICodeLensListDto, ICommandDto, IInlayHintsDto, ISuggestResultDto } from '../../common/extHost.protocol.js';
 import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostDiagnostics } from '../../common/extHostDiagnostics.js';
 import { ExtHostDocuments } from '../../common/extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
 import { ExtHostLanguageFeatures } from '../../common/extHostLanguageFeatures.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { CodeAction, CodeLens, CompletionItem, InlayHint, InlayHintLabelPart, Position, Range } from '../../common/extHostTypes.js';
@@ -35,6 +37,7 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 	type Result = ICodeLensListDto | ICodeActionListDto | ISuggestResultDto | IInlayHintsDto;
 	let features: ExtHostLanguageFeatures;
 	let commands: ExtHostCommands;
+	let documents: ExtHostDocuments;
 	let handle: number;
 
 	setup(() => {
@@ -47,12 +50,12 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 		});
 		const telemetry = new class extends mock<IExtHostTelemetry>() { };
 		commands = new ExtHostCommands(rpc, new NullLogService(), telemetry);
-		const document = new class extends mock<vscode.TextDocument>() {
-			override getWordRangeAtPosition(): undefined { return undefined; }
-		};
-		const documents = new class extends mock<ExtHostDocuments>() {
-			override getDocument(): vscode.TextDocument { return document; }
-		};
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(rpc, new NullLogService());
+		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
+			addedDocuments: [{ uri: resource, lines: [''], EOL: '\n', versionId: 1, languageId: 'plaintext', isDirty: false, encoding: 'utf8' }]
+		});
+		store.add(toDisposable(() => documentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: [resource] })));
+		documents = store.add(new ExtHostDocuments(rpc, documentsAndEditors));
 		const diagnostics = new class extends mock<ExtHostDiagnostics>() {
 			override getDiagnostics(): [] { return []; }
 		};
@@ -68,7 +71,12 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 				const registration = store.add(features.registerCodeLensProvider(nullExtensionDescription, selector, {
 					provideCodeLenses: async () => {
 						await pending?.p;
-						return [new CodeLens(new Range(0, 0, 0, 1), command)];
+						return [new CodeLens(new Range(0, 0, 0, 1), resolvePending ? undefined : command)];
+					},
+					resolveCodeLens: async lens => {
+						await resolvePending?.p;
+						lens.command = command;
+						return lens;
 					}
 				}));
 				return { registration, request: () => features.$provideCodeLenses(handle, resource, CancellationToken.None) };
@@ -121,19 +129,83 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 		}
 	}
 
+	function release(kind: Kind, result: Result, providerHandle = handle): void {
+		switch (kind) {
+			case 'codeLens': features.$releaseCodeLenses(providerHandle, (result as ICodeLensListDto).cacheId!); break;
+			case 'codeAction': features.$releaseCodeActions(providerHandle, (result as ICodeActionListDto).cacheId!); break;
+			case 'completion': features.$releaseCompletionItems(providerHandle, (result as ISuggestResultDto).x!); break;
+			case 'inlayHint': features.$releaseInlayHints(providerHandle, (result as IInlayHintsDto).cacheId!); break;
+		}
+	}
+
 	for (const kind of kinds) {
-		test(`${kind} releases command arguments when its provider is unregistered`, async () => {
+		for (const execute of [false, true]) {
+			test(`${kind} retains ${execute ? 'accepted' : 'unused'} commands until result release after unregistration`, async () => {
+				const provider = createProvider(kind);
+				const convert = sinon.spy(commands.converter, 'toInternal');
+				const commandHandler = sinon.spy();
+				store.add(commands.registerCommand(true, 'provider-disposal-test', commandHandler));
+				try {
+					const result = await provider.request();
+					assert.ok(result);
+					const command = convert.returnValues.find(value => value?.$ident);
+					assert.ok(command);
+					// Acceptance sends the edit notification before the command RPC.
+					store.add(documents.onDidChangeDocument(() => provider.registration.dispose()));
+					documents.$acceptModelChanged(resource, {
+						changes: [{ range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, rangeOffset: 0, rangeLength: 0, text: 'Test' }],
+						eol: '\n', versionId: 2, isUndoing: false, isRedoing: false, isFlush: false, isEolChange: false, detailedReason: undefined
+					}, true);
+					assert.strictEqual(await provider.request(), undefined);
+					assert.ok(commands.converter.fromInternal(command));
+					if (execute) {
+						await commands.$executeContributedCommand(command.id, ...command.arguments!);
+					}
+					release(kind, result);
+					release(kind, result); // Duplicate release is harmless.
+					assert.deepStrictEqual({ text: documents.getDocument(resource).getText(), cached: commands.converter.fromInternal(command), calls: commandHandler.args }, {
+						text: 'Test',
+						cached: undefined,
+						calls: execute ? [[{ value: kind }]] : []
+					});
+				} finally {
+					for (const call of convert.getCalls()) { call.args[1].dispose(); }
+					convert.restore();
+				}
+			});
+		}
+
+		test(`${kind} releases outstanding lists independently after unregistration`, async () => {
+			const provider = createProvider(kind);
+			const convert = sinon.spy(commands.converter, 'toInternal');
+			try {
+				const first = await provider.request();
+				const second = await provider.request();
+				assert.ok(first && second);
+				const cachedCommands = convert.returnValues.filter((value): value is ICommandDto => typeof value?.$ident === 'string');
+				assert.strictEqual(cachedCommands.length, 2);
+				provider.registration.dispose();
+				release(kind, first);
+				assert.deepStrictEqual(cachedCommands.map(command => Boolean(commands.converter.fromInternal(command))), [false, true]);
+				release(kind, second);
+				assert.deepStrictEqual(cachedCommands.map(command => commands.converter.fromInternal(command)), [undefined, undefined]);
+			} finally {
+				for (const call of convert.getCalls()) { call.args[1].dispose(); }
+				convert.restore();
+			}
+		});
+
+		test(`${kind} releases retired command stores on shutdown`, async () => {
 			const provider = createProvider(kind);
 			const convert = sinon.spy(commands.converter, 'toInternal');
 			try {
 				assert.ok(await provider.request());
 				const command = convert.returnValues.find(value => value?.$ident);
 				assert.ok(command);
-				assert.ok(commands.converter.fromInternal(command));
 				provider.registration.dispose();
+				features.dispose();
 				assert.strictEqual(commands.converter.fromInternal(command), undefined);
 			} finally {
-				// Keep baseline assertion failures isolated from the disposable tracker.
 				for (const call of convert.getCalls()) { call.args[1].dispose(); }
 				convert.restore();
 			}
@@ -155,21 +227,23 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 		});
 	}
 
-	for (const kind of ['codeAction', 'completion', 'inlayHint'] as const) {
+	for (const kind of kinds) {
 		test(`${kind} ignores an in-flight resolve after provider unregistration`, async () => {
 			const pending = new DeferredPromise<void>();
 			const provider = createProvider(kind, undefined, pending);
 			const result = await provider.request();
 			assert.ok(result);
-			const cacheId = kind === 'completion' ? (result as ISuggestResultDto).x : (result as IInlayHintsDto | ICodeActionListDto).cacheId;
+			const cacheId = kind === 'completion' ? (result as ISuggestResultDto).x : (result as IInlayHintsDto | ICodeActionListDto | ICodeLensListDto).cacheId;
 			assert.ok(typeof cacheId === 'number');
 			const convert = sinon.spy(commands.converter, 'toInternal');
 			try {
 				const resolve = kind === 'completion'
 					? features.$resolveCompletionItem(handle, [cacheId, 0], CancellationToken.None)
-					: kind === 'codeAction'
-						? features.$resolveCodeAction(handle, [cacheId, 0], CancellationToken.None)
-						: features.$resolveInlayHint(handle, [cacheId, 0], CancellationToken.None);
+					: kind === 'codeLens'
+						? features.$resolveCodeLens(handle, (result as ICodeLensListDto).lenses[0], CancellationToken.None)
+						: kind === 'codeAction'
+							? features.$resolveCodeAction(handle, [cacheId, 0], CancellationToken.None)
+							: features.$resolveInlayHint(handle, [cacheId, 0], CancellationToken.None);
 				convert.resetHistory();
 				provider.registration.dispose();
 				await pending.complete();
@@ -177,6 +251,7 @@ suite('ExtHostLanguageFeatures provider disposal', () => {
 					result: kind === 'codeAction' ? {} : undefined,
 					conversions: 0
 				});
+				release(kind, result);
 			} finally {
 				for (const call of convert.getCalls()) { call.args[1].dispose(); }
 				convert.restore();
