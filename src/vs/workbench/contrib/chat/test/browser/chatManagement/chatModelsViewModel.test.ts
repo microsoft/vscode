@@ -14,6 +14,7 @@ import { IModelsControlManifest, ILanguageModelChatMetadata, ILanguageModelChatM
 import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
+import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
@@ -816,6 +817,59 @@ suite('ChatModelsViewModel', () => {
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 2, 'Should show all models');
 		assert.ok(models.every(m => m.model.provider.vendor.vendor === 'copilot'));
+	});
+
+	test('should show vendor header when the single vendor is a deletable BYOK group', async () => {
+		const service = new MockLanguageModelsService();
+		// The extension-point derived type of `configuration` is unusable for literals
+		// (chatModelsWidget.ts casts it to IJSONSchema for the same reason).
+		const byokConfiguration: IJSONSchema = {
+			type: 'object',
+			properties: {
+				apiKey: { type: 'string' }
+			}
+		};
+		service.addVendor({
+			vendor: 'openai',
+			displayName: 'OpenAI',
+			managementCommand: undefined,
+			when: undefined,
+			configuration: byokConfiguration as unknown as IUserFriendlyLanguageModel['configuration']
+		});
+
+		service.addModel('openai', 'openai-gpt-3.5', {
+			extension: new ExtensionIdentifier('openai.api'),
+			id: 'gpt-3.5-turbo',
+			name: 'GPT-3.5 Turbo',
+			family: 'gpt-3.5',
+			version: '1.0',
+			vendor: 'openai',
+			maxInputTokens: 4096,
+			maxOutputTokens: 2048,
+			isUserSelectable: true,
+			capabilities: {
+				toolCalling: false,
+				vision: false,
+				agentMode: false
+			},
+			isDefaultForLocation: {
+				[ChatAgentLocation.Chat]: true
+			}
+		});
+
+		const byokViewModel = store.add(new ChatModelsViewModel(service));
+		await byokViewModel.refresh();
+
+		const results = byokViewModel.filter('');
+
+		// The vendor header row carries the group's rename/delete actions, so it must be
+		// shown even when this is the only group in the list (issue #339457).
+		const vendors = results.filter(isLanguageModelProviderEntry);
+		assert.strictEqual(vendors.length, 1, 'Should show vendor header for a single deletable BYOK group');
+		assert.strictEqual(vendors[0].label, 'OpenAI');
+
+		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		assert.strictEqual(models.length, 1);
 	});
 
 	test('should show vendor headers when multiple vendors exist', () => {
