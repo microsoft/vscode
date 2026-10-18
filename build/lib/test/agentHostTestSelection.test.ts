@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { runInNewContext } from 'node:vm';
@@ -181,6 +181,61 @@ suite('Agent Host PR test selection', () => {
 				},
 			})),
 		});
+	});
+
+	test('every CI step that runs the integration tests is paired with an Agent Host E2E step', () => {
+		interface ICommandStep {
+			readonly command: string;
+			readonly environment: Record<string, unknown>;
+		}
+		// Finds steps in any GitHub Actions or Azure DevOps shape, including template parameters and expression branches.
+		const commandSteps = (value: unknown, found: ICommandStep[] = []): ICommandStep[] => {
+			if (Array.isArray(value)) {
+				value.forEach(item => commandSteps(item, found));
+			} else if (value && typeof value === 'object') {
+				const record = value as Record<string, unknown>;
+				const command = ['run', 'script', 'powershell', 'pwsh', 'bash'].map(key => record[key]).find(entry => typeof entry === 'string');
+				if (typeof command === 'string') {
+					found.push({ command, environment: (record.env ?? {}) as Record<string, unknown> });
+				}
+				Object.values(record).forEach(child => commandSteps(child, found));
+			}
+			return found;
+		};
+		const pipelineFiles = (directory: string): string[] => readdirSync(path.join(repositoryRoot, directory), { recursive: true, encoding: 'utf8' })
+			.filter(file => /\.ya?ml$/.test(file))
+			.map(file => path.posix.join(directory, file.split(path.sep).join('/')));
+		const unitRun = /test-(integration|agent-host-e2e)\.(sh|bat)\b(?![^\n]*--(run|runGlob|suite)\b)/;
+		const pairs = [...pipelineFiles('.github/workflows'), ...pipelineFiles('build/azure-pipelines')].sort().flatMap(file => {
+			const steps = commandSteps(load(readFileSync(path.join(repositoryRoot, file), 'utf8')));
+			const integration = steps.filter(step => unitRun.test(step.command) && step.command.includes('test-integration.'));
+			const agentHost = steps.filter(step => unitRun.test(step.command) && step.command.includes('test-agent-host-e2e.'));
+			if (integration.length === 0 && agentHost.length === 0) {
+				return [];
+			}
+			// The change-detection skip only applies to the Agent Host E2E step.
+			const signature = (step: ICommandStep) => JSON.stringify({
+				command: step.command.replace('test-agent-host-e2e.', 'test-integration.'),
+				environment: Object.fromEntries(Object.entries(step.environment).filter(([name]) => name !== 'VSCODE_SKIP_AGENT_HOST_E2E').sort()),
+			});
+			const agentHostSignatures = agentHost.map(signature).sort();
+			return [{
+				file,
+				integrationSteps: integration.length,
+				pairedWithAgentHostE2E: JSON.stringify(integration.map(signature).sort()) === JSON.stringify(agentHostSignatures),
+			}];
+		});
+		assert.deepStrictEqual(pairs, [
+			'.github/workflows/pr-darwin-test.yml',
+			'.github/workflows/pr-linux-test.yml',
+			'.github/workflows/pr-win32-test.yml',
+			'build/azure-pipelines/darwin/product-smoke-flaky-darwin.yml',
+			'build/azure-pipelines/darwin/steps/product-build-darwin-test.yml',
+			'build/azure-pipelines/linux/product-smoke-flaky-linux.yml',
+			'build/azure-pipelines/linux/steps/product-build-linux-test.yml',
+			'build/azure-pipelines/win32/product-smoke-flaky-win32.yml',
+			'build/azure-pipelines/win32/steps/product-build-win32-test.yml',
+		].map(file => ({ file, integrationSteps: 1, pairedWithAgentHostE2E: true })));
 	});
 });
 

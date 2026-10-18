@@ -109,8 +109,6 @@ steps:
             # Figure out the full absolute path of the product we just built
             # including the remote server and configure the integration tests
             # to run with these builds instead of running out of sources.
-            # Agent Host E2E runs each suite through the integration test script,
-            # so it gets the same environment as the integration tests.
             . build/azure-pipelines/win32/exec.ps1
             $ErrorActionPreference = "Stop"
             $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
