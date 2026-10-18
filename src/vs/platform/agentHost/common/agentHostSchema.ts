@@ -637,7 +637,10 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
-/** Root config key controlling Canvas extensions in Copilot sessions. */
+/** Root config key controlling Copilot extensions in Copilot sessions. */
+export const AgentHostCopilotExtensionsEnabledConfigKey = 'copilotExtensionsEnabled';
+
+/** Root config key controlling Canvas presentation in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
 
 export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
@@ -1044,10 +1047,16 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
+	[AgentHostCopilotExtensionsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.copilotExtensions.title', "Copilot Extensions"),
+		description: localize('agentHost.config.copilotExtensions.description', "Whether Copilot sessions can load Copilot extensions."),
+		default: false,
+	}),
 	[AgentHostCanvasesEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.canvases.title', "Canvases"),
-		description: localize('agentHost.config.canvases.description', "Whether Copilot sessions can use Canvas extensions to present interactive content."),
+		description: localize('agentHost.config.canvases.description', "Whether Copilot sessions can present interactive content in Canvases."),
 		default: false,
 	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({

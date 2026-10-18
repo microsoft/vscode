@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCopilotExtensionsEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -106,6 +106,11 @@ suite('agentHostSchema', () => {
 
 	test('Canvases are an additive disabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostCanvasesEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
+	});
+
+	test('Copilot extensions are an additive disabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostCopilotExtensionsEnabledConfigKey];
 		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
 	});
 
