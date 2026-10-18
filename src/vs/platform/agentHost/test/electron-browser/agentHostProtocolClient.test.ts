@@ -1008,6 +1008,21 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('workspace trust treats an absent authority query as untrusted', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
+			override onDidChangeTrust = Event.None;
+			override onDidChangeTrustedFolders = Event.None;
+			override getTrustedUris(): URI[] { return []; }
+		}();
+		const client = disposables.add(new AgentHostProtocolClient('cloudsandbox:test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
+		await connectClient(client, transport);
+		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
+			enabled: true,
+			trustedUris: [],
+		});
+	});
+
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
 		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request, defaultAccountService));
