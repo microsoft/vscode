@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore, Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -703,30 +703,30 @@ suite('SessionsTerminalContribution', () => {
 	});
 
 	test('waits for a remote working directory rather than using the local home', async () => {
-		let workingDirectory: string | undefined = undefined;
+		const workingDirectory = observableValue<string | undefined>('remoteWorkingDirectory', undefined);
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
 			override readonly id = 'agenthost-remote';
 			override readonly remoteAddress = 'remote';
-			override getWorkingDirectory(): string | undefined { return workingDirectory; }
+			override getWorkingDirectory(_sessionId: string, reader?: IReader): string | undefined { return workingDirectory.read(reader); }
 		};
 		sessionProviders.set(provider.id, provider);
 		const session = makeAgentSession({ providerId: provider.id, remoteConnectionStatus: { kind: 'connected' } });
 		activeSessionObs.set(session, undefined);
 		await tick();
 		const before = createdTerminals.map(terminal => terminal.cwd.toString());
-		workingDirectory = 'file:///home/remote-user';
-		session.loading.set(true, undefined);
-		session.loading.set(false, undefined);
+		workingDirectory.set('file:///home/remote-user', undefined);
 		await tick();
 
 		assert.deepStrictEqual({
 			before,
 			after: createdTerminals.map(terminal => terminal.cwd.toString()),
 			addresses: agentHostTerminalAddresses,
+			defaultCwd: defaultCwdCalls.at(-1)?.toString(),
 		}, {
 			before: [],
 			after: ['file:///home/remote-user'],
 			addresses: ['remote'],
+			defaultCwd: 'file:///home/remote-user',
 		});
 	});
 

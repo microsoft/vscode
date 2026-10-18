@@ -459,7 +459,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 			return undefined;
 		}
-		const workingDirectory = provider.getWorkingDirectory(session.sessionId);
+		const workingDirectory = provider.getWorkingDirectory(session.sessionId, reader);
 		const cwd = workingDirectory ? URI.parse(workingDirectory) : undefined;
 		return cwd?.scheme === Schemas.file ? { cwd, agentHostCwd: cwd } : undefined;
 	}
