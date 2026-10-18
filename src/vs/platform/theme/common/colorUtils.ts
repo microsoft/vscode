@@ -147,12 +147,14 @@ class ColorRegistry extends Disposable implements IColorRegistry {
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private colorsById: { [key: string]: ColorContribution };
+	private readonly defaultColorSchema: IJSONSchema;
 	private colorSchema: IJSONSchemaForColors = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		super();
 		this.colorsById = {};
+		this.defaultColorSchema = { type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') };
 	}
 
 	public notifyThemeUpdate(colorThemeData: IColorTheme) {
@@ -180,7 +182,7 @@ class ColorRegistry extends Disposable implements IColorRegistry {
 			description,
 			oneOf: [
 				propertySchema,
-				{ type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') }
+				this.defaultColorSchema
 			]
 		};
 		this.colorReferenceSchema.enum.push(id);
