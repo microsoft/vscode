@@ -6755,6 +6755,41 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
+	for (const listed of [false, true]) {
+		test(`Mission Control announces an adopted session after ${listed ? 'listing' : 'receiving'} a filtered external session`, async () => {
+			const transport = connectMissionControlListClient('adopted-session');
+			const local = connectClient('adoption-local', ['ahp-root://']);
+			const summary = { ...makeSessionSummary('copilot:/adopted'), _meta: withSessionExternal(undefined, true) };
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			stateManager.setSessionSummaryPublished(summary.resource, true);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource), startTime: 0, modifiedTime: 1, _meta: summary._meta,
+			});
+			if (listed) {
+				const responsePromise = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'listSessions'));
+				await responsePromise;
+			}
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			stateManager.dispatchServerAction(summary.resource, { type: ActionType.SessionMetaChanged, _meta: withSessionExternal(undefined, false) });
+			stateManager.setSessionSummaryPublished(summary.resource, true);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(summary.resource)!]);
+			stateManager.dispatchServerAction(summary.resource, { type: ActionType.SessionTitleChanged, title: 'Adopted title' });
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(summary.resource)!]);
+			assert.deepStrictEqual([transport, local].map(client => ({
+				added: findNotifications(client.sent, 'root/sessionAdded').map(message => {
+					const added = (message.params as SessionAddedParams).summary;
+					return { resource: added.resource, title: added.title, external: readSessionExternal(added._meta) };
+				}),
+				changed: findNotifications(client.sent, 'root/sessionSummaryChanged').map(message => (message.params as SessionSummaryChangedParams).changes),
+			})), [
+				{ added: [{ resource: summary.resource, title: summary.title, external: false }], changed: [{ title: 'Adopted title' }] },
+				{ added: [], changed: [{ _meta: withSessionExternal(undefined, false) }, { title: 'Adopted title' }] },
+			]);
+		});
+	}
+
 	test('listSessions retains all archived sessions on listeners without a session-list adapter', async () => {
 		for (let index = 0; index < 150; index++) {
 			agentService.listedSessions.push({
