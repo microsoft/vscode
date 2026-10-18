@@ -171,6 +171,7 @@ class MockCopilotSession {
 	readonly sendRequests: unknown[] = [];
 	readonly withdrawMessageRequests: Parameters<CopilotSession['rpc']['queue']['withdrawMessage']>[0][] = [];
 	withdrawMessageResult: Awaited<ReturnType<CopilotSession['rpc']['queue']['withdrawMessage']>> = { removed: true, interrupted: false };
+	withdrawMessageGate: Promise<void> | undefined;
 	readonly sendMessagesRequests: unknown[] = [];
 	sendMessagesError: Error | undefined;
 	sendMessagesGate: Promise<void> | undefined;
@@ -487,6 +488,7 @@ class MockCopilotSession {
 		queue: {
 			withdrawMessage: async (params: Parameters<CopilotSession['rpc']['queue']['withdrawMessage']>[0]) => {
 				this.withdrawMessageRequests.push(params);
+				await this.withdrawMessageGate;
 				return this.withdrawMessageResult;
 			},
 		},
@@ -13834,7 +13836,7 @@ Use the attached image as context.
 			mockSession.sendRequests.forEach((request, index) => {
 				const { prompt, mode } = request as { prompt: string; mode?: string };
 				if (mode === 'immediate' && !withdrawn.has(`message-${index + 1}`)) {
-					mockSession.fire('user.message', { content: prompt, interactionId: `interaction-${index + 1}` } as SessionEventPayload<'user.message'>['data']);
+					mockSession.fire('user.message', { content: prompt, messageId: `message-${index + 1}`, interactionId: `interaction-${index + 1}` } as SessionEventPayload<'user.message'>['data']);
 				}
 			});
 		}
@@ -13903,6 +13905,37 @@ Use the attached image as context.
 			}, {
 				withdrawRequests: [{ messageId: 'message-1', expectedPrompt: 'focus on tests' }],
 				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-1' }],
+			});
+		});
+
+		test('an identical steering message delivered while another is being withdrawn becomes its own turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const withdrawGate = new DeferredPromise<void>();
+			mockSession.withdrawMessageGate = withdrawGate.p;
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.sendSteering({ id: 'steer-2', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const withdrawal = session.withdrawSteering('steer-1');
+			try {
+				await timeout(0);
+				assert.strictEqual(mockSession.withdrawMessageRequests.length, 1);
+				// The SDK withdraws the first message but delivers the second before the withdrawal returns.
+				mockSession.fire('user.message', { content: 'focus on tests', messageId: 'message-2', interactionId: 'interaction-2' } as SessionEventPayload<'user.message'>['data']);
+			} finally {
+				withdrawGate.complete();
+				await withdrawal;
+			}
+			await session.abort();
+
+			assert.deepStrictEqual({
+				withdrawRequests: mockSession.withdrawMessageRequests,
+				startedTurns: startedTurns(signals),
+				leftOver: signals.filter(signal => signal.kind === 'steering_consumed'),
+			}, {
+				withdrawRequests: [{ messageId: 'message-1', expectedPrompt: 'focus on tests' }],
+				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-2' }],
+				leftOver: [],
 			});
 		});
 
