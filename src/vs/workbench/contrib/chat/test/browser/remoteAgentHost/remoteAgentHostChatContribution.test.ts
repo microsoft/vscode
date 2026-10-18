@@ -15,12 +15,14 @@ import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/a
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
+import { type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IProgressService, type IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -54,21 +56,22 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		},
 	};
 
-	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true) {
+	function fixture(customization?: IRemoteAgentHostConnectionCustomization, allowed = true, isSessionsWindow = true, address = 'cloudsandbox:remote') {
 		const instantiation = store.add(new TestInstantiationService());
 		const connectionsChanged = store.add(new Emitter<void>());
+		const notifications = store.add(new Emitter<INotification>());
+		const opened: { steps: IProgressStep[]; settled: Promise<unknown> }[] = [];
 		const sent: AuthenticateParams[] = [];
 		const sessionOptions: boolean[] = [];
 		let handler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 		let registered = true;
-		const address = 'cloudsandbox:remote';
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly clientId = 'client';
 			override readonly rootState = {
 				value: undefined, verifiedValue: undefined,
 				onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
 			};
-			override readonly onDidNotification = Event.None;
+			override readonly onDidNotification = notifications.event;
 			override registerMcpAuthenticationHandler(value: typeof handler) {
 				handler = value;
 				return toDisposable(() => { handler = undefined; });
@@ -116,18 +119,44 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		instantiation.stub(ICustomizationHarnessService, {});
 		instantiation.stub(IAgentHostTerminalService, {});
 		instantiation.stub(IAgentHostActiveClientService, {});
-		instantiation.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		instantiation.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiation.stub(IProgressService, new class extends mock<IProgressService>() {
+			override withProgress<R>(options: Parameters<IProgressService['withProgress']>[0], task: (progress: { report(step: IProgressStep): void }) => Promise<R>): Promise<R> {
+				const steps: IProgressStep[] = [];
+				const settled = task({ report: step => steps.push(step) });
+				opened.push({ steps, settled });
+				return settled;
+			}
+		}());
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(ILabelService, { getHostLabel: () => 'Remote' });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
 		store.add(instantiation.createInstance(RemoteAgentHostContribution));
-		assert.ok(handler);
 		return {
-			authenticate: handler, sent, sessionOptions,
+			authenticate: (value: IAgentHostMcpAuthenticationRequest) => { assert.ok(handler); return handler(value); }, sent, sessionOptions,
+			notifications, opened,
 			removeConnection: () => { registered = false; connectionsChanged.fire(); },
 		};
 	}
+
+	for (const address of ['cloudsandbox:remote', 'ws://remote.example:8081']) {
+		test(`editor forwards indeterminate progress and disposes it on disconnect: ${address}`, async () => {
+			const context = fixture(undefined, true, false, address);
+			context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'policy', progress: 0, message: 'Loading settings' });
+			assert.deepStrictEqual(context.opened.map(record => record.steps), [[]]);
+			context.removeConnection();
+			await context.opened[0].settled;
+			context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'late', progress: 0 });
+			assert.strictEqual(context.opened.length, 1);
+		});
+	}
+
+	test('Agents window leaves progress to the session provider', () => {
+		const context = fixture();
+		context.notifications.fire({ type: 'root/progress', channel: 'custom-host:/root', progressToken: 'policy', progress: 0 });
+		assert.strictEqual(context.opened.length, 0);
+	});
 
 	test('seals remembered MCP credentials through the user-local connection customization', async () => {
 		const sealed: AuthenticateParams[] = [];

@@ -97,7 +97,7 @@ suite('SessionCustomizationDiscovery', () => {
 		]);
 	});
 
-	test('projects SDK-native plugin customizations as a plugin container', async () => {
+	test('projects SDK-native GitHub marketplace plugin customizations as a plugin container', async () => {
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error): void {
@@ -107,7 +107,7 @@ suite('SessionCustomizationDiscovery', () => {
 		instantiationService.stub(ILogService, logService);
 
 		const pluginRoot = '/home/.copilot/installed-plugins/example';
-		await seed(`${pluginRoot}/.plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
+		await seed(`${pluginRoot}/.github/plugin/plugin.json`, JSON.stringify({ name: 'example-plugin', version: '1.2.3' }));
 		const pluginAgent = await seed(`${pluginRoot}/agents/reviewer.agent.md`, '---\nname: reviewer\ndescription: Reviews changes\n---\n');
 		const pluginSkill = await seed(`${pluginRoot}/skills/example/SKILL.md`, '---\nname: example\ndescription: Example skill\n---\n');
 		const pluginRule = await seed(`${pluginRoot}/rules/example.instructions.md`, '---\nname: Example instruction\n---\n');
@@ -576,6 +576,67 @@ suite('SessionCustomizationDiscovery', () => {
 		await raceTimeout(fired.p, 500);
 
 		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when a skill is added under the discovered skill root');
+	});
+
+	test('does not fire onDidChange for unrelated changes under the workspace or user home', async () => {
+		await seed('/home/.claude/CLAUDE.md', 'user instructions');
+		await seed('/workspace/AGENTS.md', 'workspace instructions');
+		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/home/.copilot/skills' }));
+		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/workspace/src' }));
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async () => ({ paths: [] }),
+					discover: async () => ({ agents: [] }),
+				},
+				instructions: {
+					getDiscoveryPaths: async () => ({
+						paths: [
+							{ path: '/workspace/AGENTS.md', kind: 'file' },
+							{ path: '/home/.claude/CLAUDE.md', kind: 'file' },
+						],
+					}),
+					discover: async () => ({ sources: [] }),
+				},
+				skills: {
+					getDiscoveryPaths: async () => ({ paths: [{ path: '/home/.copilot/skills' }] }),
+					discover: async () => ({ skills: [] }),
+				},
+			},
+		} as unknown as CopilotClient;
+
+		await discovery.discover(client, CancellationToken.None);
+		await timeout(50);
+
+		const changes: string[] = [];
+		disposables.add(discovery.onDidChange(() => changes.push('changed')));
+
+		const expectChange = async (label: string, action: () => Promise<unknown>) => {
+			changes.length = 0;
+			await action();
+			await timeout(50);
+			return `${label}: ${changes.length > 0}`;
+		};
+
+		const results = [
+			await expectChange('unrelated file in user home', () => seed('/home/unrelated.txt')),
+			await expectChange('unrelated file in ~/.copilot', () => seed('/home/.copilot/state.json')),
+			await expectChange('unrelated file in workspace', () => seed('/workspace/src/file.ts')),
+			await expectChange('user instruction file', () => seed('/home/.claude/CLAUDE.md', 'changed')),
+			await expectChange('workspace instruction file', () => seed('/workspace/AGENTS.md', 'changed')),
+			await expectChange('user skill', () => seed('/home/.copilot/skills/new/SKILL.md', 'skill')),
+		];
+
+		assert.deepStrictEqual(results, [
+			'unrelated file in user home: false',
+			'unrelated file in ~/.copilot: false',
+			'unrelated file in workspace: false',
+			'user instruction file: true',
+			'workspace instruction file: true',
+			'user skill: true',
+		]);
 	});
 
 	test('discover propagates cancellation without logging an error', async () => {

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AccountClient } from '../../common/account/accountClient.js';
-import { ApiRequest, ApiResponse, IApiRequestProvider, PaginationOptions } from '../../common/client/request.js';
+import { ApiRequest, ApiRequestOptions, ApiResponse, IApiRequestProvider, PaginationOptions } from '../../common/client/request.js';
 import { parse } from '../../common/client/schema.js';
 
 suite('GitHub account client', () => {
@@ -61,7 +61,7 @@ suite('GitHub account client', () => {
 		};
 		const client = store.add(new AccountClient(authorization, { rest: provider, graphql: provider, missionControl: provider }, toDisposable(() => { })));
 		const repository = { owner: 'o', name: 'r' };
-		const options = { caller: 'test.options', deadline: Date.now() + 10_000 };
+		const options: ApiRequestOptions = { caller: 'test.options', deadline: Date.now() + 10_000, priority: 'background' };
 		await assert.rejects(client.content.getContent('o', 'r', 'folder/file name.json', signal(), { ...options, query: { ref: 'feature/branch' } }), dispatched);
 		await assert.rejects(client.content.getTree('o', 'r', 'main', signal(), { ...options, query: { recursive: true } }), dispatched);
 		await assert.rejects(client.actions.getRun(repository, 42, signal(), { ...options, attempt: 2 }), dispatched);
@@ -73,6 +73,7 @@ suite('GitHub account client', () => {
 		await assert.rejects(client.issues.getClosingPullRequestCounts(repository, [7], signal(), options), dispatched);
 		await assert.rejects(client.tasks.list(signal(), { ...options, query: { page: 2, q: 'work', artifact_state: ['open', 'draft'] } }), dispatched);
 		await assert.rejects(client.environments.reconnect('environment', 'client', signal(), { ...options, query: { session_id: 'session' } }), dispatched);
+		await assert.rejects(client.issues.createLabel(repository, { name: 'label' }, signal(), options), dispatched);
 		const parseVariables = parse.object({ variables: parse.jsonObject });
 		assert.deepStrictEqual(requests.map(request => ({
 			path: request.path,
@@ -90,12 +91,13 @@ suite('GitHub account client', () => {
 			{ path: '/', body: { owner: 'o', name: 'r' }, options },
 			{ path: '/tasks?page=2&q=work&artifact_state=open&artifact_state=draft', body: undefined, options },
 			{ path: '/environments/environment/reconnect?session_id=session&client_id=client', body: undefined, options },
+			{ path: '/repos/o/r/labels', body: { name: 'label' }, options },
 		]);
 	});
 
 	test('single-page REST, GraphQL, and Mission Control reads preserve results and request options', async () => {
 		const connection = { nodes: [null], pageInfo: { endCursor: null, hasNextPage: false } };
-		const requestOptions = { caller: 'test.single-page', deadline: Date.now() + 10_000 };
+		const requestOptions: ApiRequestOptions = { caller: 'test.single-page', deadline: Date.now() + 10_000, priority: 'background' };
 		for (const maxPages of [undefined, 1]) {
 			const requests: ApiRequest[] = [];
 			const provider: IApiRequestProvider = {

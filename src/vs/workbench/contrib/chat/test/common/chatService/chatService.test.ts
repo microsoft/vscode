@@ -1852,7 +1852,7 @@ suite('ChatService', () => {
 		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
 	});
 
-	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
+	test('cancelCurrentRequestForSession returns after timeout if response does not complete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
 
@@ -1879,14 +1879,12 @@ suite('ChatService', () => {
 
 		// Cancel should return after timeout even though the agent has not completed.
 		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
-		});
+		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
 
 		// Let the agent finish so the test cleans up properly
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
-	});
+	}));
 
 	test('pending requests can be removed from one session and re-sent on another', async () => {
 		const requestStarted = new DeferredPromise<void>();

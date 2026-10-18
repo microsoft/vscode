@@ -58,6 +58,9 @@ import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQui
 import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
 export interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	readonly editor?: EditorInput | IResourceEditorInput;
@@ -112,6 +115,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly pickState: IAnythingPickState;
 
+	private _linkSourceGroup: number | undefined;
+
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
 			return DefaultQuickAccessFilterValue.LAST;
@@ -143,7 +148,10 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILogService private readonly logService: ILogService,
 		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -232,6 +240,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker, runOptions?.fileSearchDelegate === undefined);
+		this._linkSourceGroup = this._supportsLinks(runOptions) ? this._editorGroupsService.activeGroup.id : undefined;
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -297,6 +306,17 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			);
 		}
 
+		if (this._supportsLinks(runOptions)) {
+			const linkPick = this._getLinkPick(originalFilter);
+			if (linkPick) {
+				this.pickState.lastOriginalFilter = undefined;
+				this.pickState.lastFilter = undefined;
+				this.pickState.lastRange = undefined;
+				this.pickState.lastGlobalPicks = undefined;
+				return !runOptions?.filter || runOptions.filter(linkPick) ? [linkPick] : [];
+			}
+		}
+
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		// unless we have the `@` editor symbol character inside the filter
 		const filterWithRange = extractRangeFromFilter(originalFilter, [GotoSymbolQuickAccessProvider.PREFIX]);
@@ -359,6 +379,81 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			disposables,
 			token
 		);
+	}
+
+	private _supportsLinks(runOptions?: IAnythingQuickAccessProviderRunOptions): boolean {
+		return !runOptions?.filesOnly && !runOptions?.fileSearchDelegate && !runOptions?.handleAccept && !this.pickState.isQuickNavigating;
+	}
+
+	private _getLinkPick(filter: string): IAnythingQuickPickItem | undefined {
+		// Require an explicit hierarchical URI, not a drive letter, file query, or Quick Access prefix.
+		if (!/^[a-z][a-z0-9+.-]+:\/\//i.test(filter)) {
+			return undefined;
+		}
+
+		let resource: URI;
+		try {
+			resource = URI.parse(filter, true);
+			if (/\s|\\/.test(filter) || [Schemas.command, Schemas.data, Schemas.internal, 'javascript'].includes(resource.scheme.toLowerCase())) {
+				throw new Error('Unsupported link');
+			}
+			if (resource.scheme.toLowerCase() === Schemas.http || resource.scheme.toLowerCase() === Schemas.https) {
+				new URL(filter);
+				if (!resource.authority) {
+					throw new Error('Missing link authority');
+				}
+			}
+		} catch {
+			return {
+				label: localize('invalidQuickOpenLink', "Invalid Link"),
+				description: localize('invalidQuickOpenLinkDescription', "Enter a valid link to open it from Quick Open.")
+			};
+		}
+
+		const sourceGroup = this._linkSourceGroup ?? this._editorGroupsService.activeGroup.id;
+		const openToSideLabel = localize('openLinkToSide', "Open to the Side");
+		const open = async (keyMods: IKeyMods, inBackground: boolean, forceOpenSideBySide = false): Promise<void> => {
+			try {
+				const openToSide = keyMods.alt || (this.configuration.openEditorPinned && keyMods.ctrlCmd) || forceOpenSideBySide;
+				if (openToSide) {
+					await this.pickState.editorViewState.restore();
+					if (this._editorGroupsService.getGroup(sourceGroup)) {
+						this._editorGroupsService.activateGroup(sourceGroup);
+					}
+				}
+
+				const handled = await this._openerService.open(filter, {
+					fromUserGesture: true,
+					allowContributedOpeners: true,
+					openToSide,
+					editorOptions: {
+						preserveFocus: inBackground,
+						pinned: keyMods.ctrlCmd || inBackground || this.configuration.openEditorPinned
+					}
+				});
+				if (!handled) {
+					this._notificationService.warn(localize('quickOpenLinkNotOpened', "The link could not be opened. It may be unsupported or opening it was canceled."));
+				}
+			} catch (error) {
+				this._notificationService.error(error);
+			}
+		};
+
+		return {
+			resource,
+			label: `$(link-external) ${localize('openQuickOpenLink', "Open Link")}`,
+			description: filter,
+			detail: localize('openQuickOpenLinkHint', "Hold Alt while accepting to open to the side."),
+			buttons: [{
+				iconClass: ThemeIcon.asClassName(this.configuration.openSideBySideDirection === 'right' ? Codicon.splitHorizontal : Codicon.splitVertical),
+				tooltip: openToSideLabel
+			}],
+			accept: (keyMods, event) => open(keyMods, event.inBackground),
+			trigger: async (_buttonIndex, keyMods) => {
+				await open(keyMods, false, true);
+				return TriggerAction.CLOSE_PICKER;
+			}
+		};
 	}
 
 	private doGetPicks(

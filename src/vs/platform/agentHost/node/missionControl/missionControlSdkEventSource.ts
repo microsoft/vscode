@@ -12,6 +12,7 @@ import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../co
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from '../agentChatContext.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
@@ -63,11 +64,13 @@ export class MissionControlSdkEventSource extends Disposable {
 		private readonly _environmentId: string,
 		private readonly _mirror: MissionControlSessionMirror,
 		private readonly _isEnabled: () => boolean,
+		private readonly _registerSession: (session: string) => Promise<void>,
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
@@ -140,7 +143,6 @@ export class MissionControlSdkEventSource extends Disposable {
 		}
 		let source = this._sessions.get(session);
 		if (!source) {
-			this._mirror.registerSession(session);
 			source = {
 				session, chat, provider, queue: [], seen: new Set(), bytes: 0, limit: undefined,
 				historyPending: true, draining: undefined, dropped: 0, title: undefined, failed: false, retired: false, dirty: false,
@@ -297,7 +299,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		let context: IAgentChatContext;
 		try {
 			const owner = this._chatOwnership.getChatOwner(source.chat) ?? source.session;
-			context = createAgentChatContext(this._stateManager, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
+			context = createAgentChatContext(this._stateManager, this._authenticationService, owner, source.chat, this._chatOwnership.resolveChatStorageResource(owner, source.chat), this._sessionStateStore.peek(URI.parse(owner)));
 		} catch (error) {
 			this._logService.warn('[MissionControlSdkEventSource] Cannot address the chat to reconcile its history; continuing live replication', { session: source.session }, error);
 			return;
@@ -368,6 +370,10 @@ export class MissionControlSdkEventSource extends Disposable {
 
 	private async _run(source: SourceSession): Promise<void> {
 		source.dirty = false;
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
+			return;
+		}
+		await this._registerSession(source.session);
 		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}

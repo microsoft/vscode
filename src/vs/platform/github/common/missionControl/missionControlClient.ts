@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasKey } from '../../../../base/common/types.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../client/request.js';
 import { collectPages, nextPagePath, PaginatedApiRequest } from '../client/pagination.js';
 import { parse } from '../client/schema.js';
@@ -11,6 +12,7 @@ import { GitHubRequestError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
 import { RequestError, RequestErrorKind } from '../types.js';
 import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, User } from './missionControl.js';
+import { parseMissionControlErrorCode, MissionControlErrorMetadata } from './missionControlError.js';
 
 /** An approved Mission Control API endpoint and its request-header configuration. */
 export interface ApiEndpoint {
@@ -28,8 +30,11 @@ export interface MissionControlClientOptions {
 	readonly endpoint: ApiEndpoint;
 }
 
-/** An HTTP request failure with structured diagnostics; sensitive response content is excluded. */
+/** An HTTP failure with structured diagnostics but no retained raw response body. */
 export class ApiRequestError extends GitHubRequestError implements ApiError {
+	readonly code: string | undefined;
+	readonly limitedResource: string | undefined;
+
 	constructor(
 		/** HTTP status reported by the service. */
 		override readonly statusCode: number,
@@ -42,9 +47,14 @@ export class ApiRequestError extends GitHubRequestError implements ApiError {
 		readonly retryAfterSeconds?: number,
 		/** Set when the dispatched mutation may already have been accepted. */
 		readonly outcome?: 'indeterminate',
+		metadata?: MissionControlErrorMetadata,
 	) {
-		super(response?.message ?? `API request failed (HTTP ${statusCode})`, kind, statusCode);
+		const code = metadata?.code ?? response?.error_code ?? (response && hasKey(response, { code: true }) ? response.code : undefined);
+		super(`API request failed (HTTP ${statusCode})${code ? ` code=${code}` : ''}${requestId ? ` requestId=${requestId}` : ''}`,
+			code === 'rate_limit_exceeded' ? 'rateLimit' : kind, statusCode);
 		this.name = 'ApiRequestError';
+		this.code = code;
+		this.limitedResource = metadata?.limitedResource ?? response?.limited_resource;
 	}
 }
 
@@ -152,12 +162,12 @@ export const parseUser = parse.object<User>({
 	url: parse.optional(parse.string),
 });
 
-/** Parses activation trace metadata and validates the version and unsigned 64-bit sequence. */
+/** Parses activation trace metadata and validates the version and canonical positive uint64 sequence. */
 export const parseActivationContext = parse.object<ActivationContext>({
 	version: parse.exact(2),
 	sequence: parse.refine(
 		parse.string,
-		sequence => /^\d{1,20}$/.test(sequence) && BigInt(sequence) <= 18446744073709551615n,
+		sequence => /^[1-9]\d{0,19}$/.test(sequence) && BigInt(sequence) <= 18446744073709551615n,
 		'Invalid activation sequence',
 	),
 	traceparent: parse.string,
@@ -167,7 +177,9 @@ export const parseActivationContext = parse.object<ActivationContext>({
 /** Parses the API's structured error response. */
 export const parseApiError: parse.Parser<ApiErrorResponse | CodedApiErrorResponse> = parse.object({
 	message: parse.string,
-	code: parse.optional(parse.string),
+	code: value => parseMissionControlErrorCode(value),
+	error_code: value => parseMissionControlErrorCode(value),
+	limited_resource: value => parseMissionControlErrorCode(value),
 	documentation_url: parse.string,
 	errors: parse.optional(parse.arrayOf(parse.object({
 		code: parse.oneOf('missing', 'missing_field', 'invalid', 'already_exists', 'unprocessable', 'active_limit_reached', 'revision_limit_reached', 'custom'),

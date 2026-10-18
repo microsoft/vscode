@@ -322,6 +322,29 @@ function dbOpen(path: string): Promise<Database> {
 	});
 }
 
+async function insertFileEdit(db: Database, edit: IFileEditRecord & IFileEditContent): Promise<void> {
+	// Ensure the turn exists — lazily insert since the turn record
+	// may not have been created by an explicit createTurn() call.
+	await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
+	await dbRun(
+		db,
+		`INSERT OR REPLACE INTO file_edits
+			(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		[
+			edit.turnId,
+			edit.toolCallId,
+			edit.filePath,
+			edit.kind,
+			edit.originalPath ?? null,
+			edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
+			edit.afterContent ? Buffer.from(edit.afterContent) : null,
+			edit.addedLines ?? null,
+			edit.removedLines ?? null,
+		],
+	);
+}
+
 function validateCatalogSyncInteger(name: string, value: number): void {
 	if (!Number.isSafeInteger(value) || value < 0) {
 		throw new Error(`Catalog sync ${name} must be a non-negative safe integer`);
@@ -981,27 +1004,22 @@ export class SessionDatabase implements ISessionDatabase {
 	// ---- File edits -----------------------------------------------------
 
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void> {
-		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(async db => {
-			// Ensure the turn exists — lazily insert since the turn record
-			// may not have been created by an explicit createTurn() call.
-			await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [edit.turnId]);
-			await dbRun(
-				db,
-				`INSERT OR REPLACE INTO file_edits
-					(turn_id, tool_call_id, file_path, edit_type, original_path, before_content, after_content, added_lines, removed_lines)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				[
-					edit.turnId,
-					edit.toolCallId,
-					edit.filePath,
-					edit.kind,
-					edit.originalPath ?? null,
-					edit.beforeContent ? Buffer.from(edit.beforeContent) : null,
-					edit.afterContent ? Buffer.from(edit.afterContent) : null,
-					edit.addedLines ?? null,
-					edit.removedLines ?? null,
-				],
-			);
+		return this._track(() => this._fileEditSequencer.queue(edit.filePath, () => this._queueMutation(db => insertFileEdit(db, edit))));
+	}
+
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+		if (edits.length === 0) {
+			return Promise.resolve();
+		}
+		const filePath = edits[0].filePath;
+		if (edits.some(edit => edit.filePath !== filePath)) {
+			return Promise.reject(new Error('storeFileEdits requires edits of a single file'));
+		}
+		return this._track(() => this._fileEditSequencer.queue(filePath, () => this._queueTransaction(async db => {
+			for (const edit of edits) {
+				await insertFileEdit(db, edit);
+			}
+			await beforeCommit?.();
 		})));
 	}
 

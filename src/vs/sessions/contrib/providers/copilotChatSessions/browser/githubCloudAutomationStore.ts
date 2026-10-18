@@ -14,6 +14,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { RepositoryRef } from '../../../../../platform/github/common/client/types.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, EditAutomationRequest, IAutomationsClient } from '../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
@@ -157,23 +158,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 	}
 
-	/** Remembers an eligible repository for subsequent explicit refreshes; no definitions are fetched. */
-	async registerRepository(workspace: URI): Promise<void> {
-		const account = this.requireAccount();
-		const signal = this.lifetime.signal;
-		const repository = await this.resolveRepository(workspace);
-		signal.throwIfAborted();
-		if (!repository) {
-			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
-		}
-		await this.withClient(signal, async (client, signal) => {
-			if (!(await client.repositories.get(repository, signal)).private) {
-				throw new Error(localize('cloudAutomations.privateRepositoryRequired', "Cloud automations currently require a private GitHub repository."));
-			}
-			this.rememberRepositories(account.accountName, [repository], signal);
-		});
-	}
-
 	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
 		const account = this.requireAccount();
 		if (this.refreshPromise) {
@@ -187,7 +171,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.state.set('loading', undefined);
 		}
 		const refresh = this.operations.queue(async () => {
-			await this.withClient(signal, (client, signal) => this.refreshRepositories(account, signal, client));
+			await this.withClient(signal, (client, signal) => this.refreshRepositories(account, signal, client, options?.background ? { priority: 'background' } : undefined));
 			signal.throwIfAborted();
 			this.uncertain.set(false, undefined);
 		});
@@ -310,9 +294,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 		await this.mutate(entry.entry.repository, (client, _ref, signal) => client.tasks.abort(entry.task.id, signal));
 	}
 
-	async refreshHistory(): Promise<void> {
+	async refreshHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		this.requireAccount();
 		const signal = this.lifetime.signal;
+		const requestOptions: ApiRequestOptions | undefined = options?.background ? { priority: 'background' } : undefined;
 		await this.operations.queue(async () => {
 			await this.withClient(signal, async (client, operationSignal) => {
 				const resources = new DisposableStore();
@@ -323,7 +308,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					const history = await Promise.all(this.cachedEntries.get().map(entry => limiter.queue(async () => {
 						try {
 							historySignal.throwIfAborted();
-							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
+							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { ...requestOptions, query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
 								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
 									throw error;
 								}
@@ -334,7 +319,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 							const result: ICloudAutomationHistoryEntry[] = [];
 							for (const task of tasks?.data.tasks ?? []) {
 								const detail = ['queued', 'in_progress', 'running', 'waiting_for_user'].includes(task.state)
-									? await client.tasks.get(task.id, historySignal) : task;
+									? await client.tasks.get(task.id, historySignal, requestOptions) : task;
 								result.push({ entry, task: detail });
 							}
 							return result;
@@ -398,7 +383,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubAccountClient): Promise<void> {
+	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubAccountClient, options?: ApiRequestOptions): Promise<void> {
 		const repositories = this.readRepositories(account.accountName);
 		const errors: unknown[] = [];
 		for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
@@ -424,12 +409,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const eligible: RepositoryRef[] = [];
 		for (const [key, repository] of repositories) {
 			try {
-				if (!(await client.repositories.get(repository, signal)).private) {
+				if (!(await client.repositories.get(repository, signal, options)).private) {
 					snapshot.delete(key);
 					continue;
 				}
 				eligible.push(repository);
-				const definitions = await this.listDefinitions(client.automations, repository, signal);
+				const definitions = await this.listDefinitions(client.automations, repository, signal, options);
 				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
 			} catch (error) {
 				signal.throwIfAborted();
@@ -451,11 +436,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 	}
 
-	private async listDefinitions(api: IAutomationsClient, repository: RepositoryRef, signal: AbortSignal): Promise<readonly AutomationDetail[]> {
+	private async listDefinitions(api: IAutomationsClient, repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationDetail[]> {
 		const controller = new AbortController();
 		const operationSignal = AbortSignal.any([signal, controller.signal]);
 		try {
 			const response = await api.list(repository, operationSignal, {
+				...options,
 				query: { ownership: 'user', page: 1, per_page: 100 },
 				maxPages: 10,
 			});
@@ -463,7 +449,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			const definitions: AutomationDetail[] = [];
 			for (let offset = 0; offset < summaries.length; offset += 5) {
 				operationSignal.throwIfAborted();
-				definitions.push(...await Promise.all(summaries.slice(offset, offset + 5).map(summary => api.get(repository, summary.id, operationSignal))));
+				definitions.push(...await Promise.all(summaries.slice(offset, offset + 5).map(summary => api.get(repository, summary.id, operationSignal, options))));
 			}
 			return definitions;
 		} finally {
@@ -540,7 +526,6 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], signal: AbortSignal): void {
 		signal.throwIfAborted();
-		// Merge current references so registration during a refresh is not overwritten.
 		const known = this.readRepositories(account);
 		for (const repository of repositories) {
 			known.set(repositoryKey(repository), repository);

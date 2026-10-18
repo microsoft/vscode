@@ -1363,35 +1363,35 @@ suite('ChatListRenderer', () => {
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
 			});
+		});
 
-			suite('endsWithCompletedQuestionInteraction', () => {
-				test('resumes working progress after completed ask interactions', () => {
-					const completedTool: IChatToolInvocationSerialized = {
-						kind: 'toolInvocationSerialized',
-						toolCallId: 'ask-1',
-						toolId: 'ask_user',
-						invocationMessage: 'Waiting for answer...',
-						originMessage: undefined,
-						pastTenseMessage: undefined,
-						isComplete: true,
-						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
-						presentation: undefined,
-						source: ToolDataSource.Internal,
-					};
-					const completedQuestion: IChatQuestionCarousel = {
-						kind: 'questionCarousel',
-						questions: [],
-						allowSkip: true,
-						isUsed: true,
-					};
+		suite('endsWithCompletedQuestionInteraction', () => {
+			test('resumes working progress after completed ask interactions', () => {
+				const completedTool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'ask-1',
+					toolId: 'ask_user',
+					invocationMessage: 'Waiting for answer...',
+					originMessage: undefined,
+					pastTenseMessage: undefined,
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+				};
+				const completedQuestion: IChatQuestionCarousel = {
+					kind: 'questionCarousel',
+					questions: [],
+					allowSkip: true,
+					isUsed: true,
+				};
 
-					assert.deepStrictEqual([
-						endsWithCompletedQuestionInteraction([completedTool]),
-						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
-						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
-						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
-					], [true, true, false, false]);
-				});
+				assert.deepStrictEqual([
+					endsWithCompletedQuestionInteraction([completedTool]),
+					endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+					endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+					endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+				], [true, true, false, false]);
 			});
 		});
 	});
@@ -11421,9 +11421,12 @@ suite('ChatListRenderer', () => {
 			configurePersistentProgressTypography(container, 13);
 			container.style.width = `${width}px`;
 			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			const reducedMotionChanged = disposables.add(new Emitter<void>());
+			let motionReduced = false;
 			if (animate) {
 				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-					override isMotionReduced(): boolean { return false; }
+					override onDidChangeReducedMotion = reducedMotionChanged.event;
+					override isMotionReduced(): boolean { return motionReduced; }
 				}());
 			}
 			const saveAction = instantiationService.createInstance(MenuItemAction, {
@@ -11522,8 +11525,11 @@ suite('ChatListRenderer', () => {
 					};
 				};
 				const beforeFinish = bounds();
-				const transitionDuration = Number(clock.effect?.getTiming().duration);
-				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), Math.ceil(transitionDuration / 50) + 1, 50);
+				// The clock is paused at its end. Finish through the reveal's reduced-motion cleanup, which is the
+				// same cleanup its real-time deadline runs (covered with virtual time in chatImageReveal.test.ts).
+				motionReduced = true;
+				reducedMotionChanged.fire();
+				assert.ok(!imageReveal.classList.contains('revealing'));
 				const afterFinish = bounds();
 				assert.deepStrictEqual({
 					revealStates,

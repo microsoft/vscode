@@ -21,7 +21,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
-import { SessionIdContext } from '../../../common/contextkeys.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -186,7 +186,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 		));
 
 		this._register(autorun(reader => {
-			for (const session of sessionsService.visibleSessions.read(reader)) {
+			for (const session of sessionsService.visibleSessionPanes.read(reader)) {
 				if (!session) {
 					continue;
 				}
@@ -206,7 +206,8 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 							},
 							group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, SessionSyncChangesAction.ID),
 							order: Number.MAX_SAFE_INTEGER,
-							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId)),
+							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId),
+								SessionActiveChatResourceContext.isEqualTo(session.activeChat.read(reader).resource.toString())),
 						}));
 					}
 				}));

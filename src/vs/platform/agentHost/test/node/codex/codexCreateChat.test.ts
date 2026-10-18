@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { realTimeApi, runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -142,7 +142,9 @@ function createTestPeer(): ITestPeer {
 
 function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 	return new Promise((resolve, reject) => {
-		const timeout = setTimeout(() => {
+		// A real-time watchdog for the stream I/O, so that it does not fire
+		// prematurely when called within `runWithFakedTimers`.
+		const timeout = realTimeApi.setTimeout(() => {
 			cleanup();
 			reject(new Error('Timed out waiting for Codex request'));
 		}, 1_000);
@@ -155,7 +157,7 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 			}
 		};
 		const cleanup = () => {
-			clearTimeout(timeout);
+			realTimeApi.clearTimeout(timeout);
 			stream.off('data', onData);
 		};
 		stream.once('data', onData);
@@ -976,6 +978,8 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(event => receipts.push(event)));
 		const session = AgentSession.uri('codex', 'hook-trust-prewarm');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
@@ -993,6 +997,7 @@ suite('CodexAgent createChat', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'trusted-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
+		const announcedBacking = receipts.at(-1)?.result?.backingSession?.toString();
 		peer.push({ id: turn.id, result: {} });
 		await sending;
 		assert.deepStrictEqual({
@@ -1000,11 +1005,13 @@ suite('CodexAgent createChat', () => {
 			prewarmTrust: prewarm.params.config?.['hooks.state'],
 			trust: start.params.config?.['hooks.state'],
 			thread: turn.params.threadId,
+			announcedBacking,
 		}, {
 			methods: ['thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
 			prewarmTrust: undefined,
 			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			thread: 'trusted-thread',
+			announcedBacking: AgentSession.uri('codex', 'trusted-thread').toString(),
 		});
 	});
 
@@ -1061,6 +1068,8 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(event => receipts.push(event)));
 		const session = AgentSession.uri('codex', 'hook-trust-failed-replacement');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
@@ -1088,6 +1097,7 @@ suite('CodexAgent createChat', () => {
 		const retryStart = await readNextRequest(peer.outbound);
 		peer.push({ id: retryStart.id, result: { thread: { id: 'retry-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
+		const announcedBacking = receipts.at(-1)?.result?.backingSession?.toString();
 		peer.push({ id: turn.id, result: {} });
 		await retrying;
 
@@ -1097,12 +1107,14 @@ suite('CodexAgent createChat', () => {
 			retryTrust: retryStart.params.config?.['hooks.state'],
 			pendingTrust: entry.pendingHookTrustState,
 			thread: turn.params.threadId,
+			announcedBacking,
 		}, {
 			methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'thread/start', 'turn/start'],
 			initialTrust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			retryTrust: undefined,
 			pendingTrust: undefined,
 			thread: 'retry-thread',
+			announcedBacking: AgentSession.uri('codex', 'retry-thread').toString(),
 		});
 	});
 
@@ -2285,22 +2297,20 @@ suite('CodexAgent workspace conversion', () => {
 	});
 
 	for (const disconnect of [false, true]) {
-		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, async () => {
+		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = await createWorkspaceHarness();
 			const { agent, peer, session, chat, folder } = harness;
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
-				const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
-				const request = await readNextRequest(peer.outbound);
-				peer.push({ id: request.id, result: {} });
-				if (disconnect) {
-					const connection = agent['_connection'];
-					assert.ok(connection.kind === 'ready');
-					agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
-				}
-				await rejected;
-			});
-		});
+			const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
+			const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
+			const request = await readNextRequest(peer.outbound);
+			peer.push({ id: request.id, result: {} });
+			if (disconnect) {
+				const connection = agent['_connection'];
+				assert.ok(connection.kind === 'ready');
+				agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
+			}
+			await rejected;
+		}));
 	}
 
 	test('chat isolation rethrows a definitive Codex rejection instead of signaling quarantine', async () => {
@@ -2595,19 +2605,17 @@ suite('CodexAgent workspace conversion', () => {
 		}
 	});
 
-	test('bounds a queued update that never publishes applied settings', async () => {
+	test('bounds a queued update that never publishes applied settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { agent, peer, session, chat, scratch, folder, entry } = await createWorkspaceHarness();
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const changing = agent.setWorkingDirectory(chat, session, folder);
-			const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
-			const request = await readNextRequest(peer.outbound);
-			peer.push({ id: request.id, result: {} });
-			await rejected;
-		});
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		await rejected;
 		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, pending: agent['_workingDirectoryMutations'].has(entry), needsResume: entry.needsResume }, {
 			cwd: scratch.fsPath, pending: false, needsResume: true,
 		});
-	});
+	}));
 
 	for (const refreshFailure of [false, true]) {
 		test(`reports the applied cwd after ${refreshFailure ? 'a refresh failure' : 'Codex applies a different directory'}`, async () => {
@@ -4754,6 +4762,7 @@ suite('CodexAgent chat backing durability', () => {
 				threadId: 'codex-thread',
 				turn: {
 					id: 'app-turn-1',
+					rootTurnId: null,
 					items: [],
 					itemsView: 'full',
 					status: 'inProgress',

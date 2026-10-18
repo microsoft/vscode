@@ -9,15 +9,17 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
-import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { IActionsClient, ListWorkflowRunsOptions, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
+import { IChecksClient } from '../../../github/common/core/checks.js';
+import { GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationApi, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { createTestGitHubService } from './testGitHubService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
+import { createTestGitHubService, createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState, withAgentMergeFolderControllerState } from '../../common/agentMerge.js';
@@ -55,6 +57,18 @@ suite('Agent Merge workflow reruns', () => {
 			}
 		});
 	}
+
+	test('retains one typed client while monitoring and releases it when stopped', () => withController(async h => {
+		const context = h.controller.getTurnContext(h.session);
+		assert.ok(context);
+		await h.tools.readFailedCI(h.session);
+		await h.tools.readFailedCI(h.session);
+		await h.controller.setEnabled(h.session, false);
+		assert.deepStrictEqual({
+			acquired: h.apiAcquisitions, disposed: h.apiDisposals,
+			cancelled: context.signal.aborted, active: h.controller.getTurnContext(h.session) !== undefined,
+		}, { acquired: 1, disposed: 1, cancelled: true, active: false });
+	}));
 
 	test('starts CI repair and accepts a fixed head while sibling jobs are still running', () => withController(async h => {
 		const prompt = parseAgentMergePrompt(h.prompts[0]);
@@ -94,21 +108,30 @@ suite('Agent Merge workflow reruns', () => {
 
 		assert.deepStrictEqual({
 			outcome: JSON.parse(result).outcome,
+			run: JSON.parse(result).run,
 			whileWaiting,
 			afterRerun: h.controllerState(),
 			prompts: h.prompts.length,
 			reruns: h.mutations.reruns.map(({ runId, expectedRunAttempt, failedJobsOnly }) => ({ runId, expectedRunAttempt, failedJobsOnly })),
+			priorities: [...new Set(h.mutations.runOptions.map(options => options?.priority))],
 		}, {
 			outcome: 'deferred',
+			run: {
+				id: '1', name: 'CI', event: 'push', status: 'IN_PROGRESS',
+				headSha: 'head', runAttempt: 1, runAttemptKnown: true,
+				url: 'https://github.com/owner/repo/actions/runs/1',
+				createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+			},
 			whileWaiting: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
 			afterRerun: { enabled: true, totalPromptCount: 1, repeatedPromptCount: 0 },
 			prompts: 1,
 			reruns: [{ runId: '1', expectedRunAttempt: 1, failedJobsOnly: true }],
+			priorities: [undefined, 'background'],
 		});
 	}));
 
 	test('suppresses a newly deferred failure during the same turn without revoking its rerun authorization', () => withController(async h => {
-		h.mutations.jobs = [{ id: 'mac-job', checkRunId: 'mac', runId: '1', name: 'macOS', conclusion: 'FAILURE' }];
+		h.mutations.jobs = [createTestWorkflowJob(101, { name: 'macOS', check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/1001' })];
 		await h.tools.rerunFailedWorkflow(h.session, '1', true);
 		const details = await h.tools.readFailedCI(h.session);
 		const repeated = await h.tools.rerunFailedWorkflow(h.session, '1', true);
@@ -147,7 +170,7 @@ suite('Agent Merge workflow reruns', () => {
 			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
 			check('windows', 'Windows', 'COMPLETED', 'FAILURE', '2'),
 		]), undefined);
-		h.mutations.runs.push({ id: '2', name: 'Windows CI', headSha: 'head', runAttempt: 1, status: 'IN_PROGRESS' });
+		h.mutations.runs.push(createTestWorkflowRun(2, { name: 'Windows CI', status: 'in_progress' }));
 		await timeout(31_000);
 
 		await assert.rejects(h.tools.rerunFailedWorkflow(h.session, '1', true), /not associated with a failed required check/);
@@ -163,8 +186,8 @@ suite('Agent Merge workflow reruns', () => {
 			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
 		]), undefined);
 		h.mutations.jobs = [
-			{ id: 'mac-job', checkRunId: 'mac', runId: '1', name: 'macOS', conclusion: 'FAILURE' },
-			{ id: 'windows-job', checkRunId: 'windows', runId: '1', name: 'Windows', conclusion: 'FAILURE' },
+			createTestWorkflowJob(101, { name: 'macOS', check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/1001' }),
+			createTestWorkflowJob(102, { name: 'Windows', check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/1002' }),
 		];
 		await timeout(31_000);
 		await h.tools.readFailedCI(h.session);
@@ -180,8 +203,8 @@ suite('Agent Merge workflow reruns', () => {
 			state: h.controllerState(),
 		}, {
 			failures: [['macOS'], ['Windows']],
-			annotationIds: ['windows'],
-			logIds: ['windows-job'],
+			annotationIds: ['1002'],
+			logIds: ['102'],
 			reruns: [],
 			state: { enabled: true, totalPromptCount: 2, repeatedPromptCount: 0 },
 		});
@@ -253,7 +276,7 @@ suite('Agent Merge workflow reruns', () => {
 	test('distinguishes a missing workflow from a completed successful workflow', () => withController(async h => {
 		h.mutations.runs = [];
 		await assert.rejects(h.tools.rerunFailedWorkflow(h.session, '1', true), /no longer available for this pull request head/);
-		h.mutations.runs = [{ id: '1', name: 'CI', headSha: 'head', runAttempt: 1, status: 'COMPLETED', conclusion: 'SUCCESS' }];
+		h.mutations.runs = [createTestWorkflowRun(1, { status: 'completed', conclusion: 'success' })];
 		await assert.rejects(h.tools.rerunFailedWorkflow(h.session, '1', true), /no longer has a failed conclusion/);
 	}));
 
@@ -303,7 +326,7 @@ suite('Agent Merge workflow reruns', () => {
 	test('does not rerun an attempt already retried elsewhere and handles new failures of the same name', () => withController(async h => {
 		await h.tools.rerunFailedWorkflow(h.session, '1', true);
 		await h.completeTurn();
-		h.mutations.runs = [{ ...h.mutations.runs[0], runAttempt: 2, status: 'COMPLETED', conclusion: 'FAILURE' }];
+		h.mutations.runs = [{ ...h.mutations.runs[0], run_attempt: 2, status: 'COMPLETED', conclusion: 'FAILURE' }];
 		h.controller.refresh();
 		await timeout(1);
 		const beforeCheckRefresh = { reruns: [...h.mutations.reruns], prompts: h.prompts.length };
@@ -505,6 +528,8 @@ class RerunTestHarness extends Disposable {
 	readonly controller: AgentMergeController;
 	readonly tools: AgentMergeTools;
 	readonly client: IGitHubClient;
+	apiAcquisitions = 0;
+	apiDisposals = 0;
 	readonly gitStateService: IAgentHostGitStateService = new class extends mock<IAgentHostGitStateService>() {
 		override readonly onDidRefreshSessionGitState = Event.None;
 		override readonly onDidChangeSessionGitHubState = Event.None;
@@ -568,6 +593,14 @@ class RerunTestHarness extends Disposable {
 				}
 			}();
 		}();
+		const gitHubService = createTestGitHubService(this.client);
+		gitHubService.acquireRepositoryApiClient = () => {
+			this.apiAcquisitions++;
+			return upcastPartial<IGitHubAccountClient>({
+				actions: mutations.actions, checks: mutations.checks,
+				dispose: () => { this.apiDisposals++; },
+			});
+		};
 		this.controller = this._register(new AgentMergeController(
 			{
 				startTurn: (chat, turnId, prompt) => {
@@ -592,7 +625,7 @@ class RerunTestHarness extends Disposable {
 			this.configurationService,
 			this.gitStateService,
 			this.gitService,
-			createTestGitHubService(this.client),
+			gitHubService,
 			this._register(new AgentHostGitHubEndpointService(this.configurationService, this.logService)),
 			new class extends mock<IAgentHostProviderService>() {
 				override getProviderForSession(): undefined { return undefined; }
@@ -622,9 +655,10 @@ class RerunTestHarness extends Disposable {
 	}
 }
 
-class TestMutations extends mock<IPullRequestMutations>() {
-	runs: GitHubWorkflowRun[] = [{ id: '1', name: 'CI', headSha: 'head', runAttempt: 1, status: 'IN_PROGRESS' }];
-	jobs: GitHubWorkflowJob[] = [];
+class TestMutations extends mock<PullRequestMutationApi>() {
+	readonly runOptions: (ListWorkflowRunsOptions | undefined)[] = [];
+	runs: WorkflowRun[] = [createTestWorkflowRun(1, { status: 'in_progress', conclusion: null })];
+	jobs: WorkflowJob[] = [];
 	readonly reruns: GitHubWorkflowRerunOptions[] = [];
 	readonly annotationIds: string[] = [];
 	readonly logIds: string[] = [];
@@ -632,10 +666,20 @@ class TestMutations extends mock<IPullRequestMutations>() {
 	rerunError: Error | undefined;
 	rerunResult: PullRequestMutationResult<GitHubWorkflowRun> = { outcome: 'succeeded' };
 
-	override async listWorkflowRuns(): Promise<readonly GitHubWorkflowRun[]> {
-		await this.beforeList?.();
-		return this.runs;
-	}
+	readonly actions = upcastPartial<IActionsClient>({
+		listRuns: async (_repository, _signal, options) => {
+			this.runOptions.push(options);
+			await this.beforeList?.();
+			return { total_count: this.runs.length, workflow_runs: this.runs };
+		},
+		listJobsForAttempt: async () => ({ total_count: this.jobs.length, jobs: this.jobs }),
+	});
+	readonly checks = upcastPartial<IChecksClient>({
+		listAnnotations: async (_repository, id) => {
+			this.annotationIds.push(String(id));
+			return [];
+		},
+	});
 
 	override async rerunWorkflow(_ref: PullRequestRef, options: GitHubWorkflowRerunOptions): Promise<PullRequestMutationResult<GitHubWorkflowRun>> {
 		this.reruns.push(options);
@@ -645,15 +689,6 @@ class TestMutations extends mock<IPullRequestMutations>() {
 		return this.rerunResult;
 	}
 
-	override async listCheckAnnotations(_ref: PullRequestRef, id: string) {
-		this.annotationIds.push(id);
-		return [];
-	}
-
-	override async listWorkflowJobs(): Promise<readonly GitHubWorkflowJob[]> {
-		return this.jobs;
-	}
-
 	override async downloadWorkflowJobLog(_ref: PullRequestRef, id: string) {
 		this.logIds.push(id);
 		return { text: 'failure details', truncated: false };
@@ -661,7 +696,10 @@ class TestMutations extends mock<IPullRequestMutations>() {
 }
 
 function check(id: string, name: string, status: string, conclusion?: string, runId = '1'): PullRequestCheck {
-	return { id, name, type: 'checkRun', required: true, status, conclusion, detailsUrl: `https://github.com/octo/repo/actions/runs/${runId}/job/${id}` };
+	const numericIds = new Map([['mac', '1001'], ['windows', '1002'], ['other-workflow', '1003'], ['fixed', '1004'], ['new', '1005'], ['mac-attempt-2', '1006']]);
+	const numericId = numericIds.get(id);
+	assert.ok(numericId, `Missing numeric check ID for ${id}`);
+	return { id: numericId, name, type: 'checkRun', required: true, status, conclusion, detailsUrl: `https://github.com/octo/repo/actions/runs/${runId}/job/${numericId}` };
 }
 
 function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): PullRequestSnapshot {

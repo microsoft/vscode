@@ -10,19 +10,42 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
+import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents the session working set while preserving existing editor guidance', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true);
+		assert.deepStrictEqual({
+			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
+			disclosure: help.includes('Enter or Space to expand or collapse it'),
+			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+			editorNavigation: help.includes('Navigate between edits in the editor'),
+			editorSignals: help.includes('accessibility.signals.editsKept'),
+		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+	});
+
+	test('does not describe the editor working set on other chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+	});
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment'),
-				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
+				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
 				keyboard: help.includes('Enter or Space to enable or disable sharing'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
+				setting: type !== 'inlineChat' && type !== 'quickChat',
 				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
@@ -491,8 +514,22 @@ suite('Chat Accessibility Help', () => {
 			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Ask Question'),
 			regularWindow: getAccessibilityHelpText('agentView', keybindingService, true, false).includes('Ask Question'),
 		}, {
-			sessionsWindow: true,
+			sessionsWindow: isResponseSelectionSupported(),
 			regularWindow: false,
+		});
+	});
+
+	test('omits mobile-web selection pop-up help without hiding other sessions help', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, isResponseSelectionSupported({ isWeb: true, isMobile: true }));
+
+		assert.deepStrictEqual({
+			selectionPopUp: help.includes('Ask Question'),
+			requestOrigin: help.includes('Some requests include a source chat button'),
+			sessionResults: help.includes('Completed create-session, create-chat, and send-message operations'),
+		}, {
+			selectionPopUp: false,
+			requestOrigin: true,
+			sessionResults: true,
 		});
 	});
 
@@ -541,20 +578,20 @@ suite('Chat Accessibility Help', () => {
 			agentView: true,
 			panelChat: false,
 		});
+	});
 
-		test('only documents customization migration entry points in panel chat', () => {
-			const keybindingService = new MockKeybindingService();
-			const expectedText = 'notice above the new-chat input';
+	test('only documents customization migration entry points in panel chat', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'notice above the new-chat input';
 
-			assert.deepStrictEqual({
-				panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
-				quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
-				agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
-			}, {
-				panelChat: true,
-				quickChat: false,
-				agentView: false,
-			});
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+		}, {
+			panelChat: true,
+			quickChat: false,
+			agentView: false,
 		});
 	});
 
