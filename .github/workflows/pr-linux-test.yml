@@ -323,7 +323,7 @@ jobs:
           mkdir -p .build/flush
           run() { # <label> <runs>
             for r in $(seq 1 "$2"); do
-              npx mocha test/unit/node/index.js --delay --ui=tdd --exit --run "$FILE" > ".build/flush/$1-$r.log" 2>&1
+              timeout 25m npx mocha test/unit/node/index.js --delay --ui=tdd --exit --run "$FILE" > ".build/flush/$1-$r.log" 2>&1
               echo "[$1] run $r: $(grep -Eo '[0-9]+ (passing|failing)' ".build/flush/$1-$r.log" | tr '\n' ' ')"
             done
           }
@@ -336,12 +336,16 @@ jobs:
             echo "Slowest iterations ($1):"
             cat .build/flush/$1-*.log | grep -Eo "\[budget-[0-9]+s\] #[0-9]+ \([0-9]+ms\)" | sort -t'(' -k2 -n | tail -8
           }
-          run quiet 3
-          ( while true; do dd if=/dev/zero of="$TMP/flush-io-load" bs=1M count=256 conv=fsync status=none; done ) &
-          LOAD=$!
-          run ioload 3
-          kill $LOAD; rm -f "$TMP/flush-io-load"
-          summarize quiet; summarize ioload
+          run quiet 1
+          # Heavy disk contention: 4 writers doing direct I/O with fsync on the tmpdir disk.
+          LOADS=()
+          for w in 1 2 3 4; do
+            ( while true; do dd if=/dev/zero of="$TMP/flush-io-load-$w" bs=4M count=128 oflag=direct conv=fsync status=none; done ) &
+            LOADS+=($!)
+          done
+          FLAKE_ITERATIONS=150 run heavyio 2
+          kill "${LOADS[@]}"; rm -f "$TMP"/flush-io-load-*
+          summarize quiet; summarize heavyio
           sudo apt-get install -y -qq strace > /dev/null 2>&1
           FLAKE_ITERATIONS=1 strace -f -c -e trace=fsync,fdatasync -o .build/flush/strace.txt npx mocha test/unit/node/index.js --delay --ui=tdd --exit --run "$FILE" > .build/flush/strace-run.log 2>&1
           echo "fsync syscalls for ONE iteration of each budget variant:"; cat .build/flush/strace.txt
