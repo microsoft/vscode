@@ -3818,6 +3818,10 @@ suite('CopilotAgent', () => {
 			});
 			const untrusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [], trustedAuthority: true },
+			});
+			const authorityTrusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
 				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(trustedAlias).toString()] },
 			});
 			const trusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
@@ -3852,6 +3856,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				missingTrustConfig: !!missingTrustConfig.launch,
 				untrusted: !!untrusted.launch,
+				authorityTrusted: !!authorityTrusted.launch,
 				trusted: !!trusted.launch,
 				escaped: !!escaped.launch,
 				revokedDuringResolution: !!revokedDuringResolution.launch,
@@ -3860,6 +3865,7 @@ suite('CopilotAgent', () => {
 			}, {
 				missingTrustConfig: false,
 				untrusted: false,
+				authorityTrusted: true,
 				trusted: true,
 				escaped: false,
 				revokedDuringResolution: false,

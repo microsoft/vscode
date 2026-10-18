@@ -207,17 +207,11 @@ session = await joinSession({
 });
 `, 'utf8');
 
-		const setCanvasConfig = async (canvasesEnabled: boolean, workspaceTrust: unknown, clientSeq: number) => {
+		const setRootConfig = async (config: Record<string, unknown>, clientSeq: number, replace = false) => {
 			client.dispatch({
 				channel: ROOT_STATE_URI,
 				clientSeq,
-				action: {
-					type: ActionType.RootConfigChanged,
-					config: {
-						[AgentHostCanvasesEnabledConfigKey]: canvasesEnabled,
-						[AgentHostWorkspaceTrustConfigKey]: workspaceTrust,
-					},
-				},
+				action: { type: ActionType.RootConfigChanged, config, ...(replace ? { replace } : {}) },
 			});
 			await client.waitForNotification(n =>
 				isActionNotification(n, ActionType.RootConfigChanged)
@@ -238,9 +232,9 @@ session = await joinSession({
 					const rootConfig = (result.snapshot!.state as RootState).config?.values;
 					previousCanvasesEnabled = rootConfig?.[AgentHostCanvasesEnabledConfigKey] === true;
 					previousWorkspaceTrust = rootConfig?.[AgentHostWorkspaceTrustConfigKey];
-					await setCanvasConfig(true, {
-						enabled: true,
-						trustedUris: [URI.file(workspaceDir).toString()],
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
 					}, 1);
 				},
 			);
@@ -324,7 +318,15 @@ session = await joinSession({
 			});
 		} finally {
 			if (previousCanvasesEnabled !== undefined) {
-				await setCanvasConfig(previousCanvasesEnabled, previousWorkspaceTrust, 3);
+				const currentState = (await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI })).snapshot!.state as RootState;
+				const config = { ...currentState.config?.values };
+				config[AgentHostCanvasesEnabledConfigKey] = previousCanvasesEnabled;
+				if (previousWorkspaceTrust === undefined) {
+					delete config[AgentHostWorkspaceTrustConfigKey];
+				} else {
+					config[AgentHostWorkspaceTrustConfigKey] = previousWorkspaceTrust;
+				}
+				await setRootConfig(config, 3, true);
 			}
 		}
 	});

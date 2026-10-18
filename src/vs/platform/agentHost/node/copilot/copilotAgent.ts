@@ -2215,7 +2215,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return undefined;
 			}
 		}));
-		if (!structuralEquals(trust, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey))) {
+		const currentTrust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
+		if (!currentTrust) {
+			return false;
+		}
+		if (!currentTrust.enabled) {
+			return true;
+		}
+		if (!structuralEquals(trust, currentTrust)) {
 			return false;
 		}
 		return canonicalTrustedUris.some(uri => uri && extUriBiasedIgnorePathCase.isEqualOrParent(resource, uri));
