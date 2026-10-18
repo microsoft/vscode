@@ -23,6 +23,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
@@ -116,6 +117,8 @@ const REPLAY_BUFFER_CAPACITY = 1000;
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
 
 const CLIENT_ACTION_ACKNOWLEDGEMENT_TIMEOUT = 30_000;
+
+const readOnlyConnectionMessage = localize('agentHost.readOnlyConnection', "This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.");
 
 /** Client actions whose state transition has no corresponding host-side behavior. */
 const UNSUPPORTED_CLIENT_ACTION_TYPES: ReadonlySet<ActionType> = new Set([
@@ -2281,7 +2284,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		authenticate: async (_client, params) => {
 			if (this._config.scopedRelayCredentials) {
 				if (_client.transport.relayPassive && params.resource !== _client.transport.relayAuthentication?.resource) {
-					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Passive relay clients can only authenticate their identity');
+					throw new ProtocolError(AhpErrorCodes.PermissionDenied, readOnlyConnectionMessage);
 				}
 				const result = await this._agentService.authenticate(params, this._getScopedAuthentication(_client));
 				const identity = _client.transport.relayAuthentication;
@@ -2448,7 +2451,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns',
 			'resourceList', 'resourceRead', 'resourceResolve',
 		]).has(method) && (handler || client.transport.relayClientId === undefined || !this._config.extension?.requests.get(method)?.readOnly)) {
-			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, 'Passive relay connections cannot mutate state'));
+			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage));
 			return;
 		}
 		if (this._config.relayRoots && method !== 'createSession' && requiresRelayAuthentication(method, params)) {
@@ -2551,7 +2554,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			|| (client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged && client.transport.relayAuthentication?.authenticated !== true)) {
 			rejection = 'Relay identity authentication is required';
 		} else if (client.transport.relayPassive) {
-			rejection = 'Passive relay connections cannot mutate state';
+			rejection = readOnlyConnectionMessage;
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
 		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
@@ -3044,7 +3047,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _requireRelayMutation(client: IConnectedClient): void {
 		if (this._config.relayRoots && client.transport.relayPassive !== false) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Passive relay connections cannot mutate sessions');
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage);
 		}
 	}
 

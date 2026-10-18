@@ -2300,14 +2300,19 @@ suite('ProtocolServerHandler', () => {
 		const result = (message: ProtocolMessage) => hasKey(message, { result: true }) ? message.result : undefined;
 		assert.deepStrictEqual({
 			mismatch: errorCode(findResponse(mismatch.sent, 1)),
-			passive: errorCode(await passiveResult),
+			passive: await passiveResult,
 			outside: errorCode(await outsideResult),
 			created: result(await created),
 			listed: result(await listed),
 			configs: agentService.createSessionConfigs.length,
 		}, {
 			mismatch: JsonRpcErrorCodes.InvalidParams,
-			passive: JsonRpcErrorCodes.InvalidRequest,
+			passive: {
+				jsonrpc: '2.0', id: 2, error: {
+					code: JsonRpcErrorCodes.InvalidRequest,
+					message: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				},
+			},
 			outside: JsonRpcErrorCodes.InvalidParams,
 			created: null,
 			listed: { items: [] },
@@ -6174,9 +6179,48 @@ suite('ProtocolServerHandler', () => {
 			response: findResponse(transport.sent, 2), reason: envelope.rejectionReason, activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, result: { serverSeq: envelope.serverSeq } },
-			reason: 'Passive relay connections cannot mutate state', activeClients: [],
+			reason: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.', activeClients: [],
 		});
 	});
+
+	for (const requestForm of [false, true]) {
+		test(`${requestForm ? 'request' : 'notification'}-form message dispatch explains read-only access without starting a turn`, async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'read-only-client', true));
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'read-only-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [defaultChatUri],
+			}));
+			await handler.whenIdle();
+			transport.sent.length = 0;
+			const chat = stateManager.getChatState(defaultChatUri);
+			const params = {
+				channel: defaultChatUri, clientSeq: 1, action: {
+					type: ActionType.ChatTurnStarted, turnId: 'read-only-turn', startedAt: '2026-10-18T00:00:00.000Z',
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				},
+			};
+			transport.simulateMessage(requestForm ? request(2, 'dispatchAction', params) : notification('dispatchAction', params));
+			await handler.whenIdle();
+			const envelopes = findNotifications(transport.sent, 'action').map(message => message.params as ActionEnvelope);
+			assert.deepStrictEqual({
+				rejections: envelopes.map(envelope => ({
+					channel: envelope.channel, action: envelope.action.type, reason: envelope.rejectionReason,
+				})),
+				response: findResponse(transport.sent, 2),
+				chat: stateManager.getChatState(defaultChatUri),
+				handledActions: agentService.handledActions,
+			}, {
+				rejections: [{
+					channel: defaultChatUri, action: ActionType.ChatTurnStarted,
+					reason: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				}],
+				response: requestForm ? { jsonrpc: '2.0', id: 2, result: { serverSeq: envelopes[0].serverSeq } } : undefined,
+				chat,
+				handledActions: [],
+			});
+		});
+	}
 
 	test('request-form dispatch stops waiting and releases acknowledgement listeners on disconnect', async () => {
 		stateManager.createSession(makeSessionSummary());
