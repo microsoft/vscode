@@ -5,11 +5,14 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { spy, stub } from 'sinon';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -29,17 +32,19 @@ import { ITelemetryService, type ITelemetryData } from '../../../../telemetry/co
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { PluginFormat, type IParsedPlugin } from '../../../../agentPlugins/common/pluginParsers.js';
 import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
-import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
+import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, fixedChatOwnerRef } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, type StringOrMarkdown } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
+import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
-import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
@@ -55,16 +60,21 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
+import { CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT } from '../../../node/codex/codexTerminalOutput.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { ConfigEdit } from '../../../node/codex/protocol/generated/v2/ConfigEdit.js';
 import type { TurnStartParams } from '../../../node/codex/protocol/generated/v2/TurnStartParams.js';
+import type { ThreadItem } from '../../../node/codex/protocol/generated/v2/ThreadItem.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
+import { mintedTestChatStorage, requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
+import { createTestChatOwnershipService } from '../chatOwnershipTestUtils.js';
+import { TestChatOwnerRef } from '../agentChatContextTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../../node/agentHostChatOwnershipService.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -199,7 +209,6 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 
 interface ICreateAgentOptions {
 	readonly telemetryService?: ITelemetryService;
-	readonly multiRootEnabled?: boolean;
 	readonly sessionConfig?: Readonly<Record<string, boolean | string | readonly string[]>>;
 	readonly database?: TestSessionDatabase;
 	readonly checkpointService?: IAgentHostCheckpointService;
@@ -253,6 +262,13 @@ class TestCodexConfigurationService extends AgentConfigurationService {
 	override getSessionConfigValues(): Record<string, unknown> | undefined {
 		return this.sessionConfig ? { ...this.sessionConfig } : undefined;
 	}
+
+	/** A chat's own values, applied over the session's for that chat. */
+	readonly chatConfig = new Map<string, Readonly<Record<string, boolean | string | readonly string[]>>>();
+
+	override getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined {
+		return this.sessionConfig ? { ...this.sessionConfig, ...this.chatConfig.get(target.chat) } : undefined;
+	}
 }
 
 async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: ICreateAgentOptions = {}): Promise<CodexAgent> {
@@ -263,18 +279,20 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new TestCodexConfigurationService(stateManager, logService, options.sessionConfig));
-	configurationService.updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: options.multiRootEnabled });
 	instantiationService.stub(ISessionDataService, createSessionDataService(options.database));
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
+		hostPluginsPath: URI.file('/plugins/.host'),
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostStateManager, stateManager);
+	instantiationService.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	instantiationService.stub(IAgentHostCustomizationEnablementService, options.customizationEnablementService ?? createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -293,7 +311,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();
@@ -309,8 +326,9 @@ function chatOf(session: URI, chatId: string): URI {
 	return URI.parse(buildChatUri(session, chatId));
 }
 
+/** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function chatContext(session: URI, chat: URI): IAgentChatContext {
-	return { configurationResource: session, resource: chat };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
 /**
@@ -323,7 +341,7 @@ async function createSession(agent: CodexAgent, options: IAgentCreateChatOptions
 	const { session: requestedSession, ...chatOptions } = options;
 	const session = requestedSession ?? AgentSession.uri(agent.id, generateUuid());
 	const chat = defaultChatOf(session);
-	const result = await agent.chats.createChat(chat, { configurationResource: session, resource: chat }, { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
+	const result = await agent.chats.createChat(chat, chatContext(session, chat), { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
 	return { ...result, session };
 }
 
@@ -533,7 +551,7 @@ suite('CodexAgent prewarm eviction', () => {
 			agent['_fileService'].createFile(vscodeGeneratedRollout, VSBuffer.fromString('{"type":"session_meta","payload":{}}\n')),
 		]);
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent['_listCodexChats']('discovery');
 		const request = await readNextRequest(peer.outbound);
 		peer.push({
 			id: request.id,
@@ -550,7 +568,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const chats = await listing;
 		assert.ok(chats);
 		assert.deepStrictEqual(chats.map(chat => ({
-			id: AgentSession.id(parseChatUri(chat.chat)!.session),
+			id: AgentSession.id(requireMintedTestChatOwner(chat.chat)),
 			workspaceless: readSessionWorkspaceless(chat._meta),
 			workingDirectories: chat.workingDirectories?.map(directory => directory.fsPath),
 		})), [
@@ -585,7 +603,7 @@ suite('CodexAgent prewarm eviction', () => {
 			return null;
 		};
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent['_listCodexChats']('discovery');
 		const request = await readNextRequest(peer.outbound);
 		peer.push({
 			id: request.id,
@@ -654,6 +672,50 @@ suite('CodexAgent prewarm eviction', () => {
 		}]);
 	});
 
+	test('a chat that changes owner withdraws its MCP customizations from its previous owner and publishes them to its new one', async () => {
+		const agent = await createAgent(disposables);
+		const signals: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')] });
+		const second = AgentSession.uri('codex', 'mcp-second-owner');
+		const runtime = agent['_sessions'].get(AgentSession.id(session))!;
+		const owner = disposables.add(new TestChatOwnerRef(session));
+		runtime.owner = owner;
+		// A publisher with no running servers: only its published customizations are observed.
+		runtime.mcpController = { runtimeStates: { get: () => new Map() }, applyAll: () => { }, dispose: () => { } } as unknown as McpCustomizationController;
+		const mcpServer = (id: string) => ({ type: ActionType.SessionCustomizationUpdated, customization: { type: CustomizationType.McpServer, id, name: id, uri: `mcp:${id}`, state: { kind: McpServerStatus.Starting } } }) as const;
+
+		agent['_emitMcpCustomizationAction'](runtime, mcpServer('before'));
+		owner.set(second);
+		agent['_emitMcpCustomizationAction'](runtime, mcpServer('after'));
+		// As when the runtime is disposed.
+		runtime.disposed = true;
+		agent['_releaseMcpPublisher'](runtime);
+		runtime.disposed = false;
+
+		assert.deepStrictEqual({
+			published: signals.map(signal => {
+				if (signal.kind !== 'action') {
+					return undefined;
+				}
+				const { action } = signal;
+				const id = action.type === ActionType.SessionCustomizationRemoved ? action.id : action.type === ActionType.SessionCustomizationUpdated ? action.customization.id : undefined;
+				return `${signal.resource.toString()} ${action.type} ${id}`;
+			}),
+			publishers: agent['_mcpPublisherSessionIdByConfiguration'].size,
+			publishedIds: agent['_publishedMcpTopLevelIdsByConfiguration'].size,
+		}, {
+			published: [
+				`${session.toString()} ${ActionType.SessionCustomizationUpdated} before`,
+				`${session.toString()} ${ActionType.SessionCustomizationRemoved} before`,
+				`${second.toString()} ${ActionType.SessionCustomizationUpdated} after`,
+				`${second.toString()} ${ActionType.SessionCustomizationRemoved} after`,
+			],
+			publishers: 0,
+			publishedIds: 0,
+		});
+	});
+
 	test('shutdown clears retained runtime lookup state', async () => {
 		const agent = await createAgent(disposables);
 		const configurationResource = AgentSession.uri('codex', 'cleanup');
@@ -680,7 +742,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_pendingMcpStartupStatuses'].set('thread', []);
 		agent['_mcpAuthTokens'].set('https://example.com/mcp', 'token');
 		agent['_mcpAuthServerUrlsByResource'].set('https://example.com/', new Set(['https://example.com/mcp']));
-		agent.getOrCreateActiveClient(chat, { configurationResource, resource: chat }, { clientId: 'client' });
+		agent.getOrCreateActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(configurationResource), resource: chat }, { clientId: 'client' });
 
 		await agent.shutdown();
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -762,7 +824,7 @@ suite('CodexAgent prewarm eviction', () => {
 		} as never;
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'customizations');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-customizations' } } });
 		await creating;
@@ -796,12 +858,12 @@ suite('CodexAgent prewarm eviction', () => {
 		entry.firstTurnSent = true;
 		entry.materializedMcpSig = 'materialized-with-plugin';
 		entry.materializedCustomizationsSig = (await agent['_buildCustomizationLaunch'](entry)).signature;
-		agent.getOrCreateActiveClient(chat, { configurationResource: parent.session, resource: chat }, { clientId: 'client-1' });
+		agent.getOrCreateActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat }, { clientId: 'client-1' });
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
 
-		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
-		agent.removeActiveClient(chat, { configurationResource: parent.session, resource: chat }, 'client-1');
+		agent['_publishClientCustomizationsForConfiguration'](entry.owner.get());
+		agent.removeActiveClient(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat }, 'client-1');
 		await agent['_reconcileMaterializedCustomizations'](entry);
 		const removedWhileSiblingContributed = signals.some(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationRemoved);
 		await agent['_removeClientCustomizations'](parentEntry, 'client-1', []);
@@ -892,19 +954,20 @@ suite('CodexAgent prewarm eviction', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionCustomizationsChanged,
 			customizations: entry.clientCustomizations.toCustomizations(),
 		});
 		const chat = defaultChatOf(session);
-		const controller = new McpCustomizationController({ chatUri: chat, emit: () => { } }, stateManager);
+		const controller = new McpCustomizationController({ chatUri: chat, sessionUri: session, emit: () => { } }, stateManager);
 		entry.mcpController = controller;
 		controller.applyOne({ name: 'local', state: { kind: McpServerStatus.Ready } });
 
 		const signals: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
-		agent['_publishClientCustomizationsForConfiguration'](entry.configurationResource);
+		agent['_publishClientCustomizationsForConfiguration'](entry.owner.get());
 
 		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated
 			? [{
@@ -918,7 +981,7 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'plugin',
 				mcp: [{
 					state: McpServerStatus.Ready,
-					channel: buildMcpChannel(chat, 'local'),
+					channel: buildMcpChannel(chat, 'local', 'codex'),
 				}],
 			}]);
 	});
@@ -936,7 +999,7 @@ suite('CodexAgent prewarm eviction', () => {
 		} as never;
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'mcp-owner');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-mcp-peer' } } });
 		await creating;
@@ -954,7 +1017,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const ownerController = agent['_getOrCreateMcpController'](ownerEntry);
 		assert.ok(ownerController);
 		assert.ok(ownerEntry.chatChannel);
-		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared');
+		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared', 'codex');
 		ownerController.applyAll([{ name: 'shared', state: { kind: McpServerStatus.Ready } }]);
 		ownerEntry.disposed = true;
 		agent['_sessions'].delete(ownerEntry.sessionId);
@@ -1072,7 +1135,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'workspace-less');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'thread-peer' } } });
 		const created = await creating;
@@ -1279,7 +1342,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const chat = chatOf(parent, 'restored-history');
 		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored-history' }));
 
-		const reading = agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
+		const reading = agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent), resource: chat });
 		const read = await readNextRequest(peer.outbound);
 		assert.strictEqual(read.params.includeTurns, false);
 		peer.push({
@@ -1384,6 +1447,494 @@ suite('CodexAgent prewarm eviction', () => {
 				response: ['restored two'],
 			}],
 		});
+		peer.exit();
+	});
+
+	test('large command output is stored before its completion is published and reopens after restore', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+		const threadId = 'retained-output-thread';
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = threadId;
+		agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
+		// `turn/started` records the host turn before any of its items complete.
+		await database.createTurn('turn-1');
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+		const command = (id: string, aggregatedOutput: string | null) => ({
+			type: 'commandExecution', id,
+			command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+			source: 'agent', status: aggregatedOutput === null ? 'inProgress' : 'completed',
+			commandActions: [], aggregatedOutput, exitCode: aggregatedOutput === null ? null : 0, durationMs: null,
+		});
+		const startItem = (item: object) => agent['_dispatchByThread'](threadId, s => agent['_handleItemStarted'](s, { item, threadId, turnId: 'turn-1', startedAtMs: 0 } as never));
+		const completeItem = (item: object) => agent['_dispatchItemCompleted']({ item, threadId, turnId: 'turn-1', completedAtMs: 0 } as never);
+		const published: { toolCallId: string; storedSize: Promise<number | undefined>; content: unknown }[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
+				const { toolCallId, result } = signal.action;
+				published.push({ toolCallId, storedSize: database.getTerminalOutputSize(toolCallId), content: result.content });
+			}
+		}));
+
+		// An output-less sandbox pre-flight followed by its approved re-run renders as the pre-flight's tool call.
+		startItem(command('pre', null));
+		completeItem(command('pre', ''));
+		startItem(command('rerun', null));
+		completeItem(command('rerun', output));
+
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const responses: Record<string, object> = {
+			'thread/read': { thread: { id: threadId, historyMode: 'paginated', turns: [] } },
+			'thread/turns/list': {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'fetch it', text_elements: [] }] },
+						command('pre', ''),
+						command('rerun', output),
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
+			},
+		};
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+		const turns = await agent.chats.getMessages(chat, chatContext(session, chat));
+
+		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
+		const retainedContent = [
+			{ type: ToolResultContentType.Text, text: preview },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(mintedTestChatStorage(chat), session, chat, 'pre'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, preview, truncated: true },
+			},
+		];
+		const stored = await database.readTerminalOutput('pre');
+		assert.deepStrictEqual({
+			published: await Promise.all(published.map(async ({ toolCallId, storedSize, content }) => ({ toolCallId, storedSize: await storedSize, content }))),
+			restored: turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+				? { toolCallId: part.toolCall.toolCallId, content: part.toolCall.content }
+				: undefined),
+			stored: stored && VSBuffer.wrap(stored).toString(),
+		}, {
+			published: [{ toolCallId: 'pre', storedSize: output.length, content: retainedContent }],
+			restored: [{ toolCallId: 'pre', content: retainedContent }],
+			stored: output,
+		});
+		peer.exit();
+	});
+
+	test('command output retention checks character and UTF-8 byte limits before storage', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await database.createTurn('turn-1');
+		const results = [];
+		for (const [id, output] of [
+			['ascii-over', 'x'.repeat(MAX_TERMINAL_OUTPUT_BYTES + 1)],
+			['ascii-limit', 'x'.repeat(MAX_TERMINAL_OUTPUT_BYTES)],
+			['utf8-over', '\u00e9'.repeat(MAX_TERMINAL_OUTPUT_BYTES / 2 + 1)],
+			['utf8-limit', '\u00e9'.repeat(MAX_TERMINAL_OUTPUT_BYTES / 2)],
+		]) {
+			entry.mapState.itemToToolCall.set(id, { toolCallId: id, turnId: 'turn-1', toolName: 'shell', output });
+			const encode = spy(VSBuffer, 'fromString');
+			try {
+				const resource = agent['_retainCommandOutput'](entry, {
+					type: 'commandExecution', id, command: 'build', cwd: '/tmp', processId: null,
+					pluginId: null, scriptPath: null,
+					source: 'agent', status: 'completed', commandActions: [],
+					aggregatedOutput: output, exitCode: 0, durationMs: 1,
+				});
+				await agent['_pendingCommandOutputs'].get(entry)?.get(id);
+				results.push({ id, encoded: encode.calledWith(output), retained: !!resource, size: await database.getTerminalOutputSize(id) });
+			} finally {
+				encode.restore();
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ id: 'ascii-over', encoded: false, retained: false, size: undefined },
+			{ id: 'ascii-limit', encoded: true, retained: true, size: MAX_TERMINAL_OUTPUT_BYTES },
+			{ id: 'utf8-over', encoded: true, retained: false, size: undefined },
+			{ id: 'utf8-limit', encoded: true, retained: true, size: MAX_TERMINAL_OUTPUT_BYTES },
+		]);
+	});
+
+	for (const recovered of [false, true]) {
+		for (const outcome of ['stored', 'failed', 'missing turn', 'disposed'] as const) {
+			test(`command output retention preserves publication order (${recovered ? 'recovered' : 'ordinary'}, ${outcome})`, async () => {
+				const write = new DeferredPromise<void>();
+				class DelayedOutputDatabase extends TestSessionDatabase {
+					override async storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void> {
+						await write.p;
+						if (outcome === 'failed') {
+							throw new Error('Output write failed');
+						}
+						await super.storeTerminalOutput(turnId, toolCallId, content);
+					}
+				}
+				const database = new DelayedOutputDatabase();
+				const agent = await createAgent(disposables, { database });
+				const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+				const entry = agent['_sessions'].get(AgentSession.id(session))!;
+				const threadId = 'delayed-output-thread';
+				entry.threadId = threadId;
+				agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
+				if (outcome !== 'missing turn') {
+					await database.createTurn('turn-1');
+				}
+				const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+				const command: Extract<ThreadItem, { type: 'commandExecution' }> = {
+					type: 'commandExecution', id: 'cmd-delayed',
+					command: 'build', cwd: '/tmp', processId: null,
+					pluginId: null, scriptPath: null,
+					source: 'agent', status: 'inProgress',
+					commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+				};
+				agent['_dispatchByThread'](threadId, s => agent['_handleItemStarted'](s, { item: command, threadId, turnId: 'turn-1', startedAtMs: 0 }));
+				const signals: AgentSignal[] = [];
+				disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+				const completed: typeof command = { ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 };
+				if (!recovered) {
+					agent['_dispatchItemCompleted']({ item: completed, threadId, turnId: 'turn-1', completedAtMs: 1 });
+				}
+				agent['_dispatchTurnCompleted']({
+					threadId,
+					turn: {
+						id: 'turn-1', rootTurnId: null, items: recovered ? [completed] : [], itemsView: 'full',
+						status: 'completed', error: null, startedAt: null, completedAt: null, durationMs: 1,
+					},
+				});
+				agent['_fireSteeringConsumed'](entry, 'steering-1');
+				const beforeWrite = signals.length;
+				const pending = agent['_pendingChatProgress']?.get(entry);
+				if (outcome === 'disposed') {
+					await agent.chats.disposeChat(defaultChatOf(session), chatContext(session, defaultChatOf(session)));
+				}
+				await write.complete();
+				await pending;
+
+				const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+				const content = completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete ? completion.action.result.content : undefined;
+				assert.deepStrictEqual({
+					beforeWrite,
+					order: signals.map(signal => signal.kind === 'action' ? signal.action.type : signal.kind),
+					text: content?.find(part => part.type === ToolResultContentType.Text)?.text,
+					retained: content?.some(part => part.type === ToolResultContentType.Terminal),
+					warned: (agent['_logService'] as TestCodexLogService).warnings.some(warning => warning.includes('Failed to retain output')),
+				}, {
+					beforeWrite: 0,
+					order: outcome === 'disposed' ? [] : [ActionType.ChatToolCallComplete, ActionType.ChatTurnComplete, 'steering_consumed'],
+					text: outcome === 'disposed' ? undefined : outcome === 'stored' ? output.slice(0, 400) : output,
+					retained: outcome === 'disposed' ? undefined : outcome === 'stored',
+					warned: outcome === 'failed' || outcome === 'missing turn',
+				});
+			});
+		}
+	}
+
+	test('turn completion recovery retains large parent output but leaves subagent output inline', async () => {
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+		const command = {
+			type: 'commandExecution', id: 'cmd-recovered',
+			command: 'build', cwd: '/tmp', processId: null,
+			source: 'agent', status: 'inProgress',
+			commandActions: [], aggregatedOutput: null,
+			exitCode: null, durationMs: null,
+		};
+		const results = [];
+		const cases = [
+			{ retainRecoveredOutput: true, session: AgentSession.uri('codex', 'parent-recovery') },
+			{ retainRecoveredOutput: false, session: AgentSession.uri('codex', 'subagent-recovery') },
+		];
+		for (const { retainRecoveredOutput, session: requestedSession } of cases) {
+			const database = new TestSessionDatabase();
+			const agent = await createAgent(disposables, { database });
+			const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL }, session: requestedSession });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			await database.createTurn('turn-1');
+			agent['_handleItemStarted'](entry, { item: command, threadId: 'thread-1', turnId: 'turn-1', startedAtMs: 0 } as never);
+
+			const actions = agent['_handleTurnCompletedNotification'](entry, {
+				threadId: 'thread-1',
+				turn: {
+					id: 'turn-1',
+					items: [{ ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 }],
+					itemsView: { type: 'full' },
+					status: 'completed',
+					error: null,
+					startedAt: null,
+					completedAt: null,
+					durationMs: 1,
+				},
+			} as never, retainRecoveredOutput);
+
+			const completion = actions.find(action => action.type === ActionType.ChatToolCallComplete);
+			const content = completion?.type === ActionType.ChatToolCallComplete ? completion.result.content : undefined;
+			results.push({
+				retainRecoveredOutput,
+				stored: await database.getTerminalOutputSize('cmd-recovered'),
+				content: content?.map(part => {
+					if (part.type === ToolResultContentType.Text) {
+						return { type: part.type, text: part.text };
+					}
+					if (part.type === ToolResultContentType.Terminal) {
+						return { type: part.type, resource: part.resource };
+					}
+					return { type: part.type };
+				}),
+			});
+		}
+
+		assert.deepStrictEqual(results, [{
+			retainRecoveredOutput: true,
+			stored: output.length,
+			content: [
+				{ type: ToolResultContentType.Text, text: output.slice(0, 400) },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(
+						AgentSession.uri('codex', 'parent-recovery'),
+						AgentSession.uri('codex', 'parent-recovery'),
+						defaultChatOf(AgentSession.uri('codex', 'parent-recovery')),
+						'cmd-recovered',
+					),
+				},
+			],
+		}, {
+			retainRecoveredOutput: false,
+			stored: undefined,
+			content: [{ type: ToolResultContentType.Text, text: output }],
+		}]);
+	});
+
+	test('restored large command output reopens its retained terminal resource', async () => {
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+		const database = new TestSessionDatabase();
+		await database.setMetadata('codex.threadId', 'retained-history-thread');
+		await database.createTurn('host-turn');
+		const retainedIds = ['cmd-retained', 'cmd-short', 'cmd-empty', 'cmd-missing'];
+		for (const id of retainedIds) {
+			await database.storeTerminalOutput('host-turn', id, VSBuffer.fromString(output).buffer);
+		}
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'retained-history');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'retained-history' }));
+		const command = (id: string, aggregatedOutput: string | null = output) => ({
+			type: 'commandExecution', id,
+			command: `build ${id}`, cwd: '/tmp', processId: null,
+			source: 'agent', status: 'completed',
+			commandActions: [], aggregatedOutput, exitCode: 0, durationMs: 5,
+		});
+		const responses: Record<string, object> = {
+			'thread/read': { thread: { id: 'retained-history', historyMode: 'paginated', turns: [] } },
+			'thread/turns/list': {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'build it', text_elements: [] }] },
+						command('cmd-retained'),
+						command('cmd-short', 'short native output'),
+						command('cmd-empty', ''),
+						command('cmd-missing', null),
+						command('cmd-inline'),
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
+			},
+		};
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+
+		const turns = await agent.chats.getMessages(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent), resource: chat });
+
+		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
+		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
+			...retainedIds.map(id => [
+				{ type: ToolResultContentType.Text, text: preview },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(mintedTestChatStorage(chat), parent, chat, id),
+					title: 'Run shell command',
+					isPty: false,
+					result: { exitCode: 0, preview, truncated: true },
+				},
+			]),
+			// Output the database did not retain stays as the thread recorded it.
+			[{ type: ToolResultContentType.Text, text: output }],
+		]);
+		peer.exit();
+	});
+
+	test('a prewarmed thread starts through the thread-creation sequencer, keyed by its workspace roots', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const runs = spy(agent['_threadCreations'], 'run');
+		const folder = URI.file('/repo/folder');
+		const { session } = await createSession(agent, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'prewarm-thread' } } });
+		await entry.materializePromise;
+
+		// The request ran as the sequenced task: its result is what the sequencer returned.
+		assert.deepStrictEqual({
+			method: start.method,
+			roots: runs.args.map(([roots]) => roots),
+			threads: (await Promise.all(runs.returnValues) as { readonly thread: { readonly id: string } }[]).map(result => result.thread.id),
+		}, { method: 'thread/start', roots: [[folder.fsPath, folder.fsPath]], threads: ['prewarm-thread'] });
+		peer.exit();
+	});
+
+	test('a cold thread resumes through the thread-creation sequencer, keyed by its workspace roots', async () => {
+		const database = new TestSessionDatabase();
+		const repo = URI.file('/repo');
+		await database.setMetadata('codex.threadId', 'restored-thread');
+		await database.setMetadata('codex.cwd', repo.toString());
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const runs = spy(agent['_threadCreations'], 'run');
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored' }));
+
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'restored-thread', modelProvider: 'vscode-proxy' } } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: 'restored-thread', turns: [] }, runtimeWorkspaceRoots: [] } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			method: resume.method,
+			roots: runs.args.map(([roots]) => roots),
+			threads: (await Promise.all(runs.returnValues) as { readonly thread: { readonly id: string } }[]).map(result => result.thread.id),
+		}, { method: 'thread/resume', roots: [[repo.fsPath, repo.fsPath]], threads: ['restored-thread'] });
+		peer.exit();
+	});
+
+	/** Holds every thread creation in the queue, as behind another creation in its workspace root, until released. */
+	function holdThreadCreations(agent: CodexAgent) {
+		const queued = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		stub(agent['_threadCreations'], 'run').callsFake(async (_roots, task) => {
+			queued.complete();
+			await release.p;
+			return task();
+		});
+		return { queued: queued.p, release: () => release.complete() };
+	}
+
+	/** What a queued creation does once released: the request it sent to app-server first, or how it ended without one. */
+	function firstOutcome(peer: ITestPeer, settled: Promise<unknown>): Promise<string> {
+		return Promise.race([
+			readNextRequest(peer.outbound).then(request => `sent ${request.method}`, () => 'closed'),
+			settled.then(() => 'completed', error => isCancellationError(error) ? 'cancelled' : `failed: ${error}`),
+		]);
+	}
+
+	test('a thread start whose Workspace Trust changed while it was queued is cancelled, not sent with its earlier hook grants', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const held = holdThreadCreations(agent);
+		const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await held.queued;
+		const materializing = entry.materializePromise!;
+
+		agent['_configurationService'].updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } });
+		held.release();
+
+		assert.strictEqual(await firstOutcome(peer, materializing), 'cancelled');
+		peer.exit();
+	});
+
+	test('a thread resume whose Workspace Trust changed while it was queued is not sent with its earlier hook grants', async () => {
+		const database = new TestSessionDatabase();
+		await database.setMetadata('codex.threadId', 'restored-thread');
+		await database.setMetadata('codex.cwd', URI.file('/repo').toString());
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const held = holdThreadCreations(agent);
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'restored');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'restored' }));
+
+		const sending = agent.chats.sendMessage(chat, 'follow up', undefined, undefined, 'turn-1');
+		const read = await readNextRequest(peer.outbound);
+		peer.push({ id: read.id, result: { thread: { id: 'restored-thread', modelProvider: 'vscode-proxy' } } });
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		await held.queued;
+
+		agent['_configurationService'].updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } });
+		held.release();
+
+		assert.notStrictEqual(await firstOutcome(peer, sending), 'sent thread/resume');
 		peer.exit();
 	});
 
@@ -2028,6 +2579,50 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 	});
 
+	test('a workspace-less chat whose owner changed still reclaims its own managed directory when disposed', async () => {
+		const agent = await createAgent(disposables);
+		agent['_schedulePrewarm'] = () => { };
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+
+		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const later = AgentSession.uri('codex', 'later-owner');
+		const chat = chatOf(parent.session, 'moved-dispose');
+		const owner = disposables.add(new TestChatOwnerRef(parent.session));
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: chat };
+		const creating = agent.chats.createChat(chat, context, { model: { id: COPILOT_TEST_MODEL } });
+		const start = await readNextRequest(peer.outbound);
+		peer.push({ id: start.id, result: { thread: { id: 'moved-peer' } } });
+		await creating;
+		const managedDirectory = agent['_sessions'].get('moved-peer')?.managedWorkingDirectory;
+		assert.ok(managedDirectory);
+
+		// Reclaim is per runtime and configuration scope, not per owner (Block 4 refuses moving a chat in a managed folder).
+		owner.set(later);
+		const disposing = agent.chats.disposeChat(chat, context);
+		const unsubscribe = await readNextRequest(peer.outbound).catch(() => undefined);
+		if (unsubscribe) {
+			peer.push({ id: unsubscribe.id, result: {} });
+		}
+		await disposing;
+
+		assert.deepStrictEqual({
+			sessionExists: agent['_sessions'].has('moved-peer'),
+			managedDirectoryExists: fs.existsSync(managedDirectory.fsPath),
+			countedUnderAnyOwner: [...agent['_configScopeChats'].values()].some(chats => chats.has(chat.toString())),
+		}, {
+			sessionExists: false,
+			managedDirectoryExists: false,
+			countedUnderAnyOwner: false,
+		});
+		peer.exit();
+	});
+
 	test('disposing a released workspace-less peer removes its managed directory', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -2041,7 +2636,7 @@ suite('CodexAgent prewarm eviction', () => {
 
 		const parent = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const chat = chatOf(parent.session, 'release-dispose');
-		const creating = agent.chats.createChat(chat, { configurationResource: parent.session, resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
+		const creating = agent.chats.createChat(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(parent.session), resource: chat }, { model: { id: COPILOT_TEST_MODEL } });
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'released-peer' } } });
 		const created = await creating;
@@ -2068,6 +2663,39 @@ suite('CodexAgent prewarm eviction', () => {
 		});
 		peer.exit();
 	});
+
+	for (const changeModelId of [true, false]) {
+		test(`background model resolution preserves a concurrent ${changeModelId ? 'model' : 'model configuration'} change`, async () => {
+			const agent = await createAgent(disposables);
+			agent['_schedulePrewarm'] = () => { };
+			const alternateModel = toCodexModelSelectionId('vscode-proxy', 'gpt-alternate');
+			agent['_models'].set([
+				...agent.models.get(),
+				{ provider: 'codex', id: alternateModel, name: 'GPT Alternate', supportsVision: false },
+			], undefined);
+			const created = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+			const chat = defaultChatOf(created.session);
+			const context = chatContext(created.session, chat);
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const refresh = new DeferredPromise<void>();
+			agent['_modelsRefreshPromise'] = refresh.p;
+
+			// The first turn can change the selection while prewarm waits for discovery.
+			const resolving = agent['_resolveModel'](entry);
+			const selected = { id: changeModelId ? alternateModel : COPILOT_TEST_MODEL, config: { thinkingLevel: 'high' } };
+			await agent.chats.changeModel(chat, selected, context);
+			agent['_modelsRefreshPromise'] = undefined;
+			await refresh.complete();
+
+			assert.deepStrictEqual({
+				resolved: await resolving,
+				current: agent.chats.getModel?.(chat, context),
+			}, {
+				resolved: selected,
+				current: selected,
+			});
+		});
+	}
 
 	test('changing the model of an idle-released chat persists the new selection', async () => {
 		const agent = await createAgent(disposables);
@@ -2133,7 +2761,7 @@ suite('CodexAgent prewarm eviction', () => {
 				configSchema: {
 					type: 'object',
 					properties: {
-						thinkingLevel: { type: 'string', title: 'Thinking Level', enum: ['low', 'high'], default: 'low' },
+						thinkingLevel: { type: 'string', title: 'Effort Level', enum: ['low', 'high'], default: 'low' },
 						contextSize: { type: 'number', title: 'Context Size', enum: [272_000, longContextSize], default: 272_000 },
 					},
 				},
@@ -2411,7 +3039,7 @@ suite('CodexAgent prewarm eviction', () => {
 					turnAttempts: 3,
 					events: [{
 						name: 'agentHost.codexProviderSwitch',
-						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 					}],
 				});
 			} finally {
@@ -2524,7 +3152,7 @@ suite('CodexAgent prewarm eviction', () => {
 			quotaReads: 1,
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90, chatgptFiveHourQuotaState: 'missing' },
 			}],
 		});
 	});
@@ -2600,7 +3228,7 @@ suite('CodexAgent prewarm eviction', () => {
 				method: 'turn/start',
 				events: [{
 					name: 'agentHost.codexProviderSwitch',
-					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
+					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90, chatgptFiveHourQuotaState: 'missing' },
 				}],
 			});
 		} finally {
@@ -2740,7 +3368,7 @@ suite('CodexAgent prewarm eviction', () => {
 			method: 'turn/start',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 			}],
 		});
 
@@ -2997,7 +3625,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fresh multi-root start selects only existing secondary skill directories', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3053,7 +3681,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('unexpected capability-root metadata failures warn without blocking start or exposing paths', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3099,7 +3727,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('pre-first-turn replacement reevaluates selected capability roots', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3151,6 +3779,34 @@ suite('CodexAgent prewarm eviction', () => {
 				secondSelectedPaths: [repoBCodexSkills.fsPath],
 				turnMethod: 'turn/start',
 			});
+		} finally {
+			peer.exit();
+		}
+	});
+
+	test('thread start uses the chat\'s own permissions preset over the session\'s', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		agent['_refreshSkillHookCustomizations'] = async () => { };
+		const configurationService = agent['_configurationService'];
+		assert.ok(configurationService instanceof TestCodexConfigurationService);
+		const session = AgentSession.uri('codex', 'per-chat-preset');
+		configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'default' });
+		configurationService.chatConfig.set(defaultChatOf(session).toString(), { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
+
+		try {
+			await createSession(agent, { session, workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'thread-per-chat' } } });
+			await entry.materializePromise;
+			assert.deepStrictEqual({ approvalPolicy: start.params.approvalPolicy, permissions: start.params.permissions }, { approvalPolicy: 'never', permissions: ':danger-full-access' });
 		} finally {
 			peer.exit();
 		}
@@ -3220,7 +3876,6 @@ suite('CodexAgent prewarm eviction', () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'multi-root');
 		const agent = await createAgent(disposables, {
-			multiRootEnabled: true,
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory, `${additionalDirectory}${sep}`] },
 		});
 		const peer = disposables.add(createTestPeer());
@@ -3255,26 +3910,26 @@ suite('CodexAgent prewarm eviction', () => {
 				[CodexSessionConfigKey.PermissionsPreset]: 'auto-review',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test');
+			const autoReview = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.PermissionsPreset]: 'default',
 				[CodexSessionConfigKey.NetworkAccessEnabled]: true,
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const networkAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.PermissionsPreset]: 'full-access',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			entry.agentMergeTurn = true;
-			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test');
+			const agentMerge = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			entry.agentMergeTurn = false;
 			configurationService.setSessionConfig({
 				[CodexSessionConfigKey.SandboxMode]: 'read-only',
 				[CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory],
 			});
-			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 
 			assert.deepStrictEqual({
 				start: {
@@ -3365,7 +4020,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('consecutive sends replace and remove workspace roots on the existing thread', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		agent['_connection'] = {
 			kind: 'ready',
@@ -3432,7 +4087,7 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('disabled multi-root preserves the existing additional-directory payload', async () => {
+	test('reducing a multi-root workspace to one folder preserves additional writable directories', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const sessionUri = AgentSession.uri('codex', 'single-root');
 		const agent = await createAgent(disposables, {
@@ -3469,7 +4124,7 @@ suite('CodexAgent prewarm eviction', () => {
 				turnSelectedCapabilityRoots: turn.params.selectedCapabilityRoots,
 				permissions: turn.params.permissions,
 			}, {
-				startRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
+				startRuntimeWorkspaceRoots: [repoA.fsPath, repoB.fsPath, additionalDirectory],
 				startSelectedCapabilityRoots: undefined,
 				turnRuntimeWorkspaceRoots: [repoA.fsPath, additionalDirectory],
 				turnSelectedCapabilityRoots: undefined,
@@ -3480,11 +4135,10 @@ suite('CodexAgent prewarm eviction', () => {
 		}
 	});
 
-	test('enabled multi-root preserves single-folder protocol and sandbox behavior', async () => {
+	test('single-folder sessions preserve protocol and sandbox behavior', async () => {
 		const additionalDirectory = `${URI.file('/manual-write').fsPath}${sep}`;
-		const sessionUri = AgentSession.uri('codex', 'enabled-single-root');
+		const sessionUri = AgentSession.uri('codex', 'single-folder');
 		const agent = await createAgent(disposables, {
-			multiRootEnabled: true,
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
 		});
 		const peer = disposables.add(createTestPeer());
@@ -3512,9 +4166,9 @@ suite('CodexAgent prewarm eviction', () => {
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.PermissionsPreset]: 'full-access' });
-			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test');
+			const fullAccess = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.SandboxMode]: 'read-only' });
-			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test');
+			const readOnly = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 
 			assert.deepStrictEqual({
 				start: {
@@ -3561,7 +4215,7 @@ suite('CodexAgent prewarm eviction', () => {
 	});
 
 	test('fork inherits the source workspace roots instead of requested replacements', async () => {
-		const agent = await createAgent(disposables, { multiRootEnabled: true });
+		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		const client = new CodexAppServerClient(peer.transport);
 		agent['_connection'] = {
@@ -3650,7 +4304,6 @@ suite('CodexAgent prewarm eviction', () => {
 	test('fork keeps additional writable directories out of workspace state', async () => {
 		const additionalDirectory = URI.file('/manual-write').fsPath;
 		const agent = await createAgent(disposables, {
-			multiRootEnabled: true,
 			sessionConfig: { [CodexSessionConfigKey.AdditionalDirectories]: [additionalDirectory] },
 		});
 		const peer = disposables.add(createTestPeer());
@@ -3703,7 +4356,7 @@ suite('CodexAgent prewarm eviction', () => {
 			const configurationService = agent['_configurationService'];
 			assert.ok(configurationService instanceof TestCodexConfigurationService);
 			configurationService.setSessionConfig({ [CodexSessionConfigKey.AdditionalDirectories]: [] });
-			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test');
+			const afterClear = agent['_turnStartOptions'](forkedEntry, 'gpt-test', undefined, forkedEntry.owner.get());
 
 			assert.deepStrictEqual({
 				startRuntimeWorkspaceRoots: start.params.runtimeWorkspaceRoots,
@@ -3820,7 +4473,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// directory automatically once a scope's last chat is disposed, keyed
 		// by that scope's own configuration resource — so disposing the
 		// source's chat here can never read or delete the fork's directory.
-		const disposingSource = agent.chats.disposeChat(sourceChat, { configurationResource: source.session, resource: sourceChat });
+		const disposingSource = agent.chats.disposeChat(sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(source.session), resource: sourceChat });
 		const sourceUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: sourceUnsubscribe.id, result: {} });
 		await disposingSource;
@@ -3844,7 +4497,7 @@ suite('CodexAgent prewarm eviction', () => {
 		// Disposing the fork's own (only) chat drops its configuration scope's
 		// ref count to zero, so the reclaim runs inline — no separate
 		// finalize call is needed.
-		const disposingFork = agent.chats.disposeChat(forkChat, { configurationResource: forked.session, resource: forkChat });
+		const disposingFork = agent.chats.disposeChat(forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forked.session), resource: forkChat });
 		const forkUnsubscribe = await readNextRequest(peer.outbound);
 		peer.push({ id: forkUnsubscribe.id, result: {} });
 		await disposingFork;
@@ -3857,7 +4510,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const source = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
 		const entry = agent['_sessions'].get(AgentSession.id(source.session))!;
 		entry.managedWorkingDirectory = URI.file('/scratch/permissions');
-		const options = agent['_turnStartOptions'](entry, 'gpt-test');
+		const options = agent['_turnStartOptions'](entry, 'gpt-test', undefined, entry.owner.get());
 		assert.deepStrictEqual({ approvalPolicy: options.approvalPolicy, permissions: options.permissions }, {
 			approvalPolicy: 'never', permissions: ':danger-full-access',
 		});
@@ -3930,7 +4583,7 @@ suite('CodexAgent prewarm eviction', () => {
 				success: response.result?.success,
 				approvalPending: entry.pendingCommandApprovals.has('tool-1'),
 			}, {
-				confirmations: scenario.requiresConfirmation ? ['Continue in app?'] : [],
+				confirmations: scenario.requiresConfirmation ? ['Change Workspace to app?'] : [],
 				executionsBeforeApproval: scenario.requiresConfirmation ? [0] : [],
 				executions: scenario.approved === false ? [] : [{ chatUri: defaultChatOf(session).toString(), toolName: tool.name }],
 				success: scenario.approved !== false,
@@ -4009,7 +4662,7 @@ suite('CodexAgent prewarm eviction', () => {
 			forkManagedDirectory: undefined, forkDirectory: folder.fsPath, scratchExists: false,
 		});
 		for (const { chat, session } of [{ chat: sourceChat, session: source.session }, { chat: forkChat, session: forkSession }]) {
-			const disposing = agent.chats.disposeChat(chat, { configurationResource: session, resource: chat });
+			const disposing = agent.chats.disposeChat(chat, chatContext(session, chat));
 			const release = await readNextRequest(peer.outbound);
 			peer.push({ id: release.id, result: {} });
 			await disposing;
@@ -4021,7 +4674,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
-		const agentA = await createAgent(disposables, { multiRootEnabled: true, database });
+		const agentA = await createAgent(disposables, { database });
 		const peerA = disposables.add(createTestPeer());
 		agentA['_connection'] = {
 			kind: 'ready',
@@ -4046,7 +4699,6 @@ suite('CodexAgent prewarm eviction', () => {
 			const canonicalOverlay = await agentA['_metadataStore'].read(AgentSession.uri('codex', 'thread'));
 
 			const agentB = await createAgent(disposables, {
-				multiRootEnabled: true,
 				database,
 				sessionConfig: { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' },
 			});
@@ -4060,7 +4712,7 @@ suite('CodexAgent prewarm eviction', () => {
 			agentB['_refreshSkillHookCustomizations'] = async () => { };
 
 			const restoredChat = defaultChatOf(created.session);
-			const metadataPromise = agentB.getChatMetadata(restoredChat, { configurationResource: created.session, resource: restoredChat });
+			const metadataPromise = agentB.getChatMetadata(restoredChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: restoredChat });
 			const originalProbe = await readNextRequest(peerB.outbound);
 			assert.strictEqual(originalProbe.params.threadId, AgentSession.id(created.session));
 			assert.strictEqual(originalProbe.params.includeTurns, false);
@@ -4084,8 +4736,8 @@ suite('CodexAgent prewarm eviction', () => {
 			// Mirror Agent Host restore: metadata discovery identifies the cold
 			// runtime, then the chat's opaque backing re-attaches that runtime to
 			// this exact chat before any chat-addressed operation can reach it.
-			await agentB.materializeChat(restoredChat, { configurationResource: created.session, resource: restoredChat }, created.providerData);
-			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { configurationResource: created.session, resource: restoredChat });
+			await agentB.materializeChat(restoredChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: restoredChat }, created.providerData);
+			const resumedSend = agentB.chats.sendMessage(restoredChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: restoredChat });
 			const reloadUnsubscribe = await readNextRequest(peerB.outbound);
 			assert.strictEqual(reloadUnsubscribe.method, 'thread/unsubscribe');
 			peerB.push({ id: reloadUnsubscribe.id, result: {} });
@@ -4277,7 +4929,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		const session = AgentSession.uri('codex', 'desktop-thread');
 		const chat = defaultChatOf(session);
-		const context = { configurationResource: session, resource: chat };
+		const context = chatContext(session, chat);
 		const workingDirectory = URI.file('/workspace/codex');
 		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
 		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');
@@ -4425,7 +5077,7 @@ suite('CodexAgent prewarm eviction', () => {
 			threadId: 'desktop-thread',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 			}],
 		});
 		peer.exit();

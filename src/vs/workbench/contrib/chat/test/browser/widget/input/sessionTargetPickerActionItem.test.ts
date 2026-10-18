@@ -193,6 +193,28 @@ suite('SessionTypePickerActionItem', () => {
 		}), SessionTypeAvailability.Available);
 	});
 
+	test('an unknown Codex account can reach selection-time discovery without GitHub or the signed-out experiment', () => {
+		const availability = (codexAccountStatus: ICodexAccountService['account']['status'], setupAgents = ['codex']) => getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
+			requiresCopilotSignIn: true,
+			setupAgents,
+			codexAccountStatus,
+		});
+
+		assert.deepStrictEqual({
+			beforeDiscovery: availability('unknown'),
+			afterChatGPTDiscovery: availability('signedIn'),
+			afterSignedOutDiscovery: availability('signedOut'),
+			withoutSetup: availability('unknown', []),
+		}, {
+			beforeDiscovery: SessionTypeAvailability.Available,
+			afterChatGPTDiscovery: SessionTypeAvailability.Available,
+			afterSignedOutDiscovery: SessionTypeAvailability.SignInRequired,
+			withoutSetup: SessionTypeAvailability.SignInRequired,
+		});
+	});
+
 	test('a fully signed-out user still needs the signed-out experiment', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,
@@ -241,6 +263,7 @@ suite('SessionTypePickerActionItem', () => {
 			_getSelectedSessionType(): AgentSessionTarget;
 			_getDefaultSessionType(): AgentSessionTarget;
 			_reportCopilotHarnessTargetChanged(target: AgentSessionTarget): void;
+			_promptForCopilotToLocalSwitch(previousTarget: AgentSessionTarget, target: AgentSessionTarget): void;
 			readonly chatSessionsService: IChatSessionsService;
 			readonly configurationService: IConfigurationService;
 			readonly telemetryService: Pick<ITelemetryService, 'publicLog2'>;
@@ -253,6 +276,7 @@ suite('SessionTypePickerActionItem', () => {
 			_getSelectedSessionType: () => selected,
 			_getDefaultSessionType: () => AgentSessionProviders.AgentHostCopilot,
 			_reportCopilotHarnessTargetChanged: Reflect.get(SessionTypePickerActionItem.prototype, '_reportCopilotHarnessTargetChanged'),
+			_promptForCopilotToLocalSwitch: Reflect.get(SessionTypePickerActionItem.prototype, '_promptForCopilotToLocalSwitch'),
 			chatSessionsService: new class extends mock<IChatSessionsService>() {
 				override getChatSessionContribution(): undefined {
 					return undefined;
@@ -300,6 +324,49 @@ suite('SessionTypePickerActionItem', () => {
 				},
 			}],
 		});
+	});
+
+	test('prompts for feedback when switching from Copilot to Local', () => {
+		const prompts: { readonly inputUri: string; readonly context: unknown }[] = [];
+		const inputUri = URI.parse('vscode-chat-input://input-1');
+		const prompt = Reflect.get(SessionTypePickerActionItem.prototype, '_promptForCopilotToLocalSwitch') as (this: {
+			readonly chatSessionsService: IChatSessionsService;
+			readonly configurationService: IConfigurationService;
+			readonly harnessSwitchFeedbackSurveyService: { prompt(inputUri: URI, context: unknown): void };
+			readonly inputUri: URI;
+			readonly chatSessionPosition: 'sidebar' | 'editor';
+			readonly delegate: { getSessionResource(): URI };
+		}, previousTarget: AgentSessionTarget, target: AgentSessionTarget) => void;
+
+		prompt.call({
+			chatSessionsService: new class extends mock<IChatSessionsService>() {
+				override getChatSessionContribution(): undefined {
+					return undefined;
+				}
+			}(),
+			configurationService: new TestConfigurationService({
+				'chat.copilotHarnessIntroduction.mode': CopilotHarnessIntroductionMode.AfterRequest,
+			}),
+			harnessSwitchFeedbackSurveyService: {
+				prompt: (surveyInputUri, context) => prompts.push({ inputUri: surveyInputUri.toString(), context }),
+			},
+			inputUri,
+			chatSessionPosition: 'editor',
+			delegate: {
+				getSessionResource: () => URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-draft' }),
+			},
+		}, AgentSessionProviders.AgentHostCopilot, AgentSessionProviders.Local);
+
+		assert.deepStrictEqual(prompts, [{
+			inputUri: inputUri.toString(),
+			context: {
+				mode: CopilotHarnessIntroductionMode.AfterRequest,
+				surface: 'editor',
+				chatSessionId: 'agent-host-copilotcli:/untitled-draft',
+				sessionType: SessionType.AgentHostCopilot,
+				harness: undefined,
+			},
+		}]);
 	});
 
 	test('creates plain accessible text for an unavailable Codex action', () => {

@@ -18,15 +18,24 @@ export const ONBOARDING_TARGET_ATTR = 'data-onboarding-id';
 
 export const ONBOARDING_TARGET_PULSE_CLASS = 'onboarding-target-pulse';
 
+/** The keyboard focus owner when the highlighted element is not itself focusable. */
+export interface IOnboardingFocusTarget {
+	readonly element: HTMLElement;
+	focus(): void;
+}
+
 export interface IOnboardingTargetOptions {
 	/** Opens or expands the target before its spotlight step is shown. */
 	readonly open?: () => Promise<void> | void;
+	readonly focusTarget?: IOnboardingFocusTarget;
 
 	/** Whether this control already has a selected value, independent of asynchronous acceptance. */
 	readonly hasSelection?: () => boolean;
 
 	/** Reports a user selection and resolves once it is accepted or rejected. */
 	readonly onDidSelect?: Event<Promise<boolean>>;
+	/** Reports mouse, keyboard, or touch activation through the owning control. */
+	readonly onDidActivate?: Event<void>;
 	/** Identifies the prepared UI instance that owns this target. */
 	readonly scope?: string | (() => string | undefined);
 }
@@ -34,6 +43,10 @@ export interface IOnboardingTargetOptions {
 export interface IOnboardingTarget {
 	readonly element: HTMLElement;
 	readonly open?: () => Promise<void> | void;
+	readonly focusTarget?: IOnboardingFocusTarget;
+	/** Accepted selections supplied by a scoped adapter, without replacing the owner's DOM marker. */
+	readonly onDidSelect?: Event<Promise<boolean>>;
+	readonly onDidActivate?: Event<void>;
 }
 
 interface IOnboardingTargetRegistration {
@@ -67,6 +80,9 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 		}
 		return {
 			element: target.element,
+			focusTarget: target.focusTarget,
+			onDidSelect: target.onDidSelect,
+			onDidActivate: target.onDidActivate,
 			open: () => {
 				if (onboardingTargetProviders.get(id) === provider) {
 					const current = provider.resolve(scope);
@@ -79,7 +95,11 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 		};
 	}
 	const element = findOnboardingTarget(targetWindow, id, scope);
-	return element ? { element, open: () => openOnboardingTarget(element) } : undefined;
+	if (!element) {
+		return undefined;
+	}
+	const options = onboardingTargetRegistrations.get(element)?.options;
+	return { element, open: () => openOnboardingTarget(element), focusTarget: options?.focusTarget, onDidActivate: options?.onDidActivate };
 }
 
 /**

@@ -49,6 +49,14 @@ export const COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID = 'sessions.copyAgentHostChatL
 /** Focuses the active session. Registered in `sessionsActions.ts`. */
 export const FOCUS_ACTIVE_SESSION_COMMAND_ID = 'sessions.focusActiveSession';
 
+export const ARRANGE_SESSIONS_COMMAND_ID = 'sessions.arrangeSessions';
+export const SESSION_GRID_FOCUS_COMMANDS = {
+	left: 'sessions.focusSessionLeft',
+	right: 'sessions.focusSessionRight',
+	up: 'sessions.focusSessionAbove',
+	down: 'sessions.focusSessionBelow',
+} as const;
+
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID = 'sessions.focusNewSessionHarnessPicker';
@@ -64,6 +72,8 @@ export const SPLIT_CHAT_GROUP_DOWN_COMMAND_ID = 'sessions.splitChatGroupDown';
 export const MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID = 'sessions.moveChatToPreviousGroup';
 
 export const MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID = 'sessions.moveChatToNextGroup';
+
+export const DETACH_CHAT_COMMAND_ID = 'sessions.detachChat';
 
 /** Opens or focuses a regular editor window. Registered in `vscodeActions.ts`. */
 export const OPEN_VSCODE_WINDOW_COMMAND_ID = 'agents.openVSCodeWindow';

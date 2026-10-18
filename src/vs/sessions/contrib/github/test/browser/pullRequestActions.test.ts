@@ -10,7 +10,6 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -76,7 +75,7 @@ suite('Pull Request Actions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shared presentation model applies Agent Merge to live pull request status', () => {
+	test('shared presentation model preserves live pull request status icons', () => {
 		const pullRequest = upcastPartial<IGitHubPullRequest>({
 			number: 1,
 			title: 'Fix pills',
@@ -105,32 +104,31 @@ suite('Pull Request Actions', () => {
 			createPullRequestReviewThreadsModelReference: () => ({ object: reviewThreadsModel, dispose: () => { } }),
 		});
 		const model = store.add(new SessionPullRequestPresentationModel(
-			constObservable([{
-				owner: 'microsoft',
-				repo: 'vscode',
-				number: 1,
-				uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
-			}]),
-			constObservable({
-				enabled: true,
-				actions: {
-					...defaultAgentMergeConfiguration,
-					fixCI: true,
-					resolveConflicts: false,
-					addressReviews: false,
+			constObservable([
+				{
+					owner: 'microsoft',
+					repo: 'vscode',
+					number: 1,
+					uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
 				},
-			}),
+				{
+					owner: 'other',
+					repo: 'project',
+					number: 2,
+					uri: URI.parse('https://github.com/other/project/pull/2'),
+				},
+			]),
 			gitHubService,
 		));
 
 		assert.deepStrictEqual({
-			entryIcon: model.pullRequests.get()[0].icon?.id,
-			ciStatus: model.pullRequests.get()[0].ciStatus,
+			entryIcons: model.pullRequests.get().map(entry => entry.icon?.id),
+			ciStatuses: model.pullRequests.get().map(entry => entry.ciStatus),
 			summaryIcon: model.icon.get().id,
 		}, {
-			entryIcon: Codicon.gitPullRequest.id,
-			ciStatus: GitHubCIOverallStatus.Failure,
-			summaryIcon: Codicon.gitPullRequest.id,
+			entryIcons: [Codicon.gitPullRequestError.id, Codicon.gitPullRequestError.id],
+			ciStatuses: [GitHubCIOverallStatus.Failure, GitHubCIOverallStatus.Failure],
+			summaryIcon: Codicon.gitPullRequestError.id,
 		});
 	});
 
@@ -156,7 +154,7 @@ suite('Pull Request Actions', () => {
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
 			icon: Codicon.gitPullRequest,
 		}]);
-		const model = store.add(new SessionPullRequestPresentationModel(pullRequestRefs, constObservable(undefined), gitHubService));
+		const model = store.add(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));
 
 		model.pullRequests.get();
 		pullRequestRefs.set([{
@@ -254,6 +252,49 @@ suite('Pull Request Actions', () => {
 			openExternal: true,
 			allowContributedOpeners: true,
 		}]);
+	});
+
+	test('Open and Copy Pull Request actions support multiple selected sessions', async () => {
+		const firstPullRequestUri = URI.parse('https://github.com/owner/repo/pull/1');
+		const secondPullRequestUri = URI.parse('https://github.com/owner/repo/pull/2');
+		const sessions = [
+			createSessionWithPullRequest(firstPullRequestUri),
+			createSessionWithPullRequest(undefined),
+			createSessionWithPullRequest(secondPullRequestUri),
+		];
+
+		const instantiationService = new TestInstantiationService();
+		const openerService = new TestOpenerService();
+		const clipboardService = new class extends mock<IClipboardService>() {
+			readonly writes: string[] = [];
+			override async writeText(text: string): Promise<void> {
+				this.writes.push(text);
+			}
+		};
+		instantiationService.stub(IOpenerService, openerService);
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.openPullRequest')!.handler(accessor, sessions));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyPullRequestUrl')!.handler(accessor, sessions));
+
+		assert.deepStrictEqual({
+			opened: openerService.opened,
+			copied: clipboardService.writes,
+		}, {
+			opened: [{
+				resource: firstPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}, {
+				resource: secondPullRequestUri,
+				openExternal: true,
+				allowContributedOpeners: true,
+			}],
+			copied: [`${firstPullRequestUri.toString(true)}\n${secondPullRequestUri.toString(true)}`],
+		});
 	});
 
 	test('Copy Pull Request URL uses an explicit contextual pull request', async () => {

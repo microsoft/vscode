@@ -11,11 +11,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SessionDatabase, runMigrations, sessionDatabaseMigrations, type ISessionDatabaseMigration } from '../../node/sessionDatabase.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, FileEditKind, MessageKind } from '../../common/state/sessionState.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IReviewedFileRecord, type ISessionCatalogSyncPendingSnapshot, type IToolResultResource } from '../../common/sessionDataService.js';
 import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPersistedSessionConfigValues } from '../../common/sessionConfigKeys.js';
 
 suite('SessionDatabase', () => {
 
@@ -73,6 +74,21 @@ suite('SessionDatabase', () => {
 			await new Promise<void>((resolve, reject) => {
 				rawDb.run('INSERT OR REPLACE INTO chat_drafts (chat_uri, draft) VALUES (?, ?)', [chat.toString(), draft], err => err ? reject(err) : resolve());
 			});
+		}
+
+		/** Records the SQL of every statement run on the connection from now on. */
+		async recordStatements(): Promise<string[]> {
+			const rawDb = await this._ensureDb();
+			const methods = rawDb as unknown as Record<'get' | 'all' | 'run' | 'exec', (sql: string, ...args: unknown[]) => Database>;
+			const statements: string[] = [];
+			for (const method of ['get', 'all', 'run', 'exec'] as const) {
+				const original = methods[method];
+				methods[method] = (sql, ...args) => {
+					statements.push(sql);
+					return original.call(rawDb, sql, ...args);
+				};
+			}
+			return statements;
 		}
 
 		async runRaw(sql: string): Promise<void> {
@@ -460,6 +476,84 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	suite('tool result resources', () => {
+
+		test('stores metadata in ordinal order and reads embedded content without persisting link content', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			const content = new Uint8Array([0, 1, 255]);
+			const embedded: IToolResultResource = { ordinal: 1, kind: 'embedded', name: 'a\\b', uri: 'demo:/a\\b', mimeType: 'application/octet-stream', size: 3 };
+			const link: IToolResultResource = { ordinal: 3, kind: 'link', name: 'Linked.txt', uri: 'demo:/linked', mimeType: undefined, size: undefined };
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...link, content }, { ...embedded, content }]);
+			await db.storeToolResultResources('turn-1', 'tool-2', [{ ...embedded, content: new Uint8Array() }]);
+
+			assert.deepStrictEqual({
+				resources: await db.getToolResultResources(['tool-1', 'tool-2', 'missing']),
+				content: await db.readToolResultResourceContent('tool-1', 1),
+				empty: await db.readToolResultResourceContent('tool-2', 1),
+				link: await db.readToolResultResourceContent('tool-1', 3),
+				missing: await db.readToolResultResourceContent('missing', 0),
+				tables: (await db.getAllTables()).includes('tool_result_resources'),
+			}, {
+				resources: new Map([['tool-1', [embedded, link]], ['tool-2', [embedded]]]),
+				content: { content, mimeType: 'application/octet-stream' },
+				empty: { content: new Uint8Array(), mimeType: 'application/octet-stream' },
+				link: undefined,
+				missing: undefined,
+				tables: true,
+			});
+		});
+
+		test('replaces a batch atomically and rejects resources for missing turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('turn-1');
+			const first: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'first', uri: 'demo:/first', mimeType: 'text/plain', size: 1 };
+			const replacement: IToolResultResource = { ...first, ordinal: 2, name: 'replacement' };
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...first, content: new Uint8Array([1]) }]);
+			await assert.rejects(db.storeToolResultResources('missing', 'tool-1', []), /missing turn/);
+			await assert.rejects(db.storeToolResultResources('turn-1', 'tool-1', [replacement, replacement]), /UNIQUE constraint/);
+			const afterFailure = await db.getToolResultResources(['tool-1']);
+			await db.storeToolResultResources('turn-1', 'tool-1', [{ ...replacement, content: new Uint8Array([2]) }]);
+
+			assert.deepStrictEqual({ afterFailure, replaced: await db.getToolResultResources(['tool-1']), content: await db.readToolResultResourceContent('tool-1', 2) }, {
+				afterFailure: new Map([['tool-1', [first]]]),
+				replaced: new Map([['tool-1', [replacement]]]),
+				content: { content: new Uint8Array([2]), mimeType: 'text/plain' },
+			});
+		});
+
+		test('turn deletion cascades and fork remapping retains only surviving resources', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const resource: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'resource', uri: 'demo:/resource', mimeType: 'text/plain', size: 1 };
+			for (const turnId of ['old-1', 'old-2', 'deleted']) {
+				await db.createTurn(turnId);
+				await db.storeToolResultResources(turnId, turnId, [{ ...resource, content: new Uint8Array([1]) }]);
+			}
+			await db.deleteTurn('deleted');
+			await db.remapTurnIds(new Map([['old-1', 'new-1']]));
+			const retained = await db.getToolResultResources(['old-1', 'old-2', 'deleted']);
+			await db.deleteTurn('new-1');
+
+			assert.deepStrictEqual({ retained, afterDelete: await db.getToolResultResources(['old-1']), content: await db.readToolResultResourceContent('old-1', 0) }, {
+				retained: new Map([['old-1', [resource]]]),
+				afterDelete: new Map(),
+				content: undefined,
+			});
+		});
+
+		test('bounds embedded content writes and reads', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			await database.createTurn('turn-1');
+			const resource: IToolResultResource = { ordinal: 0, kind: 'embedded', name: 'resource', uri: 'demo:/resource' };
+			await assert.rejects(database.storeToolResultResources('turn-1', 'oversized', [{ ...resource, content: new Uint8Array(MAX_TOOL_RESULT_RESOURCE_BYTES + 1) }]), /exceeds/);
+			await database.runRaw(`INSERT INTO tool_result_resources (tool_call_id, ordinal, turn_id, kind, name, uri, content)
+				VALUES ('malformed', 0, 'turn-1', 'embedded', 'resource', 'demo:/resource', zeroblob(${MAX_TOOL_RESULT_RESOURCE_BYTES + 1}))`);
+			await assert.rejects(database.readToolResultResourceContent('malformed', 0), /exceeds/);
+			assert.deepStrictEqual(await database.getToolResultResources(['oversized']), new Map());
+		});
+	});
+
 	// ---- Terminal outputs ----------------------------------------------
 
 	suite('terminal outputs', () => {
@@ -652,6 +746,47 @@ suite('SessionDatabase', () => {
 			]), [new Uint8Array([1]), undefined]);
 		});
 
+		test('remapTurnIds keeps persisted failed turns internally consistent', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.insertPersistedTurn({
+				kind: 'failed',
+				turnId: 'old-2',
+				chatUri: 'chat',
+				anchorTurnId: 'old-1',
+				payload: '{"id":"old-2"}',
+			});
+			await db.createTurn('old-1');
+
+			await db.remapTurnIds(new Map([
+				['old-1', 'new-1'],
+				['old-2', 'new-2'],
+			]));
+
+			assert.deepStrictEqual((await db.getPersistedTurns()).filter(record => record.kind === 'failed'), [{
+				kind: 'failed',
+				turnId: 'new-2',
+				chatUri: 'chat',
+				anchorTurnId: 'new-1',
+				seq: 1,
+				payload: '{"id":"new-2"}',
+			}]);
+		});
+
+		test('remapTurnIds rejects corrupt persisted turn payloads without discarding history', async () => {
+			const database = disposables.add(await SessionDatabase.open(':memory:'));
+			db = database;
+			await db.insertPersistedTurn({
+				kind: 'failed',
+				turnId: 'old-1',
+				chatUri: 'chat',
+				anchorTurnId: undefined,
+				payload: '{"id":"different"}',
+			});
+
+			await assert.rejects(() => database.remapTurnIds(new Map([['old-1', 'new-1']])), /payload id does not match record id/);
+			assert.deepStrictEqual((await db.getPersistedTurns()).filter(record => record.kind === 'failed').map(record => record.turnId), ['old-1']);
+		});
+
 		test('output survives closing and reopening a disk database', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-terminal-output-' + generateUuid()));
 			const databasePath = join(tempRoot, 'session.db');
@@ -787,7 +922,7 @@ suite('SessionDatabase', () => {
 			const afterTurn = await db.hasConversationTurns();
 			await db.deleteAllTurns();
 			const afterDeleteAll = await db.hasConversationTurns();
-			await db.insertLocalTurn({ turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 0, payload: '{}' });
 			const afterLocalTurn = await db.hasConversationTurns();
 
 			assert.deepStrictEqual({ empty, afterTurn, afterDeleteAll, afterLocalTurn }, {
@@ -796,6 +931,51 @@ suite('SessionDatabase', () => {
 				afterDeleteAll: false,
 				afterLocalTurn: true,
 			});
+		});
+
+		test('persists failed provider turns and treats them as conversation history', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+
+			const empty = await db.hasConversationTurns();
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{"id":"failed-1"}' });
+			const afterFailedTurn = await db.hasConversationTurns();
+			const failedTurns = (await db.getPersistedTurns()).filter(record => record.kind === 'failed');
+			await db.deleteAllTurns();
+			const afterDeleteAll = await db.hasConversationTurns();
+
+			assert.deepStrictEqual({ empty, afterFailedTurn, failedTurns, afterDeleteAll }, {
+				empty: false,
+				afterFailedTurn: true,
+				failedTurns: [{ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"failed-1"}' }],
+				afterDeleteAll: false,
+			});
+		});
+
+		test('preserves existing local turns when adding persisted turn kinds', async () => {
+			const legacy = await TestableSessionDatabase.open(':memory:', sessionDatabaseMigrations.slice(0, 14));
+			await legacy.runRaw(`INSERT INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload)
+				VALUES ('local-1', 'chat', NULL, 1, '{"id":"local-1"}')`);
+			const rawDatabase = await legacy.ejectDb();
+
+			db = disposables.add(await TestableSessionDatabase.fromDb(rawDatabase));
+
+			assert.deepStrictEqual({
+				tables: await db.getAllTables(),
+				records: await db.getPersistedTurns(),
+			}, {
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				records: [{ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, seq: 1, payload: '{"id":"local-1"}' }],
+			});
+		});
+
+		test('prunes failed records with their persisted turn boundaries', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{"id":"failed-1"}' });
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-2', chatUri: 'chat', anchorTurnId: 'failed-1', payload: '{"id":"failed-2"}' });
+
+			await db.deleteTurnsAfter('failed-1');
+
+			assert.deepStrictEqual((await db.getPersistedTurns()).map(record => record.turnId), ['failed-1']);
 		});
 	});
 
@@ -1273,6 +1453,198 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Foreign rows ---------------------------------------------------
+
+	suite('foreign rows', () => {
+
+		const defaultChat = 'ahp-chat://default/c2Vzc2lvbg';
+		const peerChat = 'ahp-chat://peer/c2Vzc2lvbg';
+
+		/**
+		 * The session database as an older build leaves it for a session with a peer: the
+		 * peer's checkpoint rows (`p*`, no event id) interleave with the default chat's,
+		 * and both chats' host-persisted turns share `local_turns`.
+		 */
+		async function populate(database: SessionDatabase, markForeign = true): Promise<void> {
+			for (const [turnId, eventId, ref] of [
+				['p0', undefined, 'turn/1'],
+				['d1', 'e1', 'turn/2'],
+				['p1', undefined, 'turn/3'],
+				['d2', 'e2', 'turn/4'],
+				['d3', 'e3', 'turn/5'],
+			] as const) {
+				await database.createTurn(turnId);
+				if (eventId) {
+					await database.setTurnEventId(turnId, eventId);
+				}
+				await database.setTurnCheckpointRef(turnId, ref);
+			}
+			await database.insertPersistedTurn({ kind: 'local', turnId: 'local-d', chatUri: defaultChat, anchorTurnId: 'd2', payload: '{}' });
+			await database.insertPersistedTurn({ kind: 'local', turnId: 'local-p', chatUri: peerChat, anchorTurnId: 'p1', payload: '{}' });
+			if (markForeign) {
+				await database.setForeignRows(defaultChat, ['p0', 'p1']);
+			}
+		}
+
+		async function rows(database: SessionDatabase) {
+			return {
+				turns: (await database.getTurnsWithCheckpointRefs()).map(turn => turn.foreign ? `${turn.turnId}*` : turn.turnId),
+				persisted: (await database.getPersistedTurns()).map(turn => turn.turnId),
+			};
+		}
+
+		test('turn scans ignore foreign rows while every checkpoint ref stays enumerable', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			assert.deepStrictEqual({
+				first: await db.getFirstTurnEventId(),
+				next: await db.getNextTurnEventId('d1'),
+				previous: await db.getPreviousCheckpointRef('d2'),
+				previousOfForeign: await db.getPreviousCheckpointRef('p1'),
+				allRefs: await db.getAllCheckpointRefs(),
+				turns: await db.getTurnsWithCheckpointRefs(),
+				maxRowid: await db.getMaxTurnRowid(),
+				ownerTurns: (await db.getPersistedTurnsForChat(defaultChat)).map(turn => turn.turnId),
+			}, {
+				first: 'e1',
+				next: 'e2',
+				previous: 'turn/2',
+				previousOfForeign: undefined,
+				allRefs: ['turn/1', 'turn/2', 'turn/3', 'turn/4', 'turn/5'],
+				turns: [
+					{ turnId: 'p0', eventId: undefined, checkpointRef: 'turn/1', foreign: true },
+					{ turnId: 'd1', eventId: 'e1', checkpointRef: 'turn/2', foreign: false },
+					{ turnId: 'p1', eventId: undefined, checkpointRef: 'turn/3', foreign: true },
+					{ turnId: 'd2', eventId: 'e2', checkpointRef: 'turn/4', foreign: false },
+					{ turnId: 'd3', eventId: 'e3', checkpointRef: 'turn/5', foreign: false },
+				],
+				maxRowid: 5,
+				ownerTurns: ['local-d'],
+			});
+		});
+
+		test('the rows watermark reads the turn watermark and every draft together, also without turns or drafts', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			const empty = await db.getRowsWatermark();
+			await populate(db);
+			await db.setChatDraft(URI.parse('ahp-chat://peer'), { text: 'Peer draft', origin: { kind: MessageKind.User } });
+			const populated = await db.getRowsWatermark();
+			assert.deepStrictEqual({
+				empty: { maxTurnRowid: empty.maxTurnRowid, drafts: [...empty.drafts] },
+				populated: { maxTurnRowid: populated.maxTurnRowid, drafts: [...populated.drafts] },
+			}, {
+				empty: { maxTurnRowid: 0, drafts: [] },
+				populated: { maxTurnRowid: 5, drafts: [['ahp-chat://peer', { text: 'Peer draft', origin: { kind: MessageKind.User } }]] },
+			});
+		});
+
+		test('without foreign rows recorded the scans see every row, as older builds do', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db, false);
+			assert.deepStrictEqual({
+				first: await db.getFirstTurnEventId(),
+				next: await db.getNextTurnEventId('d1'),
+				previous: await db.getPreviousCheckpointRef('d2'),
+			}, { first: undefined, next: undefined, previous: 'turn/3' });
+		});
+
+		test('conversation check ignores foreign rows and other chats\' persisted turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('p0');
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-p', chatUri: peerChat, anchorTurnId: 'p0', payload: '{}' });
+			const before = await db.hasConversationTurns();
+			await db.setForeignRows(defaultChat, ['p0']);
+			assert.deepStrictEqual({ before, after: await db.hasConversationTurns() }, { before: true, after: false });
+		});
+
+		for (const [operation, run, expected] of [
+			['truncateFromTurn', (database: SessionDatabase) => database.truncateFromTurn('d2'), { turns: ['p0*', 'd1', 'p1*'], persisted: ['local-p'] }],
+			['deleteTurnsAfter', (database: SessionDatabase) => database.deleteTurnsAfter('d1'), { turns: ['p0*', 'd1', 'p1*'], persisted: ['local-p'] }],
+			['deleteAllTurns', (database: SessionDatabase) => database.deleteAllTurns(), { turns: ['p0*', 'p1*'], persisted: ['local-p'] }],
+			['truncateFromTurn of a foreign turn', (database: SessionDatabase) => database.truncateFromTurn('p0'), { turns: ['p0*', 'd1', 'p1*', 'd2', 'd3'], persisted: ['local-d', 'local-p'] }],
+		] as const) {
+			test(`${operation} keeps foreign rows and other chats' persisted turns`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await populate(db);
+				// Persisted turns are pruned through their `turns` row; place the owner's after the truncation point.
+				await db.createTurn('local-d');
+				await run(db);
+				assert.deepStrictEqual(await rows(db), expected);
+			});
+		}
+
+		test('file edits of foreign turns survive the default chat\'s truncation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			await db.storeFileEdit({ turnId: 'p1', toolCallId: 'peer-edit', filePath: '/peer.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 0 });
+			await db.storeFileEdit({ turnId: 'd2', toolCallId: 'default-edit', filePath: '/default.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 0 });
+			await db.deleteTurnsAfter('d1');
+			assert.deepStrictEqual((await db.getAllFileEdits()).map(edit => edit.toolCallId), ['peer-edit']);
+		});
+
+		test('fork remap of a copy drops foreign rows, other chats\' persisted turns and the row owner', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await populate(db);
+			await db.remapTurnIds(new Map([['d1', 'n1'], ['d2', 'n2'], ['local-d', 'local-n']]));
+			assert.deepStrictEqual({
+				...await rows(db),
+				owner: await db.getMetadata('agentHost.rowOwnerChat'),
+				foreign: await db.getMetadata('agentHost.foreignTurnIds'),
+			}, { turns: ['n1', 'n2'], persisted: ['local-n'], owner: undefined, foreign: undefined });
+		});
+
+		test('a database observes foreign rows it records, also while recording them, and after reopening', async () => {
+			const directory = await fs.mkdtemp(join(tmpdir(), 'session-db-foreign-'));
+			try {
+				const path = join(directory, 'session.db');
+				const writer = disposables.add(await SessionDatabase.open(path));
+				await populate(writer, false);
+				const beforeImport = await writer.getFirstTurnEventId();
+				const imported = writer.setForeignRows(defaultChat, ['p0', 'p1']);
+				const duringImport = writer.getFirstTurnEventId();
+				await imported;
+				const afterImport = await writer.getFirstTurnEventId();
+				await writer.deleteAllTurns();
+				await writer.close();
+				const reopened = disposables.add(await SessionDatabase.open(path));
+				assert.deepStrictEqual({
+					beforeImport,
+					duringImport: [undefined, 'e1'].includes(await duringImport),
+					afterImport,
+					reopened: await rows(reopened),
+				}, { beforeImport: undefined, duringImport: true, afterImport: 'e1', reopened: { turns: ['p0*', 'p1*'], persisted: ['local-p'] } });
+				await reopened.close();
+			} finally {
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		test('a database without foreign rows runs its turn statements without the foreign-row filter', async () => {
+			const recorded = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			await populate(recorded, false);
+			const statements = await recorded.recordStatements();
+			const scan = async () => {
+				statements.length = 0;
+				await recorded.getTurnCheckpointRef('d2');
+				await recorded.getPreviousCheckpointRef('d2');
+				await recorded.getNextTurnEventId('d1');
+				await recorded.getFirstTurnEventId();
+				await recorded.hasConversationTurns();
+				await recorded.getTurnsWithCheckpointRefs();
+				return statements.filter(sql => /\bturns\b/.test(sql)).map(sql => sql.includes('json_each'));
+			};
+			const without = await scan();
+			await recorded.setForeignRows(defaultChat, ['p0']);
+			const withForeign = await scan();
+			await recorded.setForeignRows(defaultChat, []);
+			assert.deepStrictEqual({ without, withForeign, cleared: await scan() }, {
+				without: [false, false, false, false, false, false],
+				withForeign: [true, true, true, true, true, true],
+				cleared: [false, false, false, false, false, false],
+			});
+		});
+	});
+
 	// ---- Dispose --------------------------------------------------------
 
 	suite('dispose', () => {
@@ -1349,6 +1721,50 @@ suite('SessionDatabase', () => {
 			await db.setMetadata('customTitle', 'Second');
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
 		});
+
+		test('updateMetadata serializes read-modify-write with other metadata writes', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.updateMetadata('key', previous => previous ?? 'initial');
+			await Promise.all([
+				db.setMetadata('key', 'replacement'),
+				db.updateMetadata('key', previous => `${previous}:first`),
+				db.updateMetadata('key', previous => `${previous}:second`),
+			]);
+			assert.strictEqual(await db.getMetadata('key'), 'replacement:first:second');
+		});
+
+		test('sandbox config fallback observes a preceding runtime confirmation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'on', stale: true }));
+			await Promise.all([
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'interactive' }, false, previous))),
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'on', mode: 'plan', shellInitScripts: [] }, undefined, previous))),
+			]);
+			assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { sandboxEnabled: 'off', mode: 'plan' });
+		});
+
+		for (const previous of ['{}', '{"sandboxEnabled":"default"}']) {
+			test(`sandbox config does not persist an unconfirmed selection over ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'plan' }, undefined, stored)));
+				assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { mode: 'plan' });
+			});
+		}
+
+		for (const previous of ['invalid JSON', 'null', '{"sandboxEnabled":false}']) {
+			test(`sandbox config reports invalid persisted values and rolls back: ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await assert.rejects(db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, undefined, stored))));
+				const afterFailure = await db.getMetadata('configValues');
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, true, stored)));
+				assert.deepStrictEqual({
+					afterFailure,
+					afterConfirmation: JSON.parse((await db.getMetadata('configValues'))!),
+				}, { afterFailure: previous, afterConfirmation: { mode: 'plan', sandboxEnabled: 'on' } });
+			});
+		}
 
 		test('deleteMetadata removes only the requested keys', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
@@ -1526,7 +1942,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				title: 'After upgrade',
 				snapshot: snapshot(1),
 			});
@@ -1553,7 +1969,7 @@ suite('SessionDatabase', () => {
 				tables: await upgraded.getAllTables(),
 				snapshot: await upgraded.getCatalogSyncSnapshot(),
 			}, {
-				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
+				tables: ['catalog_sync_snapshot', 'chat_drafts', 'file_edits', 'local_turns', 'reviewed_files', 'session_metadata', 'terminal_outputs', 'tool_result_resources', 'turn_delegation', 'turn_usage', 'turn_workspace_transition', 'turns'],
 				snapshot: snapshot(1),
 			});
 		});
@@ -1668,7 +2084,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				transitioned: true,
+				transitioned: 'applied',
 				title: 'New generation',
 				snapshot: nextGeneration,
 			});
@@ -1694,7 +2110,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				transitioned: false,
+				transitioned: 'generationMismatch',
 				title: 'Current generation',
 				snapshot: snapshot(100),
 			});
@@ -1858,7 +2274,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('the latest snapshot remains pending when relay is interrupted', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
@@ -1882,7 +2298,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('validates snapshot and acknowledgement boundaries', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));

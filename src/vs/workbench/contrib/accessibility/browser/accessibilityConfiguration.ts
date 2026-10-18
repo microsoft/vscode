@@ -49,9 +49,11 @@ export const enum ViewDimUnfocusedOpacityProperties {
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
+	MultiDiffEditorFileList = 'accessibility.verbosity.multiDiffEditorFileList',
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
+	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
@@ -72,8 +74,12 @@ export const enum AccessibilityVerbositySettingId {
 	SourceControl = 'accessibility.verbosity.sourceControl',
 	Find = 'accessibility.verbosity.find',
 	SessionsChat = 'accessibility.verbosity.sessionsChat',
+	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
+	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
+	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
@@ -148,12 +154,20 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.MultiDiffEditorFileList]: {
+			description: localize('verbosity.multiDiffEditorFileList.description', 'Provide information about how to navigate the changed files list in the multi diff editor when it is focused.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Chat]: {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.CustomizationMigrations]: {
 			description: localize('verbosity.customizationMigrations.description', "Provide information about how to access accessibility help for the customization migration checklist."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.McpServerConfiguration]: {
+			description: localize('verbosity.mcpServerConfiguration.description', "Provide information about how to access accessibility help when an MCP server configuration form is focused."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {
@@ -190,6 +204,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.EmptyFileEditorSearch]: {
+			description: localize('verbosity.emptyFileEditorSearch', 'Provide information about how to use file search in the empty Files editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ReplEditor]: {
@@ -230,7 +248,11 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.SessionsChat]: {
-			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help menu when the chat input is focused.'),
+			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents window accessibility help and comparison result Accessible View when the relevant surface is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionWorktreeCleanup]: {
+			description: localize('verbosity.sessionWorktreeCleanup', 'Provide information about how to use the Manage Agent Session Storage editor when it is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.NewSessionWelcome]: {
@@ -239,6 +261,14 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.SessionsChanges]: {
 			description: localize('verbosity.sessionsChanges', 'Provide information about how to access the Changes view accessibility help menu when the Changes view is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionsListNotification]: {
+			description: localize('verbosity.sessionsListNotification', "Provide information about how to access accessibility help for the Undo notice in the sessions list."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionCanvas]: {
+			description: localize('verbosity.sessionCanvas', 'Provide information about how to access canvas accessibility help when a canvas is focused.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ChatQuestionCarousel]: {

@@ -108,6 +108,27 @@ suite('ChatSystemNotificationContentPart', () => {
 		});
 	});
 
+	test('renders a workflow description without a title or progress icon', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const notification = {
+			kind: 'systemNotification', presentation: 'workflowDescription',
+			content: new MarkdownString('Using Single: one solver will work on your request.'),
+		} as const;
+		const part = store.add(instantiationService.createInstance(ChatSystemNotificationContentPart, notification, renderer));
+		assert.deepStrictEqual({
+			title: part.domNode.querySelector('.chat-system-notification-workflow-title'),
+			body: part.domNode.querySelector('.chat-system-notification-workflow-body')?.textContent?.trim(),
+			icons: part.domNode.querySelectorAll('.codicon').length,
+			same: part.hasSameContent(notification),
+		}, {
+			title: null,
+			body: 'Using Single: one solver will work on your request.',
+			icons: 0,
+			same: true,
+		});
+	});
+
 	test('older workflow records without an explanation still render their title', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };

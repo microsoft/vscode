@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -19,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -32,10 +33,12 @@ import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/a
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
@@ -49,9 +52,18 @@ suite('AICustomizationDiscoveryPage', () => {
 	};
 	const pluginSource = {
 		...CustomizationMarketplaceSources.PluginMarketplaces,
-		configurationDependencies: [ChatConfiguration.StrictMarketplaces],
 	};
-	const sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors, secondSource, pluginSource];
+	const configuredMarketplaceReference = parseMarketplaceReference('owner/catalog')!;
+	const secondConfiguredMarketplaceReference = parseMarketplaceReference('anthropics/claude-code')!;
+	const configuredMarketplaceSourceId = getPluginCustomizationMarketplaceSourceId(configuredMarketplaceReference);
+	const configuredMarketplaceSource = { ...pluginSource, id: configuredMarketplaceSourceId, displayName: configuredMarketplaceReference.displayLabel };
+	const secondConfiguredMarketplaceSource = {
+		...pluginSource,
+		id: getPluginCustomizationMarketplaceSourceId(secondConfiguredMarketplaceReference),
+		displayName: secondConfiguredMarketplaceReference.displayLabel,
+	};
+	const sources = [configuredMarketplaceSource, secondConfiguredMarketplaceSource, CustomizationMarketplaceSources.AgentFinderPublicFeed, CustomizationMarketplaceSources.CopilotConnectors, secondSource];
+	const testIcon = URI.parse('https://example.invalid/icon.png');
 
 	function resource(identifier: string, overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 		return {
@@ -66,6 +78,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		visibleSections: readonly AICustomizationManagementSection[] = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
 		installedPlugins: readonly IAgentPlugin[] = [],
 		setupUrl?: URI,
+		installedIdentifiers: readonly string[] = [],
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -75,7 +88,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			'workbench.list.smoothScrolling': false,
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			...Object.fromEntries(sources
-				.filter(source => source.id !== CustomizationMarketplaceSources.PluginMarketplaces.id)
+				.filter(source => !source.id.startsWith(`${CustomizationMarketplaceSources.PluginMarketplaces.id}.`))
 				.map(source => [source.enablementSetting, enabledSources.includes(source.id)])),
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -103,8 +116,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const deletions: DeferredPromise<void>[] = [];
+		const commands: { id: string; args: readonly unknown[] }[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override executeCommand<R = unknown>(commandId: string, ..._args: unknown[]): Promise<R | undefined> {
+			override executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
+				commands.push({ id: commandId, args });
 				if (commandId === DELETE_AI_CUSTOMIZATION_ID) {
 					const result = new DeferredPromise<void>();
 					deletions.push(result);
@@ -133,16 +148,24 @@ suite('AICustomizationDiscoveryPage', () => {
 		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
+		const uninstalls: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
+		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
+			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
+			return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
+				? [{ resource, state }]
+				: [];
+		}));
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
+			override readonly installations = observableFromEvent(installChanges.event, getInstallations);
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+				if (installedIdentifiers.includes(resource.identifier)) {
+					return { kind: 'installed', target: { kind: 'skill', uri: URI.file(`/installed/${resource.identifier}`) } };
+				}
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
 					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-			}
-			override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
-				return [...recordedResources.values()];
 			}
 			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
 				const key = getCustomizationMarketplaceResourceKey(resource);
@@ -161,6 +184,12 @@ suite('AICustomizationDiscoveryPage', () => {
 				const result = new DeferredPromise<void>();
 				installs.push({ identifier: resource.identifier, result });
 				await result.p;
+			}
+			override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				uninstalls.push(resource.identifier);
+				installStates.set(key, { kind: 'available' });
+				installChanges.fire();
 			}
 			override cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
 				cancellations.push(resource.identifier);
@@ -196,11 +225,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
 		}());
 		const creationEvents: string[] = [];
+		const openedDetails: ICustomizationMarketplaceResource[] = [];
+		const openedInstalled: NonNullable<Parameters<NonNullable<ConstructorParameters<typeof AICustomizationDiscoveryPage>[2]['openInstalled']>>[0]>[] = [];
 		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 			override async generateCustomization(type: PromptsType): Promise<void> { creationEvents.push(type); }
 		}());
 		const page = store.add(instantiationService.createInstance(AICustomizationDiscoveryPage, container, undefined, {
-			selectSection() { }, selectSectionWithMarketplace() { }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
+			selectSection() { }, selectSectionWithMarketplace() { }, openInstalled(target) { openedInstalled.push(target); }, openMarketplaceItem(resource) { openedDetails.push(resource); }, closeEditor() { creationEvents.push('close'); }, reviewMigrations() { }, prefillChat() { },
 		}, 'Copilot'));
 		page.rebuildCards(new Set(visibleSections));
 		page.layout(new DOM.Dimension(900, 600));
@@ -212,7 +243,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, deletions, installs, repairs, cancellations,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -225,7 +256,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			notifyInstallChange: () => installChanges.fire(),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
-			selectImport: async (id: string) => {
+			selectAddCustomization: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
 				button.click();
@@ -245,8 +276,61 @@ suite('AICustomizationDiscoveryPage', () => {
 				sourceMenu?.onHide?.(false);
 				sourceMenu = undefined;
 			},
+			configureMarketplaces: async () => {
+				const action = getSourceActions().find(action => action.id === 'customizationDiscovery.source.configure');
+				assert.ok(action);
+				await action.run();
+				sourceMenu?.onHide?.(false);
+				sourceMenu = undefined;
+			},
 		};
 	}
+
+	function assertImageReplacesFallback(container: HTMLElement, iconSelector: string): void {
+		const icon = container.querySelector<HTMLElement>(iconSelector);
+		const image = icon?.querySelector<HTMLImageElement>('img');
+		const fallback = icon?.querySelector<HTMLElement>('.codicon');
+		assert.ok(icon);
+		assert.ok(image);
+		assert.ok(fallback);
+
+		const initial = {
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		};
+		image.dispatchEvent(new mainWindow.Event(DOM.EventType.LOAD));
+		const loaded = {
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		};
+		image.dispatchEvent(new mainWindow.Event(DOM.EventType.ERROR));
+		const failed = {
+			isFallback: icon.classList.contains('is-fallback'),
+			fallbackHidden: mainWindow.getComputedStyle(fallback).display === 'none',
+			imagePresent: icon.contains(image),
+		};
+
+		assert.deepStrictEqual({ initial, loaded, failed }, {
+			initial: { isFallback: false, fallbackHidden: true, imagePresent: true },
+			loaded: { isFallback: false, fallbackHidden: true, imagePresent: true },
+			failed: { isFallback: true, fallbackHidden: false, imagePresent: false },
+		});
+	}
+
+	test('Add Customization action describes the menu trigger', () => {
+		const fixture = createPage();
+		const button = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		assert.ok(button);
+		assert.deepStrictEqual({
+			ariaLabel: button.getAttribute('aria-label'),
+			expanded: button.getAttribute('aria-expanded'),
+		}, {
+			ariaLabel: 'Add a customization',
+			expanded: 'false',
+		});
+	});
 
 	for (const [action, type] of [
 		['newAgent', PromptsType.agent],
@@ -254,17 +338,142 @@ suite('AICustomizationDiscoveryPage', () => {
 		['newInstructions', PromptsType.instructions],
 		['newPrompt', PromptsType.prompt],
 	] as const) {
-		test(`Import > ${action} closes Discover before starting creation`, async () => {
+		test(`Add Customization > ${action} closes Discover before starting creation`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
 			]);
-			await fixture.selectImport(action);
+			await fixture.selectAddCustomization(action);
 			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
 		});
 	}
+
+	test('title and menu buttons use the expected casing', () => {
+		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
+		const title = fixture.container.querySelector<HTMLElement>('.customization-discovery-title');
+		const addCustomizationButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		const sourceButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
+
+		assert.deepStrictEqual({
+			title: title?.textContent,
+			buttons: [addCustomizationButton, sourceButton].map(button => ({
+				label: button?.textContent,
+				small: button?.classList.contains('small'),
+				hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
+				hasPopup: button?.getAttribute('aria-haspopup'),
+			})),
+		}, {
+			title: 'Browse customizations',
+			buttons: [
+				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
+				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },
+			],
+		});
+	});
+
+	test('announces loading only after the scheduled catalog search starts', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('remote');
+		const pending = {
+			requests: fixture.requests.length,
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await timeout(0);
+		const loading = {
+			requests: fixture.requests.length,
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await fixture.requests[1].result.complete({ items: [resource('remote')] });
+		await timeout(0);
+		const complete = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({ pending, loading, complete }, {
+			pending: { requests: 1, busy: 'true', announcements: [] },
+			loading: { requests: 2, announcements: ['Loading customizations...'] },
+			complete: ['1 customizations found.'],
+		});
+	});
+
+	test('browse features first-party resources ahead of the source order', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('third-party-one'),
+				resource('azure-mcp', { installation: { kind: 'mcp', name: 'com.microsoft/azure', version: '1.0.0' } }),
+				resource('third-party-two'),
+				resource('github-plugin', { publisher: 'GitHub', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }),
+				resource('microsoft-skill', { publisher: 'Microsoft', mediaType: CustomizationMarketplaceMediaType.Skill }),
+				resource('fabric-mcp', { installation: { kind: 'mcp', name: 'com.microsoft/microsoft-fabric', version: '1.0.0' } }),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			pageSize: fixture.requests[0].options.pageSize,
+			featured: Array.from(fixture.container.querySelectorAll('.customization-discovery-section.featured .customization-discovery-card-name')).map(element => element.textContent),
+		}, {
+			pageSize: 100,
+			featured: ['azure-mcp', 'github-plugin', 'microsoft-skill', 'fabric-mcp'],
+		});
+	});
+
+	test('browse card images replace fallback icons and restore them on error', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.container.style.position = 'absolute';
+		fixture.container.style.top = '100000px';
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('with-icon', { publisher: 'GitHub', icon: testIcon })],
+		});
+		await timeout(0);
+
+		assertImageReplacesFallback(fixture.container, '.customization-discovery-card-icon');
+	});
+
+	test('search results render compact star counts with exact accessible labels', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('server');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({
+			items: [
+				resource('popular', { stars: 189_789 }),
+				resource('featured', { stars: 33_000 }),
+				resource('recent', { stars: 999 }),
+				resource('established', { stars: 1_800_000 }),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			[...fixture.container.querySelectorAll('.customization-discovery-result-stats')].map(element => ({
+				text: element.textContent,
+				ariaLabel: element.getAttribute('aria-label'),
+			})),
+			[
+				{ text: '189K', ariaLabel: '189,789 stars' },
+				{ text: '33K', ariaLabel: '33,000 stars' },
+				{ text: '999', ariaLabel: '999 stars' },
+				{ text: '1.8M', ariaLabel: '1,800,000 stars' },
+			],
+		);
+	});
 
 	async function setEnabled(configuration: TestConfigurationService, setting: string, enabled: boolean): Promise<void> {
 		await configuration.setUserConfiguration(setting, enabled);
@@ -277,6 +486,168 @@ suite('AICustomizationDiscoveryPage', () => {
 	async function waitForRequestCount(requests: readonly object[], count: number): Promise<void> {
 		await retry(async () => assert.ok(requests.length >= count), 10, 20);
 	}
+
+	function loadingState(container: HTMLElement) {
+		return {
+			progress: container.querySelector('.monaco-progress-container')?.classList.contains('active'),
+			placeholder: container.querySelector('.customization-discovery-result-content.loading') !== null,
+			status: [...container.querySelectorAll('.customization-discovery-state')].map(element => element.textContent),
+		};
+	}
+
+	for (const query of ['', 'mail', '@type:plugin mail']) {
+		test(`initial loading reserves progress space without loading text or placeholders (${query || 'browse'})`, async () => {
+			const fixture = createPage();
+			fixture.page.setSearchQuery(query);
+			fixture.page.setVisible(true);
+			const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+			const progress = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress')!;
+			const pendingPosition = { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight };
+			assert.ok(progress.offsetHeight > 0);
+			assert.deepStrictEqual(loadingState(fixture.container), {
+				progress: true, placeholder: false, status: ['', ''],
+			});
+			assert.strictEqual(progress.querySelector('[role="progressbar"]')?.getAttribute('aria-label'), 'Loading customizations');
+			assert.ok(fixture.page.getAccessibilityContent().includes('Loading customizations...'));
+
+			await fixture.requests[0].result.complete({
+				items: [resource('mail-plugin', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			});
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: loadingState(fixture.container),
+				position: { top: search.getBoundingClientRect().top, progressHeight: progress.offsetHeight },
+			}, {
+				state: { progress: false, placeholder: false, status: ['', ''] },
+				position: pendingPosition,
+			});
+		});
+	}
+
+	test('pending query and source changes preserve the progress animation across the full row', async () => {
+		const fixture = createPage();
+		// Keep the 2% progress bit an integral width: WebKit rounds percentage transform reference boxes.
+		fixture.container.querySelector<HTMLElement>('.customization-discovery-header')!.style.width = '800px';
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		const track = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress .monaco-progress-container')!;
+		const bit = track.querySelector<HTMLElement>('.progress-bit')!;
+		const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+		assert.deepStrictEqual({ trackWidth: track.getBoundingClientRect().width, searchWidth: search.getBoundingClientRect().width }, { trackWidth: 800, searchWidth: 800 });
+		const animation = bit.getAnimations()[0];
+		assert.ok(animation);
+		animation.pause();
+		animation.currentTime = 1200;
+		const before = bit.getBoundingClientRect().left;
+
+		fixture.page.setSearchQuery('@type:plugin fresh');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.selectSource('other');
+		assert.deepStrictEqual({
+			sameAnimation: bit.getAnimations()[0] === animation,
+			time: animation.currentTime,
+			left: bit.getBoundingClientRect().left,
+		}, { sameAnimation: true, time: 1200, left: before });
+
+		animation.currentTime = 3999;
+		const bitBounds = bit.getBoundingClientRect();
+		const trackBounds = track.getBoundingClientRect();
+		assert.ok(Math.abs(bitBounds.right - trackBounds.right) <= 1, `The moving bar must reach the right edge before looping: bit=${bitBounds.right}, track=${trackBounds.right}.`);
+		await fixture.requests[2].result.complete({ items: [] });
+		await timeout(0);
+		assert.deepStrictEqual(loadingState(fixture.container).progress, false);
+	});
+
+	test('continuation preserves loaded rows, focus, scroll position and viewport geometry', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@type:plugin mail');
+		fixture.page.setVisible(true);
+		const cursor = { token: 'next-page' };
+		await fixture.requests[0].result.complete({
+			items: Array.from({ length: 24 }, (_, index) => resource(`mail-${index}`, { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })),
+			nextCursor: cursor,
+		});
+		await timeout(0);
+		const listElement = fixture.container.querySelector<HTMLElement>('.customization-discovery-results .monaco-list')!;
+		listElement.focus();
+		listElement.dispatchEvent(new FocusEvent('focus'));
+		const list = fixture.listService.lastFocusedList;
+		assert.ok(list instanceof WorkbenchList);
+		list.scrollTop = list.scrollHeight;
+		list.setFocus([23]);
+		list.setSelection([23]);
+		const search = fixture.container.querySelector<HTMLElement>('.customization-discovery-search-row')!;
+		const lastRow = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'mail-23')!;
+		assert.ok(lastRow.offsetHeight > 0);
+		const position = () => ({
+			searchTop: search.getBoundingClientRect().top,
+			rowTop: lastRow.getBoundingClientRect().top,
+			scrollTop: list.scrollTop,
+			viewportHeight: list.renderHeight,
+			focus: list.getFocus(),
+			selection: list.getSelection(),
+		});
+		const before = position();
+		await waitForRequestCount(fixture.requests, 2);
+		assert.deepStrictEqual({
+			position: position(),
+			rowRetained: lastRow.isConnected,
+			length: list.length,
+			progress: loadingState(fixture.container).progress,
+			status: loadingState(fixture.container).status,
+		}, {
+			position: before, rowRetained: true, length: 25, progress: false, status: ['', ''],
+		});
+		list.reveal(24);
+		const placeholder = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-content.loading')!;
+		assert.ok(placeholder.inert);
+		placeholder.querySelector<HTMLButtonElement>('button')!.click();
+		const spinner = placeholder.querySelector<HTMLElement>('.customization-discovery-result-loading')!;
+		assert.deepStrictEqual({
+			openedDetails: fixture.openedDetails,
+			spinnerDisplay: DOM.getWindow(spinner).getComputedStyle(spinner).display,
+			spinnerAriaHidden: spinner.getAttribute('aria-hidden'),
+		}, {
+			openedDetails: [],
+			spinnerDisplay: 'grid',
+			spinnerAriaHidden: 'true',
+		});
+		const pending = position();
+		await fixture.requests[1].result.complete({
+			items: [resource('mail-24', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			position: position(),
+			rowRetained: lastRow.isConnected,
+			length: list.length,
+			state: loadingState(fixture.container),
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+			visibleSpinners: [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-loading')]
+				.filter(spinner => DOM.getWindow(spinner).getComputedStyle(spinner).display !== 'none').length,
+		}, {
+			position: pending, rowRetained: true, length: 25,
+			state: { progress: false, placeholder: false, status: ['', ''] },
+			busy: 'false',
+			visibleSpinners: 0,
+		});
+	});
+
+	test('hiding an initial request stops the progress bar and ignores its result', async () => {
+		const fixture = createPage();
+		fixture.page.setVisible(true);
+		const request = fixture.requests[0];
+		fixture.page.setVisible(false);
+		await request.result.complete({ items: [resource('stale')] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			cancelled: request.token.isCancellationRequested,
+			progress: loadingState(fixture.container).progress,
+			placeholder: loadingState(fixture.container).placeholder,
+			stale: fixture.page.getAccessibilityContent().includes('stale'),
+		}, { cancelled: true, progress: false, placeholder: false, stale: false });
+	});
 
 	test('one global continuation preserves ranked multi-type results and source selection', async () => {
 		const fixture = createPage();
@@ -370,6 +741,11 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@type:plugin mail');
 		fixture.page.setVisible(true);
+		const bit = fixture.container.querySelector<HTMLElement>('.customization-discovery-progress .progress-bit')!;
+		const animation = bit.getAnimations()[0];
+		assert.ok(animation);
+		animation.pause();
+		animation.currentTime = 1200;
 		for (let index = 0; index < 8; index++) {
 			await fixture.requests[index].result.complete({
 				items: [resource(`mail-skill-${index}`, { mediaType: CustomizationMarketplaceMediaType.Skill })],
@@ -378,6 +754,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			await timeout(0);
 		}
 		await waitForRequestCount(fixture.requests, 9);
+		assert.deepStrictEqual({
+			sameAnimation: bit.getAnimations()[0] === animation,
+			time: animation.currentTime,
+		}, { sameAnimation: true, time: 1200 });
 		assert.deepStrictEqual({
 			requests: fixture.requests.length,
 			loadMore: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state .monaco-button')?.textContent,
@@ -410,12 +790,12 @@ suite('AICustomizationDiscoveryPage', () => {
 			requests: fixture.requests.length,
 			cursor: fixture.requests[1]?.options.cursor,
 			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
-			loading: fixture.container.querySelector('.customization-discovery-results .customization-discovery-state')?.textContent,
+			loading: loadingState(fixture.container),
 		}, {
 			requests: 2,
 			cursor,
 			busy: 'true',
-			loading: 'Loading more customizations...',
+			loading: { progress: false, placeholder: true, status: ['', ''] },
 		});
 		await fixture.requests[1].result.complete({
 			items: [resource('mail-plugin-2', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
@@ -444,6 +824,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		await timeout(0);
 		const retry = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .customization-discovery-state .monaco-button');
 		assert.ok(retry);
+		assert.deepStrictEqual({
+			progress: loadingState(fixture.container).progress,
+			placeholder: loadingState(fixture.container).placeholder,
+		}, { progress: false, placeholder: false });
 		await timeout(0);
 		assert.strictEqual(fixture.requests.length, 2);
 		retry.click();
@@ -472,6 +856,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		await waitForRequestCount(fixture.requests, 2);
 		const cancelledRequest = fixture.requests[1];
 		fixture.page.setVisible(false);
+		assert.deepStrictEqual(loadingState(fixture.container), { progress: false, placeholder: false, status: ['', ''] });
 		fixture.page.setVisible(true);
 		await waitForRequestCount(fixture.requests, 3);
 		await cancelledRequest.result.complete({ items: [resource('stale-mail')] });
@@ -567,6 +952,224 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { visible: true, warnings: 0 });
 	});
 
+	test('available browse cards open in-product details without external title links', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		const item = resource('review-skill', {
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			url: URI.parse('https://example.com/review-skill'),
+		});
+		await fixture.requests[0].result.complete({ items: [item] });
+		await timeout(0);
+		const card = fixture.container.querySelector<HTMLElement>('.customization-discovery-card');
+		const primaryAction = card?.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		assert.deepStrictEqual({
+			titleLinks: card?.querySelectorAll('.customization-discovery-card-name[href]').length,
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedExternal: fixture.opened,
+		}, {
+			titleLinks: 0,
+			openedDetails: ['review-skill'],
+			openedExternal: [],
+		});
+	});
+
+	test('installed browse cards open the installed customization list', async () => {
+		const candidate = resource('installed-skill', {
+			displayName: 'Security skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+		});
+		const skillUri = URI.file('/workspace/.github/skills/security/SKILL.md');
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: skillUri } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		assert.deepStrictEqual({
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			marketplace: fixture.openedDetails,
+			installed: fixture.openedInstalled,
+		}, {
+			ariaLabel: 'Open installed customization Security skill',
+			marketplace: [],
+			installed: [{
+				section: AICustomizationManagementSection.Skills,
+				name: 'Security skill',
+				uri: skillUri,
+				mcpServerId: undefined,
+				mcpConnectorName: undefined,
+			}],
+		});
+	});
+
+	test('installed browse cards can uninstall without opening details', async () => {
+		const candidate = resource('installed-mcp', {
+			displayName: 'Azure AI Foundry',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+		});
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'mcp', id: 'azure-ai-foundry' } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button');
+		assert.ok(action);
+		const before = {
+			label: action.textContent,
+			disabled: action.getAttribute('aria-disabled'),
+			ariaLabel: action.getAttribute('aria-label'),
+		};
+		action.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before,
+			uninstalls: fixture.uninstalls,
+			openedDetails: fixture.openedDetails,
+			actionAfter: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')?.textContent,
+		}, {
+			before: {
+				label: 'Uninstall',
+				disabled: 'false',
+				ariaLabel: 'Uninstall Azure AI Foundry',
+			},
+			uninstalls: ['installed-mcp'],
+			openedDetails: [],
+			actionAfter: 'Install',
+		});
+	});
+
+	test('installed Connector browse cards preserve the Connector identity', async () => {
+		const candidate = resource('mail', {
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			displayName: 'Mail',
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		});
+		const fixture = createPage([CustomizationMarketplaceSources.CopilotConnectors.id]);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'copilotConnector', name: 'mail' } });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+
+		assert.deepStrictEqual(fixture.openedInstalled, [{
+			section: AICustomizationManagementSection.McpServers,
+			name: 'Mail',
+			uri: undefined,
+			mcpServerId: undefined,
+			mcpConnectorName: 'mail',
+		}]);
+	});
+
+	test('recorded missing browse cards open details instead of an installed list', async () => {
+		const candidate = resource('missing-skill', {
+			displayName: 'Missing skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+		});
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/missing/SKILL.md') } });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+
+		assert.deepStrictEqual({
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedInstalled: fixture.openedInstalled,
+		}, {
+			ariaLabel: 'View details for Missing skill',
+			openedDetails: ['missing-skill'],
+			openedInstalled: [],
+		});
+	});
+
+	test('available search rows open details while setup actions stay isolated', async () => {
+		const setupUrl = URI.parse('https://example.com/setup');
+		const fixture = createPage(['agentFinder'], undefined, undefined, setupUrl);
+		fixture.page.setSearchQuery('@type:mcp unity');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('unity', { url: URI.parse('https://example.com/unity') })] });
+		await timeout(0);
+		const row = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-row');
+		const primaryAction = row?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary');
+		const setup = row?.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button');
+		assert.ok(primaryAction);
+		assert.ok(setup);
+		setup.click();
+		primaryAction.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			titleLinks: row?.querySelectorAll('.customization-discovery-result-name[href]').length,
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedExternal: fixture.opened,
+		}, {
+			titleLinks: 0,
+			openedDetails: ['unity'],
+			openedExternal: [setupUrl],
+		});
+	});
+
+	test('search result images replace fallback icons and restore them on error', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.container.style.position = 'absolute';
+		fixture.container.style.top = '100000px';
+		fixture.page.setSearchQuery('icon');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [resource('with-icon', { icon: testIcon })],
+		});
+		await timeout(0);
+
+		assertImageReplacesFallback(fixture.container, '.customization-discovery-result-icon');
+	});
+
+	test('catalog-backed installed skills open their installed customization list', async () => {
+		const candidate = resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('mail');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-primary')]
+			.find(element => element.getAttribute('aria-label') === 'Open installed customization Local mail skill');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => line === 'Local mail skill'),
+			marketplace: fixture.openedDetails,
+			installed: fixture.openedInstalled.map(target => ({
+				section: target.section,
+				name: target.name,
+				uri: target.uri?.toString(),
+			})),
+		}, {
+			rows: ['Local mail skill'],
+			accessibleNames: ['Local mail skill'],
+			marketplace: [],
+			installed: [{
+				section: AICustomizationManagementSection.Skills,
+				name: 'Local mail skill',
+				uri: 'file:///workspace/.github/skills/mail/SKILL.md',
+			}],
+		});
+	});
+
 	test('direct installed uninstall is pending immediately and cannot start twice', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('@installed mail');
@@ -619,16 +1222,30 @@ suite('AICustomizationDiscoveryPage', () => {
 			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
 			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
 		};
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		const navigation = {
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedInstalled: [...fixture.openedInstalled],
+		};
 		const repair = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Repair');
 		assert.ok(repair);
 		repair.click();
 		await timeout(0);
 		assert.deepStrictEqual({
 			before,
+			navigation,
 			repairs: fixture.repairs,
 			actionsAfter: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
 		}, {
 			before: { detail: 'Skill · GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
+			navigation: {
+				ariaLabel: 'View details for Repair mail skill',
+				openedDetails: ['repair-mail'],
+				openedInstalled: [],
+			},
 			repairs: ['repair-mail'],
 			actionsAfter: ['Uninstall'],
 		});
@@ -787,6 +1404,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				presentation: { label: 'View Setup', ariaLabel: 'View setup instructions for unity', disabled: false },
 				opened: [setupUrl],
 			});
+			assert.deepStrictEqual(fixture.openedDetails, []);
 		});
 	}
 
@@ -805,26 +1423,74 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	test('plugin-only source picker and accessible results keep configured provenance', async () => {
-		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id]);
+		const fixture = createPage([configuredMarketplaceSourceId]);
 		fixture.page.setSearchQuery('@type:plugin review');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
-			items: [resource('review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, description: 'Review code', originLabel: 'owner/catalog' })],
+			items: [resource('review', { sourceId: configuredMarketplaceSourceId, mediaType: CustomizationMarketplaceMediaType.ClaudePlugin, description: 'Review code', originLabel: 'owner/catalog' })],
 		});
 		await timeout(0);
-		const availableAccessible = fixture.page.getAccessibilityContent().includes('review\nPlugin · Configured Plugin Marketplaces · owner/catalog\nReview code');
-		await fixture.selectSource(CustomizationMarketplaceSources.PluginMarketplaces.id);
+		const availableAccessible = fixture.page.getAccessibilityContent().includes('review\nPlugin · owner/catalog\nReview code');
+		await fixture.selectSource(configuredMarketplaceSourceId);
 		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => request.options.sourceIds),
 			source: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
 			availableAccessible,
-			accessible: fixture.page.getAccessibilityContent().includes('Configured Plugin Marketplaces'),
+			accessible: fixture.page.getAccessibilityContent().includes('owner/catalog'),
 		}, {
-			requests: [undefined, [CustomizationMarketplaceSources.PluginMarketplaces.id]],
-			source: 'Configured Plugin Marketplaces',
+			requests: [undefined, [configuredMarketplaceSourceId]],
+			source: 'owner/catalog',
 			availableAccessible: true,
 			accessible: true,
+		});
+	});
+
+	test('marketplace navigation applies its source and clears stale sources for general browse', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.McpServers, AICustomizationManagementSection.Plugins],
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+
+		fixture.page.showMarketplace('@type:plugin', configuredMarketplaceSourceId);
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [] });
+		const configuredPluginSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		fixture.page.showMarketplace('@type:mcp', undefined);
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [] });
+		const generalMcpSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		fixture.page.showMarketplace('@type:mcp', CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await timeout(0);
+		await fixture.requests[3].result.complete({ items: [] });
+
+		fixture.page.showMarketplace('@type:plugin', undefined);
+		await timeout(0);
+		await fixture.requests[4].result.complete({ items: [] });
+		const generalPluginSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.slice(1).map(request => ({
+				query: request.options.query,
+				sourceIds: request.options.sourceIds,
+			})),
+			configuredPluginSource,
+			generalMcpSource,
+			generalPluginSource,
+		}, {
+			requests: [
+				{ query: undefined, sourceIds: [configuredMarketplaceSourceId] },
+				{ query: undefined, sourceIds: undefined },
+				{ query: undefined, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] },
+				{ query: undefined, sourceIds: undefined },
+			],
+			configuredPluginSource: 'owner/catalog',
+			generalMcpSource: 'All Sources',
+			generalPluginSource: 'All Sources',
 		});
 	});
 
@@ -833,24 +1499,26 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly uri = URI.file('/plugins/review');
 			override readonly label = 'review';
 		}();
-		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id], [AICustomizationManagementSection.Plugins], [installedPlugin]);
+		const fixture = createPage([configuredMarketplaceSourceId], [AICustomizationManagementSection.Plugins], [installedPlugin]);
 		fixture.page.setSearchQuery('@type:plugin review');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
-			items: [resource('review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			items: [resource('review', { sourceId: configuredMarketplaceSourceId, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, originLabel: 'owner/catalog' })],
 		});
 		await timeout(0);
 		assert.deepStrictEqual({
 			rows: fixture.container.querySelectorAll('.customization-discovery-results .monaco-list-row').length,
-			accessible: fixture.page.getAccessibilityContent().includes('Configured Plugin Marketplaces'),
+			accessible: fixture.page.getAccessibilityContent().includes('owner/catalog'),
 		}, { rows: 2, accessible: true });
 	});
 
 	test('strict plugin policy changes clear cached plugin results and restart discovery', async () => {
-		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id]);
+		const fixture = createPage([configuredMarketplaceSourceId]);
 		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({ items: [resource('blocked', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id })] });
-		await setEnabled(fixture.configuration, ChatConfiguration.StrictMarketplaces, true);
+		await fixture.requests[0].result.complete({ items: [resource('blocked', { sourceId: configuredMarketplaceSourceId })] });
+		await timeout(0);
+		fixture.marketplaceChanges.fire();
+		await timeout(0);
 		await fixture.requests[1].result.complete({ items: [] });
 		assert.deepStrictEqual({
 			queries: fixture.requests.length,
@@ -859,11 +1527,11 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	test('workspace marketplace changes reset plugin results and cursor without requerying the public source', async () => {
-		const fixture = createPage([CustomizationMarketplaceSources.PluginMarketplaces.id]);
+		const fixture = createPage([configuredMarketplaceSourceId]);
 		fixture.page.setSearchQuery('@type:plugin review');
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({
-			items: [resource('old-review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			items: [resource('old-review', { sourceId: configuredMarketplaceSourceId, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
 			nextCursor: { token: 'old-cursor' },
 		});
 		await timeout(0);
@@ -875,7 +1543,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			previousResultVisible: fixture.page.getAccessibilityContent().includes('old-review'),
 		};
 		await resetRequest.result.complete({
-			items: [resource('new-review', { sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+			items: [resource('new-review', { sourceId: configuredMarketplaceSourceId, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
 		});
 		await timeout(0);
 		assert.deepStrictEqual({
@@ -987,7 +1655,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				installedVisible: fixture.page.getAccessibilityContent().includes('Local mail skill'),
 				searchVisible: fixture.container.querySelector('.customization-discovery-search') !== null,
 			}, {
-				catalogRequests: [{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 24, cursor: undefined }],
+				catalogRequests: [{ query: undefined, mediaType: undefined, sourceIds: undefined, pageSize: 100, cursor: undefined }],
 				installedVisible: true,
 				searchVisible: true,
 			});
@@ -1019,13 +1687,22 @@ suite('AICustomizationDiscoveryPage', () => {
 			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
 			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
 		}, {
-			labels: ['All sources', 'GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', 'Configure Marketplaces'],
+			labels: ['All Sources', 'owner/catalog', 'anthropics/claude-code', 'GitHub Feed', 'Copilot Connectors', 'Configure Marketplaces'],
 			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
 			selections: [undefined, ['copilotConnectors'], undefined],
-			finalLabel: 'All sources',
+			finalLabel: 'All Sources',
 			disabledSelectable: false,
 			content: ['public-mail'],
 		});
+	});
+
+	test('Configure Marketplaces opens the marketplace management quick pick', async () => {
+		const fixture = createPage(['agentFinder']);
+		await fixture.configureMarketplaces();
+		assert.deepStrictEqual(fixture.commands, [{
+			id: MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID,
+			args: [],
+		}]);
 	});
 
 
@@ -1049,6 +1726,29 @@ suite('AICustomizationDiscoveryPage', () => {
 			restored: ['connector-featured'],
 			all: ['all-featured'],
 			requests: [[undefined, undefined], [undefined, ['copilotConnectors']], ['mail', ['copilotConnectors']]],
+		});
+	});
+
+	test('resetting filters restores unfiltered browse results', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('all-featured')] });
+		await fixture.selectSource('copilotConnectors');
+		await fixture.requests[1].result.complete({ items: [resource('connector-featured', { sourceId: 'copilotConnectors' })] });
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
+
+		fixture.page.resetFilters();
+
+		assert.deepStrictEqual({
+			browseMode: fixture.page.getAccessibilityContent().includes('Browse mode.'),
+			source: fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent,
+			content: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
+		}, {
+			browseMode: true,
+			source: 'All Sources',
+			content: ['all-featured'],
 		});
 	});
 
@@ -1178,7 +1878,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				authorizations: 0,
 				healthyVisible: true,
 				accessibleAction: true,
-				label: 'Sign In to view Copilot Connectors.',
+				label: 'Sign In to access Copilot Connectors.',
 				primary: true,
 				warnings: 0,
 			},
@@ -1234,6 +1934,51 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+
+	test('coalesces shared GitHub account recovery into one sign-in invitation', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const recoveries: string[] = [];
+		for (const sourceId of ['agentFinder', 'copilotConnectors']) {
+			fixture.recoveryActions.set(sourceId, {
+				label: 'Sign In',
+				kind: 'signIn',
+				groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+				run: async () => { recoveries.push(sourceId); },
+			});
+		}
+		fixture.page.setSearchQuery('figma');
+		fixture.page.setVisible(true);
+		const sourceErrors = [
+			{ sourceId: 'agentFinder', message: 'Sign in to Copilot to search the GitHub Feed.' },
+			{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' },
+		];
+		await fixture.requests[0].result.complete({ items: [], sourceErrors });
+		await timeout(0);
+		const actions = fixture.container.querySelectorAll<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.strictEqual(actions.length, 1);
+		const initialMessage = fixture.container.querySelector('.customization-marketplace-source-signin .customization-marketplace-source-message')?.textContent;
+		const ariaLabel = actions[0].getAttribute('aria-label');
+		actions[0].click();
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [resource('figma')] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			initialMessage,
+			ariaLabel,
+			recoveries,
+			queries: fixture.requests.map(request => request.options.query),
+			signInPrompts: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+			results: fixture.page.getAccessibilityContent().match(/^figma$/gm),
+		}, {
+			initialMessage: 'Sign in to access GitHub Feed and Copilot Connectors.',
+			ariaLabel: 'Sign In to access GitHub Feed and Copilot Connectors.',
+			recoveries: ['agentFinder'],
+			queries: ['figma', 'figma'],
+			signInPrompts: 0,
+			results: ['figma'],
+		});
+	});
 
 	for (const query of ['', '@type:mcp mail']) {
 		test(`connector sign-in with no ${query ? 'search' : 'browse'} results is an invitation, not a warning or empty success`, async () => {

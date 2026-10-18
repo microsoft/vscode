@@ -18,7 +18,7 @@ import { registerOpenEditorListeners } from '../../../../platform/editor/browser
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
-import { coerceImageBuffer } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
+import { extractImagesFromChatVariables } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -155,13 +155,14 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				this.removeAttachment(entry.id);
 			}));
 
-			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			const image = entry.kind === 'image' ? extractImagesFromChatVariables([entry])[0] : undefined;
+			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : image?.uri.scheme !== Schemas.data ? image?.uri : undefined;
 			const githubContextResource = entry.id.startsWith(GITHUB_CONTEXT_ID_PREFIX)
 				? URI.parse(entry.id.slice(GITHUB_CONTEXT_ID_PREFIX.length))
 				: undefined;
 			const openResource = resource ?? githubContextResource;
-			const imageData = entry.kind === 'image' ? coerceImageBuffer(entry.value) : undefined;
-			const canOpen = Boolean(imageData || openResource || isPastedTextArtifact(entry));
+			const imageData = image?.data?.buffer;
+			const canOpen = Boolean(image || openResource || isPastedTextArtifact(entry));
 			let content: HTMLElement;
 			if (canOpen) {
 				const openButton = dom.append(pill, dom.$<HTMLButtonElement>('button.sessions-chat-attachment-open'));
@@ -237,11 +238,13 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 			}
 
 			// Click to open the resource or image
-			if (imageData) {
+			if (image) {
 				this._renderDisposables.add(registerOpenEditorListeners(content, async () => {
 					if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-						const imageResource = resource ?? URI.from({ scheme: 'data', path: entry.name });
-						await this.chatImageCarouselService.openCarouselAtResource(imageResource, imageData);
+						await this.chatImageCarouselService.openCarouselAtResource(image.uri, imageData, {
+							preferCurrentInput: true,
+							currentInput: { text: '', attachments: [...this._attachedContext] },
+						});
 					} else if (resource) {
 						await this.openerService.open(resource, { fromUserGesture: true });
 					}
@@ -260,12 +263,23 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 	// --- Picker ---
 
-	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = []): void {
+	isPickerVisibleAt(anchor: HTMLElement): boolean {
+		return this.quickInputService.currentQuickInput?.anchor === anchor;
+	}
+
+	showPicker(folderUri?: URI, contextActions: readonly IWorkspacePickerContextAction[] = [], anchor?: HTMLElement): void {
+		if (anchor && this.isPickerVisibleAt(anchor)) {
+			void this.quickInputService.cancel();
+			return;
+		}
+
 		const picker = this.quickInputService.createQuickPick<IContextQuickPickItem>({ useSeparators: true });
 		const disposables = new DisposableStore();
 		picker.placeholder = localize('chatContext.attach.placeholder', "Attach as context...");
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
+		picker.anchor = anchor;
+		picker.anchorPosition = anchor ? 'below' : undefined;
 
 		const staticPicks = this._getStaticPicks(contextActions);
 
@@ -322,15 +336,17 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 
 			picker.hide();
 
-			if (selected.contextAction) {
-				await selected.contextAction.run();
-			} else if (selected.id === 'sessions.filesAndFolders') {
-				await this._handleFileDialog();
-			} else if (selected.id === 'sessions.imageFromClipboard') {
-				await this._handleClipboardImage();
-			} else if (selected.id) {
-				await this._attachFileUri(URI.parse(selected.id), selected.label);
-			}
+			await this.quickInputService.withQuickInputAnchor(anchor, anchor ? 'below' : undefined, async () => {
+				if (selected.contextAction) {
+					await selected.contextAction.run();
+				} else if (selected.id === 'sessions.filesAndFolders') {
+					await this._handleFileDialog();
+				} else if (selected.id === 'sessions.imageFromClipboard') {
+					await this._handleClipboardImage();
+				} else if (selected.id) {
+					await this._attachFileUri(URI.parse(selected.id), selected.label);
+				}
+			});
 		}));
 
 		disposables.add(picker.onDidHide(() => {
@@ -340,7 +356,17 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 	}
 
 	private _getStaticPicks(contextActions: readonly IWorkspacePickerContextAction[]): (IContextQuickPickItem | IQuickPickSeparator)[] {
+		const topContextActions = contextActions.filter(action => action.placement === 'top');
+		const remainingContextActions = contextActions.filter(action => action.placement !== 'top');
+		const toPick = (action: IWorkspacePickerContextAction): IContextQuickPickItem => ({
+			label: action.label,
+			description: action.description,
+			iconClass: ThemeIcon.asClassName(action.icon),
+			contextAction: action,
+		});
 		return [
+			...topContextActions.map(toPick),
+			...(topContextActions.length > 0 ? [{ type: 'separator' as const }] : []),
 			{
 				label: localize('files', "Files..."),
 				iconClass: ThemeIcon.asClassName(Codicon.file),
@@ -351,13 +377,8 @@ export class NewChatContextAttachments extends Disposable implements INewChatAtt
 				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
 				id: 'sessions.imageFromClipboard',
 			},
-			...(contextActions.length > 0 ? [{ type: 'separator' as const }] : []),
-			...contextActions.map(action => ({
-				label: action.label,
-				description: action.description,
-				iconClass: ThemeIcon.asClassName(action.icon),
-				contextAction: action,
-			})),
+			...(remainingContextActions.length > 0 ? [{ type: 'separator' as const }] : []),
+			...remainingContextActions.map(toPick),
 		];
 	}
 

@@ -10,10 +10,12 @@ import { Event } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { isDark, type ColorScheme } from '../../theme/common/theme.js';
 
 const maxContinuations = 32;
 const defaultPageSize = 30;
@@ -33,13 +35,39 @@ export const CustomizationMarketplaceMediaType = {
 
 export type CustomizationMarketplaceMediaType = typeof CustomizationMarketplaceMediaType[keyof typeof CustomizationMarketplaceMediaType];
 
+export interface ICustomizationMarketplaceThemedIcon {
+	readonly light: URI;
+	readonly dark: URI;
+}
+
+export type CustomizationMarketplaceIcon = URI | ICustomizationMarketplaceThemedIcon;
+
+export function getCustomizationMarketplaceIconUri(icon: CustomizationMarketplaceIcon | undefined, themeType: ColorScheme): URI | undefined {
+	return URI.isUri(icon) ? icon : icon?.[isDark(themeType) ? 'dark' : 'light'];
+}
+
+export function isCustomizationMarketplaceIconEqual(
+	first: CustomizationMarketplaceIcon | undefined,
+	second: CustomizationMarketplaceIcon | undefined,
+): boolean {
+	if (first === undefined || second === undefined) {
+		return first === second;
+	}
+	if (URI.isUri(first) || URI.isUri(second)) {
+		return URI.isUri(first) && URI.isUri(second) && isEqual(first, second);
+	}
+	return isEqual(first.light, second.light) && isEqual(first.dark, second.dark);
+}
+
 /** Source-validated installation provenance; repository paths name the resource directory, not its manifest. */
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
-	| { readonly kind: 'configuredPlugin' }
+	| { readonly kind: 'configuredPlugin'; readonly name?: string; readonly marketplace?: string; readonly marketplaceId?: string; readonly marketplaceSource?: string }
+	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string; readonly marketplaceSource?: string; readonly providerManaged?: boolean }
+	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly itemUrl?: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string; readonly cardUrl?: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export interface ICustomizationMarketplaceEntry {
@@ -54,8 +82,10 @@ export interface ICustomizationMarketplaceEntry {
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;
 	readonly repository?: URI;
-	readonly icon?: URI;
+	readonly readmeUri?: URI;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly publisher?: string;
+	readonly publisherUrl?: URI;
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;
 	readonly version?: string;
@@ -152,7 +182,13 @@ export interface ICustomizationMarketplaceSourceInfo {
 export interface ICustomizationMarketplaceSourceRecoveryAction {
 	readonly label: string;
 	readonly kind?: 'signIn';
+	/** Equivalent recoveries with the same group are presented as one action. */
+	readonly groupId?: string;
 	run(token: CancellationToken): Promise<void>;
+}
+
+export const enum CustomizationMarketplaceRecoveryGroup {
+	GitHubDefaultAccount = 'githubDefaultAccount',
 }
 
 export function createLazyCustomizationMarketplaceProvider(id: string, createProvider: () => ICustomizationMarketplaceProvider, sourceId = id): ICustomizationMarketplaceProvider {
@@ -186,11 +222,6 @@ export interface ICustomizationMarketplaceService {
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
-
-export const IAgentFinderMarketplaceService = createDecorator<IAgentFinderMarketplaceService>('agentFinderMarketplaceService');
-
-/** AgentFinder marketplace transport, hosted in the shared process on desktop. */
-export interface IAgentFinderMarketplaceService extends ICustomizationMarketplaceService { }
 
 export interface ICustomizationMarketplaceQueryService {
 	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;

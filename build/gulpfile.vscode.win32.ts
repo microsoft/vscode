@@ -123,6 +123,13 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			}
 		}
 
+		if (fs.existsSync(path.join(sourcePath, 'bin', 'copilot-shim', 'copilot.exe'))) {
+			definitions['CopilotShim'] = 'true';
+			if (fs.existsSync(path.join(sourcePath, 'bin', 'copilot-shim', 'copilot'))) {
+				definitions['CopilotShimLauncher'] = 'true';
+			}
+		}
+
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		packageInnoSetup(issPath, { definitions }, cb as (err?: Error | null) => void);

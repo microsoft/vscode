@@ -58,6 +58,9 @@ rounds:
           part:
             kind: markdown
             content: PARENT_INITIAL_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: subscribe
         result: success
       - responseTo: subscribe
@@ -88,6 +91,23 @@ rounds:
           toolCallId: ${toolCall_2}
           result:
             success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_1}
+          toolCallId: ${toolCall_3}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_1}
+          part:
+            kind: markdown
+            content: PARENT_FOLLOWUP_ONE_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -103,20 +123,6 @@ rounds:
           part:
             kind: markdown
             content: CHILD_FOLLOWUP_ONE_DONE
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_1}
-          toolCallId: ${toolCall_3}
-          result:
-            success: true
-      - channel: ${chat_0}
-        action:
-          type: chat/responsePart
-          turnId: ${turn_1}
-          part:
-            kind: markdown
-            content: PARENT_FOLLOWUP_ONE_DONE
       - responseTo: subscribe
         result: success
   - clientToServer:
@@ -145,6 +151,23 @@ rounds:
           toolCallId: ${toolCall_4}
           result:
             success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_3}
+          toolCallId: ${toolCall_5}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_3}
+          part:
+            kind: markdown
+            content: PARENT_FOLLOWUP_TWO_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -160,19 +183,5 @@ rounds:
           part:
             kind: markdown
             content: CHILD_FOLLOWUP_TWO_DONE
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_3}
-          toolCallId: ${toolCall_5}
-          result:
-            success: true
-      - channel: ${chat_0}
-        action:
-          type: chat/responsePart
-          turnId: ${turn_3}
-          part:
-            kind: markdown
-            content: PARENT_FOLLOWUP_TWO_DONE
       - responseTo: subscribe
         result: success

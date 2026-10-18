@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import type { IAgentModelConfigurationReport } from '../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -23,13 +24,19 @@ import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
+import type { ICanvasContext } from '../../canvases/common/canvas.js';
+import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 
 export const enum ChatSessionsExtensions {
 	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
 }
 
 export interface IAsyncChatSessionActivationContribution {
+	/** Higher priorities activate first. Defaults to 0, with registration order breaking ties. */
+	readonly priority?: number;
 	matchSessionType(sessionType: string): boolean;
+	/** Optional owner lifetime, captured before activation; cancellation also ends provider-registration waits. */
+	getActivationToken?(sessionType: string): CancellationToken;
 	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
 }
 
@@ -49,7 +56,9 @@ class AsyncChatSessionActivationRegistry implements IAsyncChatSessionActivationR
 	}
 
 	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[] {
-		return Array.from(this._contributions).filter(contribution => contribution.matchSessionType(sessionType));
+		return Array.from(this._contributions)
+			.filter(contribution => contribution.matchSessionType(sessionType))
+			.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 	}
 }
 
@@ -318,6 +327,7 @@ export type IChatSessionHistoryItem = {
 	type: 'request';
 	prompt: string;
 	participant: string;
+	metadata?: Record<string, unknown>;
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
@@ -349,7 +359,17 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+/** Excludes model and usage decoration when comparing recorded and live transcript content. */
+export function getChatSessionHistoryContent(history: readonly IChatSessionHistoryItem[]): readonly IChatSessionHistoryItem[] {
+	return history.map(item => item.type === 'request' ? { ...item, modelId: undefined } : {
+		...item,
+		details: undefined,
+		parts: item.parts.filter(part => part.kind !== 'usage' && part.kind !== 'autoModeResolution'),
+	});
+}
+
 export interface IChatSessionServerRequest {
+	readonly metadata?: Record<string, unknown>;
 	/**
 	 * Identifier of the backing provider turn.
 	 */
@@ -387,6 +407,8 @@ export function isTerminalCommandPrompt(text: string, prefix: string | undefined
 export namespace SessionType {
 	export const CopilotCLI = 'copilotcli';
 	export const CopilotCloud = 'copilot-cloud-agent';
+	/** Cloud sessions created in a new sandbox; replaces {@link CopilotCloud} in the picker while registered. */
+	export const CloudSandbox = 'cloud-sandbox';
 	export const Local = 'local';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
@@ -427,6 +449,15 @@ export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
 }
 
+/** Returns the registered agent implementation handling the session. */
+export function getAgentHostProviderForTelemetry(sessionType: string | undefined, chatSessionsService: IChatSessionsService): string | undefined {
+	if (!sessionType) {
+		return 'unknown';
+	}
+	const provider = chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId;
+	return provider !== undefined ? provider || 'unknown' : (isAgentHostTarget(sessionType) ? 'unknown' : undefined);
+}
+
 /**
  * The session type used for local agent chat sessions.
  */
@@ -440,15 +471,34 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
-	/** Updated persisted transcript; applying it must preserve the current draft and locally running requests. */
+	/** Initial history loading failed; any rendered error or partial history is not an authoritative snapshot. */
+	readonly historyLoadError?: {
+		readonly message: string;
+		/** A missing root session may be initialized only after recorded history confirms it has no conversation. */
+		readonly canInitializeSession?: boolean;
+	};
+	/**
+	 * Updated persisted transcript; applying it must preserve the draft and locally running requests.
+	 * Unchanged turns must not resurrect locally removed requests.
+	 */
 	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
-
+	/** Updates model and usage decoration in place for otherwise unchanged turns with stable request IDs. */
+	readonly preserveHistoryItemIdentity?: boolean;
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
+	/** Active shells across all turns, or undefined when the provider does not report them. */
+	readonly backgroundShellCount?: IObservable<number | undefined>;
 	readonly isReadOnly?: IObservable<boolean>;
+	/** Temporarily prevents sending while keeping the draft visible and editable. */
+	readonly isInputBlocked?: IObservable<boolean>;
+	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly modelConfigurationState?: IObservable<IAgentModelConfigurationReport | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
+	/** Recheck a temporary input restriction without sending a message. */
+	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 	/** Claims this client's tools before an approved background request is queued directly on the host. */
 	prepareForClientTools?: (token: CancellationToken) => Promise<void>;
@@ -494,6 +544,7 @@ export interface IChatSession extends IDisposable {
 }
 
 export interface IChatSessionContentProvider {
+	/** Each returned session is independently disposable and must be released by its caller. */
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	/** Updates provider-owned metadata for a session. */
@@ -561,7 +612,14 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+	readonly attachment: IChatInputCompletionTextAttachment | IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+}
+
+/**
+ * Plain text associated with a completion item.
+ */
+export interface IChatInputCompletionTextAttachment {
+	readonly kind: 'text';
 }
 
 /**
@@ -589,6 +647,8 @@ export interface IChatInputCompletionCommandAttachment {
 	readonly command: string;
 	readonly isSkill?: true;
 	readonly description: string;
+	readonly retriggerSuggestions?: true;
+	readonly submitOnAccept?: true;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a
@@ -849,15 +909,17 @@ export interface IChatSessionsService {
 	 * Get the list of current chat session items grouped by session type.
 	 *
 	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.
+	 * @param onError Observes provider errors without interrupting the remaining providers.
 	 *
 	 * @returns An async iterable that produces the list of session items for each provider. The order is not guaranteed. Some provider may take a long time to resolve.
 	 */
-	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>;
 
 	/**
 	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
+	 * The optional callback observes provider errors without changing failure isolation.
 	 */
-	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<void>;
+	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void>;
 
 	/** @deprecated Use `getChatSessionItems` */
 	getInProgress(): { chatSessionType: string; count: number }[];

@@ -25,6 +25,9 @@ import { type CustomizationDisabledReason } from '../../../../platform/agentHost
 import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
+import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
+import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -94,6 +97,48 @@ export interface ICustomizationMcpServerCompatibilityProvider {
 export interface ICustomizationMcpServerMigrationProvider {
 	computeMigration(sessionResource: URI, token: CancellationToken): Promise<McpServerCustomizationMigration>;
 	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
+}
+
+export interface ICustomizationMarketplaceSearchProvider {
+	/**
+	 * Returns `undefined` when the provider cannot search in the current session,
+	 * allowing the workbench to use its compatibility catalog transport.
+	 */
+	query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined>;
+	/** Optional explicit recovery for the provider's current source failure. */
+	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
+}
+
+export interface ICustomizationMarketplaceInfo {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault: boolean;
+	readonly managed: boolean;
+	readonly available: boolean;
+}
+
+export interface ICustomizationMarketplaceRemoveResult {
+	readonly removed: boolean;
+	readonly dependentPlugins?: readonly string[];
+}
+
+export interface ICustomizationMarketplaceRefreshResult {
+	readonly name: string;
+	readonly success: boolean;
+	readonly error?: string;
+}
+
+export interface ICustomizationMarketplaceManagementProvider {
+	readonly onDidChange: Event<void>;
+	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
+	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+}
+
+export interface ICustomizationMcpConfigurationProvider {
+	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
 }
 
 /**
@@ -173,6 +218,14 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific MCP server migration behavior.
 	 */
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/** Provisionally routes harness-owned global MCP configuration. */
+	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
+	/** Supplies authoritative installation inventory and mutations for this harness. */
+	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
+	/** Supplies a harness-native replacement for the public customization catalog. */
+	readonly marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider;
+	/** Supplies authoritative marketplace inventory and mutations for this harness. */
+	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
 /**
@@ -284,6 +337,11 @@ export interface ICustomizationItemProvider {
 	 *   creation locations should be returned.
 	 */
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
+
+	/**
+	 * Returns the opaque workspace group containing a customization.
+	 */
+	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
 }
 
 /**
@@ -297,6 +355,8 @@ export interface ICustomizationSourceFolder {
 	readonly source: AICustomizationSource;
 	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
 	readonly destinationGroupId?: string;
+	/** Opaque provider-defined identity shared by folders that belong to the same workspace root. */
+	readonly workspaceGroupId?: string;
 }
 
 /**
@@ -344,6 +404,11 @@ export interface ICustomizationHarnessService {
 	 * @param sessionType The harness id (sessionType)
 	 */
 	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
+
+	/**
+	 * Finds the harness descriptor that owns the given session resource.
+	 */
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined;
 
 	/**
 	 * Changes the active session. The new session's type must be present in
@@ -579,13 +644,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return this._getAllHarnesses().find(h => h.id === id);
 	}
 
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined {
+		return this.findHarnessById(getChatSessionType(sessionResource));
+	}
+
 	setActiveSession(sessionResource: URI): void {
 		this._activeSessionResource.set(sessionResource, undefined);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
+		const descriptor = this.getDescriptorForSession(this._activeSessionResource.get());
 		return descriptor ?? EMPTY_DESCRIPTOR;
 	}
 

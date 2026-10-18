@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import sinon from 'sinon';
@@ -316,14 +317,21 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(INativeHostService, nativeHostService);
-		await instantiationService.invokeFunction(accessor => command.handler(accessor, { source: AgentsWindowOpenSource.KeyboardShortcut }));
+		const options: IOpenAgentsWindowOptions[] = [
+			{ source: AgentsWindowOpenSource.KeyboardShortcut },
+			{ reveal: 'new' },
+			{ reveal: URI.parse('agent-host-copilot:/session') },
+		];
+		for (const option of options) {
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, option));
+		}
 
 		assert.deepStrictEqual({
 			openAgentsWindowOptions: nativeHostService.openAgentsWindowOptions,
 			defaultKeybindingDelta: KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === OPEN_AGENTS_WINDOW_COMMAND_ID).length - defaultKeybindingsBefore.length,
 			commandPaletteDelta: MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).filter(item => item.command.id === OPEN_AGENTS_WINDOW_COMMAND_ID).length - commandPaletteItemsBefore.length,
 		}, {
-			openAgentsWindowOptions: [{ source: AgentsWindowOpenSource.KeyboardShortcut }],
+			openAgentsWindowOptions: options.map(option => ({ ...option, source: option.source ?? AgentsWindowOpenSource.CommandPalette })),
 			defaultKeybindingDelta: 0,
 			commandPaletteDelta: 0,
 		});

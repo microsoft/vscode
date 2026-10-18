@@ -5,23 +5,20 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry, isConfigurationDefaultSourceEquals } from '../../common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry, isConfigurationDefaultSourceEquals } from '../../common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { recordConfigurationRegistry, restoreConfigurationRegistryAfterSuite } from './configurationRegistryTestUtils.js';
 
 suite('ConfigurationRegistry', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const reset = restoreConfigurationRegistryAfterSuite();
 
 	setup(() => reset());
 	teardown(() => reset());
-
-	function reset() {
-		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
-		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
-	}
 
 	test('configuration override', async () => {
 		configurationRegistry.registerConfiguration({
@@ -323,6 +320,45 @@ suite('ConfigurationRegistry', () => {
 		configurationRegistry.deregisterDefaultConfigurations(overrides2);
 
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, {});
+	});
+
+	test('restoring a recorded registry keeps the declared defaults and the hidden settings of its configurations', () => {
+		const node: IConfigurationNode = {
+			'id': '_test_restore',
+			'type': 'object',
+			'properties': {
+				'restore.overridden': { 'type': 'boolean', 'default': false },
+				'restore.hiddenMirrored': { 'type': 'string', 'default': '', 'included': false, 'agentHost': { key: 'restore.hiddenMirrored' } },
+				'restore.hiddenExperiment': { 'type': 'boolean', 'default': false, 'included': false, 'experiment': { mode: 'auto' } },
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'restore.overridden': true } }]);
+		const state = () => ({
+			overriddenDefault: configurationRegistry.getConfigurationProperties()['restore.overridden']?.default,
+			hiddenMirrored: configurationRegistry.getAgentHostSyncConfigurations().get('restore.hiddenMirrored'),
+			hiddenExperiment: configurationRegistry.getExcludedConfigurationProperties()['restore.hiddenExperiment']?.experiment,
+		});
+		const registered = state();
+
+		const restore = recordConfigurationRegistry();
+		reset();
+		restore();
+		const restored = state();
+		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
+		const withoutOverride = state();
+		configurationRegistry.deregisterConfigurations([node]);
+		const withoutNode = state();
+
+		const hidden = { hiddenMirrored: { key: 'restore.hiddenMirrored' }, hiddenExperiment: { mode: 'auto' } };
+		assert.deepStrictEqual({ registered, restored, withoutOverride, withoutNode }, {
+			registered: { overriddenDefault: true, ...hidden },
+			restored: { overriddenDefault: true, ...hidden },
+			// The declared default, not the overridden one
+			withoutOverride: { overriddenDefault: false, ...hidden },
+			// The hidden settings belong to their node again
+			withoutNode: { overriddenDefault: undefined, hiddenMirrored: undefined, hiddenExperiment: undefined },
+		});
 	});
 
 	suite('isConfigurationDefaultSourceEquals', () => {

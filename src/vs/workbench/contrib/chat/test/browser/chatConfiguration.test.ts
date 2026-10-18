@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, isImageGenerationEnabledByDefault } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -20,9 +24,11 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
+const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.UnifiedWorkspacePicker];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
+const legacyProgressAnimationMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgress);
 const legacyProgressVerbosityMigration = migrations.find(migration => migration.key === ChatConfiguration.PersistentProgressVerbosity);
 const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfiguration.PersistentProgress];
 
@@ -30,21 +36,135 @@ suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('image generation defaults on in Insiders and off in Stable and development', () => {
+		assert.deepStrictEqual(['stable', 'insider', undefined].map(isImageGenerationEnabledByDefault), [false, true, false]);
+	});
+
+	test('the Sunburst setting description includes input/output rates and account availability', () => {
+		const description = copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGeneration].protocol.description;
+		assert.ok(description, 'The Sunburst setting must have a price description');
+		assert.deepStrictEqual({
+			availability: description.includes('when available to your account'),
+			unit: description.includes('AI credits per 1 million tokens'),
+			textRates: description.includes('**Text tokens:** 500 input / 0 output'),
+			imageRates: description.includes('**Image tokens:** 800 input / 3,000 output'),
+			additional: description.includes('in addition to the conversation model'),
+			variableRates: description.includes('Rates may change'),
+			notPerImage: description.includes('not per-image prices'),
+		}, {
+			availability: true, unit: true, textRates: true, imageRates: true,
+			additional: true, variableRates: true, notPerImage: true,
+		});
+	});
+
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {
+	for (const [key, value, expected] of [
+		[ChatConfiguration.AgentsParallelWorkBannerEnabled, false, false],
+		[ChatConfiguration.AgentsParallelWorkBannerEnabled, true, true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'hidden', false],
+		[ChatConfiguration.AgentsHandoffTipMode, 'default', true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'custom', true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'noFolder', true],
+	] as const) {
+		test(`migrates the explicit invitation preference ${key}=${value}`, async () => {
+			const migration = migrations.find(migration => migration.key === key);
+			assert.deepStrictEqual({ application: migration?.includeApplication, result: await migration?.migrateFn(value, () => undefined) }, {
+				application: true,
+				result: [[key, { value: undefined }], [ChatConfiguration.AgentsWindowBannerEnabled, { value: expected }]],
+			});
+		});
+	}
+
+	for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.AgentsHandoffTipMode]) {
+		test(`preserves either legacy opt-out and any explicit unified preference when migrating ${key}`, async () => {
+			const migration = migrations.find(migration => migration.key === key);
+			const value = key === ChatConfiguration.AgentsHandoffTipMode ? 'default' : true;
+			const optOut = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsHandoffTipMode ? 'hidden' : setting === ChatConfiguration.AgentsParallelWorkBannerEnabled ? false : undefined);
+			const enabled = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsWindowBannerEnabled ? true : undefined);
+			const disabled = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsWindowBannerEnabled ? false : undefined);
+			assert.deepStrictEqual({ optOut, enabled, disabled, absent: await migration?.migrateFn(undefined, () => undefined) }, {
+				optOut: [[key, { value: undefined }], [ChatConfiguration.AgentsWindowBannerEnabled, { value: false }]],
+				enabled: [[key, { value: undefined }]],
+				disabled: [[key, { value: undefined }]],
+				absent: [],
+			});
+		});
+	}
+
+	test('enables the unified workspace picker by default while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
-			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			type: unifiedWorkspacePickerSetting.type,
+			default: unifiedWorkspacePickerSetting.default,
+			scope: unifiedWorkspacePickerSetting.scope,
+			experiment: unifiedWorkspacePickerSetting.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
+		assert.deepStrictEqual({
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
 		}, {
-			marketplace: false,
+			marketplace: {
+				type: 'boolean',
+				tags: ['experimental', 'advanced'],
+				description: 'Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				default: false,
+				experiment: { mode: 'auto' },
+			},
 			publicFeed: true,
 		});
 	});
 
-	test('gates persistent progress off while allowing an experiment override', () => {
+	test('strict marketplace policy disables the GitHub Feed', () => {
+		assert.deepStrictEqual([
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: true, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictPolicyActive, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new class extends mock<IPluginMarketplaceService>() {
+			override isStrictMarketplacePolicyActive() { return strictPolicyActive; }
+		}(), harnessProvidesMarketplaceSearch)), [true, false, false]);
+	});
+
+	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {
+		const isDefault = (inspection: IConfigurationValue<boolean>) =>
+			isCustomizationMarketplaceValueFromDefault({
+				inspect: <T>() => inspection as unknown as IConfigurationValue<Readonly<T>>,
+			} as unknown as IConfigurationService);
+		assert.deepStrictEqual([
+			isDefault({ defaultValue: false, value: false }),
+			...[
+				'applicationValue',
+				'userValue',
+				'userLocalValue',
+				'userRemoteValue',
+				'workspaceValue',
+				'workspaceFolderValue',
+				'memoryValue',
+				'policyValue',
+			].map(layer => isDefault({ defaultValue: false, value: true, [layer]: true })),
+		], [
+			true,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
+	});
+
+	test('defaults persistent progress to Draw regardless of product quality while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -52,7 +172,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: 'off',
+			default: 'draw',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -70,11 +190,23 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: 'off',
-			values: ['off', 'weave', 'draw', 'orbit', 'accordion', 'dial'],
-			labels: ['Off', 'Weave', 'Draw', 'Orbit and Lock', 'Accordion', 'Dial Rotation'],
-			descriptions: 6,
+			default: 'draw',
+			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
+			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
+			descriptions: 4,
 		});
+	});
+
+	test('migrates removed progress animations to Draw', async () => {
+		assert.deepStrictEqual(await Promise.all(
+			['weave', 'orbit', 'accordion', 'dial', 'ribbon'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), Array.from({ length: 5 }, () => ({ value: 'draw' })));
+	});
+
+	test('preserves current progress styles and absent settings during migration', async () => {
+		assert.deepStrictEqual(await Promise.all(
+			['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon', undefined, 'unsupported'].map(value => legacyProgressAnimationMigration?.migrateFn(value, () => undefined)),
+		), [[], [], [], [], [], []]);
 	});
 
 	test('defaults persistent progress verbosity to Compact tool previews', () => {
@@ -142,5 +274,29 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(await legacyAutoDeleteArchivedMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays', { value: undefined }],
 		]);
+	});
+
+	test('migrates the legacy title generation settings to one strategy without overwriting it', async () => {
+		const deferredSetting = 'chat.agentHost.experimental.deferredTitleGeneration';
+		const activeAgentSetting = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+		const strategySetting = 'chat.agentHost.experimental.titleGeneration';
+		const deferredMigration = migrations.find(migration => migration.key === deferredSetting);
+		const activeAgentMigration = migrations.find(migration => migration.key === activeAgentSetting);
+
+		assert.deepStrictEqual({
+			application: [deferredMigration?.includeApplication, activeAgentMigration?.includeApplication],
+			deferredOn: await deferredMigration?.migrateFn(true, () => undefined),
+			deferredOff: await deferredMigration?.migrateFn(false, () => undefined),
+			activeAgentOff: await activeAgentMigration?.migrateFn(false, () => undefined),
+			activeAgentOffWithDeferredOn: await activeAgentMigration?.migrateFn(false, setting => setting === deferredSetting ? true : undefined),
+			activeAgentOnWithStrategySet: await activeAgentMigration?.migrateFn(true, setting => setting === strategySetting ? 'agentReview' : undefined),
+		}, {
+			application: [true, true],
+			deferredOn: [[deferredSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			deferredOff: [[deferredSetting, { value: undefined }]],
+			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
+			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
 	});
 });

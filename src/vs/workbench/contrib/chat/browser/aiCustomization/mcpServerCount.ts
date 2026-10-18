@@ -51,8 +51,22 @@ export class ActiveSessionMcpServerMatcher {
 		return undefined;
 	}
 
+	takeConnector(keys: readonly (string | undefined)[], displayNames: readonly (string | undefined)[]): AgentHostMcpServer | undefined {
+		const exactMatch = this.take(keys);
+		if (exactMatch) {
+			return exactMatch;
+		}
+		const names = new Set(getUniqueMcpMatchKeys(displayNames));
+		const matches = this.servers.filter(server => !this.matchedIds.has(server.id) && server.displayName !== undefined && names.has(server.displayName));
+		if (matches.length === 1) {
+			this.matchedIds.add(matches[0].id);
+			return matches[0];
+		}
+		return undefined;
+	}
+
 	unmatched(query: string): AgentHostMcpServer[] {
-		return this.servers.filter(server => !this.matchedIds.has(server.id) && (!query || server.name.toLowerCase().includes(query)));
+		return this.servers.filter(server => !this.matchedIds.has(server.id) && (!query || [server.name, server.displayName].some(value => value?.toLowerCase().includes(query))));
 	}
 }
 
