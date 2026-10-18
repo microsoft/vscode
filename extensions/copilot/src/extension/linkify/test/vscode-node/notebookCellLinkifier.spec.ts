@@ -6,16 +6,22 @@
 import assert from 'assert';
 import { suite, test } from 'vitest';
 import type { Event, NotebookCell, NotebookDocument, NotebookDocumentChangeEvent, TextDocument } from 'vscode';
+import { NullEnvService } from '../../../../platform/env/common/nullEnvService';
+import { getCellId } from '../../../../platform/notebook/common/helpers';
 import { ILogger, ILogService } from '../../../../platform/log/common/logService';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
+import { DeferredPromise } from '../../../../util/vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { StringSHA1 } from '../../../../util/vs/base/common/hash';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
-import { NotebookCellKind, Uri } from '../../../../vscodeTypes';
+import { NotebookCellKind, NotebookRange, Uri } from '../../../../vscodeTypes';
 import { LinkifiedPart, LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { NotebookCellLinkifier } from '../../vscode-node/notebookCellLinkifier';
-import { assertPartsEqual } from '../node/util';
+import { LinkifyService } from '../../common/linkifyService';
+import { ResponseStreamWithLinkification } from '../../common/responseStreamWithLinkification';
+import { assertPartsEqual, createMockFsService } from '../node/util';
 
 suite('Notebook Cell Linkifier', () => {
 
@@ -38,9 +44,9 @@ suite('Notebook Cell Linkifier', () => {
 		} as unknown as NotebookCell;
 	}
 
-	function createMockNotebookDocument(cells: NotebookCell[]): NotebookDocument {
+	function createMockNotebookDocument(cells: NotebookCell[], uri = Uri.file('/test/notebook.ipynb')): NotebookDocument {
 		return {
-			uri: Uri.file('/test/notebook.ipynb'),
+			uri,
 			getCells: () => cells,
 			cellCount: cells.length,
 			cellAt: (index: number) => cells[index],
@@ -97,6 +103,9 @@ suite('Notebook Cell Linkifier', () => {
 	function normalizeParts(parts: readonly LinkifiedPart[]): LinkifiedPart[] {
 		const normalized: LinkifiedPart[] = [];
 		for (const part of parts) {
+			if (part === '') {
+				continue;
+			}
 			if (typeof part === 'string' && normalized.length && typeof normalized[normalized.length - 1] === 'string') {
 				normalized[normalized.length - 1] += part; // Concatenate strings
 			} else {
@@ -153,8 +162,8 @@ suite('Notebook Cell Linkifier', () => {
 				const workspaceService = store.add(new TestWorkspaceService([], [], notebooks));
 				const linkifier = store.add(new NotebookCellLinkifier(workspaceService, mockLogger));
 				const tracking = linkifier as unknown as {
-					notebookCellIds: WeakMap<NotebookDocument, Set<string>>;
-					cells: Map<string, WeakRef<NotebookCell>>;
+					notebookCellIds: WeakMap<NotebookDocument, Map<string, WeakRef<NotebookCell>>>;
+					cells: Map<string, Set<WeakRef<NotebookCell>>>;
 				};
 				await linkifier.linkify(`Cell Id ${generateCellId(cellUri)}`, { requestId: undefined, references: [] }, CancellationToken.None);
 				assert.strictEqual(tracking.notebookCellIds.has(notebook), true);
@@ -169,6 +178,140 @@ suite('Notebook Cell Linkifier', () => {
 					tracksClosedNotebook: false,
 					cellCount: 0,
 				});
+			} finally {
+				store.dispose();
+			}
+		});
+	}
+
+	for (const [closedIndex, change] of [[0, 'close'], [1, 'close'], [0, 'remove cell'], [1, 'remove cell']] as const) {
+		test(`Should preserve colliding cell IDs after ${change} in notebook ${closedIndex}`, async () => {
+			const store = new DisposableStore();
+			try {
+				const cells = [10720, 86058].map(id => createMockNotebookCell(Uri.parse(`vscode-notebook-cell:/c%3A/review/collision-${id}.ipynb#W0sZmlsZQ`), 0));
+				const notebooks = cells.map(cell => createMockNotebookDocument([cell], cell.document.uri.with({ scheme: 'file', fragment: '' })));
+				const workspace = store.add(new TestWorkspaceService([], [], notebooks));
+				const linkifier = store.add(new NotebookCellLinkifier(workspace, mockLogger));
+				const text = 'Cell Id #VSC-52bae137';
+				assert.deepStrictEqual(cells.map(getCellId), ['#VSC-52bae137', '#VSC-52bae137']);
+				const initial = await linkifier.linkify(text, { requestId: undefined, references: [] }, CancellationToken.None);
+				assertPartsEqual(normalizeParts(initial.parts), [text + ' ', new LinkifyLocationAnchor(cells[1].document.uri, 'Cell 1')]);
+
+				if (change === 'close') {
+					const [closed] = notebooks.splice(closedIndex, 1);
+					workspace.didCloseNotebookDocumentEmitter.fire(closed);
+				} else {
+					const notebook = notebooks[closedIndex];
+					const removedCells = notebook.getCells().splice(0, 1);
+					workspace.didChangeNotebookDocumentEmitter.fire({ notebook, metadata: undefined, contentChanges: [{ range: new NotebookRange(0, 1), addedCells: [], removedCells }], cellChanges: [] });
+				}
+				const result = await linkifier.linkify(text, { requestId: undefined, references: [] }, CancellationToken.None);
+				assertPartsEqual(normalizeParts(result.parts), [text + ' ', new LinkifyLocationAnchor(cells[1 - closedIndex].document.uri, 'Cell 1')]);
+			} finally {
+				store.dispose();
+			}
+		});
+	}
+
+	test('Should remove stale IDs when notebook cells are replaced', async () => {
+		const store = new DisposableStore();
+		try {
+			const oldCell = createMockNotebookCell(Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#old'), 0);
+			const replacement = createMockNotebookCell(Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#new'), 0);
+			const cells = [oldCell];
+			const notebook = createMockNotebookDocument(cells);
+			const workspace = store.add(new TestWorkspaceService([], [], [notebook]));
+			const linkifier = store.add(new NotebookCellLinkifier(workspace, mockLogger));
+			const oldText = `Cell Id ${getCellId(oldCell)}`;
+			await linkifier.linkify(oldText, { requestId: undefined, references: [] }, CancellationToken.None);
+
+			cells.splice(0, 1, replacement);
+			workspace.didChangeNotebookDocumentEmitter.fire({ notebook, metadata: undefined, contentChanges: [{ range: new NotebookRange(0, 1), addedCells: [replacement], removedCells: [oldCell] }], cellChanges: [] });
+			const tracking = linkifier as unknown as {
+				notebookCellIds: WeakMap<NotebookDocument, Map<string, WeakRef<NotebookCell>>>;
+				cells: Map<string, Set<WeakRef<NotebookCell>>>;
+			};
+			const oldResult = await linkifier.linkify(oldText, { requestId: undefined, references: [] }, CancellationToken.None);
+			const newText = `Cell Id ${getCellId(replacement)}`;
+			const newResult = await linkifier.linkify(newText, { requestId: undefined, references: [] }, CancellationToken.None);
+			assert.deepStrictEqual({
+				trackedIds: [...tracking.notebookCellIds.get(notebook)!.keys()],
+				indexedIds: [...tracking.cells.keys()],
+				oldParts: normalizeParts(oldResult.parts),
+			}, {
+				trackedIds: [getCellId(replacement)],
+				indexedIds: [getCellId(replacement)],
+				oldParts: [oldText],
+			});
+			assertPartsEqual(normalizeParts(newResult.parts), [newText + ' ', new LinkifyLocationAnchor(replacement.document.uri, 'Cell 1')]);
+		} finally {
+			store.dispose();
+		}
+	});
+
+	for (const outcome of ['success', 'cancel', 'output error', 'request error'] as const) {
+		test(`Should release notebook listeners after response ${outcome}`, async () => {
+			const store = new DisposableStore();
+			try {
+				const cell = createMockNotebookCell(Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1'), 0);
+				const workspace = store.add(new TestWorkspaceService([], [], [createMockNotebookDocument([cell])]));
+				const service = new LinkifyService(createMockFsService([]), workspace, NullEnvService.Instance);
+				const listenerState = () => ({
+					open: workspace.didOpenNotebookDocumentEmitter.hasListeners(),
+					close: workspace.didCloseNotebookDocumentEmitter.hasListeners(),
+					change: workspace.didChangeNotebookDocumentEmitter.hasListeners(),
+				});
+				let activeState: ReturnType<typeof listenerState> | undefined;
+				let initialized = new DeferredPromise<void>();
+				let cancel = () => { };
+				store.add(service.registerGlobalLinkifier({
+					create: () => {
+						const notebookLinkifier = new NotebookCellLinkifier(workspace, mockLogger);
+						return {
+							linkify: async (text, context, token) => {
+								const result = await notebookLinkifier.linkify(text, context, token);
+								if (workspace.didOpenNotebookDocumentEmitter.hasListeners()) {
+									activeState = listenerState();
+									initialized.complete();
+									if (outcome === 'cancel') {
+										cancel();
+									}
+								}
+								return result;
+							},
+							dispose: () => notebookLinkifier.dispose(),
+						};
+					},
+				}));
+
+				for (let i = 0; i < 37; i++) {
+					initialized = new DeferredPromise<void>();
+					const tokenSource = store.add(new CancellationTokenSource());
+					cancel = () => tokenSource.cancel();
+					const progress = new ChatResponseStreamImpl(() => {
+						if (outcome === 'output error') {
+							throw new Error('output failed');
+						}
+					}, () => { });
+					const stream = new ResponseStreamWithLinkification({ requestId: undefined, references: [] }, progress, [], tokenSource.token, service, workspace);
+					stream.markdown(`Cell Id ${getCellId(cell)} `);
+					if (outcome === 'request error') {
+						const requestStore = new DisposableStore();
+						requestStore.add(stream);
+						await initialized.p;
+						// The request's finally block disposes streams when normal finalization is skipped.
+						requestStore.dispose();
+						await Promise.allSettled([stream.finalize()]);
+					} else if (outcome === 'success') {
+						await stream.finalize();
+					} else {
+						await assert.rejects(stream.finalize(), outcome === 'cancel' ? /Canceled/ : /output failed/);
+					}
+					assert.deepStrictEqual({ active: activeState, after: listenerState() }, {
+						active: { open: true, close: true, change: true },
+						after: { open: false, close: false, change: false },
+					});
+				}
 			} finally {
 				store.dispose();
 			}
@@ -214,14 +357,18 @@ suite('Notebook Cell Linkifier', () => {
 		await linkifier.linkify(`Cell Id ${cellId}`, { requestId: undefined, references: [] }, CancellationToken.None);
 		await linkifier.linkify(`Cell Id ${cellId}`, { requestId: undefined, references: [] }, CancellationToken.None);
 
-		assert.strictEqual(openNotebookEvent.listenerCount, 1);
-		assert.strictEqual(closeNotebookEvent.listenerCount, 1);
-		assert.strictEqual(changeNotebookEvent.listenerCount, 1);
+		assert.deepStrictEqual({
+			open: openNotebookEvent.listenerCount,
+			close: closeNotebookEvent.listenerCount,
+			change: changeNotebookEvent.listenerCount,
+		}, { open: 1, close: 1, change: 1 });
 
 		linkifier.dispose();
 
-		assert.strictEqual(openNotebookEvent.listenerCount, 0);
-		assert.strictEqual(closeNotebookEvent.listenerCount, 0);
-		assert.strictEqual(changeNotebookEvent.listenerCount, 0);
+		assert.deepStrictEqual({
+			open: openNotebookEvent.listenerCount,
+			close: closeNotebookEvent.listenerCount,
+			change: changeNotebookEvent.listenerCount,
+		}, { open: 0, close: 0, change: 0 });
 	});
 });
