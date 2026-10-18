@@ -2066,7 +2066,8 @@ suite('SessionWorkspaceConversionService', () => {
 		assert.strictEqual(hydrated, turns);
 	});
 
-	test.skip('restores one durable transition before provider output after service restart', async () => {
+	// Uses a SQLite database on disk, so loaded CI file systems can exceed the default timeout.
+	test('restores one durable transition before provider output after service restart', async () => {
 		const temporaryDirectory = await fs.promises.mkdtemp(join(tmpdir(), `workspace-transition-${generateUuid()}-`));
 		const databasePath = join(temporaryDirectory, 'session.db');
 		let conversionDatabase: SessionDatabase | undefined;
@@ -2156,7 +2157,7 @@ suite('SessionWorkspaceConversionService', () => {
 			await Promise.all([conversionDatabase?.close(), restoredDatabase?.close()]);
 			await fs.promises.rm(temporaryDirectory, { recursive: true, force: true });
 		}
-	});
+	}).timeout(10_000);
 
 	test('restores every persisted workspace conversion at its own turn boundary', async () => {
 		const database = new TestSessionDatabase();
