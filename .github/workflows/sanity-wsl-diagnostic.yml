@@ -7,17 +7,24 @@ permissions:
   contents: read
 
 jobs:
-  launch:
-    name: Playwright launch of the wsl-desktop arguments
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=sanity-launch-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
-    timeout-minutes: 30
+  sanity:
+    name: wsl-desktop-x64 on ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: buggy Insiders c03d2e4a (expect 401 failure)
+            commit: c03d2e4a25d1437c62e985a9006a5af6bad463a3
+          - name: fixed Insiders 16d22415 (expect pass)
+            commit: 16d22415b62f4bd6b056011027f53c3e9978fbf4
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=sanity-wsl-${{ strategy.job-index }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    timeout-minutes: 45
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: |
             .github/actions
-            .github/sanity-diag
             build/azure-pipelines/common
             build/checksums
             test/sanity
@@ -28,37 +35,33 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Install sanity test dependencies
+      - name: Restore WSL installer
+        uses: ./.github/actions/restore-wsl-installer
+
+      - name: Install and compile sanity tests
         working-directory: test/sanity
         shell: pwsh
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
-        run: npm ci
-
-      - name: Restore WSL installer
-        uses: ./.github/actions/restore-wsl-installer
-
-      - name: Launch variants
-        shell: pwsh
-        env:
-          DEBUG: pw:browser*
         run: |
-          $ErrorActionPreference = 'Stop'
-          Import-Module ./build/azure-pipelines/common/wsl.psm1
-          Install-Wsl -CacheDirectory .build/wsl-installer
-          $rootfs = Join-Path $env:RUNNER_TEMP 'ubuntu.tar.gz'
-          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors -o $rootfs 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz'
-          $distroDir = Join-Path $env:RUNNER_TEMP 'ubuntu'
-          New-Item -ItemType Directory -Force $distroDir | Out-Null
-          Write-Host (Invoke-WslExe -ArgumentList '--import', 'Ubuntu', $distroDir, $rootfs, '--version', '2' -TimeoutSeconds 180).Output
-          $metadata = Invoke-RestMethod 'https://update.code.visualstudio.com/api/versions/commit:16d22415b62f4bd6b056011027f53c3e9978fbf4/win32-x64-archive/insider'
-          $zip = Join-Path $env:RUNNER_TEMP 'code.zip'
-          curl.exe --fail --location --silent --show-error --retry 5 --retry-all-errors -o $zip $metadata.url
-          $appRoot = Join-Path $env:RUNNER_TEMP 'code'
-          Expand-Archive -LiteralPath $zip -DestinationPath $appRoot
-          $exe = Get-ChildItem -LiteralPath $appRoot -Recurse -Filter 'Code - Insiders.exe' | Select-Object -First 1 -ExpandProperty FullName
-          $dataDir = Join-Path (Split-Path -Parent $exe) 'data'
-          $extensions = Join-Path $env:RUNNER_TEMP 'extensions'
-          $crash = Join-Path $env:GITHUB_WORKSPACE 'crash-dumps\wsl-desktop-x64'
-          New-Item -ItemType Directory -Force $dataDir, $extensions | Out-Null
-          node .github/sanity-diag/launch.ts $exe $dataDir $extensions $crash
+          New-Item -ItemType Directory -Force screenshots, crash-dumps | Out-Null
+          npm ci
+          npm run compile
+
+      - name: Run wsl-desktop-x64
+        shell: cmd
+        working-directory: test/sanity
+        env:
+          WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+        run: call scripts\run-win32.cmd -c ${{ matrix.commit }} -q insider -t "%GITHUB_WORKSPACE%\test\sanity\results.xml" -s "%GITHUB_WORKSPACE%\test\sanity\screenshots" -d "%GITHUB_WORKSPACE%\test\sanity\crash-dumps" -v -g wsl-desktop-x64
+
+      - name: Upload screenshots and crash dumps
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sanity-wsl-${{ strategy.job-index }}-${{ github.run_attempt }}
+          path: |
+            test/sanity/screenshots
+            test/sanity/crash-dumps
+            test/sanity/results.xml
+          if-no-files-found: ignore
