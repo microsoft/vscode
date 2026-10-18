@@ -4088,6 +4088,7 @@ declare module 'vscode' {
 		 * Delete a file or folder.
 		 *
 		 * @param uri The uri of the file that is to be deleted.
+		 * @param options Options for the deletion.
 		 * @param metadata Optional metadata for the entry.
 		 */
 		deleteFile(uri: Uri, options?: {
@@ -4096,9 +4097,13 @@ declare module 'vscode' {
 			 */
 			readonly recursive?: boolean;
 			/**
-			 * Do nothing if a file with `uri` exists already.
+			 * Do nothing if a file or folder with `uri` exists already.
 			 */
 			readonly ignoreIfNotExists?: boolean;
+			/**
+			 * Permanently delete the file or folder instead of moving it to the trash.
+			 */
+			readonly skipTrashBin?: boolean;
 		}, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**

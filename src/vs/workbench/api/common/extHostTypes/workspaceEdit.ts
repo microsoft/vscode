@@ -22,6 +22,7 @@ export interface IFileOperationOptions {
 	readonly recursive?: boolean;
 	readonly folder?: boolean;
 	readonly copy?: boolean;
+	readonly skipTrashBin?: boolean;
 	readonly contents?: Uint8Array | vscode.DataTransferFile;
 }
 
@@ -98,7 +99,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean; readonly skipTrashBin?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
