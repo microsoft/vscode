@@ -194,15 +194,21 @@ jobs:
         timeout-minutes: 150
         shell: pwsh
         run: |
-          $attempts = 100
+          # Amplified probe: each attempt runs the target test with 21 gaps (0-400 ms) between its simulated host restarts.
+          $attempts = 30
           $failed = @()
           for ($i = 1; $i -le $attempts; $i++) {
             Write-Host "===== Session storage identity flush-out: attempt $i/$attempts ====="
-            .\scripts\test.bat --run src/vs/platform/agentHost/test/node/sessionStorageIdentity.test.ts
+            .\scripts\test.bat --run src/vs/platform/agentHost/test/node/sessionStorageIdentity.test.ts --grep "restoring a compatibility session registers its subagent chat"
             if ($LASTEXITCODE -ne 0) {
               $failed += $i
               Write-Host "##[warning]Session storage identity flush-out: attempt $i failed"
             }
+          }
+          if (Test-Path .build/logs/ah-probe.log) {
+            $probe = Get-Content .build/logs/ah-probe.log
+            Write-Host "===== ah-probe: $(($probe | Select-String 'SUMMARY').Count) executions, $(($probe | Select-String 'failed=true').Count) failed, $(($probe | Select-String 'SQLERROR').Count) SQL errors, $(($probe | Select-String 'staleHostSessionDbCalls=[1-9]').Count) with stale-host session.db calls ====="
+            $probe | Select-String 'SQLERROR|failed=true' | Select-Object -First 60 | ForEach-Object { Write-Host $_.Line }
           }
           Write-Host "===== Session storage identity flush-out: $($failed.Count)/$attempts attempts failed: $($failed -join ', ') ====="
           if ($failed.Count -gt 0) { exit 1 }
