@@ -51,6 +51,7 @@ import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from '
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
@@ -1210,16 +1211,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
-		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
-		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
-		// exception: the SDK validates the session-start `agent:` against `customAgents`
-		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// Rely on the SDK to discover skills and other plugin resources from
+		// `pluginDirectories`. Agents are projected explicitly because the SDK treats an
+		// explicit `customAgents` array as the complete catalog, and VS Code always adds its
+		// built-in agents there (see `toSdkSessionCustomAgents`).
 		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
@@ -1259,7 +1260,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		});
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
-		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
+		// Allow-list by default: a runtime built-in that is not in the host's list stays off until adopted.
+		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools) ?? [...COPILOT_DEFAULT_AVAILABLE_TOOLS];
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),
 			// Keep dynamic workflows disabled until Agent Host support is validated.

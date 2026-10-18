@@ -438,6 +438,7 @@ interface IConnectedClient {
 	 * the same logical channel collapse to one entry.
 	 */
 	readonly subscriptions: Map<string, ChannelSubscription>;
+	readonly knownSessionSummaries: Set<string>;
 	readonly pendingAuthenticationSubscriptions: Set<string>;
 	readonly disposables: DisposableStore;
 	readonly initializationDisposables: DisposableStore;
@@ -584,6 +585,8 @@ export interface IProtocolServerConfig {
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
 	readonly sessionConfigAdapter?: ISessionConfigAdapter;
+	/** Filters session summaries in discovery responses and catalogue notifications for this listener. */
+	readonly sessionSummaryFilter?: (summary: SessionSummary) => boolean;
 	/** Projects visible, current session summaries for this listener's listSessions responses. */
 	readonly sessionListAdapter?: (sessions: readonly SessionSummary[]) => SessionSummary[];
 	/** Locally known workspace/content roots exposed to relay clients. */
@@ -959,6 +962,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			isReconnect: this._clientConnections.hasSeenClient(params.clientId),
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
+			knownSessionSummaries: new Set(),
 			pendingAuthenticationSubscriptions: new Set(),
 			disposables,
 			initializationDisposables,
@@ -1227,6 +1231,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			isReconnect,
 			telemetryConnectionActive: false,
 			subscriptions: new Map(),
+			knownSessionSummaries: new Set(),
 			pendingAuthenticationSubscriptions: new Set(),
 			disposables,
 			initializationDisposables,
@@ -2164,6 +2169,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const items = sessions.filter((_, index) => visible[index]).map(toListedSessionSummary);
 			let prepared = this._stateManager.prepareSessionSummariesForListing(items)
 				.filter(item => this._isSessionVisible(client, item.resource, item.defaultChat))
+				.filter(summary => !this._config.sessionSummaryFilter || this._config.sessionSummaryFilter(summary))
 				.map(item => item.chats ? { ...item, chats: [...this._filterVisibleChats(client, item.resource, item.chats, chat => chat.resource)] } : item);
 			if (this._config.relayRoots) {
 				const granted = await Promise.all(prepared.map(async item => {
@@ -2177,7 +2183,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}));
 				prepared = granted.filter(isDefined);
 			}
-			return { items: this._config.sessionListAdapter ? this._config.sessionListAdapter(prepared) : prepared };
+			const listed = this._config.sessionListAdapter ? this._config.sessionListAdapter(prepared) : prepared;
+			if (this._config.sessionSummaryFilter) {
+				for (const summary of listed) {
+					client.knownSessionSummaries.add(summary.resource);
+				}
+			}
+			return { items: listed };
 		},
 		listAutomationTriggerDefinitions: async (_client, params) => {
 			return this._agentService.listAutomationTriggerDefinitions(params);
@@ -3770,8 +3782,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		switch (notification.type) {
 			case 'root/sessionAdded': {
 				const summary = notification.summary;
-				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))) {
+				if (!this._isSessionVisible(client, summary.resource, summary.defaultChat ?? this._chatOwnership.getDefaultChat(summary.resource))
+					|| (this._config.sessionSummaryFilter && !this._config.sessionSummaryFilter(summary))) {
 					return undefined;
+				}
+				if (this._config.sessionSummaryFilter) {
+					client.knownSessionSummaries.add(summary.resource);
 				}
 				return summary.chats ? { ...notification, summary: { ...summary, chats: [...this._filterVisibleChats(client, summary.resource, summary.chats, chat => chat.resource)] } } : notification;
 			}
@@ -3779,10 +3795,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!this._isSessionVisible(client, notification.session)) {
 					return undefined;
 				}
+				const summary = this._stateManager.getSessionSummary(notification.session) ?? this._stateManager.getSurfacedSessionSummary(notification.session);
+				if (summary && this._config.sessionSummaryFilter) {
+					if (!this._config.sessionSummaryFilter(summary)) {
+						return undefined;
+					}
+					if (!client.knownSessionSummaries.has(notification.session)) {
+						return this._projectNotificationForClient(client, { type: 'root/sessionAdded', channel: notification.channel, summary });
+					}
+				}
 				const chats = notification.changes.chats;
 				return chats ? { ...notification, changes: { ...notification.changes, chats: [...this._filterVisibleChats(client, notification.session, chats, chat => chat.resource)] } } : notification;
 			}
 			case 'root/sessionRemoved':
+				client.knownSessionSummaries.delete(notification.session);
 				return this._isSessionVisible(client, notification.session) ? notification : undefined;
 			default:
 				return notification;
