@@ -2361,11 +2361,20 @@ suite('AgentService (node dispatcher)', () => {
 						await backing.database(session).setMetadataValues({ [AH_META_IS_ARCHIVED_DB_KEY]: '', 'copilot.project.resolved': 'true' });
 					}
 					let fallbackArchived: boolean[];
+					const listRepairMarked = new DeferredPromise<void>();
+					const markDirty = database.markSessionV2PayloadDirty.bind(database);
+					const dirtyMarker = stub(database, 'markSessionV2PayloadDirty').callsFake(async key => {
+						const revision = await markDirty(key);
+						listRepairMarked.complete();
+						return revision;
+					});
 					const catalogRead = stub(database, 'readSessionListCatalogs').resolves([]);
 					try {
 						fallbackArchived = (await svc.listSessions()).map(entry => isSessionStatusArchived(entry.status));
+						await listRepairMarked.p;
 					} finally {
 						catalogRead.restore();
+						dirtyMarker.restore();
 					}
 					const report = await internals._catalogReconciliationService.runPass();
 					await svc.whenCatalogReconciliationIdle();
