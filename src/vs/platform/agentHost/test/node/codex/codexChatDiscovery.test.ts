@@ -931,7 +931,7 @@ suite('Codex chat discovery', () => {
 			const chat = URI.parse(buildDefaultChatUri(session));
 			await agent.materializeChat(chat, context(session), undefined);
 			client.turns = [{
-				id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+				id: 'one', rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 				items: [
 					{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
 					command('cmd-large', largeOutput),
@@ -988,7 +988,7 @@ suite('Codex chat discovery', () => {
 			const chat = URI.parse(buildDefaultChatUri(session));
 			await agent.materializeChat(chat, context(session), undefined);
 			client.turns = [{
-				id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+				id: 'one', rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 				items: [
 					{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
 					{
