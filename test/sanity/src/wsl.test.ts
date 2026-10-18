@@ -120,6 +120,8 @@ export function setup(context: TestContext) {
 				}
 
 				const url = context.getWebServerUrl(port, token, wslWorkspaceDir).toString();
+				// WSL2 forwards localhost to the distribution with a short delay after the server starts listening.
+				await context.fetchNoErrors(url);
 				const browser = await context.launchBrowser();
 				try {
 					const page = await context.getPage(browser.newPage());
