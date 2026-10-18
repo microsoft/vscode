@@ -88,14 +88,14 @@ const SNAPSHOT_MODELS = [
  * Every tool definition the model receives on a replayed turn, in wire order.
  * Each entry costs input tokens on every request and, for the per-session cache
  * block, is paid again whenever the set changes, so this list is a reviewed
- * budget rather than a mirror of the baseline. A host tool fails here until it
- * is deferred or added below on purpose; a runtime
- * built-in adopted into `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` fails here until it
- * is added below too. See `src/vs/platform/agentHost/AGENTS.md` §9.
- *
- * Tool search is off in this harness (no root-config seam), so the host's
- * deferred server tools are eager here; the deferral baselines live in
- * `test/node/serverToolGroups.test.ts` and `test/node/toolSearchDeferral.test.ts`.
+ * budget rather than a mirror of the baseline. Tool search is off in this
+ * harness (no root-config seam), so every host server tool is sent with
+ * `defer: 'never'`, deferred or not: a new server tool fails here until it is
+ * added to `HOST_SERVER_TOOL_NAMES`, and whether it is deferred when tool search
+ * is on is checked by `test/node/serverToolGroups.test.ts` and
+ * `test/node/toolSearchDeferral.test.ts`. A runtime built-in adopted into
+ * `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` fails here until it is added below too.
+ * See `src/vs/platform/agentHost/AGENTS.md` §9.
  */
 const RUNTIME_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'view', 'create', 'edit', 'web_fetch', 'skill', 'ask_user', 'sql', 'session_store_sql', 'read_agent', 'list_agents', 'write_agent', 'grep', 'glob', 'task'] as const;
 /** The Codex and GPT 5.6 families get the patch-based editing profile instead of `create`/`edit`/`grep`. */
@@ -204,7 +204,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 				assert.deepStrictEqual(
 					request.tools?.map(tool => tool.name ?? tool.type),
 					expectedModelFacingToolNames(model),
-					'The model-facing tool set changed. A new tool costs tokens on every request. Default fix: defer it, or leave it out of the built-in allow-list (add a new runtime built-in to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). If the runtime renamed a tool listed here, replace the old name with the new one. Adding a new tool to the reviewed list in this file is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
+					'The model-facing tool set changed. A new host server tool: add it to HOST_SERVER_TOOL_NAMES in this file and keep it deferred; tool search is off here, so deferred server tools are listed too, and serverToolGroups.test.ts checks their deferral. A new runtime built-in: the default fix is to leave it off the built-in allow-list (add it to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). If the runtime renamed a tool listed here, replace the old name with the new one. Adopting a new runtime built-in is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
 				);
 			}
 
