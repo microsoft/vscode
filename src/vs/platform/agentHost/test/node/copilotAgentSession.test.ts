@@ -13758,6 +13758,169 @@ Use the attached image as context.
 				}]);
 		});
 
+		suite('work started before steering', () => {
+			function rootToolCalls(signals: readonly AgentSignal[], turnId: string) {
+				const state = reduceTurnSignals(signals.filter(signal => signal.kind !== 'action' || signal.parentToolCallId === undefined), turnId);
+				const turn = state.turns.find(candidate => candidate.id === turnId);
+				return turn?.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall ? [{ toolCallId: part.toolCall.toolCallId, status: part.toolCall.status }] : []);
+			}
+
+			test('keeps a background subagent running and routed after steering preempts its turn', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('user.message', { content: 'Start a background agent' } as SessionEventPayload<'user.message'>['data']);
+				// The runtime completes a background launch at once; the child keeps running.
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Sleep', prompt: 'Sleep for a minute', mode: 'background' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('subagent.started', { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'General', agentDescription: 'Sleeps' } as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-task', success: true, result: { content: 'Agent started in background with agent_id: agent-1.' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Also check the docs', origin: { kind: MessageKind.User } } });
+				mockSession.fire('user.message', { content: 'Also check the docs', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				const signalsAfterSteering = signals.length;
+
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-child', toolName: 'view', arguments: { path: '/workspace/a.ts' } } as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-child', success: true, result: { content: 'a' } } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('subagent.completed', { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'General' } as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+				await timeout(0);
+
+				const childSignals = signals.slice(signalsAfterSteering).flatMap((signal): { type: string; parentToolCallId?: string; toolCallId?: string }[] => signal.kind === 'action'
+					? [{ type: signal.action.type, parentToolCallId: signal.parentToolCallId }]
+					: signal.kind === 'subagent_completed' ? [{ type: signal.kind, toolCallId: signal.toolCallId }] : []);
+				assert.deepStrictEqual({
+					root: rootToolCalls(signals, 'turn-original'),
+					child: childSignals.filter(signal => signal.type !== ActionType.ChatUsage),
+					childCancelled: signals.some(signal => signal.kind === 'action' && signal.parentToolCallId === 'tc-task' && signal.action.type === ActionType.ChatTurnCancelled),
+				}, {
+					root: [{ toolCallId: 'tc-task', status: ToolCallStatus.Completed }],
+					child: [
+						{ type: ActionType.ChatToolCallStart, parentToolCallId: 'tc-task' },
+						{ type: ActionType.ChatToolCallReady, parentToolCallId: 'tc-task' },
+						{ type: ActionType.ChatToolCallComplete, parentToolCallId: 'tc-task' },
+						{ type: 'subagent_completed', toolCallId: 'tc-task' },
+					],
+					childCancelled: false,
+				});
+			});
+
+			test('completes a file edit whose result is still being recorded when steering preempts the turn', async () => {
+				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('user.message', { content: 'Edit the file' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-edit', toolName: 'edit', arguments: { path: '/workspace/a.ts', old_str: 'a', new_str: 'b' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Then run the tests', origin: { kind: MessageKind.User } } });
+				// The runtime finishes the tool round and emits the queued steering before the next model request.
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-edit', success: true, result: { content: 'Edited a.ts' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				mockSession.fire('user.message', { content: 'Then run the tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('assistant.message_delta', { messageId: 'msg-steer', deltaContent: 'Running tests' } as SessionEventPayload<'assistant.message_delta'>['data']);
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart);
+				await timeout(0);
+
+				const actions = getActions(signals);
+				const steeringTurn = actions.find(action => action.type === ActionType.ChatTurnStarted);
+				const steeringResponse = actions.find(action => action.type === ActionType.ChatResponsePart);
+				assert.deepStrictEqual({
+					root: rootToolCalls(signals, 'turn-original'),
+					order: actions.flatMap(action => action.type === ActionType.ChatToolCallComplete || action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatResponsePart ? [action.type] : []),
+					responseInSteeringTurn: steeringResponse?.turnId === steeringTurn?.turnId,
+				}, {
+					root: [{ toolCallId: 'tc-edit', status: ToolCallStatus.Completed }],
+					order: [ActionType.ChatToolCallComplete, ActionType.ChatTurnComplete, ActionType.ChatTurnStarted, ActionType.ChatResponsePart],
+					responseInSteeringTurn: true,
+				});
+			});
+
+			test('completes a background subagent file edit that finishes while steering changes the turn', async () => {
+				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('user.message', { content: 'Start a background agent' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Edit', prompt: 'Edit a.ts', mode: 'background' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('subagent.started', { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'General', agentDescription: 'Edits' } as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-task', success: true, result: { content: 'Agent started in background with agent_id: agent-1.' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-child-edit', toolName: 'edit', arguments: { path: '/workspace/a.ts', old_str: 'a', new_str: 'b' } } as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-1' });
+
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Also check the docs', origin: { kind: MessageKind.User } } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-child-edit', success: true, result: { content: 'Edited a.ts' } } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('user.message', { content: 'Also check the docs', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatTurnStarted);
+				await timeout(0);
+
+				assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete
+					? [{ toolCallId: signal.action.toolCallId, parentToolCallId: signal.parentToolCallId }] : []), [
+					{ toolCallId: 'tc-task', parentToolCallId: undefined },
+					{ toolCallId: 'tc-child-edit', parentToolCallId: 'tc-task' },
+				]);
+			});
+
+			test('completes a background subagent file edit that finishes while a new turn starts', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-task', toolName: 'task', arguments: { description: 'Edit', prompt: 'Edit a.ts', mode: 'background' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('subagent.started', { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'General', agentDescription: 'Edits' } as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-task', success: true, result: { content: 'Agent started in background with agent_id: agent-1.' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				await timeout(0);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-child-edit', toolName: 'edit', arguments: { path: '/workspace/a.ts', old_str: 'a', new_str: 'b' } } as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-child-edit', success: true, result: { content: 'Edited a.ts' } } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
+				// The user sends the next message while the agent's edit is still being recorded.
+				session.resetTurnState('turn-next');
+				await timeout(0);
+
+				assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete
+					? [{ toolCallId: signal.action.toolCallId, parentToolCallId: signal.parentToolCallId }] : []), [
+					{ toolCallId: 'tc-task', parentToolCallId: undefined },
+					{ toolCallId: 'tc-child-edit', parentToolCallId: 'tc-task' },
+				]);
+			});
+
+			test('drops a steering turn the chat never saw when the chat is aborted while results are recorded', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('user.message', { content: 'Edit the file' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-edit', toolName: 'edit', arguments: { path: '/workspace/a.ts', old_str: 'a', new_str: 'b' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Then run the tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-edit', success: true, result: { content: 'Edited a.ts' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				mockSession.fire('user.message', { content: 'Then run the tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				await session.abort();
+				await timeout(0);
+
+				assert.deepStrictEqual(signals.flatMap((signal): ({ consumed: string } | { type: ActionType; turnId: string })[] => signal.kind === 'steering_consumed'
+					? [{ consumed: signal.id }]
+					: signal.kind === 'action' && (signal.action.type === ActionType.ChatTurnComplete || signal.action.type === ActionType.ChatTurnStarted)
+						? [{ type: signal.action.type, turnId: signal.action.turnId }]
+						: []), [
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+					{ consumed: 'steer-1' },
+				]);
+			});
+
+			test('keeps a steering turn that finished while results were recorded when the chat is aborted', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				mockSession.fire('user.message', { content: 'Edit the file' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-edit', toolName: 'edit', arguments: { path: '/workspace/a.ts', old_str: 'a', new_str: 'b' } } as SessionEventPayload<'tool.execution_start'>['data']);
+				await session.sendSteering({ id: 'steer-1', message: { text: 'Then run the tests', origin: { kind: MessageKind.User } } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-edit', success: true, result: { content: 'Edited a.ts' } } as SessionEventPayload<'tool.execution_complete'>['data']);
+				mockSession.fire('user.message', { content: 'Then run the tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('assistant.message_delta', { messageId: 'msg-steer', deltaContent: 'Tests pass' } as SessionEventPayload<'assistant.message_delta'>['data']);
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				await session.abort();
+				await timeout(0);
+
+				const lifecycle = signals.flatMap((signal): { type: string; turnId?: string }[] => signal.kind === 'steering_consumed'
+					? [{ type: signal.kind }]
+					: signal.kind === 'action' && (signal.action.type === ActionType.ChatTurnComplete || signal.action.type === ActionType.ChatTurnStarted || signal.action.type === ActionType.ChatResponsePart)
+						? [{ type: signal.action.type, turnId: signal.action.turnId }]
+						: []);
+				assert.deepStrictEqual({
+					types: lifecycle.map(entry => entry.type),
+					steeringTurn: new Set(lifecycle.slice(1).map(entry => entry.turnId)).size,
+				}, {
+					types: [ActionType.ChatTurnComplete, ActionType.ChatTurnStarted, ActionType.ChatResponsePart, ActionType.ChatTurnComplete],
+					steeringTurn: 1,
+				});
+			});
+		});
+
 		test('does not flip turns for SDK-injected user messages (non-user source)', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
