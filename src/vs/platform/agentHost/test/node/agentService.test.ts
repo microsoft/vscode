@@ -2351,9 +2351,11 @@ suite('AgentService (node dispatcher)', () => {
 							peers: [], privateDescendants: [],
 						});
 						const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
-						await database.upsertSessionV2FromChatCatalog(catalogEnvelope(session, data), undefined, snapshot.header!.revision);
+						assert.strictEqual(await database.upsertSessionV2FromChatCatalog(catalogEnvelope(session, {
+							...data, chats: chatCatalogV2ToCatalogChats(snapshot),
+						}), undefined, snapshot.header!.revision), 'applied');
 					} else {
-						await database.upsertSessionV2(catalogEnvelope(session, data), undefined);
+						assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, data), undefined), 'applied');
 					}
 					if (localStorage) {
 						await backing.database(session).setMetadataValues({ [AH_META_IS_ARCHIVED_DB_KEY]: '', 'copilot.project.resolved': 'true' });
