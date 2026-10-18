@@ -198,11 +198,15 @@ suite('Agent Host E2E — Copilot prompts', function () {
 				copilotInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS'),
 				agentsInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_AGENTS'),
 			}, { copilotInstructions: true, agentsInstructions: true });
-			assert.deepStrictEqual(
-				request.tools?.map(tool => tool.name ?? tool.type),
-				expectedModelFacingToolNames(model),
-				'The model-facing tool set changed. A new tool costs tokens on every request. Default fix: defer it, or leave it out of the built-in allow-list (add a new runtime built-in to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). If the runtime renamed a tool listed here, replace the old name with the new one. Adding a new tool to the reviewed list in this file is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
-			);
+			// Recording uses live model profiles and experiment assignments (for example
+			// the allow-listed `execution_subagent`), so the inventory is pinned in replay only.
+			if (!RECORDING) {
+				assert.deepStrictEqual(
+					request.tools?.map(tool => tool.name ?? tool.type),
+					expectedModelFacingToolNames(model),
+					'The model-facing tool set changed. A new tool costs tokens on every request. Default fix: defer it, or leave it out of the built-in allow-list (add a new runtime built-in to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). If the runtime renamed a tool listed here, replace the old name with the new one. Adding a new tool to the reviewed list in this file is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
+				);
+			}
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});

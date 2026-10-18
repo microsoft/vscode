@@ -32,6 +32,12 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	'local_shell',
 	// Files and search. Most GPT models get `apply_patch` and `rg` instead of `create`, `edit` and `grep`.
 	'view', 'create', 'edit', 'apply_patch', 'grep', 'rg', 'glob', 'web_fetch',
+	// Language servers, when configured; the `vscode-ask` agent requests `lsp`.
+	'lsp',
+	// Copilot CLI documentation, requested by the `vscode-ask` agent.
+	'fetch_copilot_cli_documentation',
+	// Catalog discovery, enabled by the launcher's `CATALOG_SEARCH` feature flag.
+	'catalog_search', 'catalog_select',
 	// Search subagent, kept off by `excludedTools` unless its setting is on.
 	'search_code_subagent',
 	// Turn control: plan mode and autopilot (`task_complete`, `exit_plan_mode`), elicitation, image generation.
