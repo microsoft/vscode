@@ -28066,6 +28066,10 @@ suite('AgentService (node dispatcher)', () => {
 				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
 			));
 			registerTestAgentProvider(svc, agent);
+			// Count the restore alone. Restoring while the provider's initial catalog migration still runs announces the
+			// summary before the session's catalog row exists; its debounced correction then queues a catalog write that
+			// lands inside or after the restore, depending on how long the restore takes.
+			await (svc as unknown as { _initialProviderMigrations: Map<string, Promise<void>> })._initialProviderMigrations.get(agent.id);
 			const snapshotReads = spy(database, 'readCatalogSnapshot');
 
 			await svc.restoreSession(owner);
@@ -28075,7 +28079,7 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				snapshotReads: 11,
+				snapshotReads: 9,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
