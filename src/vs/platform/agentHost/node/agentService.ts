@@ -11098,9 +11098,10 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.rejectClientAction(channel, action, origin, 'The session provider does not support steering messages.');
 				return;
 			}
+			// Steering handed to the provider cannot be edited, and can be removed only if the provider can withdraw it.
 			if (state?.activeTurn && existing?.kind === PendingMessageKind.Steering
 				&& (action.type === ActionType.ChatPendingMessageRemoved
-					? action.kind === PendingMessageKind.Steering
+					? action.kind === PendingMessageKind.Steering && !this._providerService.getProviderForSession(sessionChannel)?.withdrawSteeringMessage
 					: action.kind !== existing.kind || !equals(existing.message, action.message))) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot change a steering message while it is being processed.');
 				return;

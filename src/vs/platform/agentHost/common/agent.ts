@@ -1716,6 +1716,13 @@ export interface IAgent {
 	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
 	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
 
+	/**
+	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
+	 * client removed before the model received it. A message the model already received stays in its
+	 * turn. Without this hook, the host rejects removing steering while a turn is active.
+	 */
+	withdrawSteeringMessage?(chat: URI, messageId: string): void;
+
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
 

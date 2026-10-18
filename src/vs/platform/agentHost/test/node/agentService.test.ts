@@ -8322,6 +8322,41 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a user can remove a steering message mid-turn when the provider can withdraw it', async () => {
+			const { svc, agent, session } = await setup();
+			const withdrawn: string[] = [];
+			agent.withdrawSteeringMessage = (_chat, id) => { withdrawn.push(id); };
+			await dispatchTurnAndWait(svc, agent, session, []);
+			const chat = buildDefaultChatUri(session);
+			const accepted = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
+				envelope.action.type === ActionType.ChatPendingMessageSet && envelope.action.id === 'steer-a'));
+			await svc.dispatchAction(chat, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id: 'steer-a', message: { text: 'Use tabs, not spaces', origin: { kind: MessageKind.User } },
+			}, 'test-client', 2);
+			await accepted;
+			const rejections: string[] = [];
+			disposables.add(svc.onDidAction(envelope => {
+				if (envelope.rejectionReason) {
+					rejections.push(envelope.rejectionReason);
+				}
+			}));
+			const removed = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 3));
+			svc.dispatchAction(chat, { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer-a' }, 'test-client', 3);
+			await removed;
+			assert.deepStrictEqual({
+				handedToAgent: agent.setPendingMessagesCalls.map(call => call.steeringMessage?.id),
+				stillQueued: getStateManager(svc).getChatState(chat)?.queuedMessages?.map(message => message.message.text),
+				rejections,
+				withdrawn,
+			}, {
+				handedToAgent: ['steer-a'],
+				stillQueued: undefined,
+				rejections: [],
+				withdrawn: ['steer-a'],
+			});
+		});
+
 		test('snapshots embedded text attachments as text files without retaining the payload in state', async () => {
 			const { svc, agent, session, attachmentsRoot } = await setup();
 			const metadata = { kind: 'paste' };
