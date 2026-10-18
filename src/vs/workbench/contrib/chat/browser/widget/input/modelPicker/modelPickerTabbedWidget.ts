@@ -747,6 +747,8 @@ export class TabbedModelPicker extends Disposable {
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
 				run: () => {
+					// Starting or leaving a comparison supersedes a pending selection.
+					this._selectionVersion++;
 					if (comparison.state.get()) {
 						comparison.cancel();
 					} else {
@@ -1122,7 +1124,8 @@ export class TabbedModelPicker extends Disposable {
 				const checked = model === fusion && !!choice && providerTiers && selectedAlternative?.metadata.id === choice.value
 					|| model.identifier === context.selectedModelId && (model !== fusion || !!choice?.checked && !selectedAlternative);
 				const detail = getInlineFusionTierDetail(value, choice);
-				const disabled = !!choice?.readOnly && !checked;
+				// A managed tier still selects Fusion at the tier in effect; only other managed or unavailable tiers are off.
+				const disabled = !!choice?.readOnly && !checked && !(choice.checked && !choice.unavailable);
 				const routesFusion = model === fusion && !!choice && !choice.unavailable;
 				const discount = routesFusion ? ILanguageModelChatMetadata.getAutoTierDiscountPercent(fusion.metadata, value, now) : undefined;
 				const promotion = routesFusion ? ILanguageModelChatMetadata.getAutoTierPromotion(fusion.metadata, value, now) : undefined;
@@ -1193,6 +1196,8 @@ export class TabbedModelPicker extends Disposable {
 		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
 		const { action, ariaDescription } = createModelAction(model, step ? undefined : hydraFusionTier ? model.identifier : context.selectedModelId, next => {
 			if (comparison && step) {
+				// Choosing models to compare supersedes a pending selection.
+				this._selectionVersion++;
 				comparison.select(model.identifier);
 				if (this._searchVisible) {
 					// Showing the filtered list again keeps the search field focused with its text.

@@ -461,6 +461,63 @@ suite('TabbedModelPicker', () => {
 		]);
 	});
 
+	test('inline Fusion with a managed tier can still be chosen from another model, without saving the tier', async () => {
+		const managed = createFusionModel();
+		const tier = managed.metadata.configurationSchema!.properties!.tier!;
+		const readOnly: ILanguageModelChatMetadataAndIdentifier = { ...managed, metadata: { ...managed.metadata, configurationSchema: { properties: { tier: { ...tier, readOnly: true } } } } };
+		const result = createPicker({ models: [readOnly, ...models], selectedModelId: models[0].identifier });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		const rows = await inlineFusionRows(result.popup);
+		const disabled = rows.map(row => row.classList.contains('option-disabled'));
+		rows[0].click();
+		await timeout(0);
+		assert.deepStrictEqual({ disabled, selections: result.selections, saved: result.values.get(readOnly.identifier) }, {
+			disabled: [false, true],
+			selections: [readOnly.identifier],
+			saved: undefined,
+		});
+	});
+
+	test('a pending inline Fusion tier save does not override a comparison started since', async () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: true, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => {
+				const draft = state.get()!;
+				state.set({ ...draft, selectedModelIds: [...draft.selectedModelIds, id] }, undefined);
+			},
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const pending = new DeferredPromise<void>();
+		const fusion = createFusionModel(false);
+		const result = createPicker({ models: [fusion, ...models], comparison, beforeSave: () => pending.p });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		(await inlineFusionRows(result.popup))[1].click();
+		element(result.popup, '[aria-label="Compare Models"]').click();
+		element(result.popup, '[data-id="search"]').click();
+		const filterInput = result.popup.querySelector<HTMLInputElement>('input')!;
+		filterInput.value = 'First';
+		filterInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		element(result.popup, '.chat-model-picker-model').click();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ compared: state.get()?.selectedModelIds, selections: result.selections, visible: result.picker.isVisible, saved: result.values.get(fusion.identifier) }, {
+			compared: ['copilot/First'],
+			selections: [],
+			visible: true,
+			saved: { tier: 'intelligence' },
+		});
+	});
+
 	test('inline Fusion marks its default tier as the organization default and keeps search results sorted', async () => {
 		const fusion = createFusionModel(false);
 		const result = createPicker({ models: [fusion, ...models], policyDefault: 'auto', selectedModelId: models[0].identifier, pinnedModelIds: ['copilot/Fixed'] });
