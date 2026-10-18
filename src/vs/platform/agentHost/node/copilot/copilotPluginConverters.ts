@@ -12,7 +12,7 @@ import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
@@ -95,6 +95,11 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultC
 const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
 type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
 
+/** Runtime custom-agent fields not yet declared by the SDK. */
+interface ICopilotCustomAgentConfig extends CustomAgentConfig {
+	readonly disableModelInvocation?: true;
+}
+
 function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
 	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
@@ -111,8 +116,8 @@ function isCustomAgentReasoningEffort(value: string | undefined): value is Custo
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
-	const configs: CustomAgentConfig[] = [];
+export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<ICopilotCustomAgentConfig[]> {
+	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
@@ -134,7 +139,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				const skills = md.getStringArrayValue('skills');
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
-				const disableModelInvocation = md.getBooleanValue('disable-model-invocation');
+				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
 				if (infer === undefined && disableModelInvocation === true) {
 					infer = false;
 				}
@@ -152,6 +157,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(infer !== undefined ? { infer } : {}),
+					...(disableModelInvocation ? { disableModelInvocation: true } : {}),
 					prompt,
 				});
 			}
@@ -178,7 +184,7 @@ export interface IPluginAgentsForSdk {
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
-): Promise<CustomAgentConfig[]> {
+): Promise<ICopilotCustomAgentConfig[]> {
 	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
 }
 
