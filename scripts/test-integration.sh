@@ -182,7 +182,7 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
 		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
-			echo "Skipping Agent Host E2E tests because no relevant files changed."
+			echo "Skipping Agent Host E2E tests because VSCODE_SKIP_AGENT_HOST_E2E is set."
 		else
 			node ./test/integration/agentHost/runner.ts "${EXTRA_ARGS[@]}"
 		fi

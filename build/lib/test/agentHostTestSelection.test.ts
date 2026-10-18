@@ -127,25 +127,39 @@ suite('Agent Host PR test selection', () => {
 		};
 		const environments = ['linux', 'darwin', 'win32'].map(platform => {
 			const workflow = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as {
-				jobs: Record<string, { steps: { name?: string; env?: Record<string, string> }[] }>;
+				jobs: Record<string, { steps: { id?: string; name?: string; if?: string; env?: Record<string, string> }[] }>;
 			};
-			const step = Object.values(workflow.jobs).flatMap(job => job.steps).find(step => step.name?.includes('Run integration tests (Electron)'));
-			assert.ok(step?.env);
+			const steps = Object.values(workflow.jobs).flatMap(job => job.steps);
+			const agentHost = steps.find(step => step.name?.includes('Run Agent Host E2E tests (Electron)'));
+			const integration = steps.find(step => step.name?.includes('Run integration tests (Electron)'));
+			assert.ok(agentHost?.env && integration?.env);
 			return {
-				profile: step.env.AGENT_HOST_TEST_PROFILE,
-				reason: step.env.AGENT_HOST_TEST_PROFILE_REASON,
-				skip: step.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				agentHostId: agentHost.id,
+				agentHostCondition: agentHost.if,
+				agentHostProfile: agentHost.env.AGENT_HOST_TEST_PROFILE,
+				agentHostReason: agentHost.env.AGENT_HOST_TEST_PROFILE_REASON,
+				integrationCondition: integration.if,
+				integrationProfile: integration.env.AGENT_HOST_TEST_PROFILE,
+				integrationReason: integration.env.AGENT_HOST_TEST_PROFILE_REASON,
+				integrationSkip: integration.env.VSCODE_SKIP_AGENT_HOST_E2E,
 			};
 		});
+		const profile = '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}';
+		const reason = '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}';
 		assert.deepStrictEqual({
 			actionProfile: action.outputs.profile.value,
 			environments,
 		}, {
 			actionProfile: '${{ steps.detect.outputs.profile }}',
 			environments: Array.from({ length: 3 }, () => ({
-				profile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
-				reason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
-				skip: '${{ steps.agent-host-e2e-changes.outputs.affected == \'false\' && \'1\' || \'0\' }}',
+				agentHostId: 'agent-host-e2e',
+				agentHostCondition: '${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected != \'false\' }}',
+				agentHostProfile: profile,
+				agentHostReason: reason,
+				integrationCondition: '${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\') }}',
+				integrationProfile: profile,
+				integrationReason: reason,
+				integrationSkip: '1',
 			})),
 		});
 	});

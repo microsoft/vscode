@@ -135,7 +135,7 @@ if defined RUN_GLOB (
 	call .\scripts\test.bat %*
 ) else (
 	if "%VSCODE_SKIP_AGENT_HOST_E2E%"=="1" (
-		echo Skipping Agent Host E2E tests because no relevant files changed.
+		echo Skipping Agent Host E2E tests because VSCODE_SKIP_AGENT_HOST_E2E is set.
 	) else (
 		call node .\test\integration\agentHost\runner.ts %*
 		if errorlevel 1 goto :failed
