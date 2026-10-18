@@ -7,11 +7,159 @@ import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { DisposableStore } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const horizontalScrolling of [false, true]) {
+		for (const supportDynamicHeights of [false, true]) {
+			if (horizontalScrolling && supportDynamicHeights) {
+				continue;
+			}
+			test(`recovers when rendering collapses the viewport (horizontal: ${horizontalScrolling}, dynamic: ${supportDynamicHeights})`, () => {
+				const disposables = store.add(new DisposableStore());
+				const element = document.createElement('div');
+				const delegate: IListVirtualDelegate<number> = {
+					getHeight() { return 20; },
+					getTemplateId() { return 'template'; },
+					getDynamicHeight() { return 20; }
+				};
+				const rendered: number[] = [];
+				const disposed: number[] = [];
+				const dragURIs: number[] = [];
+				let templates = 0;
+				let collapseOnRender = true;
+				const renderer: IListRenderer<number, HTMLElement> = {
+					templateId: 'template',
+					renderTemplate(container) {
+						templates++;
+						return container;
+					},
+					renderElement(value, _index, container) {
+						rendered.push(value);
+						container.textContent = String(value);
+						if (collapseOnRender) {
+							collapseOnRender = false;
+							listView.layout(0, 200);
+						}
+					},
+					disposeElement(value) { disposed.push(value); },
+					disposeTemplate() { templates--; }
+				};
+				const listView = disposables.add(new ListView<number>(element, delegate, [renderer], {
+					horizontalScrolling,
+					supportDynamicHeights,
+					dnd: {
+						getDragElements(value) { return [value]; },
+						getDragURI(value) {
+							dragURIs.push(value);
+							return value === 42 ? 'test:42' : null;
+						},
+						onDragStart() { },
+						onDragOver() { return false; },
+						drop() { },
+						dispose() { }
+					}
+				}));
+				listView.layout(200, 200);
+				listView.splice(0, 0, [42]);
+
+				assert.deepStrictEqual({
+					length: listView.length,
+					row: listView.domElement(0),
+					rowsInDOM: element.querySelectorAll('.monaco-list-row').length,
+					rendered,
+					disposed,
+					dragURIs
+				}, {
+					length: 1,
+					row: null,
+					rowsInDOM: 0,
+					rendered: [42],
+					disposed: [42],
+					dragURIs: []
+				});
+
+				listView.layout(200, 200);
+				const row = listView.domElement(0)!;
+				assert.deepStrictEqual({
+					text: row.textContent,
+					draggable: row.draggable,
+					rendered,
+					dragURIs,
+					templates
+				}, {
+					text: '42',
+					draggable: true,
+					rendered: [42, 42],
+					dragURIs: [42],
+					templates: 1
+				});
+
+				listView.splice(0, 1, [7]);
+				assert.deepStrictEqual({
+					reused: listView.domElement(0) === row,
+					text: row.textContent,
+					draggable: row.draggable,
+					rendered,
+					disposed,
+					dragURIs
+				}, {
+					reused: true,
+					text: '7',
+					draggable: false,
+					rendered: [42, 42, 7],
+					disposed: [42, 42],
+					dragURIs: [42, 7]
+				});
+
+				disposables.dispose();
+				assert.deepStrictEqual({ templates, disposed }, { templates: 0, disposed: [42, 42, 7] });
+			});
+		}
+	}
+
+	test('does not render stale insertion ranges after a reentrant viewport collapse', () => {
+		const element = document.createElement('div');
+		let collapseOnRender = false;
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) { return container; },
+			renderElement(value, _index, container) {
+				container.textContent = String(value);
+				if (collapseOnRender) {
+					collapseOnRender = false;
+					listView.layout(0, 200);
+				}
+			},
+			disposeTemplate() { }
+		};
+		const listView = store.add(new ListView<number>(element, {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		}, [renderer]));
+		listView.layout(200, 200);
+		listView.splice(0, 0, [1, 2, 3]);
+		collapseOnRender = true;
+		listView.splice(0, 3, [4, 5, 6]);
+		const collapsedRows = element.querySelectorAll('.monaco-list-row').length;
+
+		listView.splice(0, 3, [7]);
+		listView.layout(200, 200);
+
+		assert.deepStrictEqual({
+			collapsedRows,
+			length: listView.length,
+			renderedRows: Array.from(element.querySelectorAll('.monaco-list-row'), row => row.textContent)
+		}, {
+			collapsedRows: 0,
+			length: 1,
+			renderedRows: ['7']
+		});
+	});
 
 	test('all rows get disposed', function () {
 		const element = document.createElement('div');

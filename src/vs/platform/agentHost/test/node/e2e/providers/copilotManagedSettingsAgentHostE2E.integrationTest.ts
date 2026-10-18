@@ -186,7 +186,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 				continue;
 			}
 			confirmations++;
-			assert.ok(approval === 'approve' || approval === 'deny', 'Removed asks and managed denials must not require confirmation');
+			assert.ok(approval === 'approve' || approval === 'deny', 'Assisted approvals, removed asks, and managed denials must not require human confirmation');
 			assert.deepStrictEqual(action.options?.map(option => option.id), ['allow-once', 'skip']);
 			if (operation === 'write') {
 				assert.strictEqual(existsSync(join(workspace, filename)), false, 'The file must not be written before human approval');
@@ -200,6 +200,15 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 			});
 		}
 		assert.strictEqual(confirmations, approval === 'approve' || approval === 'deny' ? 1 : 0);
+		const toolCalls = client.receivedNotifications(notification => {
+			if (!isActionNotification(notification, ActionType.ChatToolCallStart)) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(notification);
+			return channel === chat && action.type === ActionType.ChatToolCallStart && action.turnId === turnId
+				&& action.toolName === (operation === 'read' ? 'view' : 'create');
+		});
+		assert.strictEqual(toolCalls.length, 1, 'The requested native tool must run exactly once per turn');
 		if (approval === 'blocked') {
 			if (operation === 'write') {
 				assert.strictEqual(existsSync(join(workspace, filename)), false);
@@ -220,16 +229,16 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Read'] }, mode);
 			const chat = defaultChatChannel(session);
-			await fileTurn(chat, 'managed-read-first', 'read', 'approve');
-			await fileTurn(chat, 'managed-read-second', 'read', 'approve');
+			await fileTurn(chat, 'managed-read-first', 'read', mode === 'assisted' ? 'none' : 'approve');
+			await fileTurn(chat, 'managed-read-second', 'read', mode === 'assisted' ? 'none' : 'approve');
 		});
 
 		test(`managed write approval remains one-time under ${mode}`, async function () {
 			this.timeout(180_000);
 			const session = await createSession({ ask: ['Write'] }, mode);
 			const chat = defaultChatChannel(session);
-			await fileTurn(chat, 'managed-write-first', 'write', 'approve');
-			await fileTurn(chat, 'managed-write-second', 'write', 'approve');
+			await fileTurn(chat, 'managed-write-first', 'write', mode === 'assisted' ? 'none' : 'approve');
+			await fileTurn(chat, 'managed-write-second', 'write', mode === 'assisted' ? 'none' : 'approve');
 		});
 
 		test(`managed write denial prevents mutation under ${mode}`, async function () {

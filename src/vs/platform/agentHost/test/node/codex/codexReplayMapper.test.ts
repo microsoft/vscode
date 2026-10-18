@@ -685,6 +685,7 @@ suite('codexReplayMapper', () => {
 					id: 'thr',
 					turns: [{
 						id: 'turn_a',
+						rootTurnId: null,
 						items: [
 							{ type: 'userMessage', id: 'u', clientId: null, content: [{ type: 'text', text: 'draw it', text_elements: [] }] },
 							{ type: 'imageGeneration', id: 'image_1', status, revisedPrompt, result, failure: null },

@@ -188,6 +188,80 @@ suite('ModelCard', () => {
 		});
 	}
 
+	suite('Fusion tier promotions', () => {
+		const day = 24 * 60 * 60 * 1000;
+		/** As the agent host presents it: while the service promotes Fusion's tiers, Fusion has no discount of its own. */
+		function createFusionModel(promotions: NonNullable<ILanguageModelChatMetadata['autoModelTierPromotions']>, detail?: string): ILanguageModelChatMetadataAndIdentifier {
+			return {
+				...createModel({
+					id: 'auto',
+					name: 'Fusion',
+					...(promotions.length ? { detail } : { detail: '10% discount', autoModelDiscountPercent: 10 }),
+					autoModelFusion: { balanceUsesHydraFusion: true },
+					...(promotions.length && { autoModelTierPromotions: promotions }),
+					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
+					configurationSchema: {
+						properties: {
+							tier: {
+								type: 'string', title: 'Effort Level', group: 'navigation',
+								enum: ['balance', 'hydrafusion', 'hydrafusion-max'],
+								enumItemLabels: ['Standard', 'High', 'Max'],
+								default: 'balance',
+							},
+						},
+					},
+				}),
+				identifier: 'copilot/auto',
+			};
+		}
+		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
+		const promotion = (startsAt: string | undefined, endsAt: string | undefined, tierIds = ['balance', 'hydrafusion', 'hydrafusion-max']) => ({
+			id: 'ensemble-launch-2026', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds,
+			...(startsAt && { startsAt }), ...(endsAt && { endsAt }),
+		});
+		const read = (card: ModelCard) => ({
+			chip: card.element.querySelector('.chat-model-card-badge')?.textContent,
+			discount: card.element.querySelector<HTMLElement>('.chat-model-card-discount-description:not([hidden])')?.textContent,
+			promotions: Array.from(card.element.querySelectorAll('.chat-model-card-tier-promotion'), banner => banner.textContent?.replace(/\. Ends .*|\. Starts .*/, '.')),
+		});
+
+		test('a running promotion sets the discount of the tiers it covers, other tiers show none, and so does the chip', () => {
+			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([promotion(iso(-day), iso(day), ['hydrafusion'])]) });
+			const covered = read(card);
+			card.element.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			assert.deepStrictEqual({ covered, uncovered: read(card) }, {
+				covered: { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] },
+				uncovered: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'] },
+			});
+		});
+
+		test('the chip shows a running promotion that covers every tier', () => {
+			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(-day), iso(day))], '30% discount') });
+			assert.deepStrictEqual(read(card), { chip: '30% discount', discount: 'Models routed via Fusion Standard receive a 30% discount.', promotions: ['Get 30% off Fusion usage.'] });
+		});
+
+		test('a promotion without a message changes the discount without showing a banner', () => {
+			const { message: _, ...discountOnly } = promotion(iso(-day), iso(day), ['hydrafusion']);
+			const { card } = createCard({ tier: 'hydrafusion' }, { model: createFusionModel([discountOnly]) });
+			assert.deepStrictEqual(read(card), { chip: undefined, discount: 'Models routed via Fusion High receive a 30% discount.', promotions: [] });
+		});
+
+		test('an upcoming promotion is announced with its start date and no discount, and once it ends Fusion\'s own discount returns', () => {
+			const upcoming = createCard({ tier: 'balance' }, { model: createFusionModel([promotion(iso(day), iso(2 * day))]) }).card;
+			const startsAt = new Date(Date.now() + day).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+			// The agent host drops ended promotions.
+			const ended = createCard({ tier: 'balance' }, { model: createFusionModel([]) }).card;
+			assert.deepStrictEqual({
+				upcoming: { ...read(upcoming), text: upcoming.element.querySelector('.chat-model-card-tier-promotion')?.textContent },
+				ended: read(ended),
+			}, {
+				upcoming: { chip: undefined, discount: undefined, promotions: ['Get 30% off Fusion usage.'], text: `Get 30% off Fusion usage. Starts ${startsAt}.` },
+				ended: { chip: '10% discount', discount: 'Models routed via Fusion Standard receive a 10% discount.', promotions: [] },
+			});
+		});
+
+	});
+
 	test('Auto without tiers explains its discount below its description', () => {
 		const auto = createAutoModel();
 		const { card } = createCard({}, { model: { ...auto, metadata: { ...auto.metadata, configurationSchema: undefined } } });
@@ -447,7 +521,7 @@ suite('ModelCard', () => {
 			});
 			const menuEdit = () => setModelConfigValues(model, result.configurationAccess, { effort: menuFirst ? 'high' : 'low' },
 				(...change) => result.changes.push(withoutRequestTime(change)));
-			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Thinking Effort"] [role="radio"]')[menuFirst ? 0 : 2].click();
+			const cardEdit = () => result.card.element.querySelectorAll<HTMLElement>('[aria-label="Effort Level"] [role="radio"]')[menuFirst ? 0 : 2].click();
 			let menuSave: Promise<void>;
 			if (menuFirst) {
 				menuSave = menuEdit();
@@ -989,6 +1063,23 @@ suite('ModelCard', () => {
 			reset: false,
 			pinned: 'true',
 			focused: true,
+		});
+	});
+
+	test('reset leaves read-only options out of the write while resetting editable options', async () => {
+		const model = createModel({
+			configurationSchema: {
+				properties: {
+					effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], default: 'high', readOnly: true },
+					context: { type: 'number', group: 'tokens', enum: [100, 200], default: 100 },
+				}
+			},
+		});
+		const result = createCard({ effort: 'high', context: 200 }, { model });
+		element(result.card.element, '[aria-label="Reset to Default"]').click();
+		await timeout(0);
+		assert.deepStrictEqual({ writes: result.writes, values: result.values }, {
+			writes: [{ context: 100 }], values: { effort: 'high', context: 100 },
 		});
 	});
 

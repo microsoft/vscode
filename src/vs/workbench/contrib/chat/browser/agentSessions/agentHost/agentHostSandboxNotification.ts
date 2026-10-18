@@ -16,19 +16,20 @@ import { isAgentHostSandboxDisablingBlocked } from '../../../../../../platform/a
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { readAgentSandboxDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
+import { readAgentSandboxDiagnostics, readAgentSandboxLocalNetworkRequired } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { isSessionConfigWritable, validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { isSessionConfigWritable, validateChatPickerConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionState, StateComponents, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+
+const OPEN_SETTINGS_COMMAND = 'workbench.action.openSettings';
 
 export class AgentHostSandboxNotification extends Disposable {
 	/** Retains dismissals across chat recreation for the lifetime of the window's notification service. */
@@ -36,6 +37,7 @@ export class AgentHostSandboxNotification extends Disposable {
 	private readonly _id: string;
 	private readonly _dismissedSessions: ResourceSet;
 	private _reasons: readonly string[] | undefined;
+	private _localNetworkMessage: string | undefined;
 	private readonly _disableCommandId = `_chat.disableSandboxing.${generateUuid()}`;
 	private _canDisable = false;
 
@@ -85,9 +87,9 @@ export class AgentHostSandboxNotification extends Disposable {
 		if (!state || state instanceof Error) {
 			throw new Error(localize('agentHost.sandboxSessionUnavailable', "Could not disable sandboxing because the session is unavailable."));
 		}
-		const config = state.config;
+		const { chat, config } = this._readChat(state);
 		const value = config?.values[SessionConfigKey.SandboxEnabled] ?? config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
-		if (value !== AgentSandboxEnabledValue.On && readSessionSandboxState(state)?.enabled !== true) {
+		if (value !== AgentSandboxEnabledValue.On && readAgentHostChatSandboxState(state, chat)?.enabled !== true) {
 			return;
 		}
 		const resolution = this._connectionsService.resolveSessionResource(this._sessionResource);
@@ -97,11 +99,16 @@ export class AgentHostSandboxNotification extends Disposable {
 		if (!isSessionConfigWritable(config.schema.properties[SessionConfigKey.SandboxEnabled], false)) {
 			throw new Error(localize('agentHost.sandboxSessionReadOnly', "Sandboxing cannot be changed for this session."));
 		}
-		validateSessionConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
-		resolution.connection.dispatch(resolution.backendSession.toString(), {
-			type: ActionType.SessionConfigChanged,
-			config: { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off },
-		});
+		validateChatPickerConfigWrite(config.schema, config.values, SessionConfigKey.SandboxEnabled, AgentSandboxEnabledValue.Off, false);
+		// Turns off this chat's sandboxing, which is its own when the host lets a chat set it.
+		dispatchAgentHostConfigChange(resolution.connection, resolution.backendSession, chat, state, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.Off });
+	}
+
+	/** This notification's chat in its session's catalog, and that chat's effective config. */
+	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
+		const chat = getAgentHostBackendChat(this._sessionResource, state);
+		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {
@@ -112,8 +119,9 @@ export class AgentHostSandboxNotification extends Disposable {
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
 		const useLocalPolicy = !policy && !isWeb && !this._environmentService.remoteAuthority
 			&& connection === this._agentHostService;
-		const value = state.config?.values[SessionConfigKey.SandboxEnabled] ?? state.config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
-		const confirmedEnabled = readSessionSandboxState(state)?.enabled;
+		const { chat, config } = this._readChat(state);
+		const value = config?.values[SessionConfigKey.SandboxEnabled] ?? config?.schema.properties[SessionConfigKey.SandboxEnabled]?.default;
+		const confirmedEnabled = readAgentHostChatSandboxState(state, chat)?.enabled;
 		return !isAgentHostSandboxDisablingBlocked({
 			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
 			confirmedEnabled,
@@ -129,34 +137,50 @@ export class AgentHostSandboxNotification extends Disposable {
 		}
 		const diagnostics = state && !(state instanceof Error) ? readAgentSandboxDiagnostics(state) : undefined;
 		const reasons = diagnostics ? distinct(diagnostics) : undefined;
+		const localNetworkLink = new MarkdownString().appendLink(
+			createCommandUri(OPEN_SETTINGS_COMMAND, `@id:${AgentSandboxSettingId.AgentSandboxAllowLocalNetwork}`).toString(),
+			localize('agentHost.allowLocalNetworkAccess', "Allow"),
+		).value;
+		const localNetworkMessage = !reasons && state && !(state instanceof Error) && readAgentSandboxLocalNetworkRequired(state)
+			? readSessionSandboxPolicy(state)?.allowLocalNetwork === false
+				? localize('agentHost.sandboxLocalNetworkManaged', "Your organization disables local network access, which some sandboxing features need. {0}", localNetworkLink)
+				: localize('agentHost.sandboxLocalNetworkRequired', "Sandboxing requires access to local network. {0}", localNetworkLink)
+			: undefined;
 		const canDisable = this._canDisableSandboxing(state);
-		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable) {
+		if (equals(this._reasons ?? [], reasons ?? []) && this._canDisable === canDisable && this._localNetworkMessage === localNetworkMessage) {
 			return;
 		}
 		this._reasons = reasons;
 		this._canDisable = canDisable;
-		if (!reasons) {
+		this._localNetworkMessage = localNetworkMessage;
+		if (!reasons && !localNetworkMessage) {
 			this._notificationService.deleteNotification(this._id);
 			return;
 		}
-		const description = new MarkdownString('', { isTrusted: { enabledCommands: canDisable ? [this._disableCommandId] : [] } });
-		description.appendText(reasons[0]);
-		description.appendText(' ');
-		// Use the OS-support page until the sandbox troubleshooting guide is available.
-		description.appendLink('https://aka.ms/ghcp-sandbox-os-support', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
-		if (canDisable) {
-			description.appendText(' | ');
-			description.appendLink(
-				createCommandUri(this._disableCommandId).toString(),
-				localize('agentHost.disableSandboxing', "Disable Sandboxing"),
-				localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
-			);
+		const description = new MarkdownString('', { isTrusted: { enabledCommands: localNetworkMessage ? [OPEN_SETTINGS_COMMAND] : canDisable ? [this._disableCommandId] : [] } });
+		if (localNetworkMessage) {
+			description.appendMarkdown(localNetworkMessage);
+		} else if (reasons) {
+			description.appendText(reasons[0]);
+			description.appendText(' ');
+			// Use the OS-support page until the sandbox troubleshooting guide is available.
+			description.appendLink('https://aka.ms/ghcp-sandbox-os-support', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
+			if (canDisable) {
+				description.appendText(' | ');
+				description.appendLink(
+					createCommandUri(this._disableCommandId).toString(),
+					localize('agentHost.disableSandboxing', "Disable Sandboxing"),
+					localize('agentHost.disableSandboxingDetail', "Disable sandboxing for this session and in settings. Terminal commands may run without sandbox restrictions. Organization policy still applies."),
+				);
+			}
 		}
 		this._notificationService.setNotification({
 			id: this._id,
-			severity: ChatInputNotificationSeverity.Warning,
-			message: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
-			description,
+			severity: localNetworkMessage ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Warning,
+			message: localNetworkMessage
+				? description
+				: localize('agentHost.sandboxMayNotWorkAsExpected', "Sandboxing might not work as expected"),
+			description: localNetworkMessage ? undefined : description,
 			actions: [],
 			dismissible: true,
 			onDismiss: () => {

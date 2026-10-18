@@ -23,7 +23,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { CustomizationType, StateComponents, type ChatState, type ChildCustomization, type Customization, type SessionState, type UsageInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../services/environment/common/copilotHomeService.js';
 import { ChatDebugHookResult, ChatDebugLogLevel, IChatDebugCustomizationLogEntry, IChatDebugEvent, IChatDebugFileEntry, IChatDebugLogProvider, IChatDebugMessageSection, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostAgentDebugLogEnabledSettingId, AgentHostAgentDebugLogMaxEventsSettingId } from '../../common/promptSyntax/promptTypes.js';
@@ -110,7 +110,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	constructor(
 		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
 		@IFileService private readonly _fileService: IFileService,
-		@IPathService private readonly _pathService: IPathService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -224,10 +224,9 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	}
 
 	private _resolveEventsUri(sessionResource: URI): URI | undefined {
-		const userHome = this._pathService.userHome({ preferLocal: true });
 		const result = resolveEventsUri(
 			sessionResource,
-			userHome,
+			this._copilotHomeService.home,
 			authority => this._remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority),
 		);
 		return result.kind === 'ok' ? result.resource : undefined;
@@ -584,8 +583,7 @@ export class AgentHostChatDebugContribution extends Disposable implements IWorkb
 	}
 
 	private async _discoverLocalSessions(token: CancellationToken): Promise<{ uri: URI; title?: string }[]> {
-		const userHome = this._pathService.userHome({ preferLocal: true });
-		const sessionStateDir = buildLocalSessionStateUri(userHome);
+		const sessionStateDir = buildLocalSessionStateUri(this._copilotHomeService.home);
 
 		let stat;
 		try {

@@ -47,7 +47,7 @@ import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { createLocalModelPickerPresentation } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { IModelPickerWorkflow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
@@ -445,7 +445,7 @@ interface IPickerFixtureOptions {
 	readonly entitlement?: ChatEntitlement;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
-	readonly workflow?: IModelPickerWorkflow;
+	readonly comparison?: IModelPickerComparison;
 	/** On-device models, listed in their own tab; installed families also get their direct-selection model. */
 	readonly localModels?: ILocalModelStatusV1;
 	/** How the direct model of each on-device family, by family id, controls thinking; none when omitted. */
@@ -535,7 +535,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		void configurationAccess.setModelConfiguration(modelId, values);
 	}
 	let pickerContext: ITabbedModelPickerContext = {
-		workflow: options.workflow,
+		comparison: options.comparison,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],

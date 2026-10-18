@@ -8,7 +8,7 @@ import { AsyncIterableProducer, DeferredPromise, raceCancellation, raceCancellat
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
@@ -310,6 +310,7 @@ class ContributedChatSessionData extends Disposable {
 interface IPendingSessionResolution {
 	readonly promise: Promise<IChatSession>;
 	readonly cancellationTokenSource: CancellationTokenSource;
+	readonly providerAttempt: MutableDisposable<CancellationTokenSource>;
 	waiterCount: number;
 }
 
@@ -1213,8 +1214,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				for (const [key, pending] of this._pendingSessionResolutions) {
 					const type = getChatSessionType(URI.parse(key));
 					if (type === chatSessionType || this._resolveToPrimaryType(type) === chatSessionType) {
-						this._pendingSessionResolutions.delete(key);
-						pending.cancellationTokenSource.cancel();
+						pending.providerAttempt.value?.cancel();
 					}
 				}
 
@@ -1307,26 +1307,34 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		{
+		const resourceKey = sessionResource.toString();
+		let pendingSession = this._pendingSessionResolutions.get(resourceKey);
+		// Cancelled resolutions can still own cached content until their cleanup settles.
+		while (pendingSession?.cancellationTokenSource.token.isCancellationRequested) {
+			await raceCancellationError(pendingSession.promise.then(undefined, () => undefined), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			pendingSession = this._pendingSessionResolutions.get(resourceKey);
+		}
+		if (!pendingSession) {
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
 				this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: cache hit for ${sessionResource.toString()}`);
 				return existingSessionData.session;
 			}
-		}
 
-		const resourceKey = sessionResource.toString();
-		let pendingSession = this._pendingSessionResolutions.get(resourceKey);
-		if (!pendingSession) {
-			const cancellationTokenSource = new CancellationTokenSource();
-			const promise = this._getOrCreateChatSession(sessionResource, cancellationTokenSource.token);
-			pendingSession = { promise, cancellationTokenSource, waiterCount: 0 };
+			const disposables = new DisposableStore();
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			const providerAttempt = disposables.add(new MutableDisposable<CancellationTokenSource>());
+			const promise = this._resolvePendingSession(sessionResource, cancellationTokenSource.token, providerAttempt);
+			pendingSession = { promise, cancellationTokenSource, providerAttempt, waiterCount: 0 };
 			this._pendingSessionResolutions.set(resourceKey, pendingSession);
 			const clearPendingSession = () => {
 				if (this._pendingSessionResolutions.get(resourceKey) === pendingSession) {
 					this._pendingSessionResolutions.delete(resourceKey);
 				}
-				cancellationTokenSource.dispose();
+				disposables.dispose();
 			};
 			void promise.then(clearPendingSession, clearPendingSession);
 		}
@@ -1344,7 +1352,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			released = true;
 			pendingSession.waiterCount--;
 			if (pendingSession.waiterCount === 0 && this._pendingSessionResolutions.get(resourceKey) === pendingSession) {
-				this._pendingSessionResolutions.delete(resourceKey);
 				pendingSession.cancellationTokenSource.cancel();
 			}
 		};
@@ -1355,10 +1362,36 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
+	private async _resolvePendingSession(sessionResource: URI, token: CancellationToken, providerAttempt: MutableDisposable<CancellationTokenSource>): Promise<IChatSession> {
+		const sessionType = getChatSessionType(sessionResource);
+		while (!token.isCancellationRequested) {
+			const attempt = providerAttempt.value = new CancellationTokenSource(token);
+			try {
+				const session = await this._getOrCreateChatSession(sessionResource, attempt.token);
+				if (attempt.token.isCancellationRequested) {
+					session.dispose();
+					throw new CancellationError();
+				}
+				return session;
+			} catch (error) {
+				const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+				if (!isCancellationError(error) || !attempt.token.isCancellationRequested || token.isCancellationRequested || !this._contentProviders.has(resolvedType)) {
+					throw error;
+				}
+			} finally {
+				providerAttempt.clear();
+			}
+		}
+		throw new CancellationError();
+	}
+
 	private async _getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const sessionType = getChatSessionType(sessionResource);
 		if (!(await raceCancellationError(this.canResolveChatSession(sessionType), token))) {
 			throw Error(`Cannot find provider '${sessionType}'`);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
 		}
 
 		// Check again after async provider resolution
@@ -1376,7 +1409,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
+		const newSessionOptionGroups = isUntitledChatSession(sessionResource)
+			? await raceCancellationError(this.getNewChatSessionInputState(resolvedType, sessionResource), token)
+			: undefined;
 		if (isUntitledChatSession(sessionResource) && (newSessionOptionGroups || resolvedType.startsWith('agent-host-'))) {
 			const options: ChatSessionOptionsMap = new Map();
 			for (const group of newSessionOptionGroups ?? []) {
@@ -1395,14 +1430,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		} else {
 			this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: resolving content from provider '${resolvedType}' for ${sessionResource.toString()}`);
 			const contentPromise = provider.provideChatSessionContent(sessionResource, token);
-			// Dispose sessions returned by providers that do not honor cancellation.
-			void contentPromise.then(session => {
-				if (token.isCancellationRequested) {
-					session.dispose();
-				}
-			}, () => { });
-			session = await raceCancellationError(contentPromise, token);
+			try {
+				session = await raceCancellationError(contentPromise, token);
+			} catch (error) {
+				// The provider may still return content after cancellation.
+				void contentPromise.then(session => session.dispose(), () => { });
+				throw error;
+			}
 			this._logService.trace(`[ChatSessionsService] getOrCreateChatSession: provider returned ${session.history.length} history item(s) for ${sessionResource.toString()}`);
+		}
+
+		if (token.isCancellationRequested) {
+			session.dispose();
+			throw new CancellationError();
 		}
 
 		if (session.options) {

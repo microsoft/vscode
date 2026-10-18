@@ -337,6 +337,7 @@ export class CanvasEditor extends EditorPane {
 			this.environmentService.isSessionsWindow
 				? localize('canvas.help.close', "Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas.")
 				: localize('canvas.help.closeEditorWindow', "Closing the tab hides this canvas. Reopen it from its canvas pill or ask the agent to open it again."),
+			localize('canvas.help.closeCanvas', "To close the canvas itself, which also notifies the extension that provides it, use Close Canvas from its canvas pill."),
 		].join('\n\n');
 		this.semanticText = localize('canvas.reading', "Reading accessible canvas content…");
 		return new AccessibleContentProvider(

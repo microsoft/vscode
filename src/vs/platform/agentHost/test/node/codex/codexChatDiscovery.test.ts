@@ -23,7 +23,7 @@ import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
-import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat, fixedChatOwnerRef } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { readCodexSessionModel } from '../../../common/meta/codexSessionModel.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
@@ -91,7 +91,7 @@ function thread(id: string, updatedAt = 1, name = id): Thread {
 
 function turn(id: string, text: string): CodexTurn {
 	return {
-		id, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+		id, rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 		items: [{ type: 'userMessage', id: `${id}-user`, clientId: null, content: [{ type: 'text', text, text_elements: [] }] }],
 	};
 }
@@ -548,7 +548,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -791,7 +791,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.threads = [thread('first', 2, 'Renamed after opening')];
 			filesystem.changeHomeFile('session_index.jsonl');
 			await timeout(6000);
@@ -809,7 +809,7 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('one', 'First message')];
 			await agent.chats.getMessages(chat, session);
 			const observed = agent as import('../../../common/agent.js').IAgent;
@@ -859,7 +859,7 @@ suite('Codex chat discovery', () => {
 		await database.storeTerminalOutput('stored-turn', 'cmd-retained', VSBuffer.fromString(output).buffer);
 		const { agent, client, filesystem } = createHarness(store, createSessionDataService(database));
 		const turn = (answer: string, aggregatedOutput = output): CodexTurn => ({
-			id: 'one', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
+			id: 'one', rootTurnId: null, status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: 1000, itemsView: 'full',
 			items: [
 				{ type: 'userMessage', id: 'one-user', clientId: null, content: [{ type: 'text', text: 'Run it', text_elements: [] }] },
 				{
@@ -879,9 +879,9 @@ suite('Codex chat discovery', () => {
 			await agent.startChatDiscovery();
 			const session = AgentSession.uri('codex', 'first');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.materializeChat(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const }, undefined);
+			await agent.materializeChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, undefined);
 			client.turns = [turn('Working')];
-			const initial = await agent.chats.getMessages(chat, { resource: session, configurationResource: session, subagentChatUriFormat: 'shaped' as const });
+			const initial = await agent.chats.getMessages(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) });
 			const observed = agent as import('../../../common/agent.js').IAgent;
 			let refreshed: ReturnType<typeof retainedContent>;
 			if (observed.onDidChangeChatHistory) {

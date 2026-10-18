@@ -101,7 +101,7 @@ const sessionSettingsLocale: IAgentHostSettingsLocale = {
  * commented, pretty-printed JSON document.
  */
 export function serializeSessionSettings(provider: IAgentHostSessionsProvider, sessionId: string): string {
-	return serializeAgentHostConfigDocument(provider.getSessionConfig(sessionId), sessionSettingsPropertyFilter, sessionSettingsLocale);
+	return serializeAgentHostConfigDocument(provider.getSessionOwnConfig(sessionId), sessionSettingsPropertyFilter, sessionSettingsLocale);
 }
 
 /**
@@ -156,7 +156,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 	}
 
 	protected _hasConfig(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): boolean {
-		return provider.getSessionConfig(ctx.sessionId) !== undefined;
+		return provider.getSessionOwnConfig(ctx.sessionId) !== undefined;
 	}
 
 	// The input is the user's full view of editable values. Dispatch as a
@@ -197,7 +197,7 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 
 	protected _getConfig(session: ISession): IAgentHostConfigLike | undefined {
 		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
-		return provider?.getSessionConfig(session.sessionId);
+		return provider?.getSessionOwnConfig(session.sessionId);
 	}
 
 	protected _targetsForProvider(provider: IAgentHostSessionsProvider): readonly ISession[] {
