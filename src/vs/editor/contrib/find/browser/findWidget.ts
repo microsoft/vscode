@@ -86,6 +86,98 @@ let MAX_MATCHES_COUNT_WIDTH = 69;
 
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 
+// Patterns up to this length are shown in full in the regex error message.
+const MAX_REGEX_PATTERN_LENGTH_IN_ERROR = 60;
+// How much of the pattern to show before and after the error location.
+const REGEX_ERROR_CONTEXT_BEFORE = 50;
+const REGEX_ERROR_CONTEXT_AFTER = 10;
+// Locating the error compiles O(log n) prefixes of the pattern. Up to this length
+// that takes a few milliseconds (about 1.5ms for 40k characters, 12ms for 400k),
+// which stays well within a single frame. Longer patterns skip the search and
+// only show the start of the pattern, so typing never becomes sluggish.
+const MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR = 100_000;
+
+function getRegexError(pattern: string, flags: string): string | undefined {
+	try {
+		new RegExp(pattern, flags);
+		return undefined;
+	} catch (e) {
+		return e.message;
+	}
+}
+
+/**
+ * Splits a native error message of the form `Invalid regular expression: /<pattern>/<flags>: <reason>`.
+ */
+function parseRegexError(message: string, pattern: string, flags: string): { prefix: string; reason: string } | undefined {
+	const source = `/${pattern}/${flags}: `;
+	const index = message.indexOf(source);
+	if (index === -1) {
+		return undefined;
+	}
+	return { prefix: message.substring(0, index), reason: message.substring(index + source.length) };
+}
+
+function getRegexErrorReason(pattern: string, flags: string): string | undefined {
+	const message = getRegexError(pattern, flags);
+	return message === undefined ? undefined : parseRegexError(message, pattern, flags)?.reason ?? message;
+}
+
+/**
+ * Finds the length of the shortest prefix of `pattern` that fails with the same
+ * error reason as the whole pattern, which is where the error is located.
+ */
+function locateRegexError(pattern: string, flags: string, reason: string): number {
+	let low = 1;
+	let high = pattern.length;
+	while (low < high) {
+		const mid = Math.floor((low + high) / 2);
+		if (getRegexErrorReason(pattern.substring(0, mid), flags) === reason) {
+			high = mid;
+		} else {
+			low = mid + 1;
+		}
+	}
+	return low;
+}
+
+/**
+ * Returns the validation message for an invalid regular expression, or `null` if it is valid.
+ *
+ * The native error message contains the whole pattern, which makes the message huge for
+ * long patterns and hides the actual reason. For long patterns, show the reason first,
+ * followed by the part of the pattern around the location of the error.
+ */
+export function getRegexValidationErrorMessage(pattern: string, flags: string): string | null {
+	const message = getRegexError(pattern, flags);
+	if (message === undefined) {
+		return null;
+	}
+
+	if (pattern.length <= MAX_REGEX_PATTERN_LENGTH_IN_ERROR) {
+		return message;
+	}
+
+	const parsed = parseRegexError(message, pattern, flags);
+	if (!parsed) {
+		// unknown message format
+		return message;
+	}
+	const { prefix, reason } = parsed;
+
+	let snippet: string;
+	if (pattern.length > MAX_REGEX_PATTERN_LENGTH_TO_LOCATE_ERROR) {
+		snippet = strings.truncate(pattern, MAX_REGEX_PATTERN_LENGTH_IN_ERROR);
+	} else {
+		const errorEnd = locateRegexError(pattern, flags, reason);
+		const start = Math.max(0, errorEnd - REGEX_ERROR_CONTEXT_BEFORE);
+		const end = Math.min(pattern.length, errorEnd + REGEX_ERROR_CONTEXT_AFTER);
+		snippet = (start > 0 ? strings.Ellipsis : '') + pattern.substring(start, end) + (end < pattern.length ? strings.Ellipsis : '');
+	}
+
+	return `${prefix}${reason}: ${snippet}`;
+}
+
 const ctrlKeyMod = (platform.isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 export class FindWidgetViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
@@ -998,13 +1090,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				if (value.length === 0 || !this._findInput.getRegex()) {
 					return null;
 				}
-				try {
-					// use `g` and `u` which are also used by the TextModel search
-					new RegExp(value, 'gu');
-					return null;
-				} catch (e) {
-					return { content: e.message };
-				}
+				// use `g` and `u` which are also used by the TextModel search
+				const message = getRegexValidationErrorMessage(value, 'gu');
+				return message ? { content: message } : null;
 			},
 			flexibleHeight,
 			flexibleWidth,
