@@ -6882,7 +6882,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return;
 			}
 		}
-		void target.sendSteering(pending.message, sender).catch(error => {
+		void target.sendSteering(pending.message, sender).then(sent => {
+			if (!sent) {
+				// The legacy slot has no host queue to return the message to, so clear its pending row as before.
+				this._onDidChatProgress.fire({ kind: 'steering_consumed', chat, id: pending.message.id });
+			}
+		}, error => {
 			if (target.usesScopedGitHubCredentials && !this._pendingSteeringMessages.has(chatKey) && !this._isShuttingDown) {
 				this._pendingSteeringMessages.set(chatKey, pending);
 			}
@@ -6891,13 +6896,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._pendingSteeringMessages.delete(chatKey);
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean {
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | Promise<boolean> {
 		const target = this._findChatByUri(chat);
 		if (this._isShuttingDown || !target?.hasRunningTurn || this._preparedTurnLaunches.has(target)) {
 			return false;
 		}
-		void target.sendSteering(message, sender);
-		return true;
+		return target.sendSteering(message, sender);
 	}
 
 	withdrawSteeringMessage(chat: URI, messageId: string): void {

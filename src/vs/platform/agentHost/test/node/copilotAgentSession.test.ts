@@ -7399,7 +7399,7 @@ suite('CopilotAgentSession', () => {
 					{
 						name: 'steering send',
 						configure: () => { },
-						start: session => session.sendSteering({ id: 'steering', message: { text: 'steer', origin: { kind: MessageKind.User } } }),
+						start: async session => { await session.sendSteering({ id: 'steering', message: { text: 'steer', origin: { kind: MessageKind.User } } }); },
 						wasDispatched: mockSession => mockSession.sendRequests.length > 0,
 					},
 				];
@@ -13937,6 +13937,37 @@ Use the attached image as context.
 				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-2' }],
 				leftOver: [],
 			});
+		});
+
+		test('a steering message whose turn ends while it is being prepared is handed back instead of dropped', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await timeout(0);
+			session.resetTurnState('turn-original');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			const gate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(gate.p);
+			const previousListCalls = mockSession.mcpListCalls;
+			const steering = session.sendSteering({ id: 'steer-late', message: { text: 'also update the docs', origin: { kind: MessageKind.User } } });
+			try {
+				await timeout(0);
+				assert.strictEqual(mockSession.mcpListCalls, previousListCalls + 1);
+				// The agent finishes its turn while the steering message is still being prepared.
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				gate.complete();
+
+				assert.deepStrictEqual({
+					acceptedBySession: await steering,
+					sentToSdk: mockSession.sendRequests,
+					removedFromQueue: signals.flatMap(signal => signal.kind === 'steering_consumed' ? [signal.id] : []),
+				}, {
+					acceptedBySession: false,
+					sentToSdk: [],
+					removedFromQueue: [],
+				});
+			} finally {
+				gate.complete();
+				await steering;
+			}
 		});
 
 		test('fires steering_consumed on abort when the steering never reached its turn', async () => {

@@ -20562,7 +20562,7 @@ suite('CopilotAgent', () => {
 				const afterReady = messages.map(message => h.agent.sendSteeringMessage(h.chat, message));
 				h.agent.setPendingMessages(h.chat, undefined, []);
 				const didDeliver = await raceTimeout(delivered.p.then(() => true), 1000);
-				assert.deepStrictEqual({ beforeReady, afterReady, didDeliver, sends }, {
+				assert.deepStrictEqual({ beforeReady, afterReady: await Promise.all(afterReady), didDeliver, sends }, {
 					beforeReady: [false, false], afterReady: [true, true], didDeliver: true,
 					sends: [
 						{ prompt: 'original', mode: undefined },
