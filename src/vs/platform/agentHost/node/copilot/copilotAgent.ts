@@ -2134,6 +2134,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotClient(options);
 	}
 
+	protected _realpath(path: string): Promise<string> {
+		return fs.realpath(path);
+	}
+
 	private async _acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable> {
 		const roots: string[] = [];
 		for (const directory of directories) {
@@ -2141,7 +2145,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				continue;
 			}
 			try {
-				roots.push(await fs.realpath(directory.fsPath));
+				roots.push(await this._realpath(directory.fsPath));
 			} catch (error) {
 				this._logService.warn(`[Copilot] Failed to canonicalize extension launch root '${directory.fsPath}': ${getErrorMessage(error)}`);
 			}
@@ -2165,48 +2169,56 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
 			return {};
 		}
+		let launchModulePath = modulePath;
 		if (source === 'project') {
-			if (!this._isWorkspaceTrusted(URI.file(modulePath))) {
-				return {};
-			}
 			let canonicalModulePath: string;
 			try {
-				canonicalModulePath = await fs.realpath(modulePath);
+				canonicalModulePath = await this._realpath(modulePath);
 			} catch {
 				return {};
 			}
-			if (resourceBasename(URI.file(canonicalModulePath)) !== 'extension.mjs'
-				|| ![...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(URI.file(canonicalModulePath), URI.file(root)))) {
+			const canonicalModule = URI.file(canonicalModulePath);
+			const isAdmitted = () => [...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(canonicalModule, URI.file(root)));
+			if (resourceBasename(canonicalModule) !== 'extension.mjs'
+				|| !isAdmitted()
+				|| !await this._isWorkspaceTrusted(canonicalModule)
+				|| !isAdmitted()) {
 				return {};
 			}
+			launchModulePath = canonicalModulePath;
 		}
 		return {
 			launch: {
 				executable: process.execPath,
 				args: [extensionBootstrapPath],
 				env: {
-					EXTENSION_PATH: modulePath,
+					EXTENSION_PATH: launchModulePath,
 					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
 				},
 			},
 		};
 	}
 
-	private _isWorkspaceTrusted(resource: URI): boolean {
+	private async _isWorkspaceTrusted(resource: URI): Promise<boolean> {
 		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
 		if (!trust) {
 			return false;
 		}
-		if (!trust.enabled) {
+		if (!trust.enabled || trust.trustedAuthority) {
 			return true;
 		}
-		return trust.trustedUris.some(uri => {
+		const canonicalTrustedUris = await Promise.all(trust.trustedUris.map(async uri => {
 			try {
-				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
+				const parsed = URI.parse(uri);
+				return parsed.scheme === Schemas.file ? URI.file(await this._realpath(parsed.fsPath)) : undefined;
 			} catch {
-				return false;
+				return undefined;
 			}
-		});
+		}));
+		if (!structuralEquals(trust, this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey))) {
+			return false;
+		}
+		return canonicalTrustedUris.some(uri => uri && extUriBiasedIgnorePathCase.isEqualOrParent(resource, uri));
 	}
 
 	// ---- auth ---------------------------------------------------------------

@@ -8151,6 +8151,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!trust.enabled) {
 			return true;
 		}
+		if (trust.trustedAuthority) {
+			return true;
+		}
 		return trust.trustedUris.some(uri => {
 			try {
 				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));

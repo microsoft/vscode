@@ -1376,6 +1376,7 @@ class ResumePathCopilotAgent extends CopilotAgent {
 
 class TestableCopilotAgent extends CopilotAgent {
 	private readonly _fakeSessions = new Map<string, IFakeAgentSession>();
+	private _realpathOverride: ((path: string) => Promise<string>) | undefined;
 	readonly resumeCalls: string[] = [];
 	readonly createdClientOptions: CopilotClientOptions[] = [];
 	lastClientOptions: CopilotClientOptions | undefined;
@@ -1421,6 +1422,14 @@ class TestableCopilotAgent extends CopilotAgent {
 		this.createdClientOptions.push(options);
 		this.lastClientOptions = options;
 		return this._copilotClient as CopilotClient;
+	}
+
+	setRealpathOverride(realpath: ((path: string) => Promise<string>) | undefined): void {
+		this._realpathOverride = realpath;
+	}
+
+	protected override _realpath(path: string): Promise<string> {
+		return this._realpathOverride?.(path) ?? super._realpath(path);
 	}
 
 	registerFakeSession(sessionId: string, fake: IFakeAgentSession): void {
@@ -3777,30 +3786,62 @@ suite('CopilotAgent', () => {
 	});
 
 	test('requires workspace trust to launch project extensions', async () => {
-		const workspace = await fs.mkdtemp(`${os.tmpdir()}/copilot-project-extension-`);
+		const tempRoot = await fs.mkdtemp(`${os.tmpdir()}/copilot-project-extension-`);
+		const workspace = join(tempRoot, 'workspace');
+		const trustedAlias = join(tempRoot, 'trusted-alias');
+		const untrustedWorkspace = join(tempRoot, 'untrusted-workspace');
 		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
 		const modulePath = join(extensionDirectory, 'extension.mjs');
+		const untrustedExtensionDirectory = join(untrustedWorkspace, 'preview');
+		const escapedExtensionDirectory = join(workspace, '.github', 'extensions', 'escaped');
+		const escapedModulePath = join(escapedExtensionDirectory, 'extension.mjs');
 		await fs.mkdir(extensionDirectory, { recursive: true });
+		await fs.mkdir(untrustedExtensionDirectory, { recursive: true });
 		await fs.writeFile(modulePath, '');
-		const { agent, configurationService } = createTestAgentContext(disposables, {
+		await fs.writeFile(join(untrustedExtensionDirectory, 'extension.mjs'), '');
+		await fs.symlink(workspace, trustedAlias, process.platform === 'win32' ? 'junction' : 'dir');
+		await fs.symlink(untrustedExtensionDirectory, escapedExtensionDirectory, process.platform === 'win32' ? 'junction' : 'dir');
+		const { agent: createdAgent, configurationService } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([]),
 		});
+		const agent = createdAgent as TestableCopilotAgent;
 		const internals = agent as unknown as {
 			_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
 			_resolveExtensionLaunch(modulePath: string, source: 'project', extensionBootstrapPath: string): Promise<{ readonly launch?: unknown }>;
 		};
 
 		try {
-			const admission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(workspace)]));
+			const admission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(workspace), URI.file(untrustedWorkspace)]));
 			const missingTrustConfig = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 			configurationService.updateRootConfig({
 				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
 			});
 			const untrusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 			configurationService.updateRootConfig({
-				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(trustedAlias).toString()] },
 			});
 			const trusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+			});
+			const escaped = await internals._resolveExtensionLaunch(escapedModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			const realpathStarted = new DeferredPromise<void>();
+			const releaseRealpath = new DeferredPromise<void>();
+			agent.setRealpathOverride(async path => {
+				if (path === modulePath) {
+					realpathStarted.complete();
+					await releaseRealpath.p;
+				}
+				return fs.realpath(path);
+			});
+			const revokedDuringResolutionPromise = internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await realpathStarted.p;
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			});
+			releaseRealpath.complete();
+			const revokedDuringResolution = await revokedDuringResolutionPromise;
+			agent.setRealpathOverride(undefined);
 			configurationService.updateRootConfig({
 				[AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] },
 			});
@@ -3812,17 +3853,21 @@ suite('CopilotAgent', () => {
 				missingTrustConfig: !!missingTrustConfig.launch,
 				untrusted: !!untrusted.launch,
 				trusted: !!trusted.launch,
+				escaped: !!escaped.launch,
+				revokedDuringResolution: !!revokedDuringResolution.launch,
 				trustDisabled: !!trustDisabled.launch,
 				noAdmission: !!noAdmission.launch,
 			}, {
 				missingTrustConfig: false,
 				untrusted: false,
 				trusted: true,
+				escaped: false,
+				revokedDuringResolution: false,
 				trustDisabled: true,
 				noAdmission: false,
 			});
 		} finally {
-			await fs.rm(workspace, { recursive: true, force: true });
+			await fs.rm(tempRoot, { recursive: true, force: true });
 			await disposeAgent(agent);
 		}
 	});

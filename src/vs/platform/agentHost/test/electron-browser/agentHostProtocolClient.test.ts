@@ -132,6 +132,10 @@ class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagement
 	override onDidChangeTrust = Event.None;
 	override onDidChangeTrustedFolders = Event.None;
 	trustedUris: URI[] = [];
+	workspaceTrusted = false;
+	workspaceTrustForced = false;
+	override isWorkspaceTrusted(): boolean { return this.workspaceTrusted; }
+	override isWorkspaceTrustForced(): boolean { return this.workspaceTrustForced; }
 	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
@@ -959,6 +963,20 @@ suite('AgentHostProtocolClient', () => {
 			{ enabled: true, trustedUris: [URI.file('/repo').toString()] },
 			{ enabled: true, trustedUris: [] },
 		]);
+	});
+
+	test('workspace trust forwards effective remote authority trust', async () => {
+		const transport = disposables.add(new TestProtocolTransport());
+		const trustService = new TestWorkspaceTrustManagementService();
+		trustService.workspaceTrusted = true;
+		trustService.workspaceTrustForced = true;
+		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
+		await connectClient(client, transport);
+		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
+			enabled: true,
+			trustedUris: [],
+			trustedAuthority: true,
+		});
 	});
 
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {

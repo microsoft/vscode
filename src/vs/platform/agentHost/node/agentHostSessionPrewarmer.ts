@@ -165,6 +165,9 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		if (!trust.enabled) {
 			return true;
 		}
+		if (trust.trustedAuthority) {
+			return true;
+		}
 		return trust.trustedUris.some(uri => {
 			try {
 				return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));

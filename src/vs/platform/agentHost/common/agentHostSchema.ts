@@ -556,6 +556,7 @@ export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
+	readonly trustedAuthority?: boolean;
 }
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
@@ -950,6 +951,7 @@ export const platformRootSchema = createSchema({
 				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
 				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
 			},
+			trustedAuthority: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.trustedAuthority', "Trusted Authority") },
 		},
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
