@@ -62,7 +62,7 @@ class TestMcpManagementService extends AbstractCommonMcpManagementService {
 }
 
 class TestMcpResourceManagementService extends AbstractMcpResourceManagementService {
-	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService, allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true }) {
+	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService, allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true }) {
 		super(
 			mcpResource,
 			ConfigurationTarget.USER,
@@ -1529,7 +1529,7 @@ suite('McpResourceManagementService', () => {
 			uriIdentityService,
 			new NullLogService(),
 			scannerService,
-			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
 			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
 		));
 		const [local] = await galleryService.getInstalled();
@@ -1549,7 +1549,7 @@ suite('McpResourceManagementService', () => {
 			uriIdentityService,
 			new NullLogService(),
 			scannerService,
-			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
 			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
 		));
 
@@ -1567,7 +1567,7 @@ suite('McpResourceManagementService', () => {
 			uriIdentityService,
 			new NullLogService(),
 			scannerService,
-			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
 			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
 		));
 		const gallery = {
@@ -1610,7 +1610,7 @@ suite('McpResourceManagementService', () => {
 			uriIdentityService,
 			logService,
 			scannerService,
-			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true },
+			{ _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true },
 			upcastPartial<IEnvironmentService>({ userRoamingDataHome: URI.from({ scheme: Schemas.inMemory, path: '/user' }) }),
 		));
 
@@ -1636,7 +1636,7 @@ suite('McpResourceManagementService - install policy enforcement', () => {
 	const server: IInstallableMcpServer = { name: 'my-server', config: { type: McpServerType.LOCAL, command: 'node', args: [] } };
 
 	function createService(isAllowed: IAllowedMcpServersService['isAllowed']): TestMcpResourceManagementService {
-		const allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed, isServerAllowed: () => true };
+		const allowedMcpServersService: IAllowedMcpServersService = { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true };
 		return disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService, allowedMcpServersService));
 	}
 

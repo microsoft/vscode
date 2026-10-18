@@ -52,7 +52,8 @@ class ResponseError extends Error {
 }
 
 async function getUri(): Promise<typeof Uri> {
-	const uriModule = path.join(__dirname, '..', '..', '..', '..', '..', 'out', 'vs', 'base', 'common', 'uri.js');
+	const outDir = process.argv.includes('--build') ? 'out-build' : 'out';
+	const uriModule = path.join(__dirname, '..', '..', '..', '..', '..', outDir, 'vs', 'base', 'common', 'uri.js');
 	return createRequire(__filename)(uriModule).URI;
 }
 

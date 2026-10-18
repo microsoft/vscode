@@ -6,9 +6,12 @@
 import './media/chatViewPane.css';
 import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -20,8 +23,9 @@ import { getComparisonKey, isEqual } from '../../../../../../base/common/resourc
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
+import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -54,8 +58,10 @@ import { IChatModel, IChatModelInputState } from '../../../common/model/chatMode
 import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -70,6 +76,8 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../../services/policies/common/accountPolicyService.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
@@ -82,7 +90,7 @@ import { IVoiceSessionController } from '../../voiceClient/voiceSessionControlle
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
 import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
-import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
+import { acceptVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -124,6 +132,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private restoringSession: Promise<void> | undefined;
 	private readonly loadSessionCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _openDiagnostics = this._register(new MutableDisposable<IChatOpen>());
 	private readonly _applyModelCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	/** While > 0 the sessions list is suppressed so a session transition's transiently-empty widget does not reveal it (see {@link beginSessionsListSuppression}). */
 	private _sessionsListSuppressionCount = 0;
@@ -132,6 +141,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
+	private readonly customizationMigrationsAvailable = observableValue(this, false);
 	/**
 	 * Session resource of the last-focused chat widget, or this pane's own
 	 * session when no chat widget is focused. Used to bind the voice glow /
@@ -177,6 +187,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.element.classList.add('chat-viewpane-container');
@@ -427,25 +441,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				// Ignore lastFocusedWidget when its input no longer has focus because blur does not clear it.
-				const focusedWidget = chatWidgetService.lastFocusedWidget;
-				const widget = focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
-				if (text && widget?.viewModel) {
-					if (widget.viewModel.editing) {
-						// When editing an old message, populate the active input
-						// editor so the user can review before submitting.
-						widget.input.setValue(text, false);
-					} else {
-						// Preserve any text the user already typed in the input.
-						return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
-							preserveFocus: true,
-							isVoiceModeInput: this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true,
-						});
-					}
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string, expectedSessionId?: string) => {
+				const widget = this._getVoiceSubmissionWidget(expectedSessionId);
+				if (expectedSessionId && widget?.viewModel?.sessionResource.toString() !== expectedSessionId) {
+					return false;
 				}
-				return undefined;
+				return acceptVoiceInput(widget, text, this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true);
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 				if (!resourceStr) {
@@ -463,7 +464,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				}
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
-				return this._widget?.viewModel?.sessionResource?.toString();
+				return this._getVoiceSubmissionWidget()?.viewModel?.sessionResource?.toString();
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
 				const widget = this._getVoiceActionWidget();
@@ -479,6 +480,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					: { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
 			}));
 		}
+	}
+
+	private _getVoiceSubmissionWidget(expectedSessionId?: string) {
+		if (expectedSessionId) {
+			return this.chatWidgetService.getWidgetBySessionResource(URI.parse(expectedSessionId));
+		}
+		const focusedWidget = this.chatWidgetService.lastFocusedWidget;
+		return focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
 	}
 
 	private _getVoiceActionWidget() {
@@ -843,6 +852,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsControl: AgentSessionsControl | undefined;
 
 	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl; }
+	private sessionsListRevealCount = 0;
+
+	/** Shows the Sessions list for a navigation flow without replacing the current chat or saved layout. */
+	revealSessionsList(): IDisposable {
+		this.sessionsListRevealCount++;
+		this.refreshSessionsControlVisibility();
+		return toDisposable(() => {
+			this.sessionsListRevealCount--;
+			if (!this._store.isDisposed) { this.refreshSessionsControlVisibility(); }
+		});
+	}
 
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
@@ -964,7 +984,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let newSessionsContainerVisible: boolean;
-		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)) {
+		if (this.sessionsListRevealCount > 0) {
+			newSessionsContainerVisible = true;
+		} else if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)) {
 			newSessionsContainerVisible = false; // disabled in settings
 		} else {
 
@@ -1054,7 +1076,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{ viewId: this.id },
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
+				readOnlyBannerAtTop: true,
 				renderFollowups: true,
+				renderArtifactsWidget: false,
+				customizationMigrationNotice: {
+					workspace: this.aiCustomizationWorkspaceService.activeProjectRoot,
+					onDidChangeAvailability: available => this.customizationMigrationsAvailable.set(available, undefined),
+				},
 				supportsFileReferences: true,
 				clear: () => this.clear(),
 				enableFind: true,
@@ -1089,11 +1117,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return this._widget;
 	}
 
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === AICustomizationManagementCommands.OpenEditor && action instanceof MenuItemAction) {
+			return this.instantiationService.createInstance(ChatCustomizationsActionViewItem, action, options, this.customizationMigrationsAvailable);
+		}
+		return super.createActionViewItem(action, options);
+	}
+
 	private createChatTitleControl(parent: HTMLElement): void {
 		this.titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl,
 			parent,
 			{
-				focusChat: () => this._widget.focusInput()
+				focusChat: () => this._widget.focusInput(),
+				getInputUri: () => this._widget?.inputPart?.inputUri,
 			},
 			undefined
 		));
@@ -1176,6 +1212,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
+		// When the empty draft's session type is withdrawn (e.g. its feature setting was turned
+		// off), start a new draft on the default type so the picker is not stuck on a dead type.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
+			const model = chatWidget.viewModel?.model;
+			const sessionResource = model?.sessionResource;
+			if (!sessionResource || model.hasRequests || !isUntitledChatSession(sessionResource)) {
+				return;
+			}
+			const sessionType = getChatSessionType(sessionResource);
+			if (sessionType !== localChatSessionType && !this.chatSessionsService.getChatSessionContribution(sessionType)) {
+				this.clear();
+			}
+		}));
+
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
 		this._register(autorun(reader => {
 			chatWidget.inputPart.height.read(reader);
@@ -1228,6 +1278,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Model Management
 
+	/** Waits for the initial Chat session to finish restoring. */
+	async whenSessionRestored(): Promise<void> {
+		await this.restoringSession;
+	}
+
 	private applyModel(): void {
 		// Make the initial session resolution cancelable so an explicit request
 		// (e.g. New Local Chat via `startNewLocalSession`) can preempt a slow /
@@ -1256,6 +1311,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * picker when the user explicitly selects "Local", and by New Local Chat.
 	 */
 	async startNewLocalSession(sessionTypeSelectionReason: SessionTypeSelectionReason = 'explicitOverride'): Promise<IChatModel | undefined> {
+		await whenAccountPolicySettled(this.accountPolicyGateService);
+		if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+			return this.showModel(CancellationToken.None, undefined, true, true);
+		}
 		// Preempt any in-flight initial session resolution (e.g. the computed
 		// default provider). Without this, opening the view kicks off a default
 		// resolution that, when the default is a non-local harness, blocks on
@@ -1272,14 +1331,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * reference for it instead of the built-in local provider.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatSessionAcquisitionResult> {
+		await whenAccountPolicySettled(this.accountPolicyGateService);
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		if (defaultTypeAndReason.sessionType === localChatSessionType) {
 			return { modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#acquireDefaultNewSession', sessionTypeSelectionReason: localFallbackSelectionReason ?? defaultTypeAndReason.selectionReason }) };
 		}
 		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 		try {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
+			if (!modelRef && requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+				throw new Error(managedPolicyRequiresAgentHostMessage());
+			}
 			return {
 				modelRef,
 				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, !!modelRef, localFallbackSelectionReason),
@@ -1289,6 +1352,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// deliberately preempted this resolution; propagate it so the
 			// initial `applyModel` bails instead of creating a fallback session.
 			if (isCancellationError(error)) {
+				throw error;
+			}
+			if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+				this.notificationService.error(managedPolicyRequiresAgentHostMessage());
 				throw error;
 			}
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
@@ -1323,7 +1390,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;
@@ -1399,12 +1466,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// the new chat from displaying.
 		if (oldModelResource) {
 			const capturedOldResource = oldModelResource;
-			this._register(disposableTimeout(() => {
+			disposableTimeout(() => {
 				const oldSession = this.agentSessionsService.model.getSession(capturedOldResource);
 				if (oldSession && !oldSession.isMarkedUnread()) {
 					oldSession.setRead(true);
 				}
-			}, 0));
+			}, 0, this._store);
 		}
 
 		return model;
@@ -1453,80 +1520,100 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
-		// Capture the input draft up front: the load window (clear + acquire below)
-		// opens before `showModel` binds, so text typed during loading must be
-		// baselined here to be preserved rather than erased. See #325323.
-		const inputBeforeLoad = this._widget?.getInput() ?? '';
-
-		// Cancel any in-flight loadSession call so the last one always wins
+		// Opens while the workbench restores, and of new chats, are not user opens.
+		const alreadyShown = isEqual(this._widget?.viewModel?.sessionResource, sessionResource);
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
 		const token = cts.token;
+		const open = this._openDiagnostics.value = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
+			? this.chatOpenDiagnosticsService.startOpen('panel', sessionResource, token, alreadyShown)
+			: undefined;
+		try {
+			// Capture the input draft up front: the load window (clear + acquire below)
+			// opens before `showModel` binds, so text typed during loading must be
+			// baselined here to be preserved rather than erased. See #325323.
+			const inputBeforeLoad = this._widget?.getInput() ?? '';
 
-		// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
-		// to finish first, so our showModel call is guaranteed to be the last one.
-		if (this.restoringSession) {
-			await this.restoringSession;
-		}
-
-		if (token.isCancellationRequested) {
-			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
-			return undefined;
-		}
-
-		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
-			let queue: Promise<void> = Promise.resolve();
-			let didAcquireSession = false;
-
-			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
-			const clearWidget = disposableTimeout(() => {
-				// Only clear the current model if this loadSession call is still the active one
-				// and has not been cancelled. This preserves the "last call wins" behavior.
-				if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
-					return;
-				}
-				// clear current model without starting a new one
-				queue = this.showModel(token, undefined, false).then(() => { });
-			}, 100);
-			const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
-
-			try {
-				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
-				didAcquireSession = !!newModelRef;
-				clearWidget.dispose();
-				await queue;
-
-				if (token.isCancellationRequested) {
-					newModelRef?.dispose();
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
-					return undefined;
-				}
-
-				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
-				const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
-				return result;
-			} catch (err) {
-				clearWidget.dispose();
-				await queue;
-
-				if (token.isCancellationRequested) {
-					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
-					return undefined;
-				}
-
-				// Recover by starting a fresh empty session so the widget
-				// is not left in a broken state without title or back button.
-				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
-				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
-				const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
-				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
-				return result;
-			} finally {
-				clearWidgetCancellationListener.dispose();
+			// Wait for any in-progress session restore (e.g. from onDidChangeAgents)
+			// to finish first, so our showModel call is guaranteed to be the last one.
+			if (this.restoringSession) {
+				await this.restoringSession;
 			}
-		});
+
+			if (token.isCancellationRequested) {
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
+				return undefined;
+			}
+
+			open?.mark('selectionHandled');
+
+			const loadedModel = await this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
+				let queue: Promise<void> = Promise.resolve();
+				let didAcquireSession = false;
+
+				// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
+				const clearWidget = disposableTimeout(() => {
+					// Only clear the current model if this loadSession call is still the active one
+					// and has not been cancelled. This preserves the "last call wins" behavior.
+					if (token.isCancellationRequested || this.loadSessionCts.value !== cts) {
+						return;
+					}
+					// clear current model without starting a new one
+					queue = this.showModel(token, undefined, false).then(() => { });
+				}, 100);
+				const clearWidgetCancellationListener = token.onCancellationRequested(() => clearWidget.dispose());
+
+				try {
+					const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#loadSession', sessionTypeSelectionReason);
+					didAcquireSession = !!newModelRef;
+					clearWidget.dispose();
+					await queue;
+
+					if (token.isCancellationRequested) {
+						newModelRef?.dispose();
+						this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
+						return undefined;
+					}
+
+					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
+					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+					return result;
+				} catch (err) {
+					clearWidget.dispose();
+					await queue;
+
+					if (token.isCancellationRequested) {
+						this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
+						return undefined;
+					}
+
+					// Recover by starting a fresh empty session so the widget
+					// is not left in a broken state without title or back button.
+					this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
+					this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
+					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), didAcquireSession);
+					const result = await this.showModel(token, undefined, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
+					return result;
+				} finally {
+					clearWidgetCancellationListener.dispose();
+				}
+			});
+
+			// Another chat shown instead of the requested one means the load failed.
+			if (loadedModel && isEqual(loadedModel.sessionResource, sessionResource)) {
+				open?.complete(this._widget?.visible && !this.element.ownerDocument.hidden);
+			} else if (!token.isCancellationRequested) {
+				open?.fail(new Error('Another chat was shown instead of the requested one'));
+			}
+			return loadedModel;
+		} catch (error) {
+			open?.fail(error);
+			throw error;
+		} finally {
+			open?.end();
+		}
 	}
 
 	//#endregion
@@ -1835,8 +1922,41 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	override getActionsContext(): IChatViewTitleActionContext | undefined {
 		return this._widget?.viewModel ? {
 			sessionResource: this._widget.viewModel.sessionResource,
+			inputUri: this._widget.inputPart.inputUri,
 			$mid: MarshalledId.ChatViewContext
 		} : undefined;
 	}
 
+}
+
+class ChatCustomizationsActionViewItem extends MenuEntryActionViewItem {
+	constructor(
+		action: MenuItemAction,
+		options: IDropdownMenuActionViewItemOptions | undefined,
+		private readonly migrationAvailable: IObservable<boolean>,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+	) {
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-customizations-action-item');
+		this._register(autorun(reader => {
+			container.classList.toggle('migration-available', this.migrationAvailable.read(reader));
+			this.updateTooltip();
+		}));
+	}
+
+	protected override getTooltip(): string {
+		const tooltip = super.getTooltip();
+		return this.migrationAvailable.get()
+			? localize('openCustomizationsMigrationsAvailable', "{0} (Migrations Available)", tooltip)
+			: tooltip;
+	}
 }

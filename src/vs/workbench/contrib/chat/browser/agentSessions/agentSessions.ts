@@ -11,6 +11,9 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+
+export const AgentSessionChatContextMenu = new MenuId('AgentSessionChatContext');
 
 export enum AgentSessionProviders {
 	Local = SessionType.Local,
@@ -171,7 +174,7 @@ export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 export function getAgentSessionProviderDescription(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
-			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
+			return localize('chat.session.providerDescription.local', "Run tasks within VS Code's long-standing proprietary agent harness. The agent works in VS Code's extension host, iterates via chat, and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Background:
 			return localize('chat.session.providerDescription.background', "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the GitHub Copilot CLI.");
 		case AgentSessionProviders.Cloud:
@@ -185,7 +188,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionTarget)
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 		case AgentSessionProviders.AgentHostCopilot:
-			return localize('chat.session.providerDescription.agentHostCopilot', "Run a Copilot SDK agent in the local agent host process.");
+			return localize('chat.session.providerDescription.agentHostCopilot', "Run tasks using the Copilot SDK, which is the agent experience shared consistently across GitHub Copilot products. The agent works in the Agent Host, which lets sessions continue in the background, independently of an editor window.");
 		default:
 			return '';
 	}

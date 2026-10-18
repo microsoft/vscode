@@ -15,41 +15,27 @@ export interface ITelemetryReporter extends ITelemetrySender {
 }
 
 export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
-	// Telemetry reporter used for collecting telemetry on internal Microsoft customers
-	protected _internalTelemetryReporter: ITelemetryReporter | undefined;
 	private _externalTelemetryReporter: ITelemetryReporter;
 
 	protected readonly _disposables: DisposableStore = new DisposableStore();
-	private _username: string | undefined;
-	private _vscodeTeamMember: boolean = false;
 	private _sku: string | undefined;
 	private _tid: string | undefined;
 	private _isInternal: boolean = false;
 
 	constructor(
 		copilotTokenStore: ICopilotTokenStore,
-		private readonly _createTelemetryReporter: (internal: boolean) => ITelemetryReporter
+		createTelemetryReporter: (internal: boolean) => ITelemetryReporter
 	) {
-		this._externalTelemetryReporter = this._createTelemetryReporter(false);
+		this._externalTelemetryReporter = createTelemetryReporter(false);
 		this.processToken(copilotTokenStore.copilotToken);
 		this._disposables.add(copilotTokenStore.onDidStoreUpdate(() => this.processToken(copilotTokenStore.copilotToken)));
 	}
 
 	/**
-	 * Sends a telemetry event regarding internal Microsoft staff only. Will be dropped if telemetry level is below Usage
-	 * @param eventName The name of the event to send
-	 * @param properties The properties to send
-	 * @param measurements The measurements (numerical values)
-	 * @returns
+	 * Internal Microsoft telemetry is disabled. Keep the entry point so callers
+	 * cannot accidentally route restricted content through standard telemetry.
 	 */
-	sendInternalTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
-		if (!this._internalTelemetryReporter || !this._isInternal) {
-			return;
-		}
-		properties = { ...properties, 'common.tid': this._tid, 'common.userName': this._username ?? 'undefined' };
-		measurements = { ...measurements, 'common.isVscodeTeamMember': this._vscodeTeamMember ? 1 : 0 };
-		this._internalTelemetryReporter.sendRawTelemetryEvent(eventName, properties, measurements);
-	}
+	sendInternalTelemetryEvent(_eventName: string, _properties?: TelemetryEventProperties, _measurements?: TelemetryEventMeasurements): void { }
 
 	/**
 	 * Sends a telemetry event regarding external customers. Will be dropped if telemetry level is below Usage
@@ -87,12 +73,9 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 
 	dispose(): void {
 		this._externalTelemetryReporter.dispose();
-		this._internalTelemetryReporter?.dispose();
 	}
 
 	private processToken(token: CopilotToken | undefined) {
-		this._username = token?.username;
-		this._vscodeTeamMember = !!token?.isVscodeTeamMember;
 		// Only update tid if we have a new valid value - preserve last known tid for error telemetry where token may be undefined
 		const newTid = token?.getTokenValue('tid');
 		if (newTid) {
@@ -100,15 +83,5 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 		}
 		this._sku = token?.sku;
 		this._isInternal = !!token?.isInternal;
-
-		if (this._isInternal) {
-			this._internalTelemetryReporter ??= this._createTelemetryReporter(true);
-		}
-
-		if (!token || !this._isInternal) {
-			this._internalTelemetryReporter?.dispose();
-			this._internalTelemetryReporter = undefined;
-			return;
-		}
 	}
 }

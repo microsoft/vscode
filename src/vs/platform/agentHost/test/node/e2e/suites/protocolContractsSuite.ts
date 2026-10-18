@@ -12,7 +12,6 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,13 +21,15 @@ import type { SessionSummaryChangedParams } from '../../../../common/state/proto
 import type { OtlpExportLogsParams } from '../../../../common/state/protocol/channels-otlp/notifications.js';
 import type { IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../../../../common/agentService.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { TerminalClaimKind } from '../../../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
+import { SessionInputRequestKind, TerminalClaimKind } from '../../../../common/state/protocol/state.js';
+import { MessageKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
-import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, type TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 export function defineProtocolContractTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -56,7 +57,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };
@@ -509,7 +510,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'listSessions includes provider-backed session metadata', async function () {
 		const { sessionUri, workspace } = await createSession('list-session-metadata');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		dispatchTurn(context.client, sessionUri, 'turn-list-session-metadata', '/rename Listed Session', nextClientSeq());
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
@@ -539,7 +540,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'listSessions reflects live title and status changes', async function () {
 		const { sessionUri } = await createSession('list-session-live-state');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		dispatchTurn(context.client, sessionUri, 'turn-list-session-live-state', '/rename Catalog Title', nextClientSeq());
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
@@ -565,7 +566,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'disposing a session removes it from listSessions', async function () {
 		const { sessionUri } = await createSession('list-session-dispose');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		dispatchTurn(context.client, sessionUri, 'turn-list-session-dispose', '/rename Disposable Session', nextClientSeq());
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/turnComplete')
@@ -587,7 +588,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'fetchTurns currently emits an empty loaded-turns page', async function () {
 		const { sessionUri } = await createSession('fetch-turns');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 
 		// Give the chat a turn to page over. `/rename` is handled entirely by the
@@ -627,7 +628,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'fetchTurns rejects a cursor the host did not issue', async function () {
 		const { sessionUri } = await createSession('fetch-turns-cursor');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 
 		await assert.rejects(context.client.call('fetchTurns', {
@@ -637,8 +638,8 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	});
 
 	conformanceTest(context, 'fetchTurns rejects an unknown chat channel', async function () {
-		const { sessionUri } = await createSession('fetch-turns-missing');
-		const missingChat = buildChatUri(sessionUri, 'missing');
+		await createSession('fetch-turns-missing');
+		const missingChat = newTestChatUri();
 
 		await assert.rejects(context.client.call('fetchTurns', {
 			channel: missingChat,
@@ -647,7 +648,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'initialize returns snapshots for initial subscriptions', async function () {
 		const { sessionUri } = await createSession('initial-subscriptions');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const client = await context.connectClient();
 		try {
 			const initialized = await client.call<InitializeResult>('initialize', {
@@ -700,7 +701,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	// Disabled variants document missing multi-client channel isolation; see KNOWN_ISSUES.md.
 	conformanceTest(context, 'a chat action is broadcast to every subscribed client', async function () {
 		const { sessionUri } = await createSession('multi-client-chat-action');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const client = await initializeAdditionalClient('multi-client-chat-action');
 		try {
 			await client.call<SubscribeResult>('subscribe', { channel: chatUri });
@@ -748,7 +749,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'initial subscriptions include current session and chat state', async function () {
 		const { sessionUri } = await createSession('multi-client-initial-state');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const draft = { text: 'initial snapshot draft', origin: { kind: MessageKind.User as const } };
 		await dispatchAndWaitOnShared(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Initial Snapshot Title' });
 		await dispatchAndWaitOnShared(chatUri, { type: ActionType.ChatDraftChanged, draft });
@@ -826,7 +827,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'session disposal invalidates another client subscription', async function () {
 		const { sessionUri } = await createSession('multi-client-dispose');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const client = await initializeAdditionalClient('multi-client-dispose');
 		try {
 			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
@@ -888,7 +889,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect replays only the actions a dropped client missed', async function () {
 		const { sessionUri } = await createSession('reconnect');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const droppedClientId = `reconnect-dropped-${config.provider}`;
 
 		// The cutoff comes from the subscribe response rather than from watching
@@ -934,7 +935,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect with no missed actions returns an empty replay', async function () {
 		const { sessionUri } = await createSession('reconnect-empty');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const droppedClientId = `reconnect-empty-dropped-${config.provider}`;
 		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const subscribed = await first.call<SubscribeResult>('subscribe', { channel: chatUri });
@@ -957,7 +958,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect excludes actions from channels the client did not restore', async function () {
 		const firstSession = await createSession('reconnect-filter-first');
-		const secondWorkspace = mkdtempSync(join(tmpdir(), 'ahp-reconnect-filter-second-'));
+		const secondWorkspace = createTestDirectory(join(tmpdir(), 'ahp-reconnect-filter-second-'));
 		tempDirs.push(secondWorkspace);
 		const secondSessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
@@ -968,8 +969,8 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		});
 		createdSessions.push(secondSessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: secondSessionUri });
-		const firstChat = buildDefaultChatUri(firstSession.sessionUri);
-		const secondChat = buildDefaultChatUri(secondSessionUri);
+		const firstChat = defaultChatChannel(firstSession.sessionUri);
+		const secondChat = defaultChatChannel(secondSessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: secondChat });
 		const droppedClientId = `reconnect-filter-${config.provider}`;
 
@@ -1024,7 +1025,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect replays missed session and chat actions together', async function () {
 		const { sessionUri } = await createSession('reconnect-state-snapshots');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const droppedClientId = `reconnect-state-snapshots-dropped-${config.provider}`;
 		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const session = await first.call<SubscribeResult>('subscribe', { channel: sessionUri });
@@ -1047,6 +1048,9 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				? result.actions.map(action => ({ channel: action.channel, type: action.action.type }))
 				: result.type, [
 				{ channel: sessionUri, type: ActionType.SessionTitleChanged },
+				// Renaming a single-chat session also retitles its default chat, so the
+				// session channel carries the resulting chat update too.
+				{ channel: sessionUri, type: ActionType.SessionChatUpdated },
 				{ channel: chatUri, type: ActionType.ChatDraftChanged },
 			]);
 		} finally {
@@ -1056,7 +1060,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnected state subscriptions receive subsequent live actions', async function () {
 		const { sessionUri } = await createSession('reconnect-live');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const droppedClientId = `reconnect-live-dropped-${config.provider}`;
 		const { carried: seenThrough, revived } = await afterConnectionDrop(droppedClientId, async first => {
 			const session = await first.call<SubscribeResult>('subscribe', { channel: sessionUri });
@@ -1100,7 +1104,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect reports a subscription it cannot resume as missing', async function () {
 		const { sessionUri } = await createSession('reconnect-missing');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const droppedClientId = `reconnect-missing-dropped-${config.provider}`;
 		// A channel that never existed stands in for one disposed while the client
 		// was away: either way the server cannot resume it, and the client has to
@@ -1211,7 +1215,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	});
 
 	conformanceTest(context, 'createSession seeds a matching active client into session state', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-active-client-create-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-active-client-create-'));
 		tempDirs.push(workspace);
 		const clientId = `active-client-create-${config.provider}`;
 		const client = await context.connectClient();
@@ -1258,7 +1262,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		try {
 			await assert.rejects(client.call('createChat', {
 				channel: sessionUri,
-				chat: buildChatUri(sessionUri, 'peer'),
+				chat: newTestChatUri(),
 			}), { code: AhpErrorCodes.SessionNotFound });
 		} finally {
 			client.close();
@@ -1267,7 +1271,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'subscribing twice does not duplicate action delivery', async function () {
 		const { sessionUri } = await createSession('duplicate-subscription');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 		await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
 		context.client.clearReceived();
@@ -1292,7 +1296,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'resubscribing receives state changed while unsubscribed', async function () {
 		const { sessionUri } = await createSession('resubscribe-snapshot');
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		context.client.notify('unsubscribe', { channel: chatUri });
 		const clientSeq = nextClientSeq();
 		context.client.dispatch({
@@ -1311,6 +1315,66 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		assert.strictEqual(state.draft?.text, 'changed while unsubscribed');
 	});
 
+	conformanceTest(context, 'a client cannot dispatch a server-only session action', async function () {
+		const victimClientId = `server-action-victim-${config.provider}`;
+		const attacker = await initializeAdditionalClient('server-action-attacker');
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-server-action-'));
+		tempDirs.push(workspace);
+
+		try {
+			const sessionUri = await createRealSession(context.client, config, victimClientId, createdSessions, URI.file(workspace));
+			await attacker.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			attacker.clearReceived();
+
+			const seq = nextClientSeq();
+			attacker.dispatch({
+				channel: sessionUri,
+				clientSeq: seq,
+				action: {
+					type: ActionType.SessionInputNeededSet,
+					request: {
+						id: 'forged-client-tool-request',
+						kind: SessionInputRequestKind.ToolClientExecution,
+						chat: defaultChatChannel(sessionUri),
+						turnId: 'turn-1',
+						clientId: victimClientId,
+						toolCall: {
+							toolCallId: 'tool-call-1',
+							toolName: 'readFile',
+							displayName: 'Read File',
+							contributor: { kind: ToolCallContributorKind.Client, clientId: victimClientId },
+							status: ToolCallStatus.Running,
+							invocationMessage: 'Reading file',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							toolInput: '{"filePath":"/victim/secret.txt"}',
+						},
+					},
+				},
+			});
+
+			const rejected = await attacker.waitForNotification(n =>
+				isActionNotification(n, ActionType.SessionInputNeededSet)
+				&& getActionEnvelope(n).channel === sessionUri
+				&& getActionEnvelope(n).origin?.clientSeq === seq,
+				30_000,
+			);
+			const envelope = getActionEnvelope(rejected);
+			const state = (await attacker.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
+
+			assert.deepStrictEqual({
+				hasRejectionReason: typeof envelope.rejectionReason === 'string' && envelope.rejectionReason.length > 0,
+				origin: envelope.origin,
+				inputNeeded: state.inputNeeded,
+			}, {
+				hasRejectionReason: true,
+				origin: { clientId: `server-action-attacker-${config.provider}`, clientSeq: seq },
+				inputNeeded: undefined,
+			});
+		} finally {
+			attacker.close();
+		}
+	});
+
 	// The protocol declares working-directory mutation on both the session and
 	// chat channels, but the host rejects all four: applying one would change
 	// the synchronized directory set without reconfiguring the agent's actual
@@ -1327,7 +1391,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	for (const unsupported of unsupportedWorkingDirectoryActions) {
 		conformanceTest(context, `${unsupported.notification} is rejected rather than silently dropped`, async function () {
 			const { sessionUri, workspace } = await createSession('unsupported-action');
-			const channel = unsupported.channel === 'session' ? sessionUri : buildDefaultChatUri(sessionUri);
+			const channel = unsupported.channel === 'session' ? sessionUri : defaultChatChannel(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel });
 			context.client.clearReceived();
 

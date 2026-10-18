@@ -68,14 +68,27 @@ suite('CodexAccountService', () => {
 		assert.strictEqual(hasSignedInCodexChatGPTAccount(service('error').account), false);
 	});
 
-	test('offers sign-in without claiming an unknown account is signed out', async () => {
-		const accountService = service('unknown');
-		const actions = createCodexAccountMenuActions(accountService);
-		assert.ok(actions[0] instanceof Action);
-		disposables.add(actions[0] as Action);
-		assert.strictEqual(actions[0].label, 'Sign in to ChatGPT');
-		await actions[0].run();
-		assert.strictEqual(accountService.signInCalls, 1);
+	test('keeps the passive unknown account hidden and offers sign-in after resolution', async () => {
+		const signedOut = service('signedOut');
+		const error = service('error');
+		const signedOutActions = createCodexAccountMenuActions(signedOut);
+		const errorActions = createCodexAccountMenuActions(error);
+		disposables.add(signedOutActions[0] as Action);
+		disposables.add(errorActions[0] as Action);
+		await signedOutActions[0].run();
+		await errorActions[0].run();
+
+		assert.deepStrictEqual({
+			unknown: createCodexAccountMenuActions(service('unknown')),
+			signedOut: signedOutActions.map(action => action.label),
+			error: errorActions.map(action => action.label),
+			signInCalls: [signedOut.signInCalls, error.signInCalls],
+		}, {
+			unknown: [],
+			signedOut: ['Sign in to ChatGPT'],
+			error: ['Sign in to ChatGPT'],
+			signInCalls: [1, 1],
+		});
 	});
 
 	test('shows download status instead of sign-in while the Codex binary is downloading', () => {
@@ -173,6 +186,52 @@ suite('CodexAccountService', () => {
 			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/png' }),
 		}, reference);
 		assert.strictEqual(invalidDataUri, undefined);
+	});
+
+	test('rebinds account state when the Agent Host starts', () => {
+		const initialState: RootState = { agents: [] };
+		const connectedState: RootState = {
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', email: 'person@example.com' } },
+		};
+		const initialStateEmitter = disposables.add(new Emitter<RootState>());
+		const connectedStateEmitter = disposables.add(new Emitter<RootState>());
+		const hostStartEmitter = disposables.add(new Emitter<void>());
+		const initialRootState: IAgentSubscription<RootState> = {
+			value: initialState,
+			verifiedValue: initialState,
+			onDidChange: initialStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connectedRootState: IAgentSubscription<RootState> = {
+			value: connectedState,
+			verifiedValue: connectedState,
+			onDidChange: connectedStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		let rootState = initialRootState;
+		const agentHostService = new class extends NullAgentHostService {
+			override readonly onAgentHostStart = hostStartEmitter.event;
+
+			override get rootState(): IAgentSubscription<RootState> {
+				return rootState;
+			}
+		}();
+		const accountService = disposables.add(new CodexAccountService(agentHostService, NullOpenerService));
+
+		rootState = connectedRootState;
+		hostStartEmitter.fire();
+		initialStateEmitter.fire({ agents: [], _meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedOut' } } });
+
+		assert.deepStrictEqual({
+			status: accountService.account.status,
+			email: accountService.account.email,
+		}, {
+			status: 'signedIn',
+			email: 'person@example.com',
+		});
 	});
 
 	test('retries a failed profile-image read for the same reference', async () => {

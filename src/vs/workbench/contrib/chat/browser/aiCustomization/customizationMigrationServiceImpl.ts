@@ -4,66 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { raceCancellation } from '../../../../../base/common/async.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { equals } from '../../../../../base/common/objects.js';
-import { extUriBiasedIgnorePathCase, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
-import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationHintTarget, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration, PluginMarketplaceCustomizationMigration, PluginMarketplaceCustomizationMigrationFailureReason } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostMcpServerApplicability, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
-import { IAgentHostMcpServerSupportScope } from '../agentSessions/agentHost/agentHostMcpServerSupportScope.js';
-import { isMcpServerMigrationDeliverable, McpServerCustomizationMigrator } from './mcpServerCustomizationMigration.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { parseMarketplaceReferences } from '../../common/plugins/marketplaceReference.js';
 
 export class CustomizationMigrationService extends Disposable implements ICustomizationMigrationService {
 	declare readonly _serviceBrand: undefined;
-	private readonly mcpServerMigration: McpServerCustomizationMigrator;
-	private activeContextKey = '';
-	private activeContextGeneration = 0;
+	readonly onDidChangeCustomizations: Event<void>;
+	private readonly _onDidChangeMarketplaceInventory = this._register(new Emitter<void>());
+	readonly onDidChangePluginMarketplaces = this._onDidChangeMarketplaceInventory.event;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
-		@IAgentHostActiveClientService private readonly activeClientService: IAgentHostActiveClientService,
-		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
-		@IFileService fileService: IFileService,
-		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IMcpService mcpService: IMcpService,
 	) {
 		super();
-		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService);
+		const marketplaceProviderListeners = this._register(new DisposableStore());
 		this._register(autorun(reader => {
-			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
-			this.updateActiveContext(sessionResource);
+			const providers = new Set(customizationHarnessService.availableHarnesses.read(reader)
+				.flatMap(harness => harness.marketplaceManagementProvider ? [harness.marketplaceManagementProvider] : []));
+			marketplaceProviderListeners.clear();
+			for (const provider of providers) {
+				marketplaceProviderListeners.add(provider.onDidChange(() => this._onDidChangeMarketplaceInventory.fire()));
+			}
 		}));
-		this._register(this.agentHostCustomizationService.onDidChangeCustomizations(() => {
-			this.updateActiveContext(this.customizationHarnessService.activeSessionResource.get());
-		}));
+		this.onDidChangeCustomizations = Event.any(
+			promptsService.onDidChangeSlashCommands,
+			promptsService.onDidChangeInstructions,
+			promptsService.onDidChangeAgentInstructions,
+			promptsService.onDidChangeSkills,
+			customizationHarnessService.onDidChangeCustomAgents,
+			Event.fromObservableLight(customizationHarnessService.availableHarnesses),
+			Event.fromObservableLight(mcpService.servers),
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.PluginMarketplaces)),
+			this.onDidChangePluginMarketplaces,
+		);
 	}
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
+	computeMigration(sessionResource: URI, type: CustomizationMigrationType.PluginMarketplaces, token?: CancellationToken): Promise<PluginMarketplaceCustomizationMigration>;
 	async computeMigration(sessionResource: URI, type: CustomizationMigrationType, token = CancellationToken.None): Promise<CustomizationMigration> {
 		if (!isAgentHostSessionResource(sessionResource)) {
-			return type === CustomizationMigrationType.McpServers
-				? this.emptyMcpServerMigration()
-				: { type, files: [], candidates: [] };
+			return this.emptyMigration(type);
 		}
-		if (type !== CustomizationMigrationType.McpServers && !this.isMigrationEnabled(type)) {
-			return { type, files: [], candidates: [] };
+		if (!this.isMigrationEnabled()) {
+			return this.emptyMigration(type);
 		}
 
 		switch (type) {
@@ -86,8 +88,16 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				])).flat();
 				return this.createFileMigration(sessionResource, type, customizations.filter(isConfiguredLocationMigrationCandidate), token, true);
 			}
-			case CustomizationMigrationType.McpServers:
-				return this.computeMcpServerMigration(sessionResource, token);
+			case CustomizationMigrationType.McpServers: {
+				const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.mcpServerMigrationProvider;
+				return provider?.computeMigration(sessionResource, token) ?? this.emptyMcpServerMigration();
+			}
+			case CustomizationMigrationType.PluginMarketplaces: {
+				const marketplaceManagementProvider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.marketplaceManagementProvider;
+				return marketplaceManagementProvider
+					? this.computePluginMarketplaceMigration(sessionResource, marketplaceManagementProvider)
+					: { type, candidates: [] };
+			}
 		}
 	}
 
@@ -97,6 +107,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
+			this.computeMigration(sessionResource, CustomizationMigrationType.PluginMarketplaces, token),
 		]);
 	}
 
@@ -104,70 +115,75 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		if (requestedCandidates.length === 0) {
 			return { migratedCount: 0, failures: [] };
 		}
+		const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.mcpServerMigrationProvider;
+		return provider?.migrate(sessionResource, requestedCandidates) ?? {
+			migratedCount: 0,
+			failures: requestedCandidates.map(candidate => ({
+				storage: candidate.storage,
+				id: candidate.id,
+				name: candidate.name,
+				sourceUri: candidate.sourceUri,
+				targetUri: candidate.targetUri,
+				reason: McpServerCustomizationMigrationFailureReason.NoLongerEligible,
+			})),
+		};
+	}
 
-		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const contextGeneration = this.activeContextGeneration;
-		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
-			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
+	async migratePluginMarketplaces(sessionResource: URI, requestedCandidates: readonly IPluginMarketplaceCustomizationMigrationCandidate[]): Promise<IPluginMarketplaceCustomizationMigrationResult> {
+		if (requestedCandidates.length === 0) {
+			return { migratedCount: 0, failures: [] };
 		}
-
-		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
-		if (!scope) {
-			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-		}
-
-		try {
-			if (!await this.waitForMcpServerSupport(scope)) {
-				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-			}
-			if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
-				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-			}
-
-			const supportSnapshot = scope.support.get();
-			const plan = await this.mcpServerMigration.createPlan(supportSnapshot, roots);
-			const isExecutionCurrent = async (candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<boolean> => {
-				if (!await this.waitForMcpServerSupport(scope)) {
-					return false;
-				}
-				return this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)
-					&& scope.isResolved.get()
-					&& this.isMcpSupportContextCurrent(scope.support.get(), supportSnapshot, candidates);
+		const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.marketplaceManagementProvider;
+		if (!provider) {
+			return {
+				migratedCount: 0,
+				failures: requestedCandidates.map(candidate => ({
+					...candidate,
+					reason: PluginMarketplaceCustomizationMigrationFailureReason.ProviderUnavailable,
+				})),
 			};
-			if (!await isExecutionCurrent(plan.candidates)) {
-				return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
-			}
-
-			const currentCandidates = new Map(plan.candidates.map(candidate => [getMcpServerCustomizationMigrationCandidateKey(candidate), candidate]));
-			const eligibleCandidates: IMcpServerCustomizationMigrationCandidate[] = [];
-			const failures: IMcpServerCustomizationMigrationFailure[] = [];
-			for (const requested of requestedCandidates) {
-				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
-				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)) {
-					failures.push(this.noLongerEligible(requested));
-				} else {
-					eligibleCandidates.push(current);
-				}
-			}
-
-			this.logService.info(`[MCP Customization Migration] Starting: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, stale=${failures.length}`);
-			const result = await this.mcpServerMigration.migrate(eligibleCandidates, {
-				isContextCurrent: isExecutionCurrent,
-				roots,
-			});
-			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
-			for (const failure of combined.failures) {
-				if (failure.error) {
-					this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
-				} else {
-					this.logService.warn(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`);
-				}
-			}
-			this.logService.info(`[MCP Customization Migration] Finished: migrated=${combined.migratedCount}, failed=${combined.failures.length}`);
-			return combined;
-		} finally {
-			scope.dispose();
 		}
+
+		const migration = await this.computePluginMarketplaceMigration(sessionResource, provider);
+		if (migration.discoveryError) {
+			return {
+				migratedCount: 0,
+				failures: requestedCandidates.map(candidate => ({
+					...candidate,
+					reason: PluginMarketplaceCustomizationMigrationFailureReason.ProviderUnavailable,
+					error: migration.discoveryError,
+				})),
+			};
+		}
+		const configuredCandidates = new Map(migration.candidates.map(candidate => [candidate.canonicalId, candidate]));
+		const failures: IPluginMarketplaceCustomizationMigrationResult['failures'][number][] = [];
+		let copiedCount = 0;
+		for (const requestedCandidate of requestedCandidates) {
+			const candidate = configuredCandidates.get(requestedCandidate.canonicalId);
+			if (!candidate) {
+				if (this.getConfiguredPluginMarketplaceCandidates().some(configured => configured.canonicalId === requestedCandidate.canonicalId)) {
+					copiedCount++;
+				} else {
+					failures.push({
+						...requestedCandidate,
+						reason: PluginMarketplaceCustomizationMigrationFailureReason.NoLongerConfigured,
+					});
+				}
+				continue;
+			}
+			try {
+				await provider.add(sessionResource, candidate.source);
+				copiedCount++;
+			} catch (error) {
+				failures.push({
+					...candidate,
+					reason: PluginMarketplaceCustomizationMigrationFailureReason.AddFailed,
+					error: error instanceof Error ? error : new Error(String(error)),
+				});
+			}
+		}
+
+		return { migratedCount: copiedCount, failures };
 	}
 
 	async computeMigrationHint(sessionResource: URI, token = CancellationToken.None): Promise<ICustomizationMigrationHint | undefined> {
@@ -176,70 +192,48 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return undefined;
 		}
 
-		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
+		const mcpMigrationEnabled = this.isMigrationEnabled();
+		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration, pluginMarketplacesMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.ConfiguredLocations, token),
-			this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token),
+			mcpMigrationEnabled ? this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token) : Promise.resolve(this.emptyMcpServerMigration()),
+			this.computeMigration(sessionResource, CustomizationMigrationType.PluginMarketplaces, token),
 		]);
 		const fileCandidates = [userDataMigration, promptFilesMigration, configuredLocationsMigration]
-			.filter(migration => this.isMigrationEnabled(migration.type))
+			.filter(() => this.isMigrationEnabled())
 			.flatMap(migration => migration.candidates);
-		const workspaceFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
-		const userFileCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length;
-		const migratableMcpServerCount = this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? mcpServerMigration.candidates.length : 0;
-		const unsupportedMcpServerCount = mcpServerMigration.servers.filter(server => !server.supported).length;
-		const fileHint = this.formatFileMigrationHint(workspaceFileCount, userFileCount, harness.label);
-		const migratableMcpHint = migratableMcpServerCount === 0
-			? undefined
-			: migratableMcpServerCount === 1
-				? localize('customizationMigrationHintMigratableMcpSingle', "Found 1 workspace MCP server that can be migrated for {0}.", harness.label)
-				: localize('customizationMigrationHintMigratableMcpMultiple', "Found {0} workspace MCP servers that can be migrated for {1}.", migratableMcpServerCount, harness.label);
-		const unsupportedMcpHint = unsupportedMcpServerCount === 0
-			? undefined
-			: unsupportedMcpServerCount === 1
-				? localize('customizationMigrationHintMcpSingle', "Found 1 MCP server that is not fully supported by {0}.", harness.label)
-				: localize('customizationMigrationHintMcpMultiple', "Found {0} MCP servers that are not fully supported by {1}.", unsupportedMcpServerCount, harness.label);
-		let migrationHint: string | undefined;
-		if (fileHint && migratableMcpHint && unsupportedMcpHint) {
-			migrationHint = localize('customizationMigrationHintCombinedAll', "{0} {1} {2}", fileHint, migratableMcpHint, unsupportedMcpHint);
-		} else {
-			const firstHint = fileHint ?? migratableMcpHint;
-			const secondHint = firstHint === fileHint ? migratableMcpHint ?? unsupportedMcpHint : unsupportedMcpHint;
-			migrationHint = firstHint && secondHint
-				? localize('customizationMigrationHintCombined', "{0} {1}", firstHint, secondHint)
-				: firstHint ?? unsupportedMcpHint;
-		}
-		return migrationHint ? {
-			message: migrationHint,
-			target: fileHint || migratableMcpHint ? CustomizationMigrationHintTarget.FileMigrations : CustomizationMigrationHintTarget.McpServers,
+		const migratableMcpServerCount = mcpServerMigration.candidates.length;
+		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
+			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.local).length;
+		const userCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.user).length
+			+ mcpServerMigration.candidates.filter(candidate => candidate.storage === PromptsStorage.user).length
+			+ pluginMarketplacesMigration.candidates.length;
+		return workspaceCount + userCount > 0 ? {
+			migrationFlowId: this.generateMigrationFlowId(),
+			message: this.getMigrationHintMessage(workspaceCount, userCount),
 			counts: [
 				{ type: CustomizationMigrationType.UserData, count: userDataMigration.files.length },
 				{ type: CustomizationMigrationType.PromptFiles, count: promptFilesMigration.files.length },
 				{ type: CustomizationMigrationType.ConfiguredLocations, count: configuredLocationsMigration.files.length },
-				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount + unsupportedMcpServerCount },
+				{ type: CustomizationMigrationType.McpServers, count: migratableMcpServerCount },
+				{ type: CustomizationMigrationType.PluginMarketplaces, count: pluginMarketplacesMigration.candidates.length },
 			].filter(({ count }) => count > 0),
 		} : undefined;
 	}
 
-	private formatFileMigrationHint(workspaceCount: number, userCount: number, harnessLabel: string): string | undefined {
-		const fileCount = workspaceCount + userCount;
-		if (fileCount === 0) {
-			return undefined;
+	private getMigrationHintMessage(workspaceCount: number, userCount: number): string {
+		if (userCount === 0) {
+			return workspaceCount === 1
+				? localize('customizationMigrationHintWorkspaceCountSingular', "{0} workspace customization needs an update to keep working.", workspaceCount)
+				: localize('customizationMigrationHintWorkspaceCountPlural', "{0} workspace customizations need an update to keep working.", workspaceCount);
 		}
-
-		const workspaceCounts = workspaceCount === 1
-			? localize('customizationMigrationHintWorkspaceSingle', "1 workspace customization")
-			: localize('customizationMigrationHintWorkspaceMultiple', "{0} workspace customizations", workspaceCount);
-		const userCounts = userCount === 1
-			? localize('customizationMigrationHintUserSingle', "1 user customization")
-			: localize('customizationMigrationHintUserMultiple', "{0} user customizations", userCount);
-		const sourceCounts = workspaceCount > 0 && userCount > 0
-			? localize('customizationMigrationHintWorkspaceAndUser', "{0} and {1}", workspaceCounts, userCounts)
-			: workspaceCount > 0 ? workspaceCounts : userCounts;
-		return fileCount === 1
-			? localize('customizationMigrationHintSingle', "Found {0} that is present but not used by {1} and could be migrated.", sourceCounts, harnessLabel)
-			: localize('customizationMigrationHintMultiple', "Found {0} that are present but not used by {1} and could be migrated.", sourceCounts, harnessLabel);
+		if (workspaceCount === 0) {
+			return userCount === 1
+				? localize('customizationMigrationHintUserCountSingular', "{0} user customization needs an update to keep working.", userCount)
+				: localize('customizationMigrationHintUserCountPlural', "{0} user customizations need an update to keep working.", userCount);
+		}
+		return localize('customizationMigrationHintCounts', "{0} workspace and {1} user customizations need an update to keep working.", workspaceCount, userCount);
 	}
 
 	private async createFileMigration(sessionResource: URI, type: FileCustomizationMigrationType, candidates: readonly MigratableConfiguration[], token: CancellationToken, excludeSupportedLocations = false): Promise<FileCustomizationMigration> {
@@ -254,52 +248,20 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			const folders = await provider.provideSourceFolders(sessionResource, targetType, token);
 			sourceFolders.set(targetType, folders ?? []);
 		}
-		const filteredCandidates = candidates.filter(customization => {
+		const filteredCandidates = candidates.flatMap(customization => {
 			const targetType = getCustomizationMigrationTargetType(customization);
 			const compatibleFolders = sourceFolders.get(targetType)?.filter(folder => folder.source === customization.storage) ?? [];
-			return compatibleFolders.length > 0
-				&& (!excludeSupportedLocations || !compatibleFolders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(customization.uri, folder.uri)));
+			if (compatibleFolders.length === 0
+				|| excludeSupportedLocations && compatibleFolders.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(customization.uri, folder.uri))
+			) {
+				return [];
+			}
+			return [{
+				...customization,
+				workspaceGroupId: provider.getWorkspaceGroupId?.(sessionResource, customization.uri),
+			}];
 		});
 		return { type, files: filteredCandidates.map(customization => customization.uri), candidates: filteredCandidates };
-	}
-
-	private async computeMcpServerMigration(sessionResource: URI, token = CancellationToken.None): Promise<McpServerCustomizationMigration> {
-		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const scope = this.activeClientService.acquireMcpServerSupportScope(getChatSessionType(sessionResource), roots);
-		if (!scope) {
-			return this.emptyMcpServerMigration();
-		}
-
-		try {
-			if (!await this.waitForMcpServerSupport(scope, token) || !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))) {
-				return this.emptyMcpServerMigration();
-			}
-			const snapshot = scope.support.get();
-			const candidates = this.isMigrationEnabled(CustomizationMigrationType.McpServers)
-				? (await this.mcpServerMigration.createPlan(snapshot, roots, token)).candidates
-				: [];
-			if (!await this.waitForMcpServerSupport(scope, token)
-				|| !this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource))
-				|| !this.isMcpSupportContextCurrent(scope.support.get(), snapshot, candidates)) {
-				return this.emptyMcpServerMigration();
-			}
-			const settledSnapshot = scope.support.get();
-			return {
-				type: CustomizationMigrationType.McpServers,
-				servers: settledSnapshot.servers
-					.filter(server => server.applicability !== AgentHostMcpServerApplicability.OutsideCurrentScope)
-					.map(server => ({
-						id: server.id,
-						name: server.name,
-						supported: server.compatibility.kind === 'supported',
-					})),
-				candidates: this.isMigrationEnabled(CustomizationMigrationType.McpServers) ? candidates : [],
-				discoveryComplete: settledSnapshot.discoveryComplete,
-				coverage: settledSnapshot.coverage,
-			};
-		} finally {
-			scope.dispose();
-		}
 	}
 
 	private emptyMcpServerMigration(): McpServerCustomizationMigration {
@@ -307,6 +269,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			type: CustomizationMigrationType.McpServers,
 			servers: [],
 			candidates: [],
+			exclusions: [],
 			discoveryComplete: true,
 			coverage: {
 				restrictedByMcpAccess: false,
@@ -315,62 +278,81 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		};
 	}
 
-	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
-		return this.isMigrationEnabled(CustomizationMigrationType.McpServers)
-			&& isEqual(sessionResource, this.customizationHarnessService.activeSessionResource.get())
-			&& generation === this.activeContextGeneration
-			&& this.areRootsEqual(roots, this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource));
-	}
-
-	private isMigrationEnabled(type: CustomizationMigrationType): boolean {
-		return this.configurationService.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true;
-	}
-
-	private async waitForMcpServerSupport(scope: IAgentHostMcpServerSupportScope, token = CancellationToken.None): Promise<boolean> {
-		await raceCancellation(scope.whenResolved(), token);
-		return !token.isCancellationRequested && scope.isResolved.get();
-	}
-
-	/**
-	 * Compares only what policy and enablement control, because migrating republishes the snapshot itself.
-	 */
-	private isMcpSupportContextCurrent(
-		current: IAgentHostMcpServerSupportSnapshot,
-		planned: IAgentHostMcpServerSupportSnapshot,
-		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
-	): boolean {
-		if (!equals(current.coverage, planned.coverage)) {
-			return false;
+	private emptyMigration(type: CustomizationMigrationType): CustomizationMigration {
+		if (type === CustomizationMigrationType.McpServers) {
+			return this.emptyMcpServerMigration();
 		}
-		const currentServers = new Map(current.servers.map(server => [server.id, server]));
-		return candidates.every(candidate => {
-			const server = currentServers.get(candidate.id);
-			return server !== undefined
-				&& isMcpServerMigrationDeliverable(server)
-				&& equals(server.projectedConfiguration, candidate.projectedConfiguration);
-		});
-	}
-
-	private areRootsEqual(first: readonly URI[], second: readonly URI[]): boolean {
-		return first.length === second.length && first.every((root, index) => isEqual(root, second[index]));
-	}
-
-	private noLongerEligible(candidate: IMcpServerCustomizationMigrationCandidate): IMcpServerCustomizationMigrationFailure {
-		return {
-			id: candidate.id,
-			name: candidate.name,
-			sourceUri: candidate.sourceUri,
-			targetUri: candidate.targetUri,
-			reason: McpServerCustomizationMigrationFailureReason.NoLongerEligible,
-		};
-	}
-
-	private updateActiveContext(sessionResource: URI): void {
-		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
-		const key = JSON.stringify([getComparisonKey(sessionResource), ...roots.map(root => getComparisonKey(root))]);
-		if (key !== this.activeContextKey) {
-			this.activeContextKey = key;
-			this.activeContextGeneration++;
+		if (type === CustomizationMigrationType.PluginMarketplaces) {
+			return { type, candidates: [] };
 		}
+		return { type, files: [], candidates: [] };
+	}
+
+	private getConfiguredPluginMarketplaceCandidates(): IPluginMarketplaceCustomizationMigrationCandidate[] {
+		const defaultCanonicalIds = new Set(parseMarketplaceReferences(
+			this.configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
+		).map(reference => reference.canonicalId));
+		return parseMarketplaceReferences(this.getPluginMarketplaceUserValues())
+			.filter(reference => !defaultCanonicalIds.has(reference.canonicalId))
+			.map(reference => ({
+				type: CustomizationMigrationType.PluginMarketplaces,
+				storage: PromptsStorage.user,
+				name: reference.displayLabel,
+				source: reference.rawValue,
+				canonicalId: reference.canonicalId,
+			}));
+	}
+
+	private async computePluginMarketplaceMigration(sessionResource: URI, provider: ICustomizationMarketplaceManagementProvider): Promise<PluginMarketplaceCustomizationMigration> {
+		const configuredCandidates = this.getConfiguredPluginMarketplaceCandidates();
+		if (configuredCandidates.length === 0) {
+			return { type: CustomizationMigrationType.PluginMarketplaces, candidates: [] };
+		}
+		try {
+			const providerCanonicalIds = new Set((await provider.list(sessionResource)).flatMap(marketplace => {
+				const canonicalId = this.getProviderMarketplaceCanonicalId(marketplace.source);
+				return canonicalId ? [canonicalId] : [];
+			}));
+			return {
+				type: CustomizationMigrationType.PluginMarketplaces,
+				candidates: configuredCandidates.filter(candidate => !providerCanonicalIds.has(candidate.canonicalId)),
+			};
+		} catch (error) {
+			return {
+				type: CustomizationMigrationType.PluginMarketplaces,
+				candidates: [],
+				discoveryError: error instanceof Error ? error : new Error(String(error)),
+			};
+		}
+	}
+
+	private getProviderMarketplaceCanonicalId(source: string): string | undefined {
+		const directReference = parseMarketplaceReferences([source])[0];
+		if (directReference) {
+			return directReference.canonicalId;
+		}
+		const separator = source.indexOf(': ');
+		if (separator === -1) {
+			return undefined;
+		}
+		const kind = source.slice(0, separator).toLowerCase();
+		const value = source.slice(separator + 2);
+		const reference = parseMarketplaceReferences([value])[0]
+			?? (kind === 'directory' ? parseMarketplaceReferences([URI.file(value).toString()])[0] : undefined);
+		return reference?.canonicalId;
+	}
+
+	private getPluginMarketplaceUserValues(): readonly unknown[] {
+		const inspected = this.configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces);
+		const configuredValue = inspected?.applicationValue ?? inspected?.userValue;
+		return Array.isArray(configuredValue) ? configuredValue : [];
+	}
+
+	private isMigrationEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) === true;
+	}
+
+	protected generateMigrationFlowId(): string {
+		return generateUuid();
 	}
 }

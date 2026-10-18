@@ -54,6 +54,8 @@ import { type IDevTunnelsWeb, type IDevTunnelsWebManagementClient, type IDevTunn
 import { TunnelAgentHostStorage } from './tunnelAgentHostStorage.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../../platform/agentHost/common/transportConstants.js';
 import { traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { createTunnelServiceCorrelation, tunnelServiceHeaders } from '../../../../../platform/remoteTunnel/common/tunnelServiceHeaders.js';
 
 const LOG_PREFIX = '[BrowserTunnelAgentHost]';
 
@@ -141,12 +143,13 @@ class BrowserTunnelConnectionFactory extends Disposable implements IRemoteAgentH
 export class BrowserTunnelRelayClientFactory implements ITunnelRelayClientFactory {
 	constructor(
 		private readonly _loadDevTunnelsWeb: () => Promise<IDevTunnelsWeb>,
+		private readonly _createHeaders: () => Record<string, string>,
 	) {
 	}
 
 	async getTunnel(tunnelId: string, clusterId: string, authProvider: 'github' | 'microsoft', token: string): Promise<ITunnelRelayClientSession | undefined> {
 		const devTunnels = await this._loadDevTunnelsWeb();
-		const managementClient = createManagementClient(devTunnels, token, authProvider);
+		const managementClient = createManagementClient(devTunnels, token, authProvider, this._createHeaders());
 		const tunnel = await managementClient.getTunnel({ tunnelId, clusterId }, {
 			includePorts: true,
 			tokenScopes: ['connect'],
@@ -203,6 +206,8 @@ export class BrowserTunnelSocketFactory implements ITunnelSocketFactory {
 /** Browser service view of the transport-agnostic tunnel connector. */
 export interface ITunnelAgentHostConnector {
 	readonly onDidRelayMessage: Event<{ readonly connectionId: string; readonly data: string }>;
+	/** Fires with a connection ID while that relay receives part of a message. */
+	readonly onDidRelayActivity: Event<string>;
 	readonly onDidRelayClose: Event<string>;
 	connect(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, onDiagnostic?: ConnectionDiagnosticObserver): Promise<ITunnelConnectResult>;
 	prepareSelection(token: string, authProvider: 'github' | 'microsoft', tunnelId: string, clusterId: string, onDiagnostic?: ConnectionDiagnosticObserver): Promise<ITunnelGatewaySelectionSession | undefined>;
@@ -244,6 +249,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		@IStorageService private readonly _storageService: IStorageService,
 		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		options: IBrowserTunnelAgentHostServiceOptions = {},
 	) {
 		super();
@@ -257,7 +263,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		const load = options.loadDevTunnelsWeb ?? loadDevTunnelsWeb;
 		this._loadDevTunnelsWeb = load;
 		this._connector = options.connector ?? this._register(new TunnelAgentHostConnector(
-			new BrowserTunnelRelayClientFactory(load),
+			new BrowserTunnelRelayClientFactory(load, () => tunnelServiceHeaders(createTunnelServiceCorrelation(this._telemetryService, 'connect'))),
 			new BrowserTunnelSocketFactory(),
 			this._logService,
 		));
@@ -282,7 +288,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 
 		try {
 			const sdk = await traceConnectionOperation(options?.onDiagnostic, 'discovery.sdk', () => this._loadDevTunnelsWeb());
-			const managementClient = createManagementClient(sdk, auth.token, auth.provider);
+			const managementClient = createManagementClient(sdk, auth.token, auth.provider, tunnelServiceHeaders(createTunnelServiceCorrelation(this._telemetryService, 'list')));
 			const tunnels = await traceConnectionOperation(options?.onDiagnostic, 'discovery.enumeration', () => managementClient.listTunnels(undefined, undefined, {
 				labels: [TUNNEL_LAUNCHER_LABEL],
 				requireAllLabels: true,
@@ -353,7 +359,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				this._productService.nameShort,
 				auth,
 				tunnel,
-				options.userInitiated,
+				options.userInitiated || this.getAutoConnectMode(tunnel) === 'prompt',
 				options.onDiagnostic,
 			));
 			if (!connected) {
@@ -433,7 +439,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 		if (!auth) {
 			throw new Error('No authentication available');
 		}
-		const managementClient = createManagementClient(await this._loadDevTunnelsWeb(), auth.token, auth.provider);
+		const managementClient = createManagementClient(await this._loadDevTunnelsWeb(), auth.token, auth.provider, tunnelServiceHeaders(createTunnelServiceCorrelation(this._telemetryService, 'delete')));
 		await managementClient.deleteTunnel(tunnel);
 		this.removeCachedTunnel(tunnel.tunnelId);
 	}
@@ -622,11 +628,15 @@ export function filterBrowserTunnelInfos(
 		.filter((tunnel): tunnel is ITunnelInfo => !!tunnel && tunnel.protocolVersion >= TUNNEL_MIN_PROTOCOL_VERSION);
 }
 
-class BrowserTunnelConnectionTransport extends Disposable implements IProtocolTransport {
+/** Adapts one connector relay connection to the protocol client. Exported for tests. */
+export class BrowserTunnelConnectionTransport extends Disposable implements IProtocolTransport {
 	readonly clientConnectionKind = AgentHostClientConnectionKind.DevTunnel;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
+
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
@@ -654,6 +664,11 @@ class BrowserTunnelConnectionTransport extends Disposable implements IProtocolTr
 				}
 			}
 		}));
+		this._register(this._connector.onDidRelayActivity(connectionId => {
+			if (connectionId === this._connectionId) {
+				this._onDidReceiveData.fire();
+			}
+		}));
 		this._register(this._connector.onDidRelayClose(connectionId => {
 			if (connectionId === this._connectionId) {
 				this._onClose.fire();
@@ -675,11 +690,14 @@ function createManagementClient(
 	devTunnels: IDevTunnelsWeb,
 	token: string,
 	authProvider: 'github' | 'microsoft',
+	headers: Record<string, string>,
 ): IDevTunnelsWebManagementClient {
 	const authorization = authProvider === 'github' ? `github ${token}` : `Bearer ${token}`;
-	return new devTunnels.TunnelManagementHttpClient(
+	const client = new devTunnels.TunnelManagementHttpClient(
 		'vscode-sessions',
 		devTunnels.ManagementApiVersions.Version20230927preview,
 		async () => authorization,
 	);
+	client.additionalRequestHeaders = headers;
+	return client;
 }

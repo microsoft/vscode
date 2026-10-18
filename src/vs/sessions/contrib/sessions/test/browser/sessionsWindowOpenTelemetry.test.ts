@@ -233,7 +233,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			const lifecycleService = disposables.add(new TestLifecycleService());
 			const telemetryService = new TestTelemetryService();
 			const tracker = disposables.add(new SessionsWindowOpenTelemetry(
-				AgentsWindowOpenSource.Banner,
+				AgentsWindowOpenSource.WelcomeTryOut,
 				{ workspaceArgumentKind: 'local', hasSessionArgument: false },
 				() => true,
 				() => ({ workspacePreselected: false, workspacePreselectionSource: 'none', viewKind: 'noComposer' }),

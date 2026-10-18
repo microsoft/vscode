@@ -78,18 +78,20 @@ function inlineReferenceToMarkdown(reference: IChatContentInlineReference['inlin
 /**
  * Maps a local chat tool invocation (live or serialized) to a completed
  * agent-host tool call, carrying its name, invocation messages, raw input and
- * textual result output. Failure is inferred from the result's `isError` flag.
+ * textual result output. Failure is inferred from result details or a phase's terminal status.
  *
  * Sub-agent invocations (`toolSpecificData.kind === 'subagent'`) keep their
  * summary inline: the delegated prompt seeds the tool input and the sub-agent's
  * result text seeds the output when the generic result details carry neither.
  * The sub-agent's own turn-by-turn transcript lives in a separate worker chat
  * that has no backend counterpart after import, so only the summary is carried.
+ * Phase presentations retain their textual output without a child-chat identity.
  */
 function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSerialized): ResponsePart {
 	const invocationMessage = stringifyChatMessage(part.invocationMessage);
 	const resultDetails = IChatToolInvocation.resultDetails(part);
 	const subagentData = part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData : undefined;
+	const phaseStatus = subagentData?.presentation === 'phase' ? subagentData.phaseStatus : undefined;
 
 	let outputText = '';
 	let isError = false;
@@ -105,6 +107,7 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 		isError = !!resultDetails.isError;
 		resultInput = resultDetails.input;
 	}
+	isError ||= phaseStatus === 'failed' || phaseStatus === 'cancelled';
 	// Fall back to the sub-agent summary when the generic result details are empty.
 	if (!outputText && subagentData?.result) {
 		outputText = subagentData.result;
@@ -118,7 +121,7 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 	if (outputText) {
 		content.push({ type: ToolResultContentType.Text, text: outputText });
 	}
-	if (subagentData) {
+	if (subagentData && subagentData.presentation !== 'phase') {
 		// Preserve the sub-agent identity as structured content so it renders as a
 		// sub-agent tool call (matching native sessions) and survives the events
 		// round-trip — `buildSessionEventsFromTurns` emits a matching
@@ -146,7 +149,12 @@ function toolCallResponsePart(part: IChatToolInvocation | IChatToolInvocationSer
 			pastTenseMessage: stringifyChatMessage(part.pastTenseMessage) || invocationMessage,
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			...(content.length ? { content } : {}),
-			...(isError ? { error: { message: outputText || localize('chat.importConversation.toolFailed', "Tool failed.") } } : {}),
+			...(isError ? {
+				error: {
+					message: outputText || localize('chat.importConversation.toolFailed', "Tool failed."),
+					...(phaseStatus === 'cancelled' ? { code: 'cancelled' } : {}),
+				}
+			} : {}),
 		} satisfies ToolCallCompletedState,
 	};
 }

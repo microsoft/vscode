@@ -11,7 +11,7 @@ import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoi
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { CopilotChatEndpoint, CopilotUtilityChatEndpoint, CopilotUtilitySmallChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { EmbeddingEndpoint } from '../../../platform/endpoint/node/embeddingsEndpoint';
-import { IModelMetadataFetcher, ModelMetadataFetcher } from '../../../platform/endpoint/node/modelMetadataFetcher';
+import { EmbeddingsModelFamily, IModelMetadataFetcher, ModelMetadataFetcher } from '../../../platform/endpoint/node/modelMetadataFetcher';
 import { ExtensionContributedChatEndpoint } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IChatEndpoint, IEmbeddingsEndpoint } from '../../../platform/networking/common/networking';
@@ -20,6 +20,10 @@ import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 
+const embeddingsModelFamilies: Record<EmbeddingsEndpointFamily, EmbeddingsModelFamily> = {
+	text3small: 'text-embedding-3-small',
+	metis: 'metis',
+};
 
 // Keep in sync with `BYOKUtilityModelDefault` in `src/vs/workbench/contrib/chat/common/constants.ts` and the `chat.byokUtilityModelDefault` enum in `chat.shared.contribution.ts`.
 const enum BYOKUtilityModelDefault {
@@ -353,14 +357,14 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 
 	async getEmbeddingsEndpoint(family?: EmbeddingsEndpointFamily): Promise<IEmbeddingsEndpoint> {
 		this._logService.trace(`Resolving embedding model`);
-		const modelMetadata = await this._modelFetcher.getEmbeddingsModel('text-embedding-3-small');
+		const modelMetadata = await this._modelFetcher.getEmbeddingsModel(embeddingsModelFamilies[family ?? 'metis']);
 		const model = await this.getOrCreateEmbeddingEndpointInstance(modelMetadata);
 		this._logService.trace(`Resolved embedding model`);
 		return model;
 	}
 
 	private async getOrCreateEmbeddingEndpointInstance(modelMetadata: IEmbeddingModelInformation): Promise<IEmbeddingsEndpoint> {
-		const modelId = 'text-embedding-3-small';
+		const modelId = modelMetadata.id;
 		let embeddingEndpoint = this._embeddingEndpoints.get(modelId);
 		if (!embeddingEndpoint) {
 			embeddingEndpoint = this._instantiationService.createInstance(EmbeddingEndpoint, modelMetadata);

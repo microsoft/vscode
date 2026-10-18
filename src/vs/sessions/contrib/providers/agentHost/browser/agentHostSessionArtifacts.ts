@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasDriveLetter, toSlashes } from '../../../../../base/common/extpath.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { parseGitHubIssueUrl } from '../../../../../platform/agentHost/common/githubIssueReferences.js';
 import { readSessionArtifacts, SessionArtifactType, type ISessionArtifact as IProtocolSessionArtifact } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { SessionMeta } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../../services/sessions/common/session.js';
-import { parseGitHubPullRequestUrl } from '../../../github/common/utils.js';
+import { parseGitHubArtifactLink } from '../../../github/common/sessionGitHubReferences.js';
 
 const kindByType: ReadonlyMap<SessionArtifactType, SessionArtifactKind> = new Map([
 	[SessionArtifactType.PullRequest, SessionArtifactKind.PullRequest],
@@ -31,6 +31,14 @@ function parseUri(value: string | undefined): URI | undefined {
 	}
 }
 
+function parseFileUri(value: string | undefined): URI | undefined {
+	// Persisted artifacts can contain Windows paths rather than file URIs.
+	if (value && ((hasDriveLetter(value, true) && (value[2] === '/' || value[2] === '\\')) || value.startsWith('\\\\') || value.startsWith('//'))) {
+		return URI.file(toSlashes(value));
+	}
+	return parseUri(value);
+}
+
 function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri: URI) => URI): ISessionArtifact | undefined {
 	const kind = kindByType.get(artifact.type);
 	if (!kind) {
@@ -38,17 +46,19 @@ function toSessionArtifact(artifact: IProtocolSessionArtifact, mapFileUri: (uri:
 	}
 
 	const link = parseUri(artifact.link);
-	const parsedUri = parseUri(artifact.uri);
+	const parsedUri = artifact.type === SessionArtifactType.File ? parseFileUri(artifact.uri) : parseUri(artifact.uri);
 	const uri = parsedUri && artifact.type === SessionArtifactType.File ? mapFileUri(parsedUri) : parsedUri;
 	// An artifact the client cannot act on is not worth surfacing.
 	if (!link && !uri && !artifact.commitHash) {
 		return undefined;
 	}
 
+	const chat = parseUri(artifact.chat);
 	return {
 		id: artifact.id,
 		kind,
 		label: artifact.label,
+		...(chat ? { chat } : {}),
 		isArtifact: artifact.isArtifact,
 		...(link ? { link } : {}),
 		...(uri ? { uri } : {}),
@@ -89,24 +99,6 @@ interface ISessionArtifactEntry {
 	readonly artifact: ISessionArtifact;
 }
 
-/**
- * The GitHub link an entry stands for, when the pull request and issue pills
- * could actually render it. Anything else (an enterprise host, a malformed
- * link) has no link identity and simply stays in its pill.
- */
-function gitHubLink(artifact: IProtocolSessionArtifact): string | undefined {
-	if (artifact.isGitHub !== true || !artifact.link) {
-		return undefined;
-	}
-	if (artifact.type === SessionArtifactType.PullRequest) {
-		return parseGitHubPullRequestUrl(artifact.link) ? artifact.link : undefined;
-	}
-	if (artifact.type === SessionArtifactType.Issue) {
-		return parseGitHubIssueUrl(artifact.link) ? artifact.link : undefined;
-	}
-	return undefined;
-}
-
 export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFileUri: (uri: URI) => URI = uri => uri): ISessionArtifactPartition {
 	const entries: ISessionArtifactEntry[] = [];
 	const pullRequests: IRecordedGitHubReference[] = [];
@@ -118,8 +110,8 @@ export function partitionSessionArtifacts(meta: SessionMeta | undefined, mapFile
 			continue;
 		}
 		entries.push({ artifact: mapped });
-		const link = gitHubLink(artifact);
-		if (!link) {
+		const link = artifact.link;
+		if (!link || !parseGitHubArtifactLink(mapped)) {
 			continue;
 		}
 

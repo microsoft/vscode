@@ -100,6 +100,8 @@ export interface IChatSetupRunOptions {
 	readonly telemetrySource?: ChatSetupSource;
 	readonly disableChatViewReveal?: boolean;
 	readonly forceSignInDialog?: boolean;
+	/** Continue setup with the default account if sign-in completes while the dialog is open. */
+	readonly autoDismissOnSignIn?: boolean;
 	readonly cancellationToken?: CancellationToken;
 	readonly additionalScopes?: readonly string[];
 	readonly forceAnonymous?: ChatSetupAnonymous;

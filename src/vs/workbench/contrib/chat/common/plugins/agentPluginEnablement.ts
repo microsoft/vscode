@@ -3,11 +3,74 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../../../base/common/observable.js';
-import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
+import { IObservable, IReader, ITransaction } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { AgentPluginDiscoveryPriority, IAgentPlugin, IAgentPluginEnablementService } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
-import { CollisionEnablementModel, IEnablementModel } from '../enablement.js';
+import { CollisionEnablementModel, ContributionEnablementState, EnablementModel, IEnablementModel, isContributionEnabled } from '../enablement.js';
+
+export { IAgentPluginEnablementService } from './agentPluginService.js';
+
+export class AgentPluginEnablementService extends EnablementModel implements IAgentPluginEnablementService {
+	declare readonly _serviceBrand: undefined;
+	private readonly _identities;
+	private readonly _copiedIdentities = new Map<string, string>();
+
+	constructor(@IStorageService storageService: IStorageService) {
+		super('agentPlugins.enablement', storageService);
+		this._identities = this._register(observableMemento<ReadonlyMap<string, string>>({
+			key: 'agentPlugins.enablementIdentities',
+			defaultValue: new Map(),
+			toStorage: value => JSON.stringify([...value]),
+			fromStorage: value => new Map(JSON.parse(value)),
+		})(StorageScope.PROFILE, StorageTarget.MACHINE, storageService));
+	}
+
+	override readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		return super.readEnabled(this._getIdentity(key, reader), reader);
+	}
+
+	override readProfileEnabled(key: string, reader?: IReader): boolean {
+		return super.readProfileEnabled(this._getIdentity(key, reader), reader);
+	}
+
+	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		super.setEnabled(this._getIdentity(key), state, tx);
+	}
+
+	override setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		super.setDefaultEnabled(this._getIdentity(key), enabled, tx);
+	}
+
+	override remove(key: string): void {
+		super.remove(this._getIdentity(key));
+	}
+
+	private _getIdentity(key: string, reader?: IReader): string {
+		const identities = this._identities.read(reader);
+		// Loaded installation identities also apply after switching to a profile without persisted aliases.
+		const source = this._copiedIdentities.get(key) ?? key;
+		return identities.get(key) ?? identities.get(source) ?? source;
+	}
+
+	copyEnablement(source: URI, target: URI): void {
+		const sourceKey = source.toString();
+		const targetKey = target.toString();
+		const identities = new Map(this._identities.get());
+		const identity = this._getIdentity(sourceKey);
+		if (identity !== targetKey) {
+			const sourceIdentity = this._copiedIdentities.get(sourceKey) ?? sourceKey;
+			if (sourceIdentity !== targetKey) {
+				this._copiedIdentities.set(targetKey, sourceIdentity);
+			}
+			identities.set(targetKey, identity);
+		}
+		this._identities.set(identities, undefined);
+	}
+}
 
 export interface IDiscoveredAgentPlugins {
 	readonly plugins: readonly IAgentPlugin[];
@@ -24,14 +87,63 @@ interface IAgentPluginCandidate {
 }
 
 /**
- * Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by
- * `ConfiguredAgentPluginDiscovery._resolveEnterprisePluginId`.
+ * Path fragment that identifies a Copilot-CLI-installed plugin.
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
+class AgentPluginPolicyEnablementModel implements IEnablementModel {
+	constructor(
+		private readonly base: IEnablementModel,
+		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+	) { }
+
+	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
+		const policyValue = this.policyEnablement?.read(reader).get(key);
+		return policyValue === true
+			? ContributionEnablementState.EnabledProfile
+			: policyValue === false
+				? ContributionEnablementState.DisabledProfile
+				: this.base.readEnabled(key, reader);
+	}
+
+	readProfileEnabled(key: string, reader?: IReader): boolean {
+		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
+	}
+
+	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const policy = this.policyEnablement?.get();
+		if (policy?.has(key)) {
+			return;
+		}
+		this.base.setEnabled(key, state, tx);
+	}
+
+	setDefaultEnabled(key: string, enabled: boolean, tx?: ITransaction): void {
+		this.base.setDefaultEnabled?.(key, enabled, tx);
+	}
+
+	remove(key: string): void {
+		if (!this.policyEnablement?.get().has(key)) {
+			this.base.remove(key);
+		}
+	}
+}
+
 export class AgentPluginCollisionEnablementModel extends CollisionEnablementModel {
-	constructor(base: IEnablementModel, collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>) {
-		super(base, collisionGroups);
+	constructor(
+		base: IEnablementModel,
+		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
+		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+	) {
+		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
+	}
+
+	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
+		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
+		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+			return;
+		}
+		super.setEnabled(key, state, tx);
 	}
 }
 
@@ -40,24 +152,28 @@ export function getSortedAgentPlugins(discoveries: readonly IDiscoveredAgentPlug
 		.map(candidate => candidate.plugin)
 		.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 }
-
-export function getCanonicalAgentPluginCollisionGroups(discoveries: readonly IDiscoveredAgentPlugins[], isBlocked?: (plugin: IAgentPlugin) => boolean): ReadonlyMap<string, readonly string[]> {
+export function getCanonicalAgentPluginCollisionGroups(
+	discoveries: readonly IDiscoveredAgentPlugins[],
+	isBlocked?: (plugin: IAgentPlugin) => boolean,
+	isForceEnabled?: (plugin: IAgentPlugin) => boolean,
+): ReadonlyMap<string, readonly string[]> {
 	const candidates = getUniqueAgentPluginCandidates(discoveries);
-	const byCanonicalKey = new Map<string, string[]>();
+	const byCanonicalKey = new Map<string, { forced: string[]; others: string[] }>();
 	for (const candidate of candidates) {
 		if (isBlocked?.(candidate.plugin)) {
 			continue;
 		}
 		let group = byCanonicalKey.get(candidate.canonicalKey);
 		if (!group) {
-			group = [];
+			group = { forced: [], others: [] };
 			byCanonicalKey.set(candidate.canonicalKey, group);
 		}
-		group.push(candidate.plugin.uri.toString());
+		(isForceEnabled?.(candidate.plugin) ? group.forced : group.others).push(candidate.plugin.uri.toString());
 	}
 
 	const groups = new Map<string, readonly string[]>();
-	for (const group of byCanonicalKey.values()) {
+	for (const { forced, others } of byCanonicalKey.values()) {
+		const group = [...forced, ...others];
 		if (group.length < 2) {
 			continue;
 		}
@@ -81,16 +197,22 @@ export function isAgentPluginBlockedByPolicy(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
 ): boolean {
-	const pluginId = getAgentPluginPolicyId(plugin);
-	return pluginId !== undefined && enabledPluginsPolicy?.[pluginId] === false;
+	return getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy) === false;
 }
 
 export function isAgentPluginForceEnabledByPolicy(
 	plugin: IAgentPlugin,
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
 ): boolean {
+	return getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy) === true;
+}
+
+export function getAgentPluginPolicyEnablement(
+	plugin: IAgentPlugin,
+	enabledPluginsPolicy: Record<string, boolean> | undefined,
+): boolean | undefined {
 	const pluginId = getAgentPluginPolicyId(plugin);
-	return pluginId !== undefined && enabledPluginsPolicy?.[pluginId] === true;
+	return pluginId === undefined ? undefined : enabledPluginsPolicy?.[pluginId];
 }
 
 export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {

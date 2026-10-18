@@ -56,7 +56,10 @@ export const enum SignedOutWindowGate {
 	ForceGitHubSignIn,
 }
 
-export function resolveSignedOutWindowGate(allowSignedOutWhenUsable: boolean, authRequirements: readonly SessionTypeAuthRequirement[]): SignedOutWindowGate {
+export function resolveSignedOutWindowGate(allowSignedOutWhenUsable: boolean, authRequirements: readonly SessionTypeAuthRequirement[], canInitializeWithoutGitHub = false): SignedOutWindowGate {
+	if (canInitializeWithoutGitHub) {
+		return authRequirements.length === 0 ? SignedOutWindowGate.Unresolved : SignedOutWindowGate.Proceed;
+	}
 	if (!allowSignedOutWhenUsable) {
 		return SignedOutWindowGate.ForceGitHubSignIn;
 	}

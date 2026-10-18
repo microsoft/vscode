@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ISessionChangesetOperation } from '../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 
@@ -55,12 +56,15 @@ export interface ISessionPullRequestDetails {
 
 export interface ISessionPullRequestCreation {
 	readonly operationId: string;
-	/** Generates editable details without changing the repository or creating a pull request. */
-	prepare(token: CancellationToken): Promise<ISessionPullRequestDetails>;
+	/**
+	 * Generates editable details without changing the repository or creating a pull request.
+	 * `chat` is the chat the form was opened from, whose conversation the details describe.
+	 */
+	prepare(token: CancellationToken, chat?: URI): Promise<ISessionPullRequestDetails>;
 	/** Validates prepared identity and carries submission choices with a normal chat request. */
 	prepareChatRequest(query: string, options: ISessionPullRequestChatOptions): Promise<ISendRequestOptions>;
-	/** Returns an optional plain-text outcome, including any post-creation warnings. */
-	create(options: ISessionPullRequestOptions): Promise<string | void>;
+	/** Returns an optional plain-text outcome, including any post-creation warnings. `chat` is as for {@link prepare}. */
+	create(options: ISessionPullRequestOptions, chat?: URI): Promise<string | void>;
 }
 
 /** A changeset operation that supports the Changes contribution's Create PR form. */
