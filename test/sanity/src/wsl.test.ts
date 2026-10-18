@@ -175,9 +175,9 @@ export function setup(context: TestContext) {
 				await window.getByRole('button', { name: 'Install and Reload' }).click();
 
 				context.log('Waiting for WSL connection');
-				// The remote indicator shows "Opening Remote..." until the connection is established, which can take minutes
-				// while the WSL extension installs the server in the distribution.
-				const remoteIndicator = window.locator('.statusbar-item[id="status.host"]', { hasText: /WSL/ });
+				// The remote indicator shows "Opening Remote..." or "Disconnected from WSL" until the connection is established,
+				// which can take minutes while the WSL extension installs the server in the distribution.
+				const remoteIndicator = window.locator('.statusbar-item[id="status.host"]', { hasText: /^\s*WSL: / });
 				await remoteIndicator.waitFor();
 				context.log(`Connected: ${await remoteIndicator.textContent()}`);
 			} catch (error) {
