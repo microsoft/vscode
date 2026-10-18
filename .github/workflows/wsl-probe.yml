@@ -1,0 +1,56 @@
+name: WSL probe (TEMPORARY, remove before merge)
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: WSL probe ${{ matrix.index }}
+    strategy:
+      fail-fast: false
+      matrix:
+        index: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=wsl-probe-${{ matrix.index }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: |
+            .github/actions
+            build/azure-pipelines/common
+            build/checksums
+            test/smoke
+
+      - name: Restore WSL installer
+        uses: ./.github/actions/restore-wsl-installer
+
+      - name: Prepare WSL Dev Container smoke tests
+        id: wsl-dev-container
+        timeout-minutes: 10
+        shell: pwsh
+        run: .\test\smoke\wslDevContainer.ps1
+        env:
+          WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
+
+      - name: Clean up WSL Dev Container smoke tests
+        if: ${{ always() && steps.wsl-dev-container.outputs.root != '' }}
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          WSL_SMOKE_ROOT: ${{ steps.wsl-dev-container.outputs.root }}
+        run: .\test\smoke\wslDevContainer.ps1 -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
+
+      - name: Publish logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wsl-probe-logs-${{ matrix.index }}-${{ github.run_attempt }}
+          path: .build/logs
+          if-no-files-found: ignore
