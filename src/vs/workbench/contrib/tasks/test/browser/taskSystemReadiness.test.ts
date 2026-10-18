@@ -115,8 +115,8 @@ suite('Task system readiness', function () {
 		assert.strictEqual(getWorkspaceTasks.callCount, 1);
 	});
 
-	for (const readyBeforeDisposal of [false, true]) {
-		test(`disposing automatic tasks stops pending readiness work (ready before disposal: ${readyBeforeDisposal})`, async () => {
+	for (const readinessBeforeDisposal of ['waiting', 'ready', 'lost'] as const) {
+		test(`disposing automatic tasks stops pending readiness work (readiness before disposal: ${readinessBeforeDisposal})`, async () => {
 			const { taskService, instantiationService } = createTaskService('test-remote');
 			await timeout(0);
 			const workspaceTasks = new DeferredPromise<Map<string, IWorkspaceFolderTaskResult>>();
@@ -133,9 +133,12 @@ suite('Task system readiness', function () {
 			});
 			const automaticTasks = store.add(instantiationService.createInstance(RunAutomaticTasks));
 			assert.strictEqual(eventListeners, 1);
-			if (readyBeforeDisposal) {
+			if (readinessBeforeDisposal !== 'waiting') {
 				taskService.registerTaskSystem(Schemas.file, taskSystemInfo(Platform.Platform.Windows));
 				taskService.registerTaskSystem(Schemas.vscodeRemote, taskSystemInfo(Platform.Platform.Linux));
+				if (readinessBeforeDisposal === 'lost') {
+					taskService.removeTaskSystem(Schemas.file);
+				}
 			}
 			automaticTasks.dispose();
 			await timeout(0);
