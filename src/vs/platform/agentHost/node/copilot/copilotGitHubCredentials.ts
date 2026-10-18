@@ -8,6 +8,8 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { getExpirationTime, getRemainingTimeInSeconds } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isScopedCredentialUsable, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 const COPILOT_GITHUB_TOKEN_REFRESH_THRESHOLD_SECONDS = 60 * 60;
 const COPILOT_GITHUB_TOKEN_REFRESH_TIMEOUT_MS = 30_000;
@@ -23,32 +25,62 @@ export class CopilotGitHubSessionCredentials {
 	private constructor(
 		private _staticToken: string | undefined,
 		private readonly _provider: CopilotGitHubCredentials | undefined,
+		private readonly _useClientAuthentication: boolean,
+		private readonly _capturedCredential?: IAgentHostScopedCredential,
 	) { }
 
 	static fromToken(token: string | undefined): CopilotGitHubSessionCredentials {
-		return new CopilotGitHubSessionCredentials(token, undefined);
+		return new CopilotGitHubSessionCredentials(token, undefined, false);
+	}
+
+	static fromClientAuthentication(token: string | undefined): CopilotGitHubSessionCredentials {
+		return new CopilotGitHubSessionCredentials(token, undefined, true);
 	}
 
 	static fromProvider(provider: CopilotGitHubCredentials): CopilotGitHubSessionCredentials {
-		return new CopilotGitHubSessionCredentials(undefined, provider);
+		return new CopilotGitHubSessionCredentials(undefined, provider, false);
+	}
+
+	static fromCredential(credential: IAgentHostScopedCredential): CopilotGitHubSessionCredentials {
+		return new CopilotGitHubSessionCredentials(undefined, undefined, false, { ...credential });
 	}
 
 	get usesStaticToken(): boolean {
-		return this._provider === undefined;
+		return this._provider === undefined && this._capturedCredential === undefined;
+	}
+
+	get usesScopedCredential(): boolean {
+		return this._capturedCredential !== undefined;
 	}
 
 	get token(): string | undefined {
+		if (this._capturedCredential) {
+			return isScopedCredentialUsable(this._capturedCredential) ? this._capturedCredential.token : undefined;
+		}
 		return this._provider?.token ?? this._staticToken;
 	}
 
 	get sdkSessionOptions(): CopilotGitHubSdkSessionOptions {
+		if (this._capturedCredential) {
+			const credential = this._capturedCredential;
+			if (!isScopedCredentialUsable(credential)) {
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The captured Copilot credential has expired or been revoked');
+			}
+			return { gitHubToken: credential.token };
+		}
 		return this._provider
 			? { gitHubTokenProvider: this._provider.tokenProvider }
-			: { gitHubToken: this._staticToken };
+			: { gitHubToken: this._useClientAuthentication ? undefined : this._staticToken };
 	}
 
 	isCurrentToken(token: string): boolean {
 		return this.token === token;
+	}
+
+	isCurrentCredential(credential: IAgentHostScopedCredential): boolean {
+		const captured = this._capturedCredential;
+		return captured !== undefined && isScopedCredentialUsable(captured) && captured.resource === credential.resource && captured.token === credential.token
+			&& captured.expiresAt === credential.expiresAt && captured.revision === credential.revision;
 	}
 
 	updateStaticToken(token: string): void {
@@ -57,6 +89,7 @@ export class CopilotGitHubSessionCredentials {
 		}
 		this._staticToken = token;
 	}
+
 }
 
 /**

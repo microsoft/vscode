@@ -4,19 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { FileThemeIcon, FolderThemeIcon } from '../../../../../platform/theme/common/themeService.js';
 import { IFileLabelOptions } from '../../../../../workbench/browser/labels.js';
@@ -24,6 +29,13 @@ import { hasSendableNewChatContent, NewChatInputWidget } from '../../browser/new
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
+import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
+import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
+import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import type { IWorkspacePickerContextAction } from '../../browser/sessionWorkspacePicker.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -49,8 +61,14 @@ const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_update
 const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
+const setSendButtonLabel = Reflect.get(NewChatInputWidget, '_setSendButtonLabel') as (sendButton: Button, label: string | undefined) => void;
+const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
+const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
+const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearInputOnSendStart') as (this: IClearInputOnSendStartHarness, rawQuery: string) => (() => void) | undefined;
+const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
+const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly IWorkspacePickerContextAction[], anchor?: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
-const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
+const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon; placement?: 'top' }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
 	readonly storageService: {
@@ -135,6 +153,66 @@ interface IInitializationLoadingHarness {
 	};
 }
 
+interface IInputValueHarness {
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+			getLineCount(): number;
+			getLineMaxColumn(lineNumber: number): number;
+		} | null;
+		setPosition(position: { lineNumber: number; column: number }): void;
+	};
+}
+
+interface IClearInputOnSendStartHarness {
+	readonly options: {
+		clearInputOnSendStart?: () => boolean;
+	};
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+		} | null;
+	};
+}
+
+interface IContextPickerHarness {
+	readonly options: {
+		readonly getContextFolderUri: () => URI | undefined;
+		readonly getContextPickerActions?: () => readonly [];
+	};
+	readonly _attachButton: HTMLElement | undefined;
+	readonly _contextAttachments: {
+		showPicker(folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement): void;
+	};
+}
+
+interface IAttachmentPickerHarness {
+	readonly quickInputService: {
+		readonly currentQuickInput: { readonly anchor?: unknown } | undefined;
+		cancel(): Promise<void>;
+		withQuickInputAnchor?<T>(anchor: HTMLElement | undefined, anchorPosition: 'above' | 'below' | 'overlay' | undefined, operation: () => Promise<T>): Promise<T>;
+		createQuickPick?(): {
+			placeholder: string;
+			matchOnDescription: boolean;
+			sortByLabel: boolean;
+			anchor: HTMLElement | undefined;
+			anchorPosition: 'above' | 'below' | 'overlay' | undefined;
+			items: readonly unknown[];
+			readonly selectedItems: readonly { readonly id?: string; readonly label?: string; readonly contextAction?: IWorkspacePickerContextAction }[];
+			show(): void;
+			hide(): void;
+			dispose(): void;
+			readonly onDidAccept: Event<void>;
+			readonly onDidHide: Event<void>;
+		};
+	};
+	isPickerVisibleAt(anchor: HTMLElement): boolean;
+	_getStaticPicks?(contextActions: readonly IWorkspacePickerContextAction[]): readonly { readonly id?: string; readonly label?: string; readonly contextAction?: IWorkspacePickerContextAction }[];
+	_handleFileDialog?(): Promise<void>;
+}
+
 interface IAttachmentRenderingHarness {
 	readonly _container: HTMLElement;
 	readonly _attachedContext: readonly IChatRequestVariableEntry[];
@@ -149,6 +227,8 @@ interface IAttachmentRenderingHarness {
 	readonly openerService: {
 		open(resource: URI): Promise<boolean>;
 	};
+	readonly configurationService?: IConfigurationService;
+	readonly chatImageCarouselService?: IChatImageCarouselService;
 	readonly themeService?: {
 		getFileIconTheme(): { hasFileIcons: boolean; hasFolderIcons: boolean };
 		getColorTheme(): { type: ColorScheme };
@@ -181,7 +261,175 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 }
 
 suite('NewChatInputWidget', () => {
+	test('notification model edits use the scoped configuration and fall back only when absent', async () => {
+		const writes: { scope: string; model: string; values: Record<string, unknown> }[] = [];
+		const access = (scope: string) => ({
+			setModelConfiguration: async (model: string, values: Record<string, unknown>) => { writes.push({ scope, model, values }); },
+		});
+		const selection: { modelConfiguration: ReturnType<typeof access> | undefined } = { modelConfiguration: access('chat') };
+		const widget: { _applyModelConfiguration(model: string, values: Record<string, unknown>): Promise<void> } = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_modelSelection: selection, languageModelsService: access('global'),
+		});
+		await widget._applyModelConfiguration('model', { thinkingLevel: 'high' });
+		selection.modelConfiguration = undefined;
+		await widget._applyModelConfiguration('model', { contextSize: 200_000 });
+		assert.deepStrictEqual(writes, [
+			{ scope: 'chat', model: 'model', values: { thinkingLevel: 'high' } },
+			{ scope: 'global', model: 'model', values: { contextSize: 200_000 } },
+		]);
+	});
+
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const accepted of [true, false]) {
+		test(`voice submission waits for the real send outcome (${accepted})`, async () => {
+			let text = 'Typed draft';
+			let completed = false;
+			const sent = new DeferredPromise<boolean>();
+			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+				_sending: false,
+				_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+				_send: () => sent.p,
+			});
+			const result = input.sendQuery('spoken input').then(value => {
+				completed = true;
+				return value;
+			});
+			await Promise.resolve();
+			const beforeSendResult = completed;
+			await sent.complete(accepted);
+			assert.deepStrictEqual({ text, beforeSendResult, accepted: await result }, {
+				text: 'Typed draft spoken input', beforeSendResult: false, accepted,
+			});
+		});
+	}
+
+	test('voice submission preserves the input and reports a disabled send gate', async () => {
+		let text = 'Typed draft';
+		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_sending: false,
+			_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+			_contextAttachments: { attachments: [] },
+			options: {},
+			_canSendRequest: constObservable(false),
+		});
+		const accepted = await input.sendQuery('spoken input');
+		assert.deepStrictEqual({ text, accepted }, { text: 'Typed draft spoken input', accepted: false });
+	});
+
+	test('voice submission does not overwrite an input that is already sending', async () => {
+		let text = 'In-flight input';
+		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+			_sending: true,
+			_editor: { getModel: () => ({ getValue: () => text, setValue: (value: string) => text = value }) },
+		});
+		assert.deepStrictEqual({ accepted: await input.sendQuery('new input'), text }, { accepted: false, text: 'In-flight input' });
+	});
+
+	test('gets and sets the composer input without moving focus', () => {
+		let value = 'Initial prompt';
+		let position: { lineNumber: number; column: number } | undefined;
+		const harness: IInputValueHarness = {
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+					getLineCount: () => 2,
+					getLineMaxColumn: () => 8,
+				}),
+				setPosition: newPosition => position = newPosition,
+			},
+		};
+
+		setInputValue.call(harness, 'Updated\nprompt');
+
+		assert.deepStrictEqual({
+			value: getInputValue.call(harness),
+			position,
+		}, {
+			value: 'Updated\nprompt',
+			position: { lineNumber: 2, column: 8 },
+		});
+	});
+
+	test('clears comparison input immediately and restores it after a failed send', () => {
+		let value = 'Compare these approaches';
+		const harness: IClearInputOnSendStartHarness = {
+			options: { clearInputOnSendStart: () => true },
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+				}),
+			},
+		};
+
+		const restore = clearInputOnSendStart.call(harness, value);
+		assert.deepStrictEqual({ value, canRestore: !!restore }, { value: '', canRestore: true });
+
+		restore?.();
+		assert.strictEqual(value, 'Compare these approaches');
+	});
+
+	test('exposes the scoped model control', () => {
+		const modelPickers = new NewChatModelPickerService();
+		const modelNode = document.createElement('button');
+		const opened: string[] = [];
+		const harness = {
+			_newChatModelPickerService: modelPickers,
+		};
+		const getPicker = () => Reflect.get(NewChatInputWidget.prototype, 'modelPicker', harness) as INewSessionComposerPicker | undefined;
+		const beforeRegistration = getPicker();
+		const registration = disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => modelNode,
+			open: () => opened.push('model'),
+			switchToModel: () => false,
+		}));
+		const model = getPicker();
+		model?.open();
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			beforeRegistration,
+			modelNode: model?.getDomNode() === modelNode,
+			opened,
+			afterDisposal: getPicker(),
+		}, {
+			beforeRegistration: undefined,
+			modelNode: true,
+			opened: ['model'],
+			afterDisposal: undefined,
+		});
+	});
+
+	for (const existing of ['empty', 'text', 'attachments', 'feedback', 'sending'] as const) {
+		test(`applies an incoming draft only to an empty idle input (${existing})`, () => {
+			let inputText = existing === 'text' ? 'Keep me' : '';
+			let attachments: readonly IChatRequestVariableEntry[] = existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [];
+			let saved: IChatDraft | undefined;
+			let focusCount = 0;
+			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
+				options: { hasAdditionalSendContent: constObservable(existing === 'feedback') },
+				_editor: { getValue: () => inputText, getModel: () => ({}) },
+				_contextAttachments: {
+					get attachments() { return attachments; },
+					addAttachments: (...entries: IChatRequestVariableEntry[]) => { attachments = entries; },
+				},
+				_sending: existing === 'sending',
+				prefillInput: (text: string) => { inputText = text; focusCount++; },
+				_updateAndSaveDraftState: () => { saved = { inputText, attachments }; },
+			});
+			const incoming = { inputText: 'Incoming', attachments: [toPasteVariableEntry('Incoming context', 'Text', { id: 'incoming' })] };
+			const applied = input.applyDraft(incoming);
+			assert.deepStrictEqual({ applied, inputText, attachments, saved, focusCount }, {
+				applied: existing === 'empty',
+				inputText: existing === 'empty' ? incoming.inputText : existing === 'text' ? 'Keep me' : '',
+				attachments: existing === 'empty' ? incoming.attachments : existing === 'attachments' ? [toPasteVariableEntry('Context', 'Keep context', { id: 'existing' })] : [],
+				saved: existing === 'empty' ? incoming : undefined,
+				focusCount: existing === 'empty' ? 1 : 0,
+			});
+		});
+	}
 
 	test('only keeps the input frame focused while editor text has focus', () => {
 		const stack = document.createElement('div');
@@ -206,6 +454,224 @@ suite('NewChatInputWidget', () => {
 			focused: { input: true, stack: true },
 			blurred: { input: false, stack: false },
 		});
+	});
+
+	test('anchors the context picker to the attach button', () => {
+		const attachButton = document.createElement('div');
+		const folderUri = URI.file('/workspace');
+		const calls: Array<{ folderUri: URI | undefined; anchor: HTMLElement | undefined }> = [];
+		const harness: IContextPickerHarness = {
+			options: {
+				getContextFolderUri: () => folderUri,
+				getContextPickerActions: () => [],
+			},
+			_attachButton: attachButton,
+			_contextAttachments: {
+				showPicker: (folderUri, _contextActions, anchor) => calls.push({ folderUri, anchor }),
+			},
+		};
+
+		showContextPicker.call(harness);
+
+		assert.deepStrictEqual(calls.map(call => ({
+			folderUri: call.folderUri?.toString(),
+			anchor: call.anchor === attachButton ? 'attachButton' : undefined,
+		})), [
+			{ folderUri: folderUri.toString(), anchor: 'attachButton' },
+		]);
+	});
+
+	test('hides the anchored context picker when its button is activated again', () => {
+		const attachButton = document.createElement('div');
+		let cancelCount = 0;
+		const quickInputService = {
+			currentQuickInput: { anchor: attachButton },
+			cancel: async () => { cancelCount++; },
+		};
+		const harness: IAttachmentPickerHarness = {
+			quickInputService,
+			isPickerVisibleAt: anchor => quickInputService.currentQuickInput.anchor === anchor,
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+
+		assert.strictEqual(cancelCount, 1);
+	});
+
+	test('opens the anchored context picker below the attach button', () => {
+		const attachButton = document.createElement('div');
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [] as const,
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: Event.None,
+			onDidHide: onDidHideEmitter.event,
+		};
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [],
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+
+		assert.deepStrictEqual({
+			anchor: picker.anchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: picker.anchorPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
+	});
+
+	test('anchors a quick pick opened by a context action to the attach button', async () => {
+		const attachButton = document.createElement('div');
+		const onDidAcceptEmitter = disposables.add(new Emitter<void>());
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const actionRan = new DeferredPromise<void>();
+		const action: IWorkspacePickerContextAction = {
+			label: 'Nested picker',
+			icon: Codicon.add,
+			run: async () => actionRan.complete(),
+		};
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [{ contextAction: action }],
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: onDidAcceptEmitter.event,
+			onDidHide: onDidHideEmitter.event,
+		};
+		let inheritedAnchor: HTMLElement | undefined;
+		let inheritedPosition: 'above' | 'below' | 'overlay' | undefined;
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+				withQuickInputAnchor: async (anchor, anchorPosition, operation) => {
+					inheritedAnchor = anchor;
+					inheritedPosition = anchorPosition;
+					return operation();
+				},
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [{ contextAction: action }],
+		};
+
+		showAttachmentPicker.call(harness, undefined, [action], attachButton);
+		onDidAcceptEmitter.fire();
+		await actionRan.p;
+
+		assert.deepStrictEqual({
+			anchor: inheritedAnchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: inheritedPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
+	});
+
+	test('anchors the Files picker to the attach button', async () => {
+		const attachButton = document.createElement('div');
+		const onDidAcceptEmitter = disposables.add(new Emitter<void>());
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const fileDialogOpened = new DeferredPromise<void>();
+		const filePick = { id: 'sessions.filesAndFolders', label: 'Files...' };
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [filePick],
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: onDidAcceptEmitter.event,
+			onDidHide: onDidHideEmitter.event,
+		};
+		let inheritedAnchor: HTMLElement | undefined;
+		let inheritedPosition: 'above' | 'below' | 'overlay' | undefined;
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+				withQuickInputAnchor: async (anchor, anchorPosition, operation) => {
+					inheritedAnchor = anchor;
+					inheritedPosition = anchorPosition;
+					return operation();
+				},
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [filePick],
+			_handleFileDialog: async () => fileDialogOpened.complete(),
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+		onDidAcceptEmitter.fire();
+		await fileDialogOpened.p;
+
+		assert.deepStrictEqual({
+			anchor: inheritedAnchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: inheritedPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
+	});
+
+	test('preserves icon-only Send rendering before and after comparison labels', () => {
+		const sendButton = disposables.add(new Button(document.createElement('div'), { secondary: true, supportIcons: true }));
+		sendButton.icon = Codicon.arrowUpCompact;
+		const readState = () => ({
+			classes: Array.from(sendButton.element.classList).sort(),
+			text: sendButton.element.textContent?.trim(),
+			inlineIcons: sendButton.element.querySelectorAll('.codicon-arrow-up-compact').length,
+		});
+		const iconOnlyState = readState();
+		const comparisonState = (text: string) => ({
+			classes: ['monaco-button', 'monaco-text-button', 'secondary'],
+			text,
+			inlineIcons: 1,
+		});
+
+		const states = [undefined, 'Run 2 Attempts', 'Run 3 Attempts', undefined, 'Run 2 Attempts', undefined].map(label => {
+			setSendButtonLabel(sendButton, label);
+			return readState();
+		});
+
+		assert.deepStrictEqual(states, [
+			iconOnlyState,
+			comparisonState('Run 2 Attempts'),
+			comparisonState('Run 3 Attempts'),
+			iconOnlyState,
+			comparisonState('Run 2 Attempts'),
+			iconOnlyState,
+		]);
 	});
 
 	test('shows loading in the send button slot', () => {
@@ -256,7 +722,7 @@ suite('NewChatInputWidget', () => {
 		assert.strictEqual(composerFocused, true);
 	});
 
-	test('delays initialization progress to avoid flicker for fast workspace changes', async () => {
+	test('delays initialization progress to avoid flicker for fast workspace changes', () => runWithFakedTimers({}, async () => {
 		const loadingSpinner = document.createElement('div');
 		const loading = { value: true };
 		const loadingDelayDisposable = disposables.add(new MutableDisposable<IDisposable>());
@@ -292,7 +758,7 @@ suite('NewChatInputWidget', () => {
 			visibleAfterDelay: true,
 			visibleAfterLoading: false,
 		});
-	});
+	}));
 
 	test('keeps the input model alive until reference acquisition settles during disposal', async () => {
 		const referenceDeferred = new DeferredPromise<IReference<IResolvedTextEditorModel>>();
@@ -359,6 +825,15 @@ suite('NewChatInputWidget', () => {
 			empty: false,
 			additionalFolder: true,
 		});
+	});
+
+	test('keeps a handed-off explicit file snapshot sendable without inventing prompt text', () => {
+		const snapshot = toPasteVariableEntry('Unsaved file', 'Draft contents', { _meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true } });
+		const paste = toPasteVariableEntry('Context', 'Pasted context');
+		assert.deepStrictEqual({
+			fileSnapshot: hasSendableNewChatContent('', [snapshot]),
+			ordinaryPaste: hasSendableNewChatContent('', [paste]),
+		}, { fileSnapshot: true, ordinaryPaste: false });
 	});
 
 	test('persists and restores additional folder and repository context with URI values', () => {
@@ -479,8 +954,12 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	test('orders native attachment picks before provider context actions', () => {
+	test('orders top context actions before native attachment picks and remaining context actions', () => {
 		const picks = getStaticContextPicks([{
+			label: 'Agent...',
+			icon: Codicon.agent,
+			placement: 'top',
+		}, {
 			label: 'Issue...',
 			icon: Codicon.issues,
 		}, {
@@ -489,6 +968,8 @@ suite('NewChatInputWidget', () => {
 		}]);
 
 		assert.deepStrictEqual(picks.map(pick => pick.label ?? pick.type), [
+			'Agent...',
+			'separator',
 			'Files...',
 			'Image from Clipboard',
 			'separator',
@@ -607,6 +1088,70 @@ suite('NewChatInputWidget', () => {
 			name: 'microsoft/vscode#333845',
 			icon: Codicon.issues.id,
 		}]);
+	});
+
+	test('opens all draft images from the clicked attachment with its exact identity', async () => {
+		const container = document.createElement('div');
+		const bytes = decodeBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aTfoAAAAASUVORK5CYII=').buffer;
+		const restored = URI.file('/restored.png');
+		const attachments: IChatRequestVariableEntry[] = [
+			{ kind: 'image', id: 'first', name: 'image.png', value: bytes },
+			{ kind: 'image', id: 'second', name: 'image.png', value: bytes },
+			{ kind: 'image', id: 'restored', name: 'restored.png', value: undefined, references: [{ kind: 'reference', reference: restored }] },
+		];
+		const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		const configuration = new TestConfigurationService({ [ChatConfiguration.ImageCarouselEnabled]: true });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: attachments,
+			_renderDisposables: disposables.add(new DisposableStore()),
+			_resourceLabels: {
+				clear: () => { },
+				create: () => ({ dispose: () => { }, setLabel: () => { }, setFile: () => { } }),
+			},
+			openerService: { open: async () => { throw new Error('Images should open in the carousel'); } },
+			configurationService: configuration,
+			chatImageCarouselService: upcastPartial<IChatImageCarouselService>({
+				openCarouselAtResource: async (...args) => { opened.push(args); },
+			}),
+			removeAttachment: () => { },
+		});
+
+		const buttons = container.querySelectorAll<HTMLButtonElement>('.sessions-chat-attachment-open');
+		buttons[1].click();
+		buttons[2].click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(opened.map(([uri, data, options]) => [uri.toString(), data, options]), [
+			[URI.from({ scheme: Schemas.data, path: 'second/image.png' }).toString(), bytes, { preferCurrentInput: true, currentInput: { text: '', attachments } }],
+			[restored.toString(), undefined, { preferCurrentInput: true, currentInput: { text: '', attachments } }],
+		]);
+	});
+
+	test('opens a draft image resource normally when the carousel is disabled', async () => {
+		const container = document.createElement('div');
+		const resource = URI.file('/image.png');
+		const opened: URI[] = [];
+		const configuration = new TestConfigurationService({ [ChatConfiguration.ImageCarouselEnabled]: false });
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		updateAttachmentRendering.call({
+			_container: container,
+			_attachedContext: [{ kind: 'image', id: 'image', name: 'image.png', value: resource }],
+			_renderDisposables: disposables.add(new DisposableStore()),
+			_resourceLabels: {
+				clear: () => { },
+				create: () => ({ dispose: () => { }, setLabel: () => { }, setFile: () => { } }),
+			},
+			openerService: { open: async uri => { opened.push(uri); return true; } },
+			configurationService: configuration,
+			removeAttachment: () => { },
+		});
+
+		container.querySelector<HTMLButtonElement>('.sessions-chat-attachment-open')!.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(opened, [resource]);
 	});
 
 	test('renders GitHub context pills as openable with a keyboard-reachable remove button', async () => {

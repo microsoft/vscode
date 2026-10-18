@@ -1,0 +1,130 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { SequencerByKey } from '../../../../../base/common/async.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
+import type { IPersistedTurnRecord } from '../../../common/sessionDataService.js';
+import { isAhpChatChannel, type Turn } from '../../../common/state/sessionState.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostLocalTurns, parsePersistedTurn } from '../../agentHostLocalTurns.js';
+
+const persistedFailedTurnIds = createChatMementoKey<Set<string>>('persistedFailedTurns.ids', () => new Set());
+
+/**
+ * Persists turns that completed with an error before their provider transcript
+ * could record them, then overlays those turns when the provider has no copy.
+ */
+export class PersistedFailedTurnsContribution extends Disposable implements IAgentHostChatContribution {
+
+	static readonly id = 'persistedFailedTurns';
+	readonly order = 110;
+
+	private readonly _mutationSequencer = new SequencerByKey<string>();
+
+	constructor(
+		protected readonly _context: IAgentHostChatContributionContext,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostLocalTurns private readonly _localTurns: IAgentHostLocalTurns,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+	}
+
+	onTurnEnd(ended: ITurnEnd): void {
+		if (!isAhpChatChannel(ended.channel) || !ended.turnId) {
+			return;
+		}
+		const turnId = ended.turnId;
+		const knownTurnIds = this._context.memento(persistedFailedTurnIds, ended.channel).get();
+		if (ended.reason.kind === 'success') {
+			if (knownTurnIds.delete(turnId)) {
+				this._enqueueMutation(ended.channel, turnId, () => this._delete(ended.session, ended.channel, turnId));
+			}
+			return;
+		}
+		if (ended.reason.kind !== 'error' || ended.reason.resumable) {
+			return;
+		}
+
+		const turns = this._stateManager.getChatState(ended.channel)?.turns;
+		const turn = turns?.find(candidate => candidate.id === turnId);
+		if (!turn || !turns) {
+			return;
+		}
+		const anchorTurnId = this._localTurns.findAnchorTurnId(ended.channel, turns, turn.id);
+		knownTurnIds.add(turn.id);
+		this._enqueueMutation(ended.channel, turn.id, () => this._persist(ended.session, ended.channel, turn, anchorTurnId));
+	}
+
+	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
+		const records = await this._read(context.session, context.chat);
+		if (records.length === 0) {
+			return turns;
+		}
+
+		const existing = new Set(turns.map(turn => turn.id));
+		const knownTurnIds = this._context.memento(persistedFailedTurnIds, context.chat).get();
+		for (const record of records) {
+			knownTurnIds.add(record.turnId);
+			if (existing.has(record.turnId)) {
+				knownTurnIds.delete(record.turnId);
+				this._enqueueMutation(context.chat, record.turnId, () => this._delete(context.session, context.chat, record.turnId));
+			}
+		}
+		return applyPersistedFailedTurns(turns, records, this._logService);
+	}
+
+	private _enqueueMutation(chat: string, turnId: string, mutation: () => Promise<void>): void {
+		void this._mutationSequencer.queue(chat, mutation).catch(error => {
+			this._logService.warn(`[PersistedFailedTurnsContribution] Failed to update persisted failed turn ${turnId}`, error);
+		});
+	}
+
+	private async _persist(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): Promise<void> {
+		const record: IPersistedTurnRecord = { kind: 'failed', turnId: turn.id, chatUri: chat, anchorTurnId, payload: JSON.stringify(turn) };
+		await this._sessionStateStore.chatRows.insertPersistedTurn(URI.parse(session), record);
+	}
+
+	private async _delete(session: string, chat: string, turnId: string): Promise<void> {
+		await this._sessionStateStore.chatRows.deletePersistedTurns(URI.parse(session), URI.parse(chat), [turnId]);
+	}
+
+	private async _read(session: string, chat: string): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
+		try {
+			return (await this._sessionStateStore.chatRows.getPersistedTurns(URI.parse(session), URI.parse(chat))).filter(record => record.kind === 'failed');
+		} catch (error) {
+			this._logService.warn(`[PersistedFailedTurnsContribution] Failed to read persisted failed turns for ${chat}`, error);
+			return [];
+		}
+	}
+}
+
+/** Restores failed turns without pruning persisted records or seeding live mementos. */
+export function applyPersistedFailedTurns(turns: readonly Turn[], records: readonly IPersistedTurnRecord[], logService: ILogService): readonly Turn[] {
+	const existing = new Set(turns.map(turn => turn.id));
+	const restored: Turn[] = [...turns];
+	for (const record of records) {
+		if (existing.has(record.turnId)) {
+			continue;
+		}
+		const turn = parsePersistedTurn(record, logService, PersistedFailedTurnsContribution.id);
+		if (!turn) {
+			continue;
+		}
+		const anchorIndex = record.anchorTurnId === undefined ? -1 : restored.findIndex(candidate => candidate.id === record.anchorTurnId);
+		if (record.anchorTurnId !== undefined && anchorIndex === -1) {
+			logService.warn(`[PersistedFailedTurnsContribution] Skipping failed turn ${record.turnId} because its anchor is unavailable`);
+			continue;
+		}
+		restored.splice(anchorIndex + 1, 0, turn);
+		existing.add(turn.id);
+	}
+	return restored;
+}

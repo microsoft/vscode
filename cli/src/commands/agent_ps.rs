@@ -422,6 +422,8 @@ mod tests {
 			changes: None,
 			annotations: None,
 			meta: None,
+			chats: None,
+			default_chat: None,
 		}
 	}
 

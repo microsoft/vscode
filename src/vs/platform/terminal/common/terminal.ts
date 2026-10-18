@@ -57,6 +57,7 @@ export const enum TerminalSettingId {
 	EnableMultiLinePasteWarning = 'terminal.integrated.enableMultiLinePasteWarning',
 	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
 	FontFamily = 'terminal.integrated.fontFamily',
+	FontRendering = 'terminal.integrated.fontRendering',
 	FontSize = 'terminal.integrated.fontSize',
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
@@ -330,7 +331,11 @@ export interface IPtyService {
 		workspaceId: string,
 		workspaceName: string
 	): Promise<number>;
-	attachToProcess(id: number): Promise<void>;
+	/**
+	 * Attaches to a persistent process, failing if `pid` is provided and differs from its process ID.
+	 * Persistent process IDs restart with the pty host, so a saved ID can later belong to another process.
+	 */
+	attachToProcess(id: number, pid?: number): Promise<void>;
 	detachFromProcess(id: number, forcePersist?: boolean): Promise<void>;
 	shutdownAll(): Promise<void>;
 
@@ -1165,7 +1170,11 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	attachToRevivedProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	/**
+	 * Attaches to the process revived for a restored terminal, otherwise to its original process. The
+	 * local backend refuses an original process whose pid differs from `pid`, unless `pid` is 0 (unknown).
+	 */
+	attachToRevivedProcess(id: number, pid: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;

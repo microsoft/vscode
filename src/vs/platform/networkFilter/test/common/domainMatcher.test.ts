@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { normalizeDomain, extractDomainPattern, matchesDomainPattern, extractDomainFromUri, isDomainAllowed } from '../../common/domainMatcher.js';
+import { normalizeDomain, normalizeDomainPattern, extractDomainPattern, matchesDomainPattern, extractDomainFromUri, isDomainAllowed } from '../../common/domainMatcher.js';
 
 suite('domainMatcher', () => {
 
@@ -101,6 +101,25 @@ suite('domainMatcher', () => {
 		});
 	});
 
+	suite('normalizeDomainPattern', () => {
+
+		test('canonicalizes Unicode wildcard suffixes', () => {
+			const patterns = [
+				'*.b\u00fccher.de',
+				'*.B\u00dcCHER.DE',
+				'  *.b\u00fccher.de.  ',
+				'*.b\u00fccher.de:443',
+				'https://*.b\u00fccher.de:443/private',
+				'*.xn--bcher-kva.de',
+			];
+
+			assert.deepStrictEqual(
+				patterns.map(pattern => normalizeDomainPattern(pattern)),
+				patterns.map(() => '*.xn--bcher-kva.de'),
+			);
+		});
+	});
+
 	suite('matchesDomainPattern', () => {
 
 		test('exact match', () => {
@@ -125,6 +144,32 @@ suite('domainMatcher', () => {
 
 		test('wildcard prefix does not match unrelated domains', () => {
 			assert.strictEqual(matchesDomainPattern('notexample.com', '*.example.com'), false);
+		});
+
+		test('matches Unicode wildcard patterns against canonical IDN hosts', () => {
+			assert.deepStrictEqual([
+				matchesDomainPattern('xn--bcher-kva.de', '*.b\u00fccher.de'),
+				matchesDomainPattern('sub.xn--bcher-kva.de', '*.b\u00fccher.de'),
+				matchesDomainPattern('deep.sub.xn--bcher-kva.de', '*.b\u00fccher.de'),
+				matchesDomainPattern('notxn--bcher-kva.de', '*.b\u00fccher.de'),
+				matchesDomainPattern('xn--bcher-kva.de.example.com', '*.b\u00fccher.de'),
+				matchesDomainPattern('example.com', '*.b\u00fccher.de'),
+				matchesDomainPattern('xn--bcher-kva.de', 'b\u00fccher.de'),
+				matchesDomainPattern('sub.xn--bcher-kva.de', 'b\u00fccher.de'),
+				matchesDomainPattern('xn--bcher-kva.de', '*.xn--bcher-kva.de'),
+				matchesDomainPattern('sub.xn--bcher-kva.de', '*.xn--bcher-kva.de'),
+			], [
+				true,
+				true,
+				true,
+				false,
+				false,
+				false,
+				true,
+				false,
+				true,
+				true,
+			]);
 		});
 
 		test('matches domain from URL pattern', () => {

@@ -50,6 +50,7 @@ import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tool
 import { IChatArtifacts, IChatArtifactsService, IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IPromptsService } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
@@ -57,6 +58,7 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -64,6 +66,8 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { TestPathService, TestRemoteAgentService } from '../../workbenchTestServices.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -76,7 +80,7 @@ import { ISharedWebContentExtractorService } from '../../../../../platform/webCo
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { InlineChatZoneWidget } from '../../../../contrib/inlineChat/browser/inlineChatZoneWidget.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
@@ -172,6 +176,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, MenuService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IRemoteAgentService, new TestRemoteAgentService());
 
 			reg.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				declare readonly _serviceBrand: undefined;
@@ -227,6 +232,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				readonly onDidReceiveTip = Event.None;
 				override resetSession() { }
 			}());
+			reg.define(IChatOpenDiagnosticsService, ChatOpenDiagnosticsService);
 			reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
 				override readonly onDidAddEvent = Event.None;
 				override getEvents() { return []; }
@@ -283,6 +289,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override getToolSetsForModel() { return []; }
 			}());
 			reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override getSession() { return undefined; }
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override readonly onDidChangeSessions = Event.None;
 				}();
@@ -315,6 +322,11 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override getFolderPickerDecision() { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostEnablementService, new class extends mock<IAgentHostEnablementService>() {
+				override readonly enabled = constObservable(false);
+				override readonly managedSandboxEnforced = constObservable(false);
+				override readonly managedSandboxAllowsBypass = constObservable(true);
 			}());
 			reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 			reg.defineInstance(IChatAttachmentWidgetRegistry, new class extends mock<IChatAttachmentWidgetRegistry>() { }());
@@ -395,7 +407,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override readonly onDidChangeLocation = Event.None; }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
-			reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
+			reg.defineInstance(IPathService, new TestPathService());
 			reg.defineInstance(IListService, new ListService());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 			reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {

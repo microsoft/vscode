@@ -19,9 +19,16 @@ jobs:
 
       - uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' # v7.0.0
         with:
-          node-version: 'lts/*'
+          node-version-file: .nvmrc
+
+      - name: 'Install telemetry extractor'
+        run: |
+          # Use the same exact version as npm ci in the official builds.
+          version=$(node -p "require('./package-lock.json').packages['node_modules/@vscode/telemetry-extractor'].version")
+          npm install --prefix "$RUNNER_TEMP/telemetry-extractor" --no-save --no-package-lock --no-audit --no-fund "@vscode/telemetry-extractor@$version"
 
       - name: 'Run vscode-telemetry-extractor'
-        run: 'npx --package=@vscode/telemetry-extractor@1.14.0 --yes vscode-telemetry-extractor -s .'
+        run: node build/azure-pipelines/common/extract-telemetry.ts
         env:
+          VSCODE_TELEMETRY_EXTRACTOR: ${{ runner.temp }}/telemetry-extractor/node_modules/@vscode/telemetry-extractor/out/extractor.js
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

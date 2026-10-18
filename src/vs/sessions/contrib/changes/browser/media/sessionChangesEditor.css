@@ -28,7 +28,7 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 }
 
-.changeset-review-action {
+.monaco-action-bar .checkbox-action-item.changeset-review-action {
 	display: flex;
 	align-items: center;
 	height: var(--vscode-spacing-size200);
@@ -174,24 +174,22 @@
 	white-space: nowrap;
 }
 
+.changes-picker-action-rich .changes-picker-label.non-default {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 .changes-picker-action-rich .changes-picker-summary {
 	display: inline-flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
 	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
 .changes-picker-action-rich .changes-picker-separator {
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
-}
-
-.changes-picker-action-rich .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-}
-
-.changes-picker-action-rich .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 .changes-picker-action-rich .action-label > .codicon {
@@ -346,4 +344,9 @@
 	position: relative;
 	flex: 1;
 	min-height: 0;
+}
+
+.session-changes-editor-body .multiDiffEditor-card .multiDiffEntry.first-diff-entry > .header:not(.shadow) > .header-content {
+	margin-top: 0;
+	height: calc(var(--vscode-spacing-size320) + var(--vscode-spacing-size40));
 }

@@ -13,10 +13,11 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AgentHostSdkSetupNotificationContribution, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupNotification, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { AGENT_SDK_SETUP_DOWNLOAD_COMMAND_ID, AGENT_SDK_SETUP_GITHUB_SIGN_IN_COMMAND_ID, AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID, AGENT_SDK_SETUP_RELOAD_COMMAND_ID, AGENT_SDK_SETUP_SIGN_IN_COMMAND_ID, AgentHostSdkSetupNotificationContribution, agentSdkSetupNotificationId, createAgentSdkSetupNotification, getAgentDisplayNames, getAgentSdkSetupState, getAgentSdkSetupStateToReport, hasAgentSdkSetupForSessionType, type IAgentSdkSetupStateInputs } from '../../../browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { IAgentSdkSetupService, type AgentSdkSetupState } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
+import { ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService, type IChatInputNotification, type IChatInputNotificationAction } from '../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotificationService, type IChatInputNotification, type IChatInputNotificationAction } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 
@@ -51,6 +52,9 @@ suite('Agent SDK setup banner', () => {
 			{ name: 'nothing shows until entitlement settles, since "signed out" is not yet a fact', inputs: { ...BLOCKED_USER, download: 'ready', entitlementResolved: false }, expected: undefined },
 			{ name: 'the missing-account explanation stays behind its flag', inputs: { ...BLOCKED_USER, download: 'ready', allowSignedOutWhenUsable: false }, expected: undefined },
 			{ name: 'a signed-in user is never told they have no account', inputs: { ...BLOCKED_USER, download: 'ready', signedIn: true }, expected: undefined },
+			{ name: 'a signed-in user can be offered an unresolved agent-owned account', inputs: { ...BLOCKED_USER, download: 'ready', signedIn: true, agentAccountState: 'needsSignIn' }, expected: 'noAccount' },
+			{ name: 'an agent-owned account is not guessed while discovery is unresolved', inputs: { ...BLOCKED_USER, download: 'ready', agentAccountState: 'unresolved' }, expected: undefined },
+			{ name: 'an agent-owned account with no models is not called signed out', inputs: { ...BLOCKED_USER, download: 'ready', signedIn: true, agentAccountState: 'available' }, expected: undefined },
 			{ name: 'a signed-in user mid-download is still shown nothing', inputs: { ...BLOCKED_USER, signedIn: true, download: 'downloading' }, expected: undefined },
 
 			// The download is offered to everyone: each of these users can work
@@ -137,6 +141,25 @@ suite('Agent SDK setup banner', () => {
 			// needs from the agent's own declaration rather than trusting the banner.
 			assert.deepStrictEqual(notification.actions.map(action => action.kind === ChatInputNotificationActionKind.Command ? action.commandArgs : undefined), [['codex'], ['codex']]);
 			assert.deepStrictEqual(notification.actions.map(action => action.label), ['Sign in to ChatGPT', 'Sign in to GitHub']);
+		});
+
+		test('an already signed-in GitHub user is only offered the agent-owned route', () => {
+			const notification = createAgentSdkSetupNotification(
+				{ agent: 'codex', download: 'ready', setupDocsUrl: 'https://example.test/codex', signInProviderName: 'ChatGPT' },
+				'Codex',
+				'noAccount',
+				false,
+				false,
+			);
+			const description = notification?.description;
+
+			assert.deepStrictEqual({
+				actions: notification?.actions.map(action => action.label),
+				description: typeof description === 'string' ? description : description?.value,
+			}, {
+				actions: ['Sign in to ChatGPT'],
+				description: `Sign in to ChatGPT to use your ChatGPT subscription, or [reload the configuration](command:${AGENT_SDK_SETUP_RELOAD_COMMAND_ID}?%255B%2522codex%2522%255D) if you have set up Codex elsewhere. For other ways to set up Codex, [learn more](command:${AGENT_SDK_SETUP_OPEN_DOCS_COMMAND_ID}?%255B%2522codex%2522%255D) on their docs.`,
+			});
 		});
 
 		test('the routes named in the copy are the ones the agent declared, ranked as the buttons rank them', () => {
@@ -252,6 +275,11 @@ suite('Agent SDK setup banner', () => {
 				entitlement: ChatEntitlement.Pro,
 				onDidChangeEntitlement: Event.None,
 			});
+			instantiationService.stub(ICodexAccountService, {
+				agent: 'codex',
+				account: { status: 'unknown' },
+				onDidChangeAccount: Event.None,
+			});
 			instantiationService.stub(IAgentHostService, {
 				onAgentHostStart: Event.None,
 				rootState: new class extends mock<IAgentHostService['rootState']>() {
@@ -319,52 +347,18 @@ suite('Agent SDK setup banner', () => {
 		});
 	});
 
-	suite('reachability', () => {
-		/** A notification service holding the given notifications, none dismissed. */
-		function notificationService(notifications: readonly IChatInputNotification[]): IChatInputNotificationService {
-			return new class extends mock<IChatInputNotificationService>() {
-				override getActiveNotification(filter?: (notification: IChatInputNotification) => boolean): IChatInputNotification | undefined {
-					return notifications.find(notification => !filter || filter(notification));
-				}
-			}();
-		}
-
-		function bannersFor(...agents: readonly string[]): readonly IChatInputNotification[] {
-			return agents.flatMap(agent => {
-				const notification = createAgentSdkSetupNotification({ agent, download: 'notDownloaded' }, agent, 'downloadOffered');
-				return notification ? [notification] : [];
-			});
-		}
-
-		test('a banner is found for the session type it is scoped to, and only that one', () => {
-			const service = notificationService(bannersFor('claude'));
-
+	suite('activation reachability', () => {
+		test('an advertised setup is found for its session type and only that one', () => {
+			const setups: readonly IAgentSdkSetupInfo[] = [{ agent: 'claude', download: 'ready' }];
 			assert.deepStrictEqual({
-				claude: hasAgentSdkSetupNotification(service, SessionType.AgentHostClaude),
-				codex: hasAgentSdkSetupNotification(service, SessionType.AgentHostCodex),
-				copilot: hasAgentSdkSetupNotification(service, SessionType.AgentHostCopilot),
+				claude: hasAgentSdkSetupForSessionType(setups, SessionType.AgentHostClaude),
+				codex: hasAgentSdkSetupForSessionType(setups, SessionType.AgentHostCodex),
+				copilot: hasAgentSdkSetupForSessionType(setups, SessionType.AgentHostCopilot),
 			}, { claude: true, codex: false, copilot: false });
 		});
 
-		test('an unscoped notification is not mistaken for a setup banner', () => {
-			// The session-type filter alone passes a notification with no
-			// `sessionTypes` — a quota warning applies everywhere — so the id
-			// carries the "this is a setup ask" bit.
-			const service = notificationService([{
-				id: 'chat.quotaExceeded',
-				severity: ChatInputNotificationSeverity.Warning,
-				message: 'Out of quota',
-				description: undefined,
-				actions: [],
-				dismissible: true,
-				autoDismissOnMessage: false,
-			}]);
-
-			assert.strictEqual(hasAgentSdkSetupNotification(service, SessionType.AgentHostClaude), false);
-		});
-
-		test('nothing on offer means nothing to reach', () => {
-			assert.strictEqual(hasAgentSdkSetupNotification(notificationService([]), SessionType.AgentHostClaude), false);
+		test('no advertised setup leaves the harness gated', () => {
+			assert.strictEqual(hasAgentSdkSetupForSessionType([], SessionType.AgentHostClaude), false);
 		});
 	});
 

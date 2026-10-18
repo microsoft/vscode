@@ -5,7 +5,9 @@
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IpcMainEvent, WebContents } from 'electron';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { isMacintosh } from '../../../base/common/platform.js';
+import { IpcMainEvent, systemPreferences, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/electron-main/ipc.mp.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -23,13 +25,16 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, sanitizeAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
+import { AgentHostAhpJsonlLoggingEnvVar } from '../common/ahpJsonlLogger.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
+	private _managementService: IAgentHostManagementService | undefined;
+	private _systemFullyAwake = true;
 	private readonly _windowSenders = new Map<number, WebContents>();
 	private readonly _windowSenderCleanup = this._register(new DisposableMap<number>());
 
@@ -47,7 +52,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	 * the connection that lazily spawns the host. Used as the `policySettings` of
 	 * `buildAgentHostOTelEnv` in `start()`, falling back to main-process policy when absent.
 	 */
-	private _otelPolicyFromRenderer: IAgentHostOTelSettings | undefined = undefined;
+	private readonly _otelPolicyState = new AgentHostOTelPolicyState();
 
 	constructor(
 		private readonly _telemetryIds: IAgentHostForwardedTelemetryIds,
@@ -70,8 +75,12 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 
 		// Capture the enterprise OTel policy the renderer forwards before it requests a
 		// connection (FIFO per sender ensures this lands before the spawn in `start()`).
-		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown) => {
-			this._otelPolicyFromRenderer = sanitizeAgentHostOTelPolicySettings(policy);
+		const onOTelPolicy = (_e: IpcMainEvent, policy: unknown, ready: unknown) => {
+			if (this._otelPolicyState.update(policy, this.utilityProcess !== undefined, ready === true)) {
+				this._logService.info('Agent Host enterprise OTel policy changed; restarting the Agent Host');
+				this._notifyWindowsWillRestart();
+				this._onRequestRestart.fire();
+			}
 		};
 		validatedIpcMain.on(AgentHostOTelPolicyIpcChannel, onOTelPolicy);
 		this._register(toDisposable(() => {
@@ -93,6 +102,20 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		this._register(toDisposable(() => {
 			validatedIpcMain.removeListener(AgentHostRestartIpcChannel, onRestart);
 		}));
+
+		if (isMacintosh) {
+			// Unlike Electron's `resume` event, macOS posts the did-wake notification
+			// only when the machine fully wakes, not for background (dark) wakes.
+			const subscriptions = [
+				systemPreferences.subscribeWorkspaceNotification('NSWorkspaceWillSleepNotification', () => this._setSystemFullyAwake(false)),
+				systemPreferences.subscribeWorkspaceNotification('NSWorkspaceDidWakeNotification', () => this._setSystemFullyAwake(true)),
+			];
+			this._register(toDisposable(() => {
+				for (const subscription of subscriptions) {
+					systemPreferences.unsubscribeWorkspaceNotification(subscription);
+				}
+			}));
+		}
 	}
 
 	async start(): Promise<IAgentHostConnection> {
@@ -136,25 +159,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// includes the managed-settings `AccountPolicyService` layer that the main
 		// process cannot see); fall back to the main-process policy for the keys it
 		// can resolve (e.g. native MDM via the policy channel).
-		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
-		const policySettings: IAgentHostOTelSettings = this._otelPolicyFromRenderer ?? {
-			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
-			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
-			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
-			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
-			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
-			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
-			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
-			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
-		};
+		const policySettings: IAgentHostOTelSettings = this._otelPolicyState.policy ?? readAgentHostOTelPolicySettings(this._configurationService);
+		this._otelPolicyState.didStart();
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
 			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			captureIdentity: this._configurationService.getValue<boolean>(AgentHostOTelCaptureIdentitySettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env, policySettings);
+		}, process.env, policySettings, shellEnv);
 
 		const args = [
 			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
@@ -187,6 +202,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true',
 					[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeMainProcess,
+					[AgentHostAhpJsonlLoggingEnvVar]: String(this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)),
 					...sdkEnv,
 					...otelEnv,
 					...telemetryIdEnv,
@@ -200,7 +216,16 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			const managementService = ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management));
 
 			const store = new DisposableStore();
+			this._managementService = managementService;
+			store.add(toDisposable(() => {
+				if (this._managementService === managementService) {
+					this._managementService = undefined;
+				}
+			}));
 			store.add(client);
+			if (!this._systemFullyAwake) {
+				this._reportSystemFullyAwake();
+			}
 			store.add(utilityProcess.onStderr(data => {
 				if (this._isExpectedStderr(data)) {
 					return;
@@ -232,6 +257,21 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			this._logService.error('AgentHostStarter was unable to resolve shell environment', error);
 			return {};
 		}
+	}
+
+	private _setSystemFullyAwake(fullyAwake: boolean): void {
+		if (this._systemFullyAwake === fullyAwake) {
+			return;
+		}
+		this._systemFullyAwake = fullyAwake;
+		this._logService.info(`AgentHostStarter: system is ${fullyAwake ? 'fully awake' : 'going to sleep'}`);
+		this._reportSystemFullyAwake();
+	}
+
+	private _reportSystemFullyAwake(): void {
+		void this._managementService?.setSystemFullyAwake(this._systemFullyAwake).catch(error => {
+			this._logService.warn(`AgentHostStarter: failed to report system wake state: ${toErrorMessage(error)}`);
+		});
 	}
 
 	private async _onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {

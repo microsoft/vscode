@@ -382,6 +382,7 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 
 	test('drains queue after fn() resolves', async () => {
 		const log: string[] = [];
+		// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- asserts that the drain runs after fn() resolves, which is only observable outside the call
 		await runWithFakedTimers({}, async () => {
 			setTimeout(() => log.push('a'), 100);
 			setTimeout(() => log.push('b'), 50);
@@ -391,6 +392,7 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 
 	test('useFakeTimers=false bypasses virtual time', async () => {
 		const before = globalThis.setTimeout;
+		// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- captures the real setTimeout before the call to assert useFakeTimers=false leaves it in place
 		await runWithFakedTimers({ useFakeTimers: false }, async () => {
 			assert.strictEqual(globalThis.setTimeout, before);
 		});
@@ -398,6 +400,7 @@ suite('virtualScheduling - runWithFakedTimers', () => {
 
 	test('promise chains awaited inside fn() resolve deterministically', async () => {
 		const log: string[] = [];
+		// eslint-disable-next-line local/code-run-with-faked-timers-whole-test -- self-test of runWithFakedTimers: asserts the result observed by the caller once the call resolves
 		await runWithFakedTimers({}, async () => {
 			await new Promise<void>(resolve => {
 				setTimeout(async () => {
@@ -419,7 +422,8 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 		const clock = new VirtualClock(12345);
 		const api = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 		const originalPerformanceNow = performance.now;
-		const originalPerformanceTimeOrigin = performance.timeOrigin;
+		// WebKit's native timeOrigin getter can return slightly different values on successive reads.
+		const originalPerformanceTimeOriginDescriptor = Object.getOwnPropertyDescriptor(performance, 'timeOrigin');
 		const restore = pushGlobalTimeApi(api);
 		let animationFrameTime: number | undefined;
 		let actual: object;
@@ -438,7 +442,7 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 		assert.deepStrictEqual({
 			actual,
 			restoredPerformanceNow: performance.now === originalPerformanceNow,
-			restoredPerformanceTimeOrigin: performance.timeOrigin,
+			restoredPerformanceTimeOriginDescriptor: Object.getOwnPropertyDescriptor(performance, 'timeOrigin'),
 		}, {
 			actual: {
 				dateNow: 12361,
@@ -447,7 +451,7 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 				animationFrameTime: 16,
 			},
 			restoredPerformanceNow: true,
-			restoredPerformanceTimeOrigin: originalPerformanceTimeOrigin,
+			restoredPerformanceTimeOriginDescriptor: originalPerformanceTimeOriginDescriptor,
 		});
 	});
 });

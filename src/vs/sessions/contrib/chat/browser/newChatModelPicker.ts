@@ -9,15 +9,19 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 export const INewChatModelPickerService = createDecorator<INewChatModelPickerService>('newChatModelPickerService');
 
 export interface INewChatModelPicker {
+	getDomNode(): HTMLElement | undefined;
 	readonly open: () => void;
 	readonly switchToModel: (modelIdentifier: string) => boolean;
 }
 
 export interface INewChatModelPickerService {
 	readonly _serviceBrand: undefined;
+	readonly activePicker: INewChatModelPicker | undefined;
 	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable;
 	openModelPicker(): void;
 	switchToModel(modelIdentifier: string): boolean;
+	/** Moves focus to the prompt input that hosts the model pickers. */
+	focusInput(): void;
 }
 
 export class NewChatModelPickerService implements INewChatModelPickerService {
@@ -25,20 +29,26 @@ export class NewChatModelPickerService implements INewChatModelPickerService {
 
 	private readonly _modelPickers = new Set<INewChatModelPicker>();
 
+	constructor(private readonly _focusInput: () => void = () => { }) { }
+
 	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable {
 		this._modelPickers.add(modelPicker);
 		return toDisposable(() => this._modelPickers.delete(modelPicker));
 	}
 
 	openModelPicker(): void {
-		this._getActiveModelPicker()?.open();
+		this.activePicker?.open();
 	}
 
 	switchToModel(modelIdentifier: string): boolean {
-		return this._getActiveModelPicker()?.switchToModel(modelIdentifier) ?? false;
+		return this.activePicker?.switchToModel(modelIdentifier) ?? false;
 	}
 
-	private _getActiveModelPicker(): INewChatModelPicker | undefined {
+	focusInput(): void {
+		this._focusInput();
+	}
+
+	get activePicker(): INewChatModelPicker | undefined {
 		let activeModelPicker: INewChatModelPicker | undefined;
 		for (const modelPicker of this._modelPickers) {
 			activeModelPicker = modelPicker;

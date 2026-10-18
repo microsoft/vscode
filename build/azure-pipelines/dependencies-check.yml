@@ -93,13 +93,13 @@ jobs:
           git fetch origin main
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
           MODIFIED_BUILD_FOLDERS=""
-           
+
           # Check if build/package-lock.json itself was modified
           if echo "$CHANGED_FILES" | grep -q "^build/package-lock\.json$"; then
             MODIFIED_BUILD_FOLDERS="build"
             echo "build/package-lock.json was modified"
           fi
-           
+
           # Find all modified package-lock.json files under build subfolders and extract their directories
           for file in $CHANGED_FILES; do
             if [[ $file =~ ^(build/.+)/package-lock\.json$ ]]; then
@@ -110,10 +110,15 @@ jobs:
               fi
             fi
           done
-           
+
           echo "##vso[task.setvariable variable=MODIFIED_BUILD_FOLDERS]$MODIFIED_BUILD_FOLDERS"
 
-          for attempt in {1..120}; do
+          ATTEMPTS=120
+          if [ "$(Build.RequestedFor)" = "dependabot[bot]" ]; then
+            ATTEMPTS=3
+          fi
+
+          for attempt in $(seq 1 "$ATTEMPTS"); do
             if [ $attempt -gt 1 ]; then
               echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
               sleep 600
@@ -141,7 +146,7 @@ jobs:
             fi
           done
 
-          echo "giving up after 120 attempts (20 hours)"
+          echo "giving up after $ATTEMPTS attempts"
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
