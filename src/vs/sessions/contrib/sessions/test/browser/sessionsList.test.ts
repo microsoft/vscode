@@ -23,6 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -44,6 +45,7 @@ import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybin
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -7457,6 +7459,48 @@ suite('Sessions - SessionsList', () => {
 				.find(item => item.querySelector('.session-chat-title')?.textContent === title)
 				?.querySelector<HTMLElement>('.session-approval-row') ?? undefined;
 		}
+
+		test('does not grow a session row whose pending approval is shown in the sticky header', async () => {
+			// The editor code block renderer fills approval code blocks asynchronously, so a freshly
+			// rendered sticky copy is measured while the label is still an untokenized placeholder.
+			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const peers = Array.from({ length: 20 }, (_, index) => createChat(`Peer ${index}`, ChatOriginKind.User));
+			const session: ISession = {
+				...createTestSession('ExP triggered scorecards', { status: SessionStatus.NeedsInput }).session,
+				chats: constObservable([main, ...peers]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('editor', { fontFamily: 'monospace' });
+				instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
+			});
+			const container = harness.createContainer(300, 400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+				approvalModel: createApprovalModel(new Map([[main.resource.toString(), terminalApproval(main, 'Write file?')]])),
+			}));
+			list.layout(400, 300);
+			setSessionChatsExpanded(container, true);
+			await timeout(0);
+
+			const sessionRow = () => container.querySelector<HTMLElement>('.monaco-list-rows .session-item')?.closest<HTMLElement>('.monaco-list-row');
+			const initialHeight = sessionRow()?.offsetHeight;
+			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+			let stickyApprovalShown = false;
+			for (let scrollTop = 20; scrollTop <= 200; scrollTop += 20) {
+				tree.scrollTop = scrollTop;
+				stickyApprovalShown ||= !!container.querySelector('.monaco-tree-sticky-row .session-approval-row.visible');
+				await timeout(0);
+			}
+			tree.scrollTop = 0;
+			await timeout(0);
+
+			assert.deepStrictEqual({ stickyApprovalShown, height: sessionRow()?.offsetHeight }, { stickyApprovalShown: true, height: initialHeight });
+		});
 
 		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
 			const main = createChat('Main chat');
