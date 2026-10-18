@@ -1785,6 +1785,11 @@ export class DisableGloballyAction extends ExtensionAction {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
 				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
+			// Hide "Disable" when the extension is only enabled for the workspace -
+			// the dropdown should show "Disable (Workspace)" as the primary action.
+			if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+				this.hidden = true;
+			}
 		}
 	}
 
