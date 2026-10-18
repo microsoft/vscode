@@ -5,7 +5,9 @@
 
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isLinux, isMacintosh } from '../../../../base/common/platform.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -62,7 +64,13 @@ export class NativeClipboardService implements IClipboardService {
 	}
 
 	async readResources(): Promise<URI[]> {
-		return this.bufferToResources(await this.nativeHostService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT));
+		const resources = this.bufferToResources(await this.nativeHostService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT));
+		if (resources.length || !isLinux) {
+			return resources;
+		}
+
+		// Linux file managers (Nautilus, Dolphin, Nemo, ...) publish copied files as `text/uri-list`
+		return this.uriListBufferToFileResources(await this.nativeHostService.readClipboardBuffer(Mimes.uriList));
 	}
 
 	async hasResources(): Promise<boolean> {
@@ -88,6 +96,32 @@ export class NativeClipboardService implements IClipboardService {
 		} catch (error) {
 			return []; // do not trust clipboard data
 		}
+	}
+
+	private uriListBufferToFileResources(buffer: VSBuffer): URI[] {
+		const bufferValue = buffer?.toString();
+		if (!bufferValue) {
+			return [];
+		}
+
+		const resources: URI[] = [];
+		for (const line of bufferValue.split(/\r?\n/)) {
+			const value = line.trim();
+			if (!value || value.startsWith('#')) {
+				continue;
+			}
+
+			try {
+				const resource = URI.parse(value, true);
+				if (resource.scheme === Schemas.file) {
+					resources.push(resource);
+				}
+			} catch (error) {
+				// do not trust clipboard data
+			}
+		}
+
+		return resources;
 	}
 }
 
