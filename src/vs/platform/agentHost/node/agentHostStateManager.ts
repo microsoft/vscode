@@ -1344,6 +1344,18 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	/**
+	 * Emits the pending summary change of `session` now instead of at the end
+	 * of the debounce window, so work that must follow it (such as the catalog
+	 * write it queues) can be awaited.
+	 */
+	flushPendingSessionSummary(session: string): void {
+		if (this._summaryNotifier.isDirty(session)) {
+			this._summaryNotifier.flush(session);
+			this._summaryNotifier.clearDirty(session);
+		}
+	}
+
 	/** Records `root/listSessions` baselines and returns a current snapshot for the response. */
 	prepareSessionSummariesForListing(summaries: readonly SessionSummary[]): SessionSummary[] {
 		const result: SessionSummary[] = [];
