@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import type * as vscode from 'vscode';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -17,27 +18,33 @@ import { TestConfigurationService } from '../../../../platform/configuration/tes
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { IMcpServerMatcher } from '../../../../platform/mcp/common/allowedMcpServers.js';
 import { AllowedMcpServersService } from '../../../../platform/mcp/common/allowedMcpServersService.js';
 import { IAllowedMcpServersService, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchMcpGatewayService } from '../../../contrib/mcp/common/mcpGatewayService.js';
+import { McpRegistry } from '../../../contrib/mcp/common/mcpRegistry.js';
+import { McpTaskManager } from '../../../contrib/mcp/common/mcpTaskManager.js';
 import { IMcpHostDelegate, IMcpRegistry } from '../../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey } from '../../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpCollectionSortOrder, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, mcpOAuthClientSecretStorageKey } from '../../../contrib/mcp/common/mcpTypes.js';
 import { mcpEnterpriseManagedAuthIdpSection } from '../../../contrib/mcp/common/mcpConfiguration.js';
 import { IAuthenticationMcpAccessService } from '../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationService, IAuthenticationWwwAuthenticateRequest } from '../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { IMcpServerAuthContext, MainThreadMcp, McpServerAuthTracker } from '../../browser/mainThreadMcp.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails } from '../../common/extHost.protocol.js';
-import { CommonRequestInit, CommonResponse, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { CommonRequestInit, CommonResponse, ExtHostMcpService, McpHTTPHandle } from '../../common/extHostMcp.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { IExtHostVariableResolverProvider } from '../../common/extHostVariableResolverService.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 function createMainThreadMcp(disposables: Pick<DisposableStore, 'add'>, proxy: Partial<ExtHostMcpShape>, registry: IMcpRegistry, configure?: (services: TestInstantiationService) => void): MainThreadMcp {
@@ -131,6 +138,82 @@ suite('MainThreadMcp - McpServerAuthTracker', () => {
 
 		assert.strictEqual(tracker.get('microsoft'), undefined);
 	});
+});
+
+suite('MainThreadMcp - provider disposal during cached discovery', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const replacement of [false, true]) {
+		test(`pending initial discovery ${replacement ? 'preserves a live replacement' : 'retires the cached collection'} after provider disposal`, async () => {
+			const services = disposables.add(new TestInstantiationService());
+			services.stub(IConfigurationService, new TestConfigurationService());
+			services.stub(ILogService, new NullLogService());
+			services.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true });
+			const registry = disposables.add(services.createInstance(McpRegistry));
+			const started = new DeferredPromise<void>();
+			const published = new DeferredPromise<void>();
+			const result = new DeferredPromise<vscode.McpServerDefinition[]>();
+			const extension = { ...nullExtensionDescription, contributes: { mcpServerDefinitionProviders: [{ id: 'test', label: 'Test MCP' }] } };
+			const collectionId = extensionPrefixedIdentifier(extension.identifier, 'test');
+			const mainThread = createMainThreadMcp(disposables, {
+				$onDidChangeMcpServerDefinitions() { },
+			}, registry);
+			const host = disposables.add(new ExtHostMcpService(
+				SingleProxyRPCProtocol({
+					$upsertMcpCollection: (collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]) => { mainThread.$upsertMcpCollection(collection, servers); void published.complete(); },
+					$deleteMcpCollection: (id: string) => mainThread.$deleteMcpCollection(id),
+				}),
+				new NullLogService(),
+				new class extends mock<IExtHostInitDataService>() {
+					override remote = { isRemote: false, authority: undefined, connectionData: null };
+				},
+				new class extends mock<IExtHostWorkspace>() { },
+				new class extends mock<IExtHostVariableResolverProvider>() { },
+			));
+			const provider = disposables.add(host.registerMcpConfigurationProvider(extension, 'test', {
+				provideMcpServerDefinitions: () => { void started.complete(); return result.p; },
+			}));
+			await started.p;
+
+			const server: McpServerDefinition = {
+				id: 'cached-server', label: 'Cached server', cacheNonce: 'cached',
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse('https://cached.example/mcp'), headers: [] },
+			};
+			let removed = 0;
+			let launchResolutions = 0;
+			const collection: McpCollectionDefinition = {
+				id: collectionId, label: 'Cached collection', remoteAuthority: null,
+				serverDefinitions: observableValue('cachedServers', [server]),
+				trustBehavior: McpServerTrust.Kind.Trusted, scope: StorageScope.WORKSPACE,
+				configTarget: ConfigurationTarget.USER, order: McpCollectionSortOrder.Extension,
+				resolveServerLanch: async () => { launchResolutions++; return undefined; },
+				lazy: {
+					isCached: true,
+					load: () => host.$waitForInitialCollectionProviders(),
+					removed: () => { removed++; cachedRegistration.dispose(); },
+				},
+			};
+			const cachedRegistration = disposables.add(registry.registerCollection(collection));
+			const pending = registry.resolveConnection({
+				collectionRef: collection, definitionRef: server, logger: new NullLogService(),
+				trustNonceBearer: { trustedAtNonce: undefined }, taskManager: disposables.add(new McpTaskManager()),
+			});
+			provider.dispose();
+			if (replacement) {
+				disposables.add(host.registerMcpConfigurationProvider(extension, 'test', { provideMcpServerDefinitions: () => [] }));
+				await published.p;
+			}
+			await result.complete([]);
+			const connection = await pending;
+			assert.deepStrictEqual({
+				connection, removed, launchResolutions,
+				collections: registry.collections.get().map(c => ({ id: c.id, lazy: !!c.lazy, servers: c.serverDefinitions.get().length })),
+			}, {
+				connection: undefined, removed: replacement ? 0 : 1, launchResolutions: 0,
+				collections: replacement ? [{ id: collectionId, lazy: false, servers: 0 }] : [],
+			});
+		});
+	}
 });
 
 suite('MainThreadMcp - launch', () => {
