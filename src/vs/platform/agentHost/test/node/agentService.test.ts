@@ -24348,9 +24348,12 @@ suite('AgentService (node dispatcher)', () => {
 				catalogDeferred = false;
 				listChatsToMigrateCalls = 0;
 				getChatMetadataCalls = 0;
+				readonly migrationStarted = new DeferredPromise<void>();
+				readonly metadataRead = new DeferredPromise<void>();
 
 				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | undefined | typeof AgentChatMigrationDeferred> {
 					this.listChatsToMigrateCalls++;
+					this.migrationStarted.complete();
 					await this.migrationGate.p;
 					if (this.catalogDeferred) {
 						return AgentChatMigrationDeferred;
@@ -24364,6 +24367,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 					this.getChatMetadataCalls++;
+					this.metadataRead.complete();
 					return this.sdkReady ? super.getChatMetadata(chat, context) : undefined;
 				}
 			}
@@ -24374,12 +24378,6 @@ suite('AgentService (node dispatcher)', () => {
 
 			function seedSession(agent: MockAgent, session: URI): void {
 				(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
-			}
-
-			async function advanceUntil(predicate: () => boolean): Promise<void> {
-				for (let i = 0; i < 50 && !predicate(); i++) {
-					await timeout(0);
-				}
 			}
 
 			test('waits for initial provider migration instead of a false SESSION_NOT_FOUND', async () => {
@@ -24394,7 +24392,7 @@ suite('AgentService (node dispatcher)', () => {
 				// The gated catalogue migration starts from `registerProvider`, so waiting
 				// on it alone would sample the counters before restore's own (independent)
 				// metadata read has landed.
-				await advanceUntil(() => agent.listChatsToMigrateCalls > 0 && agent.getChatMetadataCalls > 0);
+				await Promise.all([agent.migrationStarted.p, agent.metadataRead.p]);
 				const beforeGate = {
 					metadataRead: agent.getChatMetadataCalls,
 					hydrated: !!getStateManager(svc).getSessionState(session.toString()),
@@ -24425,7 +24423,7 @@ suite('AgentService (node dispatcher)', () => {
 				const restore = svc.restoreSession(session).catch(err => { rejected = err; });
 				// Wait until restore is parked on the catalogue: deleting before it reads
 				// metadata would trip the early tombstone check instead of the one after.
-				await advanceUntil(() => agent.listChatsToMigrateCalls > 0 && agent.getChatMetadataCalls > 0);
+				await Promise.all([agent.migrationStarted.p, agent.metadataRead.p]);
 				await svc.disposeSession(session);
 				agent.migrationGate.complete();
 				await restore;
@@ -24599,7 +24597,7 @@ suite('AgentService (node dispatcher)', () => {
 				seedSession(ready, session);
 				registerTestAgentProvider(svc, stalled);
 				registerTestAgentProvider(svc, ready);
-				await advanceUntil(() => stalled.listChatsToMigrateCalls > 0);
+				await stalled.migrationStarted.p;
 
 				await svc.restoreSession(session);
 
@@ -25724,19 +25722,14 @@ suite('AgentService (node dispatcher)', () => {
 				await releaseBlocker.p;
 			});
 			await blockerStarted.p;
-			const notifications: INotification[] = [];
-			const listener = localService.onDidNotification(notification => notifications.push(notification));
+			const published = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged' && notification.session === sessionKey), disposables);
 
 			localService.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-				await timeout(0);
-			}
-			const publishedBeforeRelease = notifications.some(notification => notification.type === 'root/sessionSummaryChanged');
+			const publishedBeforeRelease = !!await raceTimeout(published, 5000);
 			const persistedBeforeRelease = await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY);
 			releaseBlocker.complete();
 			await blocker;
 			await localService.whenCatalogReconciliationIdle();
-			listener.dispose();
 			const catalog = await internals._orchestratorDatabase.getSessionV2(sessionKey);
 
 			assert.deepStrictEqual({
@@ -26086,15 +26079,7 @@ suite('AgentService (node dispatcher)', () => {
 			// entry, so the entry-time snapshot says "no passive handling needed", but it
 			// was evicted before the callback ran. Persistence rides the envelope either
 			// way; the catalogue delta is what goes missing.
-			let onWrite: (() => void) | undefined;
-			class HookedDb extends TestSessionDatabase {
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					await super.setMetadataValues(values);
-					onWrite?.();
-				}
-			}
-			const db = new HookedDb();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 
 			const liveSession = (await localService.createSession({ legacyChatUris: true, provider: 'copilot' })).toString();
@@ -26113,24 +26098,34 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			getStateManager(localService).announceSurfacedSession(surfacedSummary);
 			getStateManager(localService).prepareSessionSummariesForListing([surfacedSummary]);
-			onWrite = () => { getStateManager(localService).removeSession(liveSession); onWrite = undefined; };
+			// Evict once the holder's passive write lands, while the second toggle is still queued behind it.
+			const store = getTestSessionStateStore(localService);
+			const writeMetadata = store.writeMetadata.bind(store);
+			const evictedWhileQueued = new DeferredPromise<true>();
+			store.writeMetadata = async (session, resource, values, flush) => {
+				await writeMetadata(session, resource, values, flush);
+				if (session.toString() === surfaced && !evictedWhileQueued.isSettled) {
+					getStateManager(localService).removeSession(liveSession);
+					evictedWhileQueued.complete(true);
+				}
+			};
 
-			const notifications: INotification[] = [];
-			const listener = localService.onDidNotification(n => notifications.push(n));
+			const published = Event.toPromise(Event.filter(localService.onDidNotification, n => n.type === 'root/sessionSummaryChanged' && n.session === liveSession), disposables);
 			localService.dispatchAction(surfaced, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'c', 1, AgentHostClientType.EditorWindow);
 			localService.dispatchAction(liveSession, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'c', 2, AgentHostClientType.EditorWindow);
-			for (let i = 0; i < 30; i++) {
-				await timeout(0);
-			}
-			listener.dispose();
+			const evicted = await raceTimeout(evictedWhileQueued.p, 5000);
+			const summaryChanged = await raceTimeout(published, 5000);
+			await store.whenIdle(undefined);
+			await localService.whenCatalogReconciliationIdle();
 
-			const published = notifications.find(n => n.type === 'root/sessionSummaryChanged' && n.session === liveSession);
 			assert.deepStrictEqual({
+				evictedWhileQueued: evicted,
 				evicted: !getStateManager(localService).getSessionState(liveSession),
-				publishedArchived: published?.type === 'root/sessionSummaryChanged'
-					? !!((published.changes.status ?? 0) & SessionStatus.IsArchived)
+				publishedArchived: summaryChanged?.type === 'root/sessionSummaryChanged'
+					? !!((summaryChanged.changes.status ?? 0) & SessionStatus.IsArchived)
 					: undefined,
 			}, {
+				evictedWhileQueued: true,
 				evicted: true,
 				publishedArchived: true,
 			});
