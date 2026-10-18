@@ -10561,6 +10561,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.extensionLaunchTrust', value: '' },
 						{ key: 'copilot.customizationDirectory', value: previous.toString() },
 						{ key: 'copilot.sharedCustomizationDirectories', value: '' },
 						{ key: 'copilot.project.uri', value: '' },
@@ -10568,6 +10569,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: '' },
 						{ key: 'copilot.workingDirectory', value: previous.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([previous.toString()]) },
+						{ key: 'copilot.extensionLaunchTrust', value: '' },
 					],
 					metadata: {
 						'copilot.workingDirectory': previous.toString(),
@@ -10655,6 +10657,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.extensionLaunchTrust', value: '' },
 						{ key: 'copilot.customizationDirectory', value: previous.toString() },
 						{ key: 'copilot.sharedCustomizationDirectories', value: '' },
 						{ key: 'copilot.project.uri', value: previous.toString() },
@@ -10662,6 +10665,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: previous.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([previous.toString()]) },
+						{ key: 'copilot.extensionLaunchTrust', value: '' },
 					],
 					metadata: {
 						'copilot.workingDirectory': previous.toString(),
@@ -10751,6 +10755,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.extensionLaunchTrust', value: '' },
 						{ key: 'copilot.customizationDirectory', value: actual.toString() },
 						{ key: 'copilot.sharedCustomizationDirectories', value: '' },
 						{ key: 'copilot.project.uri', value: '' },
@@ -10758,6 +10763,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: actual.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([actual.toString()]) },
+						{ key: 'copilot.extensionLaunchTrust', value: '' },
 					],
 					metadata: {
 						'copilot.workingDirectory': actual.toString(),

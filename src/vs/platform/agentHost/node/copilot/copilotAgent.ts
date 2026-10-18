@@ -7889,7 +7889,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stageRecorder?.mark('snapshot');
 			const storedMetadata = await this._readSessionMetadata({ storage: context.resource, owner: ownerSession });
 			// Read only when the chat's own pin and the host-supplied directories leave a gap: then the owning session database's pin decides, as on main.
-			let ownerMetadata: { readonly workingDirectory?: URI; readonly project?: IAgentSessionProjectInfo } | undefined;
+			let ownerMetadata: { readonly workingDirectory?: URI } | undefined;
 			const readOwnerMetadata = async () => ownerMetadata ??= isEqual(context.resource, ownerSession)
 				? storedMetadata
 				: await this._readSessionMetadata(sessionMetadataScope(ownerSession));
@@ -7934,8 +7934,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, info.agent?.uri);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(ownerSession, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, ownerSession, chat, context.resource, workingDirectory);
-			const project = storedMetadata.project ?? (await readOwnerMetadata()).project;
 			const extensionLaunchInheritedTrust = await this._resolvePersistedExtensionLaunchTrust(workingDirectory, storedMetadata.extensionLaunchTrust);
+			const project = storedMetadata.project;
 			const effectiveProject = extensionLaunchInheritedTrust[0]
 				? { uri: extensionLaunchInheritedTrust[0].trustedFrom, displayName: resourceBasename(extensionLaunchInheritedTrust[0].trustedFrom) }
 				: project;
@@ -9153,7 +9153,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _storeExtensionLaunchTrust(scope: ICopilotMetadataScope, trust: ICopilotExtensionLaunchInheritedTrust | undefined): Promise<void> {
-		const dbRef = this._sessionDataService.openDatabase(scope.storage);
+		const dbRef = trust
+			? this._sessionDataService.openDatabase(scope.storage)
+			: await this._sessionDataService.tryOpenDatabase(scope.storage);
+		if (!dbRef) {
+			return;
+		}
 		try {
 			await dbRef.object.setMetadata(CopilotAgent._META_EXTENSION_LAUNCH_TRUST, trust ? JSON.stringify({
 				directory: trust.directory.toString(),
