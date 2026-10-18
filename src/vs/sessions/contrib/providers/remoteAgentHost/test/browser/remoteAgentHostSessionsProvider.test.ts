@@ -1784,7 +1784,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('opaque advertised default and peer chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const disposed: string[] = [];
-		const created: { session: string; forkSource?: string; sideChatSource?: string }[] = [];
+		const created: { session: string; forkSource?: string; sideChatSource?: string; title?: string }[] = [];
 		const backend = URI.parse('session-store://tenant/opaque/session?generation%3D2');
 		const defaultChat = URI.parse('conversation://tenant/default?revision%3D3#entry');
 		const peer = URI.parse('conversation://tenant/peer?revision%3D4#entry');
@@ -1797,7 +1797,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			override readonly initializeResult = constObservable<InitializeResult>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] });
 			override async disposeChat(resource: URI): Promise<void> { disposed.push(resource.toString()); }
 			override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
-				created.push({ session: session.toString(), forkSource: options?.fork?.source.toString(), sideChatSource: options?.sideChat?.source.toString() });
+				created.push({ session: session.toString(), forkSource: options?.fork?.source.toString(), sideChatSource: options?.sideChat?.source.toString(), title: options?.title });
 				state = { ...state, chats: [...state.chats, createChatState({ resource: chat.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() })] };
 				this.setChannelState(session, state);
 			}
@@ -1813,7 +1813,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0);
 		const session = provider.getSessions()[0];
 		const peerResource = session.resource.with({ fragment: peer.toString() });
-		await provider.forkChat(session.sessionId, session.resource, 'source-turn');
+		await provider.forkChat(session.sessionId, session.resource, 'source-turn', { title: 'Optional fork title' });
 		await provider.createSideChat(session.sessionId, peerResource, 'source-turn');
 		await provider.renameChat(session.sessionId, session.resource, 'Renamed default');
 		await provider.renameChat(session.sessionId, peerResource, 'Renamed peer');
@@ -1832,8 +1832,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			archives: [peer.toString()],
 			disposed: [peer.toString()],
 			created: [
-				{ session: backend.toString(), forkSource: defaultChat.toString(), sideChatSource: undefined },
-				{ session: backend.toString(), forkSource: undefined, sideChatSource: peer.toString() },
+				{ session: backend.toString(), forkSource: defaultChat.toString(), sideChatSource: undefined, title: 'Optional fork title' },
+				{ session: backend.toString(), forkSource: undefined, sideChatSource: peer.toString(), title: undefined },
 			],
 			resource: backend.with({ scheme: 'remote-localhost__4321-copilot' }).toString(),
 		});

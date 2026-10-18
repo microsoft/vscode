@@ -2067,7 +2067,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// The default chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
 			const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(params.channel);
-			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString() && params.initialMessage === undefined) {
 				return null;
 			}
 			const chatUriError = createChatUriError(defaultChat, state.chats.map(existing => existing.resource), params.chat);
@@ -2075,13 +2075,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined = params.workingDirectories !== undefined
-				? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) }
+			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined
+				? {
+					...(params.title !== undefined ? { title: params.title } : {}),
+					...(params.workingDirectories !== undefined ? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) } : {}),
+					...(params.initialMessage !== undefined ? { initialMessage: params.initialMessage } : {}),
+				}
 				: undefined;
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:
-						options = { fork: { source: URI.parse(source.chat), turnId: source.turnId } };
+						options = {
+							...(params.title !== undefined ? { title: params.title } : {}),
+							...(params.initialMessage !== undefined ? { initialMessage: params.initialMessage } : {}),
+							fork: { source: URI.parse(source.chat), turnId: source.turnId },
+						};
 						break;
 					case ChatSourceKind.SideChat:
 						options = {
@@ -2102,6 +2110,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				URI.parse(params.chat),
 				options,
 				this._config.scopedRelayCredentials ? this._getScopedAuthentication(_client) : undefined,
+				params.initialMessage === undefined
+					? undefined
+					: {
+						clientId: _client.clientId,
+						telemetryContext: _client.telemetryContext,
+					},
 			);
 			return null;
 		},

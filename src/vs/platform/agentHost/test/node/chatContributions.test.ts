@@ -1347,7 +1347,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd({ session, channel: firstPeer, turnId: 'first', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: secondPeer, turnId: 'second', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: buildDefaultChatUri(session), turnId: 'default', reason: { kind: 'success' } });
-		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' } } });
+		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' }, recoverable: true } });
 
 		assert.deepStrictEqual({
 			chatReadChanges,
@@ -2203,7 +2203,7 @@ suite('AgentHostChatContributions', () => {
 			{ kind: 'cancelled' },
 			{ kind: 'error', error, resumable: false },
 			{ kind: 'error', error, resumable: true },
-			{ kind: 'rejected', error },
+			{ kind: 'rejected', error, recoverable: true },
 			{ kind: 'localCommand' },
 		] satisfies ITurnEnd['reason'][]) {
 			contributions.service.turnEnd({ ...turnEnd('root-refresh', reason), channel: `agent-host-session://${reason.kind}-${reason.kind === 'error' ? reason.resumable : false}` });
@@ -2403,6 +2403,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('rejected', {
 			kind: 'rejected',
 			error: { errorType: 'noAgent', message: 'No agent found for session' },
+			recoverable: true,
 		}));
 		const rejectedReadChanges = [...readChanges];
 		contributions.service.turnEnd(turnEnd('error', {
@@ -2426,6 +2427,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('rejected', {
 			kind: 'rejected',
 			error: { errorType: 'noAgent', message: 'No agent found for session' },
+			recoverable: true,
 		}));
 
 		assert.deepStrictEqual({
@@ -2666,7 +2668,7 @@ suite('AgentHostChatContributions', () => {
 		titles.service.turnEnd({ ...turn, reason: { kind: 'cancelled' } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'localCommand' } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'error', error: { errorType: 'test', message: 'Failed' }, resumable: false } });
-		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' } } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' }, recoverable: true } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'success' } });
 		assert.deepStrictEqual(titles.titleController.refinedTitles, [false, false, false, true].map(successful => ({
 			channel: titles.session, chatChannel: titles.defaultChat, successful,
