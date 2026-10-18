@@ -25835,6 +25835,53 @@ suite('CopilotAgent', () => {
 			}).timeout(30_000);
 		}
 
+		test('resume preserves inherited extension trust for an isolated worktree', async () => {
+			const tempRoot = await fs.mkdtemp(`${os.tmpdir()}/resume-worktree-extension-`);
+			const repository = join(tempRoot, 'repository');
+			const worktree = join(tempRoot, 'repository.worktrees', 'session');
+			const extensionDirectory = join(worktree, '.github', 'extensions', 'preview');
+			const modulePath = join(extensionDirectory, 'extension.mjs');
+			await fs.mkdir(repository, { recursive: true });
+			await fs.mkdir(extensionDirectory, { recursive: true });
+			await fs.writeFile(modulePath, '');
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 's1');
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(worktree).toString());
+				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(worktree).toString()]));
+				await dbRef.object.setMetadata('copilot.project.resolved', 'true');
+				await dbRef.object.setMetadata('copilot.project.uri', URI.file(repository).toString());
+				await dbRef.object.setMetadata('copilot.project.displayName', 'repository');
+			} finally {
+				dbRef.dispose();
+			}
+			const client = new TestCopilotClient([sdkSession('s1', worktree)]);
+			client.resumeSession = async id => new MockCopilotSession(id) as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService,
+				rootConfig: {
+					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(repository).toString()] },
+				},
+			});
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await (agent as unknown as AgentInternals)._resumeSession('s1', sessionBackedChat('s1'));
+				const launch = await getCreatedClientOptions(agent).at(-1)?.extensionLaunchProvider?.resolve({
+					id: 'project:preview',
+					name: 'preview',
+					modulePath,
+					source: 'project',
+				});
+				assert.strictEqual(launch?.launch?.env.EXTENSION_PATH, await fs.realpath(modulePath));
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
 		test('resume replaces the complete SDK system message when configured', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);
 			const promptOverrideFile = '/prompt.yaml';

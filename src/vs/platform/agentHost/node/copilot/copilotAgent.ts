@@ -7822,7 +7822,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stageRecorder?.mark('snapshot');
 			const storedMetadata = await this._readSessionMetadata({ storage: context.resource, owner: ownerSession });
 			// Read only when the chat's own pin and the host-supplied directories leave a gap: then the owning session database's pin decides, as on main.
-			let ownerMetadata: { readonly workingDirectory?: URI } | undefined;
+			let ownerMetadata: { readonly workingDirectory?: URI; readonly project?: IAgentSessionProjectInfo } | undefined;
 			const readOwnerMetadata = async () => ownerMetadata ??= isEqual(context.resource, ownerSession)
 				? storedMetadata
 				: await this._readSessionMetadata(sessionMetadataScope(ownerSession));
@@ -7867,6 +7867,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, info.agent?.uri);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(ownerSession, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, ownerSession, chat, context.resource, workingDirectory);
+			const project = storedMetadata.project ?? (await readOwnerMetadata()).project;
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, project?.uri);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'resume',
 				client,
@@ -7874,6 +7876,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId: info.sdkSessionId,
 				workingDirectory,
 				additionalDirectories,
+				extensionLaunchInheritedTrust,
 				resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 				snapshot,
 				disabledRootMcpServers,
@@ -8667,6 +8670,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (storedMetadata.agent && !resolvedAgentName) {
 				this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);
 			}
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(resolvedWorkingDirectory, storedMetadata.project?.uri);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'resume',
 				client,
@@ -8674,6 +8678,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId,
 				workingDirectory: resolvedWorkingDirectory,
 				additionalDirectories,
+				extensionLaunchInheritedTrust,
 				resolvedAgentName,
 				snapshot,
 				disabledRootMcpServers,
@@ -8966,7 +8971,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Reads chat metadata, preferring the host's workspaceless state over legacy provider storage. */
-	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; workspaceless?: boolean }> {
+	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; workspaceless?: boolean }> {
 		const workspaceless = this._sessionSettings.get(scope.owner)?.workspaceless;
 		const ref = await this._openMetadata(scope);
 		if (!ref) {
@@ -8979,10 +8984,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[CopilotAgent._META_CWD]: true,
 				[CopilotAgent._META_CWDS]: true,
 				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: true,
+				[CopilotAgent._META_PROJECT_URI]: true,
+				[CopilotAgent._META_PROJECT_DISPLAY_NAME]: true,
 				[AH_META_WORKSPACELESS_DB_KEY]: true,
 			});
 			const cwd = m[CopilotAgent._META_CWD];
 			const customizationDirectory = m[CopilotAgent._META_CUSTOMIZATION_DIRECTORY];
+			const projectUri = m[CopilotAgent._META_PROJECT_URI];
+			const projectDisplayName = m[CopilotAgent._META_PROJECT_DISPLAY_NAME];
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			return {
 				model: this._parseModelSelection(m[CopilotAgent._META_MODEL]),
@@ -8990,6 +8999,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				workingDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_CWDS], workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
+				project: projectUri && projectDisplayName ? { uri: URI.parse(projectUri), displayName: projectDisplayName } : undefined,
 				workspaceless: workspaceless ?? m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 			};
 		} finally {
