@@ -45,12 +45,13 @@ suite('git ignore decorations', () => {
 	});
 
 	test('checks pending paths once the debounce elapses', async () => {
-		const filePath = path.join(root, 'ignored.txt');
-		const decoration = provider.provideFileDecoration(Uri.file(filePath));
+		const uri = Uri.file(path.join(root, 'ignored.txt'));
+		const decoration = provider.provideFileDecoration(uri);
 
 		clock.tick(500);
 
-		assert.deepStrictEqual({ checkedPaths, ignored: !!(await decoration) }, { checkedPaths: [[filePath]], ignored: true });
+		// Compare against `fsPath`, which the provider passes on and which lowercases Windows drive letters.
+		assert.deepStrictEqual({ checkedPaths, ignored: !!(await decoration) }, { checkedPaths: [[uri.fsPath]], ignored: true });
 	});
 
 	test('does not run check-ignore for a repository closed before the debounce elapses', async () => {
