@@ -95,6 +95,7 @@ import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js'
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
+import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
@@ -109,7 +110,7 @@ import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConver
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotExtensionLaunchInheritedTrust } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -1092,6 +1093,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session cannot revoke a root that another session still admits.
 	 */
 	private readonly _extensionLaunchRoots = new Map<string, number>();
+	private readonly _extensionLaunchInheritedTrustRoots = new Map<string, Map<string, number>>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
 
 	/** Exact chat -> its owner as the host context recorded it (read at use), for fork/restore paths that only know the chat URI. */
@@ -2138,7 +2140,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return fs.realpath(path);
 	}
 
-	private async _acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable> {
+	private async _acquireExtensionLaunchAdmission(directories: readonly URI[], inheritedTrust: readonly ICopilotExtensionLaunchInheritedTrust[] = []): Promise<IDisposable> {
 		const roots: string[] = [];
 		for (const directory of directories) {
 			if (directory.scheme !== Schemas.file) {
@@ -2153,6 +2155,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 		for (const root of roots) {
 			this._extensionLaunchRoots.set(root, (this._extensionLaunchRoots.get(root) ?? 0) + 1);
 		}
+		const inheritedRoots: [directory: string, trustedFrom: string][] = [];
+		for (const inherited of inheritedTrust) {
+			if (inherited.directory.scheme !== Schemas.file || inherited.trustedFrom.scheme !== Schemas.file) {
+				continue;
+			}
+			try {
+				const directory = await this._realpath(inherited.directory.fsPath);
+				const trustedFrom = await this._realpath(inherited.trustedFrom.fsPath);
+				if (roots.includes(directory)) {
+					inheritedRoots.push([directory, trustedFrom]);
+					const trustedRoots = this._extensionLaunchInheritedTrustRoots.get(directory) ?? new Map<string, number>();
+					trustedRoots.set(trustedFrom, (trustedRoots.get(trustedFrom) ?? 0) + 1);
+					this._extensionLaunchInheritedTrustRoots.set(directory, trustedRoots);
+				}
+			} catch (error) {
+				this._logService.warn(`[Copilot] Failed to canonicalize inherited extension trust: ${getErrorMessage(error)}`);
+			}
+		}
 		return toDisposable(() => {
 			for (const root of roots) {
 				const count = this._extensionLaunchRoots.get(root);
@@ -2160,6 +2180,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._extensionLaunchRoots.delete(root);
 				} else {
 					this._extensionLaunchRoots.set(root, count - 1);
+				}
+			}
+			for (const [directory, trustedFrom] of inheritedRoots) {
+				const trustedRoots = this._extensionLaunchInheritedTrustRoots.get(directory);
+				if (!trustedRoots) {
+					continue;
+				}
+				const count = trustedRoots.get(trustedFrom);
+				if (count === undefined || count <= 1) {
+					trustedRoots.delete(trustedFrom);
+				} else {
+					trustedRoots.set(trustedFrom, count - 1);
+				}
+				if (trustedRoots.size === 0) {
+					this._extensionLaunchInheritedTrustRoots.delete(directory);
 				}
 			}
 		});
@@ -2200,6 +2235,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _isWorkspaceTrusted(resource: URI): Promise<boolean> {
+		if (await this._isConfiguredWorkspaceTrusted(resource)) {
+			return true;
+		}
+		for (const [directory, trustedRoots] of this._extensionLaunchInheritedTrustRoots) {
+			if (!isEqualOrParent(resource, URI.file(directory))) {
+				continue;
+			}
+			for (const trustedFrom of trustedRoots.keys()) {
+				if (await this._isConfiguredWorkspaceTrusted(URI.file(trustedFrom))
+					&& this._extensionLaunchInheritedTrustRoots.get(directory)?.has(trustedFrom)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private async _isConfiguredWorkspaceTrusted(resource: URI): Promise<boolean> {
 		const trust = this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey);
 		if (!trust) {
 			return false;
@@ -2226,6 +2279,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		return canonicalTrustedUris.some(uri => uri && extUriBiasedIgnorePathCase.isEqualOrParent(resource, uri));
+	}
+
+	private async _resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined): Promise<readonly ICopilotExtensionLaunchInheritedTrust[]> {
+		if (!workingDirectory || !repository
+			|| workingDirectory.scheme !== Schemas.file
+			|| repository.scheme !== Schemas.file
+			|| !isWorktreeUnderRepository(workingDirectory, repository)) {
+			return [];
+		}
+		let canonicalRepository: URI;
+		try {
+			canonicalRepository = URI.file(await this._realpath(repository.fsPath));
+		} catch {
+			return [];
+		}
+		return await this._isConfiguredWorkspaceTrusted(canonicalRepository)
+			? [{ directory: workingDirectory, trustedFrom: repository }]
+			: [];
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -6118,6 +6189,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const snapshot = await activeClient.snapshot(chat.toString(), anchor?.object, provisional.agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, owner, chat, storage, workingDirectory);
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, provisional.project?.uri);
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -6127,6 +6199,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				hasScopedEditSurface: provisional.hasScopedEditSurface,
 				workingDirectory,
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
+				extensionLaunchInheritedTrust,
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
 				disabledRootMcpServers: await this._disabledRootMcpServers(owner, snapshot),
@@ -8473,7 +8546,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session.dispose();
 			throw new CancellationError();
 		}
-		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories);
+		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories, session.extensionLaunchInheritedTrust);
 		if (this._isShuttingDown || token.isCancellationRequested) {
 			extensionLaunchAdmission.dispose();
 			session.dispose();

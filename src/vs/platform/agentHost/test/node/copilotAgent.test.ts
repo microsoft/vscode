@@ -3790,15 +3790,22 @@ suite('CopilotAgent', () => {
 		const workspace = join(tempRoot, 'workspace');
 		const trustedAlias = join(tempRoot, 'trusted-alias');
 		const untrustedWorkspace = join(tempRoot, 'untrusted-workspace');
+		const repository = join(tempRoot, 'repository');
+		const worktree = join(tempRoot, 'repository.worktrees', 'session');
 		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
 		const modulePath = join(extensionDirectory, 'extension.mjs');
 		const untrustedExtensionDirectory = join(untrustedWorkspace, 'preview');
 		const escapedExtensionDirectory = join(workspace, '.github', 'extensions', 'escaped');
 		const escapedModulePath = join(escapedExtensionDirectory, 'extension.mjs');
+		const worktreeExtensionDirectory = join(worktree, '.github', 'extensions', 'preview');
+		const worktreeModulePath = join(worktreeExtensionDirectory, 'extension.mjs');
 		await fs.mkdir(extensionDirectory, { recursive: true });
 		await fs.mkdir(untrustedExtensionDirectory, { recursive: true });
+		await fs.mkdir(repository, { recursive: true });
+		await fs.mkdir(worktreeExtensionDirectory, { recursive: true });
 		await fs.writeFile(modulePath, '');
 		await fs.writeFile(join(untrustedExtensionDirectory, 'extension.mjs'), '');
+		await fs.writeFile(worktreeModulePath, '');
 		await fs.symlink(workspace, trustedAlias, process.platform === 'win32' ? 'junction' : 'dir');
 		await fs.symlink(untrustedExtensionDirectory, escapedExtensionDirectory, process.platform === 'win32' ? 'junction' : 'dir');
 		const { agent: createdAgent, configurationService } = createTestAgentContext(disposables, {
@@ -3806,8 +3813,9 @@ suite('CopilotAgent', () => {
 		});
 		const agent = createdAgent as TestableCopilotAgent;
 		const internals = agent as unknown as {
-			_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
+			_acquireExtensionLaunchAdmission(directories: readonly URI[], inheritedTrust?: readonly { readonly directory: URI; readonly trustedFrom: URI }[]): Promise<IDisposable>;
 			_resolveExtensionLaunch(modulePath: string, source: 'project', extensionBootstrapPath: string): Promise<{ readonly launch?: unknown }>;
+			_resolveExtensionLaunchInheritedTrust(workingDirectory: URI | undefined, repository: URI | undefined): Promise<readonly { readonly directory: URI; readonly trustedFrom: URI }[]>;
 		};
 
 		try {
@@ -3852,6 +3860,18 @@ suite('CopilotAgent', () => {
 			const trustDisabled = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 			admission.dispose();
 			const noAdmission = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(repository).toString()] },
+			});
+			const inheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(worktree), URI.file(repository));
+			const invalidInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(untrustedWorkspace), URI.file(repository));
+			const worktreeAdmission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(worktree)], inheritedTrust));
+			const inheritedWorktree = await internals._resolveExtensionLaunch(worktreeModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			});
+			const inheritedWorktreeAfterRevocation = await internals._resolveExtensionLaunch(worktreeModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			worktreeAdmission.dispose();
 
 			assert.deepStrictEqual({
 				missingTrustConfig: !!missingTrustConfig.launch,
@@ -3862,6 +3882,10 @@ suite('CopilotAgent', () => {
 				revokedDuringResolution: !!revokedDuringResolution.launch,
 				trustDisabled: !!trustDisabled.launch,
 				noAdmission: !!noAdmission.launch,
+				inheritedTrust: inheritedTrust.map(item => ({ directory: item.directory.toString(), trustedFrom: item.trustedFrom.toString() })),
+				invalidInheritedTrust,
+				inheritedWorktree: !!inheritedWorktree.launch,
+				inheritedWorktreeAfterRevocation: !!inheritedWorktreeAfterRevocation.launch,
 			}, {
 				missingTrustConfig: false,
 				untrusted: false,
@@ -3871,6 +3895,10 @@ suite('CopilotAgent', () => {
 				revokedDuringResolution: false,
 				trustDisabled: true,
 				noAdmission: false,
+				inheritedTrust: [{ directory: URI.file(worktree).toString(), trustedFrom: URI.file(repository).toString() }],
+				invalidInheritedTrust: [],
+				inheritedWorktree: true,
+				inheritedWorktreeAfterRevocation: false,
 			});
 		} finally {
 			await fs.rm(tempRoot, { recursive: true, force: true });

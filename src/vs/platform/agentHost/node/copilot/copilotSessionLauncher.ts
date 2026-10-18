@@ -299,6 +299,8 @@ interface ICopilotSessionLaunchBase {
 	 * launches in {@link workingDirectory}.
 	 */
 	readonly additionalDirectories?: readonly URI[];
+	/** Session-scoped project-extension trust inherited by validated isolated worktrees. */
+	readonly extensionLaunchInheritedTrust?: readonly ICopilotExtensionLaunchInheritedTrust[];
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/** Root-configured MCP servers disabled by the owning session's resolved customization state. */
@@ -327,6 +329,12 @@ interface ICopilotSessionLaunchBase {
 	 * layer (session `_meta`, stored metadata) that this value flows from.
 	 */
 	readonly workspaceless?: boolean;
+}
+
+/** A launch directory whose trust follows a validated, trusted base repository. */
+export interface ICopilotExtensionLaunchInheritedTrust {
+	readonly directory: URI;
+	readonly trustedFrom: URI;
 }
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
