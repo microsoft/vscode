@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -501,9 +502,79 @@ suite('ChatImageCarouselService helpers', () => {
 			assert.ok(data instanceof Uint8Array, 'image data should be Uint8Array');
 			assert.deepStrictEqual([...data], [1, 2, 3]);
 		});
+
+		test('retains the original file alongside resized attachment data for downloads', async () => {
+			const resource = URI.file('/original.jpg');
+			const preview = new Uint8Array([1, 2, 3]);
+			const request = makeRequest('request', [makeImageVariableEntry({
+				name: 'original.jpg',
+				mimeType: 'image/jpeg',
+				value: preview,
+				references: [{ kind: 'reference', reference: resource }],
+			})]);
+
+			const sections = await collectCarouselSections([request], async () => { throw new Error('Images should load lazily'); });
+
+			assert.deepStrictEqual(sections[0].images, [{
+				id: resource.toString(),
+				name: 'original.jpg',
+				mimeType: 'image/jpeg',
+				data: VSBuffer.wrap(preview).buffer,
+				uri: resource,
+				caption: undefined,
+			}]);
+		});
 	});
 
 	suite('opening a conversation carousel', () => {
+		for (const hasFocusedWidget of [false, true]) {
+			test(`opens all standalone composer images without using a previous chat (focused widget: ${hasFocusedWidget})`, async () => {
+				const data = new Uint8Array([1, 2, 3]);
+				const first = makeImageVariableEntry({ id: 'first', name: 'image.png', value: data });
+				const second = makeImageVariableEntry({ id: 'second', name: 'image.png', value: data });
+				const restoredUri = URI.file('/restored.png');
+				const restored = makeImageVariableEntry({ id: 'restored', name: 'restored.png', value: undefined, references: [{ reference: restoredUri, kind: 'reference' }] });
+				const firstUri = URI.from({ scheme: Schemas.data, path: 'first/image.png' });
+				const clickedUri = URI.from({ scheme: Schemas.data, path: 'second/image.png' });
+				const getItems = sinon.stub().returns([makeRequest('previous', [makeImageVariableEntry({ value: new Uint8Array([4]) })])]);
+				const executeCommand = sinon.stub().resolves();
+				const readFile = sinon.stub().rejects(new Error('Images should load lazily'));
+				const service = new ChatImageCarouselService(
+					upcastPartial<IChatWidgetService>({
+						lastFocusedWidget: hasFocusedWidget ? upcastDeepPartial<IChatWidget>({
+							viewModel: { getItems },
+							getInput: () => 'Previous chat',
+							attachmentModel: { attachments: [] },
+						}) : undefined,
+					}),
+					upcastPartial<ICommandService>({ executeCommand }),
+					upcastPartial<IFileService>({ readFile }),
+				);
+
+				await service.openCarouselAtResource(clickedUri, data, {
+					preferCurrentInput: true,
+					currentInput: { text: '', attachments: [first, second, restored] },
+				});
+
+				assert.deepStrictEqual({
+					commands: executeCommand.args,
+					previousChatReads: getItems.callCount,
+					fileReads: readFile.callCount,
+				}, {
+					commands: [['workbench.action.chat.openImageInCarousel', buildCollectionArgs([{
+						title: 'Current Input',
+						images: [
+							{ id: firstUri.toString(), name: 'image.png', mimeType: 'image/png', data: VSBuffer.wrap(data).buffer, caption: undefined },
+							{ id: clickedUri.toString(), name: 'image.png', mimeType: 'image/png', data: VSBuffer.wrap(data).buffer, caption: undefined },
+							{ id: restoredUri.toString(), name: 'restored.png', mimeType: 'image/png', uri: restoredUri, caption: undefined },
+						],
+					}], 1, clickedUri)]],
+					previousChatReads: 0,
+					fileReads: 0,
+				});
+			});
+		}
+
 		test('uses the originating chat and retains additional artifact images without duplicating generated images', async () => {
 			const sessionResource = URI.parse('chat-session://test/session');
 			const generatedUri = URI.file('/generated.png');

@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -22,12 +21,10 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
-import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepository, GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
-import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
-import { IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
+import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -62,6 +59,7 @@ const manual: IAutomationSchedule = { interval: 'manual', scheduleHour: 0, sched
 const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
+	readonly historyOptions: (TaskListOptions | undefined)[] = [];
 	readonly calls: string[] = [];
 	definitions: readonly AutomationDetail[] = [definition];
 	tasks: readonly Task[] = [];
@@ -94,7 +92,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
-	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
+	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		this.historyOptions.push(options);
 		this.calls.push('history');
 		await this.pendingHistory;
 		if (this.historyError) {
@@ -178,35 +177,26 @@ suite('CloudAutomationStore', () => {
 		}();
 		const api = new TestApi();
 		const credentialLifetime = new AbortController();
-		const client = new class extends mock<IGitHubClient>() {
+		const client = new class extends mock<IGitHubAccountClient>() {
 			override readonly onDidInvalidate = Event.None;
+			override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
+			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
-			override readonly endpoint = new class extends mock<IGitHubEndpointProvider>() {
-				override getApiBaseUri() { return 'https://api.github.com'; }
-				override getGraphQlUri() { return 'https://api.github.com/graphql'; }
-			}();
 			override readonly automations = api;
-			override readonly query = new class extends mock<IGitHubQuery>() {
-				override async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
-					const isPrivate = await api.isPrivateRepository(ref, signal);
-					return new class extends mock<GitHubRepository>() { override readonly private = isPrivate; }();
+			override readonly repositories = new class extends mock<IRepositoriesClient>() {
+				override async get(ref: RepositoryRef, signal: AbortSignal) {
+					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.name }, signal);
+					return new class extends mock<Repository>() { override readonly private = isPrivate; }();
 				}
 			}();
 			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
 				override async abort() { api.calls.push('stop'); }
 			}();
-			override readonly credentials = new class extends mock<IGitHubCredentials>() {
-				override async getCredential() {
-					return { account: { host: 'api.github.com', accountId: account.accountName }, token: 'test-token', generation: 1, signal: credentialLifetime.signal };
-				}
-			}();
 		}();
-		const lease = () => Object.assign(toDisposable(() => { }), { object: client });
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = clientChanged.event;
-			override async acquireDefaultAccountClient() { return lease(); }
-			override acquireClient() { return lease(); }
+			override async acquireDefaultAccountApiClient() { return client; }
 		}());
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(IConfigurationService, configuration);
@@ -456,11 +446,18 @@ suite('CloudAutomationStore', () => {
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await provider.refresh();
 			api.calls.length = 0;
+			api.historyOptions.length = 0;
 			await clock.tickAsync(60_000);
 			assert.deepStrictEqual(api.calls, []);
 			await provider.runAutomation(provider.automations.get()[0].id);
 			await clock.tickAsync(120_000);
-			assert.deepStrictEqual(api.calls.filter(call => call !== 'visibility'), ['run', 'history', 'history', 'history', 'history', 'history']);
+			assert.deepStrictEqual({
+				calls: api.calls.filter(call => call !== 'visibility'),
+				priorities: api.historyOptions.map(options => options?.priority),
+			}, {
+				calls: ['run', 'history', 'history', 'history', 'history', 'history'],
+				priorities: Array(5).fill('background'),
+			});
 		} finally {
 			clock.restore();
 		}

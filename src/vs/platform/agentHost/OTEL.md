@@ -184,7 +184,7 @@ Do not copy provider-native span, event, metric, or environment-variable catalog
 | Mode | Trigger | Behavior |
 |---|---|---|
 | **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). SDK spans are not intercepted; host-produced session-title metadata uses the matching JSON/file/console forwarder. |
-| **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | The SDK is pointed at a loopback OTLP/HTTP receiver inside the agent host. Spans are decoded and written to a local SQLite database. With an OTLP/HTTP JSON external endpoint, the receiver also fans the normalized JSON body out to it. Protobuf and gRPC traces remain local because Agent Host does not transcode wire formats. |
+| **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | Unmanaged SDK traces are pointed at a loopback OTLP/HTTP receiver inside the agent host. Received spans are decoded and written to a local SQLite database. With an OTLP/HTTP JSON external endpoint, the receiver also fans the normalized JSON body out to it. Protobuf and gRPC traces remain local because Agent Host does not transcode wire formats. |
 
 ```mermaid
 flowchart LR
@@ -207,6 +207,12 @@ flowchart LR
     claude -. Native logs and metrics .-> sink
     codex -. Native logs and metrics .-> sink
 ```
+
+This routing overview describes the ordinary unmanaged configuration. When the
+native Copilot runtime receives and enforces a managed endpoint/protocol or
+file destination, its native traces go directly to that administrator-selected
+destination rather than through the loopback; DB mode does not create a native
+SQLite copy.
 
 - **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK exports directly to the user's destination. For native HTTP trace exporters, a bare base URL is resolved to `/v1/traces` before it is supplied as a signal-specific endpoint. Explicit/custom paths and gRPC endpoints are unchanged; the base destination for other signals is preserved. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an OTLP/HTTP JSON external endpoint is also configured, the receiver fans the normalized JSON trace body out to an `OtlpHttpForwarder` (`onForward`) so the collector keeps receiving traces alongside the local DB. For OTLP/HTTP protobuf and OTLP/gRPC external protocols, traces remain in SQLite while native logs and metrics still export directly.
@@ -285,7 +291,7 @@ Open **Settings** (`Ctrl+,`) and search for `agentHost otel`:
 | `chat.agentHost.otel.otlpEndpoint` | string | `""` | OTLP endpoint URL. Accepts a bare base URL (`http://localhost:4318`) — `/v1/traces` is appended automatically when needed, matching the standard `OTEL_EXPORTER_OTLP_ENDPOINT` convention. A full signal-specific URL (`http://host:4318/v1/traces`) is used verbatim. |
 | `chat.agentHost.otel.captureContent` | boolean | `false` | Capture prompt/response content in span attributes. Privacy-sensitive — do not enable in environments that ship spans to shared sinks. |
 | `chat.agentHost.otel.outfile` | string | `""` | Output path for JSON-lines spans when `exporterType` is `file`. |
-| `chat.agentHost.otel.dbSpanExporter.enabled` | boolean | `false` | Persist every emitted span to a local SQLite database at `<userData>/agent-host/otel/agent-host-traces.db`. Implicitly enables OTel. OTLP/HTTP JSON traces can also be forwarded; protobuf and gRPC traces remain local. |
+| `chat.agentHost.otel.dbSpanExporter.enabled` | boolean | `false` | Persist Agent Host-produced records and ordinary loopback-received traces to a local SQLite database at `<userData>/agent-host/otel/agent-host-traces.db`. Implicitly enables OTel. OTLP/HTTP JSON traces can also be forwarded; protobuf and gRPC traces remain local. A native runtime-enforced managed destination does not add native traces to SQLite. |
 
 ## Environment Variables
 
@@ -309,11 +315,97 @@ The workbench-side starter translates the settings above into the following env 
 
 Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
-> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings still require a manual agent host or window restart.
+> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings prompt for a full application restart; reloading a window alone can retain the shared host.
+
+## Enterprise-managed file export
+
+Enterprise policy can supply `telemetry.filePath`. Canonical managed-policy
+validation treats an empty, null, or wrongly typed value as an error. This is a
+managed-only expansion, not a new user setting: it resolves to the existing
+`chat.agentHost.otel.exporterType: "file"` and
+`chat.agentHost.otel.outfile` configuration. A supplied file path enables OTel
+unless the managed `telemetry.enabled` value is explicitly `false`. Explicit
+managed `false` disables both file export and the SQLite DB exporter.
+
+The VS Code managed-settings normalizer does not synthesize an empty file path
+for malformed input. Its generic flattening silently omits nulls and arrays,
+flattens object children, and leaves type-mismatched scalar projection to the
+existing warning-and-omission path. An omitted file path can therefore leave a
+collector effective under ordinary policy precedence; malformed values do not
+have a universal no-fallback guarantee. This generic omission is distinct from
+a projected literal `telemetry.filePath: ""`: that existing value still selects
+file export and clears the collector environment. It is not synthesized by
+normalization.
+
+When a managed file path is present, it takes precedence over a managed
+collector endpoint or protocol. An absent managed file path restores the
+ordinary managed collector/personal-setting resolution. Personal settings prompt
+for a full application restart; reloading a window alone can retain the shared
+host. Settled administrator changes automatically replace the local Agent Host.
+Remote and standalone hosts are not newly proven to support this flow.
+
+`buildAgentHostOTelEnv()` records managed-path provenance with the private
+`VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED` environment variable. It is an
+implementation detail, not a public setting or a variable users should set.
+Only managed paths receive the additional validation and expansion:
+
+- `~/...` is expanded from `HOME` on Unix and `USERPROFILE` on Windows;
+  `~\...` is also accepted. Absolute paths are unchanged. For the native
+  Copilot runtime and VS Code Agent Host writer, a managed relative path is
+  resolved under Copilot home: a nonempty `COPILOT_HOME` is used verbatim and
+  must be absolute. An empty or unset `COPILOT_HOME` uses
+  `<user-home>/.copilot`. Normal platform `..` semantics apply; Copilot home is
+  an anchor, not a containment boundary. Personal or inherited relative paths
+  retain their existing base.
+- After a file path has been selected, an empty path, NUL, unsupported home
+  prefix, environment-variable reference, directory path, filesystem root, or
+  missing required home variable is logged and skipped. It does not fall back
+  to OTLP. The separately configured SQLite DB exporter is preserved unless
+  managed telemetry is explicitly false.
+- An accepted but invalid managed path creates no native file exporter for that
+  provider; recovery requires valid configuration and provider re-resolution or
+  replacement. A valid path that later proves unwritable is different: its
+  existing lazy writer reports the failed write and can retry later writes after
+  repair, without falling back to a collector or SQLite.
+- The host-owned file forwarder creates missing parent directories only for a
+  managed path, then appends in the existing JSONL format and reports failures
+  without blocking the host. For a personal or inherited path with a missing
+  parent, it reports the failed write and produces no output until the parent
+  exists. Native runtime file-export behavior is unchanged.
+
+The managed path is a shared field consumed by the native Copilot runtime and
+the VS Code Agent Host writer on each executing host. This relative-path rule
+is scoped to those consumers and does not claim client-wide or extension-host
+behavior. Producer-specific JSONL formats remain unchanged.
+
+> **Managed-routing parity and integration status.** The following describes
+> the intended routing only when the native Copilot runtime receives and
+> applies the managed setting; it is not a shipped-version or
+> policy-delivery claim.
+>
+> | Effective configuration, with DB recording enabled | Native Copilot traces | SQLite |
+> |---|---|---|
+> | Managed endpoint and protocol | Direct to the administrator's collector | Existing Agent Host-owned records only |
+> | Managed `filePath` | Direct to the administrator's file | Existing Agent Host-owned records only |
+> | Accepted but invalid managed `filePath` | Log and create no file exporter for that provider; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
+> | Valid but unwritable managed `filePath` | Log failed writes; the lazy exporter can retry later writes after repair; no collector fallback | Existing Agent Host-owned records continue; no native-trace route |
+>
+> Host-owned records also retain their existing host file/collector writer
+> where applicable; they are distinct records, not copied native traces. DB
+> mode off does not become a fallback. Explicit managed `enabled:false` remains
+> separately agreed and unchanged: it disables OTel destinations, including
+> SQLite. No observer, SDK trace-subscription API, bridge, or native SQLite
+> ingestion exists or is implied here.
+>
+> This is not ready or shipped: matching runtime SDK support, generated
+> artifacts, Settings Engine/CSE delivery, and end-to-end/deployment
+> prerequisites are still required. Existing host synthetic-DB tests establish
+> host-owned records, not provider-native trace mirroring.
 
 ## Local SQLite Span Store
 
-When `chat.agentHost.otel.dbSpanExporter.enabled` is on, every span the agent host emits is written to:
+When `chat.agentHost.otel.dbSpanExporter.enabled` is on, Agent Host-produced
+records and ordinary loopback-received spans are written to:
 
 ```
 <userData>/agent-host/otel/agent-host-traces.db
@@ -334,7 +426,12 @@ To collect agent host traces with the [Aspire Dashboard](https://learn.microsoft
 }
 ```
 
-This combination persists every span to SQLite for offline inspection **and** forwards them live to Aspire — useful when you want to spot-check a session in the dashboard and still be able to query the raw data later.
+This combination persists Agent Host-produced records and ordinary
+loopback-received spans to SQLite for offline inspection **and** forwards
+compatible live traffic to Aspire — useful when you want to spot-check a
+session in the dashboard and still be able to query the raw data later. A
+native runtime-enforced managed destination remains direct and is not copied
+into SQLite by this setting.
 
 ---
 
@@ -363,6 +460,8 @@ src/vs/platform/otel/
 ## Settings → Env Var Translation
 
 `buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv, policySettings, shellEnv)`, and merges the result into the spawned process's environment. Parent-process env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over inherited env**. For identity capture, resolved login-shell env also wins over personal settings. Other OTel keys retain their existing precedence: shell-only values do not override the settings overlay.
+
+The policy-readiness diagnostic evaluates this local Copilot/VS Code registered-policy composition only. Managed `enabled: false` is enforced locally; managed `exporterType: file` has no inherited-protocol gap only when a managed outfile is also present. A clear result does not certify remote hosts, independently fetched runtime policy, or unrelated telemetry consumers.
 
 | Setting | Env var |
 |---|---|

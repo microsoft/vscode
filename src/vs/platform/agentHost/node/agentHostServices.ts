@@ -5,6 +5,8 @@
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+import { ICopilotHomeService } from '../../environment/common/copilotHome.js';
+import { CopilotHomeService } from '../../environment/node/copilotHomeService.js';
 import { AgentHostGitHubService, IAgentHostGitHubService } from './agentHostGitHubService.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ISandboxHelperService } from '../../sandbox/common/sandboxHelperService.js';
@@ -72,6 +74,7 @@ import { AgentEditAttributionService } from './shared/agentEditAttributionServic
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { AgentHostWorktreeCleanupService, IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import { AgentHostPullRequestResolver, IAgentHostPullRequestResolver } from './shared/pullRequestResolver.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
@@ -135,6 +138,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
 	services.set(IAgentHostPullRequestResolver, new SyncDescriptor(AgentHostPullRequestResolver));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
+	services.set(IAgentHostWorktreeCleanupService, new SyncDescriptor(AgentHostWorktreeCleanupService, [undefined]));
 	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }
 
@@ -147,6 +151,7 @@ export interface IAgentHostHostServiceInputs {
 }
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
+	services.set(ICopilotHomeService, new SyncDescriptor(CopilotHomeService));
 	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));

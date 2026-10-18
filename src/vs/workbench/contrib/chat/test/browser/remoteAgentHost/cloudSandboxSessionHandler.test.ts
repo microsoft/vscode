@@ -36,9 +36,9 @@ import { turnsToHistory } from '../../../browser/agentSessions/agentHost/stateTo
 const resource = URI.parse('remote-agent-host-test-copilot:/session');
 const peerChat = 'custom-chat:/opaque-peer';
 
-function recordedHistory(mainTitle = '', peerTitle = ''): IReplayedTaskHistory {
+function recordedHistory(mainTitle = '', peerTitle = '', sessionTitle = 'Recorded title'): IReplayedTaskHistory {
 	const summary = {
-		resource: 'ahp-session:/session', provider: 'copilot', title: 'Recorded title',
+		resource: 'ahp-session:/session', provider: 'copilot', title: sessionTitle,
 		status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
 	};
 	const state = createSessionState(summary);
@@ -103,7 +103,7 @@ class LiveSession extends Disposable implements IChatSession {
 suite('CloudSandboxSessionHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }) {
+	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }, getTaskId?: (resource: URI) => string | undefined) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INotificationService, notificationService);
@@ -116,7 +116,7 @@ suite('CloudSandboxSessionHandler', () => {
 			override invalidateSessionHistory(_taskId: string, preserveCached?: boolean): void { invalidate(preserveCached); }
 		}());
 		return store.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
-			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test', connectionStatus,
+			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test', connectionStatus, getTaskId,
 		}));
 	}
 
@@ -128,6 +128,27 @@ suite('CloudSandboxSessionHandler', () => {
 			reference.dispose();
 		}
 	}
+
+	test('serves live-only content without reading or invalidating an unrelated task', async () => {
+		const owners = new Map([['/first', 'task-1'], ['/second', 'task-2']]);
+		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
+		let historyReads = 0;
+		let invalidations = 0;
+		const handler = createHandler(async () => { historyReads++; return recordedHistory(); }, undefined, undefined,
+			() => invalidations++, submitted.event, undefined, undefined, resource => owners.get(resource.path));
+		const live = store.add(new LiveSession());
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		await waitForState(session.isReadOnly!, value => !value);
+		submitted.fire({ chatSessionResource: resource });
+		live.historyChanges.fire(live.history);
+		live.serverRequests.fire({ id: 'new', prompt: 'New request' });
+		live.progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('New response') }], undefined);
+		assert.deepStrictEqual({ historyReads, invalidations, history: session.history, readOnly: session.isReadOnly?.get() }, {
+			historyReads: 0, invalidations: 0, history: live.history, readOnly: false,
+		});
+		session.dispose();
+	});
 
 	test('independent readers retain promotion and streaming until the final reference is released', async () => {
 		const history = new DeferredPromise<IReplayedTaskHistory>();
@@ -207,6 +228,13 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({ title: session.title, titles, shared: await sharesContent(handler, session) }, {
 			title: 'Updated conversation title', titles: ['Updated conversation title'], shared: true,
 		});
+	});
+
+	test('a recorded session titled after its id has no title until the agent names it', async () => {
+		const titles: string[] = [];
+		const handler = createHandler(async () => recordedHistory('', '', 'session'), undefined, undefined, undefined, undefined, undefined, (_resource, title) => titles.push(title));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		assert.deepStrictEqual({ title: session.title, titles }, { title: undefined, titles: [] });
 	});
 
 	test('invalidates local submissions only for the matching open conversation and releases the listener on close', async () => {

@@ -41,6 +41,7 @@ import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.
 import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -48,6 +49,7 @@ import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 
@@ -55,6 +57,7 @@ const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 const chatPersistenceServices = new WeakMap<AgentService, IAgentHostPeerChatPersistenceService>();
 const catalogDatabases = new WeakMap<AgentService, IAgentHostDatabase>();
 const sessionStateStores = new WeakMap<AgentService, IAgentHostSessionStateStore>();
+const worktreeCleanupServices = new WeakMap<AgentService, IAgentHostWorktreeCleanupService>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
@@ -121,6 +124,24 @@ export function getTestSessionStateStore(agentService: AgentService): IAgentHost
 		throw new Error('AgentService was not created by createTestAgentService');
 	}
 	return store;
+}
+
+export function getTestWorktreeCleanupService(agentService: AgentService): IAgentHostWorktreeCleanupService {
+	const cleanup = worktreeCleanupServices.get(agentService);
+	if (!cleanup) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return cleanup;
+}
+
+/**
+ * Resolves once the session workspace updates that archiving or unarchiving
+ * chats queued so far, including their persistence, have completed. They run
+ * asynchronously one at a time per session, so an update for an unknown chat
+ * completes only after them.
+ */
+export function whenArchivedChatWorkspaceUpdatesSettled(agentService: AgentService, session: URI): Promise<void> {
+	return agentService.setArchivedChatWorkspaceAttached(session, URI.from({ scheme: 'agent-host-test', path: '/unknown-chat' }), true);
 }
 
 export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
@@ -204,6 +225,7 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
+		[IAgentHostSystemWakeService, new AgentHostSystemWakeService()],
 	);
 	const options = {
 		rootConfigResource,
@@ -294,6 +316,7 @@ export function createTestAgentService(
 		chatPersistenceServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostPeerChatPersistenceService)));
 		catalogDatabases.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostDatabase)));
 		sessionStateStores.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)));
+		worktreeCleanupServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeCleanupService)));
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
 		return composition.agentService;
 	} catch (error) {

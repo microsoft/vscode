@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
@@ -21,6 +22,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
@@ -98,8 +100,11 @@ export interface ITabDescriptor {
 	readonly label?: string;
 	/** Hover tooltip. Defaults to {@link label} ?? {@link id}. */
 	readonly tooltip?: string;
-	/** Optional leading icon rendered before the label. */
-	readonly icon?: ThemeIcon;
+	/**
+	 * Optional leading icon rendered before the label: a theme icon, or images for
+	 * light and dark themes, e.g. one an extension contributed.
+	 */
+	readonly icon?: ThemeIcon | { readonly light: URI; readonly dark: URI };
 }
 
 /**
@@ -189,6 +194,8 @@ export interface ITabbedActionListShowOptions<T> {
 
 export interface ITabbedActionListRefreshOptions extends IActionListUpdateOptions {
 	readonly focusItemId?: string;
+	/** Keeps the popup's measured size, for refreshes that only change item state such as a checked row. */
+	readonly preserveSize?: boolean;
 }
 
 export interface ITabbedActionListDetailsOptions {
@@ -292,7 +299,8 @@ export class TabbedActionListWidget extends Disposable {
 			render: (container: HTMLElement) => {
 				const renderDisposables = new DisposableStore();
 				const detailsDisposables = renderDisposables.add(new MutableDisposable<DisposableStore>());
-				let refreshPending = false;
+				/** A refresh asked for while the details page is open, run when it closes. */
+				let pendingRefresh: ITabbedActionListRefreshOptions | undefined;
 
 				const widget = dom.append(container, dom.$('.action-widget'));
 				// Programmatic page focus can match :focus-visible even after a pointer click.
@@ -347,9 +355,10 @@ export class TabbedActionListWidget extends Disposable {
 				// while it shrinks.
 				const tabTexts = new Map(options.tabs.map(tab => {
 					const label = tab.label ?? tab.id;
-					const iconPrefix = tab.icon ? `$(${tab.icon.id})` : '';
+					// An image icon is drawn by the tab itself rather than through its text.
+					const iconPrefix = tab.icon && ThemeIcon.isThemeIcon(tab.icon) ? `$(${tab.icon.id})` : '';
 					const labelMode = options.tabLabels ?? 'always';
-					const showsLabel = !iconPrefix || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
+					const showsLabel = !tab.icon || labelMode === 'always' || (labelMode === 'active' && tab.id === activeTab);
 					return [tab.id, showsLabel ? (iconPrefix ? `${iconPrefix} ${label}` : label) : iconPrefix] as const;
 				}));
 
@@ -360,6 +369,16 @@ export class TabbedActionListWidget extends Disposable {
 					}),
 				}));
 				tabStrip.appendChild(radio.domNode);
+				options.tabs.forEach((tab, index) => {
+					const element = radio.optionElements[index];
+					if (element && tab.icon && !ThemeIcon.isThemeIcon(tab.icon)) {
+						// A button only styles itself as a text button once it has text, which a tab
+						// showing just its image never gets, so it would lose the other tabs' styling.
+						element.classList.add('monaco-text-button', 'tabbed-action-list-tab-image-icon');
+						element.style.setProperty('--tabbed-action-list-tab-icon-light', asCSSUrl(tab.icon.light));
+						element.style.setProperty('--tabbed-action-list-tab-icon-dark', asCSSUrl(tab.icon.dark));
+					}
+				});
 				renderDisposables.add(radio.onDidSelect(index => {
 					const next = options.tabs[index];
 					if (next) {
@@ -433,7 +452,12 @@ export class TabbedActionListWidget extends Disposable {
 				// depend on state that changed while it stayed open.
 				this._refreshActiveList = refreshOptions => {
 					if (this._detailsVisible) {
-						refreshPending = true;
+						// Keep the popup's size and scroll position afterwards only if every deferred
+						// request asked to, so a refresh that has to re-measure still does.
+						pendingRefresh = {
+							preserveSize: !!refreshOptions?.preserveSize && (!pendingRefresh || !!pendingRefresh.preserveSize),
+							preserveScrollPosition: !!refreshOptions?.preserveScrollPosition && (!pendingRefresh || !!pendingRefresh.preserveScrollPosition),
+						};
 						return;
 					}
 					finishActionWidgetOpeningAnimation(widget);
@@ -447,7 +471,8 @@ export class TabbedActionListWidget extends Disposable {
 						list.setHoverEnabled(false);
 					}
 					applyWidgetClassNames();
-					const sizing = sizingTab !== undefined
+					const preserveSize = !!refreshOptions?.preserveSize;
+					const sizing = sizingTab !== undefined && !preserveSize
 						? options.createActionList(sizingTab, true)
 						: undefined;
 					const refreshed = options.createActionList(activeTab);
@@ -455,7 +480,7 @@ export class TabbedActionListWidget extends Disposable {
 						list.headerContainer.hidden = !refreshed.listOptions?.headerText;
 					}
 					const sizingHeight = sizing ? measureSizing(sizing) : undefined;
-					const sizingChanged = sizingHeight !== this._fixedListHeight;
+					const sizingChanged = !preserveSize && sizingHeight !== this._fixedListHeight;
 					if (sizingChanged) {
 						this._fixedListHeight = sizingHeight;
 						this._fixedPopupHeight = undefined;
@@ -656,9 +681,10 @@ export class TabbedActionListWidget extends Disposable {
 						main.style.removeProperty('width');
 						detailsDisposables.clear();
 						this._hideDetails = undefined;
-						if (refreshPending) {
-							refreshPending = false;
-							this._refreshActiveList?.();
+						if (pendingRefresh) {
+							const refreshOptions = pendingRefresh;
+							pendingRefresh = undefined;
+							this._refreshActiveList?.(refreshOptions);
 						}
 						layout();
 						this._contextViewService.layout();
@@ -789,14 +815,24 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					// Left and Right move between tabs only on the tab bar. In the list they
-					// belong to the rows, where Right opens the focused item's details.
+					// belong to the rows: like a tree, Left collapses the focused row's section
+					// and Right expands it from its toggle, while Right on any other row opens
+					// that item's details.
 					if (onTabBar) {
 						dom.EventHelper.stop(e, true);
 						switchTab(e.keyCode === KeyCode.RightArrow ? 1 : -1);
 						return;
 					}
-					const focused = e.keyCode === KeyCode.RightArrow && target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
-					if (focused && options.openItemDetails?.(focused)) {
+					const focused = target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
+					if (!focused) {
+						return;
+					}
+					const handled = e.keyCode === KeyCode.LeftArrow
+						? list.collapseFocusedSection()
+						: focused.isSectionToggle
+							? list.expandFocusedSection()
+							: !!options.openItemDetails?.(focused);
+					if (handled) {
 						dom.EventHelper.stop(e, true);
 					}
 				}));

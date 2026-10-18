@@ -1025,7 +1025,8 @@ class AutomationCardsSection extends Disposable {
 				|| unavailableProviders.some((provider, index) => provider.id !== this.partialUnavailableProviders[index].id
 					|| provider.label !== this.partialUnavailableProviders[index].label
 					|| provider.unavailableReasonCode !== this.partialUnavailableProviders[index].unavailableReasonCode
-					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason));
+					|| provider.unavailableReason !== this.partialUnavailableProviders[index].unavailableReason
+					|| provider.unavailableMessage !== this.partialUnavailableProviders[index].unavailableMessage));
 		if (this.partialState === catalogueState && !unavailableProvidersChanged) {
 			return;
 		}
@@ -1348,6 +1349,7 @@ class AutomationHistorySection extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService chatService: IChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this.chatModels = chatService.chatModels.map(models => [...models]);
@@ -1475,7 +1477,7 @@ class AutomationHistorySection extends Disposable {
 		this.markAllButton.label = localize('markAllRead', "Mark all as read");
 		this.markAllButton.element.classList.add('automations-mark-all-read');
 		this.headerDisposables.add(this.markAllButton.onDidClick(() => {
-			void this.markAllRunsRead(this.currentRuns.get());
+			void this.markAllRunsRead();
 		}));
 		this.headerDisposables.add(autorun(reader => {
 			const runs = this.currentRuns.read(reader);
@@ -1939,25 +1941,12 @@ class AutomationHistorySection extends Disposable {
 		this.shouldRestoreFocus = false;
 	}
 
-	private async markAllRunsRead(runs: readonly IAutomationRun[]): Promise<void> {
+	private async markAllRunsRead(): Promise<void> {
 		this.isMarkingAllRead.set(true, undefined);
-		const sessions = new Map<string, ISession>();
 		try {
-			for (const run of runs) {
-				const projected = this.currentSessions.get().get(run.id);
-				if (projected && (projected.status.get() === SessionStatus.Completed || projected.status.get() === SessionStatus.Error) && run.sessionResource) {
-					const session = this.sessionsManagementService.getSession(run.sessionResource);
-					if (session && !session.isRead.get()) {
-						sessions.set(session.resource.toString(), session);
-					}
-				}
-			}
-			await this.sessionsManagementService.markAllRead([...sessions.values()]);
-		} catch (error) {
-			this.logService.error('[AutomationsCards] Failed to mark automation runs read', error);
-			await this.dialogService.error(
-				localize('automationMarkAllReadFailed', "Failed to mark automation runs as read."),
-				getErrorMessage(error),
+			await markAllAutomationRunsRead(
+				this.automationService, this.sessionsManagementService, this.uriIdentityService,
+				this.chatModels.get(), this.logService, this.dialogService,
 			);
 		} finally {
 			this.isMarkingAllRead.set(false, undefined);
@@ -1968,6 +1957,48 @@ class AutomationHistorySection extends Disposable {
 //#endregion
 
 //#region Helpers
+
+async function markAllAutomationRunsRead(
+	automationService: IAutomationService,
+	sessionsManagementService: ISessionsManagementService,
+	uriIdentityService: IUriIdentityService,
+	chatModels: Iterable<IChatModel>,
+	logService: ILogService,
+	dialogService: IDialogService,
+): Promise<void> {
+	try {
+		const runs = automationService.runs.get();
+		const models = [...chatModels];
+		const sessionsByResource = new Map(sessionsManagementService.getSessions().map(session => [
+			uriIdentityService.extUri.getComparisonKey(session.resource), session,
+		]));
+		const unreadSessions = new Map<string, ISession>();
+		for (const run of runs) {
+			if (!run.sessionResource) {
+				continue;
+			}
+			const key = uriIdentityService.extUri.getComparisonKey(run.sessionResource);
+			const session = sessionsByResource.get(key);
+			if (!session || session.isRead.get()) {
+				continue;
+			}
+			const progress = automationRunWithLocalProgress(run, models);
+			const completed = run.externalResource
+				? progress.status === 'completed' || progress.status === 'failed'
+				: session.status.get() === SessionStatus.Completed || session.status.get() === SessionStatus.Error;
+			if (completed) {
+				unreadSessions.set(key, session);
+			}
+		}
+		await sessionsManagementService.markAllRead([...unreadSessions.values()]);
+	} catch (error) {
+		logService.error('[AutomationsCards] Failed to mark automation runs read', error);
+		await dialogService.error(
+			localize('automationMarkAllReadFailed', "Failed to mark automation runs as read."),
+			getErrorMessage(error),
+		);
+	}
+}
 
 function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefined, reader: IReader): boolean {
 	const state = run.externalResource ? session?.status.read(reader) : undefined;
@@ -2515,6 +2546,27 @@ async function refreshAutomations(automationService: IAutomationService, logServ
 		}
 	}
 }
+
+registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.automations.markAllRead',
+			title: localize2('markAllAutomationRunsRead', "Mark All as Read"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			menu: {
+				id: Menus.AutomationsContext,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await markAllAutomationRunsRead(
+			accessor.get(IAutomationService), accessor.get(ISessionsManagementService), accessor.get(IUriIdentityService),
+			accessor.get(IChatService).chatModels.get(), accessor.get(ILogService), accessor.get(IDialogService),
+		);
+	}
+});
 
 registerAction2(class RefreshAutomationsAction extends Action2 {
 	constructor() {

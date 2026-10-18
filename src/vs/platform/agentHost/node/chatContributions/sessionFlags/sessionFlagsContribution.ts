@@ -12,6 +12,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS
 import { getPersistedSessionConfigValues } from '../../../common/sessionConfigKeys.js';
 import { readSessionSandboxState } from '../../../common/meta/agentSandboxStateMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { persistSessionMetadata, persistSessionMetadataValuesInBackground } from '../../shared/persistSessionMetadata.js';
 
 const sandboxEnabledKey = createSessionMementoKey<boolean | undefined>('sandboxEnabled', () => undefined);
@@ -31,6 +32,7 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 	}
@@ -47,7 +49,7 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 			const state = this._stateManager.getSessionState(dispatched.channel);
 			const values = state?.config?.values;
 			if (values) {
-				const appliedSandboxEnabled = readSessionSandboxState(state)?.enabled;
+				const appliedSandboxEnabled = this._configurationService.getSessionSandboxEnabled(dispatched.channel);
 				persistSessionMetadata(this._sessionStateStore, this._logService, dispatched.channel, 'configValues', previous => JSON.stringify(getPersistedSessionConfigValues(values, appliedSandboxEnabled, previous)));
 			}
 		}

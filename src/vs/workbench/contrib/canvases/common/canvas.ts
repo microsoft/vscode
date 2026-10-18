@@ -72,6 +72,12 @@ export interface ICanvasContext {
 	readonly openRequests?: IObservable<ReadonlyMap<string, ICanvasOpenRequest>>;
 	/** Present when this chat can list and directly open registered canvas types. */
 	readonly definitionProvider?: ICanvasDefinitionProvider;
+	/**
+	 * Closes a live canvas, which notifies its provider; the canvas then leaves
+	 * {@link canvases}. Unlike closing its tab, this ends the canvas. Absent when
+	 * the owner's host cannot close canvases.
+	 */
+	readonly closeCanvas?: (canvas: ICanvas) => Promise<void>;
 }
 
 export interface ICanvasOpenRequest {

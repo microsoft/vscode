@@ -60,6 +60,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { defaultRemoteChatHistoryScheduler, IRemoteChatHistoryScheduler } from '../../../common/chatService/remoteChatSessionRestorer.js';
@@ -228,6 +229,7 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
+		instantiationService.stub(IChatOpenDiagnosticsService, testDisposables.add(new ChatOpenDiagnosticsService(new NullLogService())));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		editingSessionState = observableValue('editingSessionState', ChatEditingSessionState.Idle);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
@@ -1850,7 +1852,7 @@ suite('ChatService', () => {
 		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
 	});
 
-	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
+	test('cancelCurrentRequestForSession returns after timeout if response does not complete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
 
@@ -1877,14 +1879,12 @@ suite('ChatService', () => {
 
 		// Cancel should return after timeout even though the agent has not completed.
 		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
-		});
+		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
 
 		// Let the agent finish so the test cleans up properly
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
-	});
+	}));
 
 	test('pending requests can be removed from one session and re-sent on another', async () => {
 		const requestStarted = new DeferredPromise<void>();

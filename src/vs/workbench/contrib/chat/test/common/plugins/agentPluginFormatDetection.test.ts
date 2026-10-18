@@ -243,6 +243,56 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins[0].commands.get()[0].name, 'greet');
 	}));
 
+	test('Claude manifest takes priority over root Copilot manifest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/dual-claude-plugin');
+		await writeFile('/plugins/dual-claude-plugin/.claude-plugin/plugin.json', JSON.stringify({
+			name: 'claude-plugin',
+			mcpServers: { 'claude-server': { command: 'echo' } },
+		}));
+		await writeFile('/plugins/dual-claude-plugin/plugin.json', JSON.stringify({
+			name: 'copilot-plugin',
+			mcpServers: { 'copilot-server': { command: 'echo' } },
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.mcpServerDefinitions, definitions => definitions.length > 0);
+		assert.deepStrictEqual({
+			format: plugin.format,
+			mcpServers: plugin.mcpServerDefinitions.get().map(server => server.name),
+		}, {
+			format: PluginFormat.Claude,
+			mcpServers: ['claude-server'],
+		});
+	}));
+
+	test('plugins inside .claude use Claude format with a root manifest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/home/.claude/plugins/root-manifest');
+		await writeFile('/home/.claude/plugins/root-manifest/plugin.json', JSON.stringify({ name: 'root-manifest' }));
+		await writeFile('/home/.claude/plugins/root-manifest/hooks/hooks.json', JSON.stringify({
+			hooks: {
+				Stop: [{ type: 'command', command: 'echo stop' }],
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.hooks, hooks => hooks.length > 0);
+		assert.deepStrictEqual({
+			format: plugin.format,
+			hooks: plugin.hooks.get().map(hook => hook.type),
+		}, {
+			format: PluginFormat.Claude,
+			hooks: ['Stop'],
+		});
+	}));
+
 	test('falls back to Copilot format when no vendor manifest exists', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/my-copilot-plugin');
 		await writeFile('/plugins/my-copilot-plugin/plugin.json', JSON.stringify({ name: 'my-copilot-plugin' }));
@@ -429,6 +479,40 @@ suite('AgentPlugin format detection', () => {
 		}, {
 			format: PluginFormat.AgentPlugin,
 			commands: [],
+		});
+	}));
+
+	test('changing Copilot manifest path rebuilds the plugin entry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/copilot-manifest-move');
+		await writeFile('/plugins/copilot-manifest-move/.github/plugin/plugin.json', JSON.stringify({
+			name: 'nested',
+			agents: { paths: ['nested-agents'], exclusive: true },
+		}));
+		await writeFile('/plugins/copilot-manifest-move/nested-agents/nested.agent.md', '# Nested');
+		await writeFile('/plugins/copilot-manifest-move/root-agents/root.agent.md', '# Root');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+		const initialPlugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(initialPlugin.agents, agents => agents.length > 0);
+		assert.deepStrictEqual(initialPlugin.agents.get().map(agent => agent.name), ['nested.agent']);
+
+		await writeFile('/plugins/copilot-manifest-move/plugin.json', JSON.stringify({
+			name: 'root',
+			agents: { paths: ['root-agents'], exclusive: true },
+		}));
+		const updatedPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0] !== initialPlugin);
+		const updatedPlugin = updatedPlugins?.[0];
+		assert.ok(updatedPlugin);
+		await waitForState(updatedPlugin.agents, agents => agents.some(agent => agent.name === 'root.agent'));
+
+		assert.deepStrictEqual({
+			replaced: updatedPlugin !== initialPlugin,
+			agents: updatedPlugin.agents.get().map(agent => agent.name),
+		}, {
+			replaced: true,
+			agents: ['root.agent'],
 		});
 	}));
 
