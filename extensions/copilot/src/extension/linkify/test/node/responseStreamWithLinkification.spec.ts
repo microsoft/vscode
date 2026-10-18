@@ -7,7 +7,7 @@ import assert from 'assert';
 import { suite, test } from 'vitest';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
-import { DeferredPromise } from '../../../../util/vs/base/common/async';
+import { DeferredPromise, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -45,7 +45,7 @@ suite('Response stream linkifier lifetime', () => {
 		}
 	});
 
-	for (const outcome of ['success', 'cancel', 'output error', 'request error'] as const) {
+	for (const outcome of ['success', 'cancel', 'output error', 'request error', 'request error without finalization'] as const) {
 		test(`releases contributed listeners after response ${outcome}`, async () => {
 			const store = new DisposableStore();
 			try {
@@ -80,12 +80,16 @@ suite('Response stream linkifier lifetime', () => {
 					const stream = new ResponseStreamWithLinkification({ requestId: undefined, references: [] }, progress, [], tokenSource.token, service, createMockWorkspaceService());
 					assert.strictEqual(event.hasListeners(), true);
 					stream.markdown('response text ');
-					if (outcome === 'request error') {
+					if (outcome === 'request error' || outcome === 'request error without finalization') {
 						const request = new DisposableStore();
 						request.add(stream);
 						await entered.p;
 						request.dispose();
-						await Promise.allSettled([stream.finalize()]);
+						if (outcome === 'request error without finalization') {
+							await timeout(0);
+						} else {
+							await assert.rejects(stream.finalize(), /Canceled/);
+						}
 					} else if (outcome === 'success') {
 						await stream.finalize();
 					} else {

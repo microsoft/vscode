@@ -34,6 +34,11 @@ export class ResponseStreamWithLinkification extends Disposable implements Final
 		this._token = token;
 	}
 
+	override dispose(): void {
+		void this.sequencer.catch(() => { });
+		super.dispose();
+	}
+
 	get totalAddedLinkCount() {
 		return this._linkifier.totalAddedLinkCount;
 	}
