@@ -9,49 +9,48 @@ import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
-import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { Event } from '../../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
+import type { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
-import { ModelPickerWidget } from './modelPickerWidget.js';
-
-/**
- * Read/write access to a model's configuration (e.g. context size, thinking
- * effort). Implemented either by the global {@link ILanguageModelsService} or by
- * a per-editor override layer so that one editor's changes do not sync to other
- * already-open editors. Structurally satisfied by `ILanguageModelsService`.
- */
-export interface IModelConfigurationAccess {
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
-	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
-	getModelConfigurationActions(modelId: string): IAction[];
-	/**
-	 * Fires when this access layer's configuration changes (e.g. user picks a
-	 * new context size). Implementations that always read the global value can
-	 * omit this and rely on `ILanguageModelsService.onDidChangeLanguageModels`.
-	 */
-	readonly onDidChange?: Event<string /* modelId */>;
-}
+import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
+import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
 
 export interface IModelPickerPresentationOptions {
-	readonly useGroupedModelPicker: boolean;
 	readonly showManageModelsAction: boolean;
 	readonly showUnavailableFeatured: boolean;
-	readonly showFeatured: boolean;
 	readonly showAutoModel: boolean;
 	readonly showModelIcon: boolean;
 }
 
 export interface IModelPickerDelegate {
+	readonly comparison?: IModelPickerComparison;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
+	/**
+	 * Moves focus to the prompt input that owns the picker. Called after a model
+	 * comparison is completed, so the user can write the prompt next.
+	 * When omitted, focus returns to where it was before the picker opened.
+	 */
+	focusInput?(): void;
+	/**
+	 * Shows the selection as an equivalent model without treating it as a user selection.
+	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
+	 */
+	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	/**
+	 * Models offered while configuring a comparison. When omitted, comparisons
+	 * use the same model pool as ordinary selection.
+	 */
+	getComparisonModels?(): ILanguageModelChatMetadataAndIdentifier[];
 	getPresentationOptions(): IModelPickerPresentationOptions;
 	/**
 	 * The id of the current chat session, used to correlate model-picker
@@ -60,6 +59,15 @@ export interface IModelPickerDelegate {
 	 * Returns `undefined` when no session is active.
 	 */
 	getChatSessionId?(): string | undefined;
+	getAgentSessionId?(): string | undefined;
+	getProvider?(): string | undefined;
+	/**
+	 * The session type (harness) the picker selects models for. Used to scope
+	 * the Manage Models editor to that harness's Copilot models.
+	 */
+	getSessionType?(): string | undefined;
+	/** The Agent Host connection the chat runs on, for its on-device models; when omitted, a local Copilot Agent Host chat assumes the local Agent Host. */
+	getLocalModelConnection?(): IAgentConnection | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
@@ -79,15 +87,17 @@ export interface IModelPickerDelegate {
  * Action view item for selecting a language model in the chat interface.
  *
  * Wraps a {@link ModelPickerWidget} and adapts it for use in an action bar,
- * providing curated model suggestions, upgrade prompts, and grouped layout.
+ * providing curated model suggestions, upgrade prompts, and provider tabs.
  */
 export class ModelPickerActionItem extends BaseActionViewItem {
 	private readonly _pickerWidget: ModelPickerWidget;
 	private readonly _managedHover = this._register(new MutableDisposable());
+	private _container: HTMLElement | undefined;
+	private _minimumWidth: number | undefined;
 
 	constructor(
 		action: IAction,
-		delegate: IModelPickerDelegate,
+		private readonly delegate: IModelPickerDelegate,
 		private readonly pickerOptions: IChatInputPickerOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -98,6 +108,10 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setCompact(pickerOptions.compact);
+		this._pickerWidget.setContextViewLayer(pickerOptions.contextViewLayer);
+		if (pickerOptions.minimal) {
+			this._pickerWidget.setMinimal(pickerOptions.minimal);
+		}
 
 		// Sync delegate → widget when model list or selection changes externally
 		this._register(autorun(t => {
@@ -108,13 +122,30 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 		// Sync widget → delegate when user picks a model
 		this._register(this._pickerWidget.onDidChangeSelection(model => delegate.setModel(model)));
+		this._register(this._pickerWidget.onDidChangeMinimumWidth(width => this._updateMinimumWidth(width)));
 	}
 
 	override render(container: HTMLElement): void {
+		this._container = container;
+		// Style the container before rendering, so the picker measures its name with
+		// the sizes it will be laid out at.
+		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._pickerWidget.render(container);
 		this.element = this._pickerWidget.domNode;
 		this._updateTooltip();
-		container.classList.add('chat-input-picker-item');
+		this._updateMinimumWidth(this._pickerWidget.minimumWidth);
+	}
+
+	get minimumWidth(): number {
+		return this._pickerWidget.minimumWidth;
+	}
+
+	private _updateMinimumWidth(width: number): void {
+		if (!this._container || this._minimumWidth === width) {
+			return;
+		}
+		this._minimumWidth = width;
+		this._container.style.minWidth = `${width}px`;
 	}
 
 	private _getAnchorElement(): HTMLElement {
@@ -128,8 +159,24 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._showPicker();
 	}
 
-	public show(): void {
-		this._showPicker();
+	public show(anchor?: HTMLElement, options?: IModelPickerOpenOptions): void {
+		this._pickerWidget.show(anchor ?? this._getAnchorElement(), false, false, undefined, options);
+	}
+
+	public getModelPickerControl(): { readonly element: HTMLElement; readonly open: (options: IModelPickerOpenOptions) => void; readonly select: (identifier: string) => boolean } | undefined {
+		const element = this._pickerWidget.nameButton;
+		return element && this._pickerWidget.canOpenWithFilter() ? {
+			element,
+			open: options => this.show(undefined, options),
+			select: identifier => {
+				const model = this.delegate.getModels().find(model => model.identifier === identifier && model.metadata.isUserSelectable !== false);
+				if (!model || !this._pickerWidget.canOpenWithFilter()) {
+					return false;
+				}
+				this.delegate.setModel(model);
+				return true;
+			},
+		} : undefined;
 	}
 
 	public setEnabled(enabled: boolean): void {
@@ -191,7 +238,21 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (this._pickerWidget.isSetupRequired()) {
 			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
 		}
-		const { statusIcon, tooltip } = this._pickerWidget.selectedModel?.metadata || {};
-		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;
+		const comparisonSummary = this.delegate.comparison?.summary.get();
+		if (comparisonSummary) {
+			return localize('chat.modelPicker.comparisonSummaryHover', "{0} • {1}", label, comparisonSummary);
+		}
+		const selectedModel = this._pickerWidget.selectedModel;
+		const { statusIcon, tooltip } = selectedModel?.metadata || {};
+		if (selectedModel) {
+			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
+		}
+		if (statusIcon && tooltip) {
+			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
+		}
+		const organizationDefaultDescription = this._pickerWidget.organizationDefaultDescription;
+		return organizationDefaultDescription
+			? localize('chat.modelPicker.organizationDefaultHover', "{0}\n\n{1}", label, organizationDefaultDescription)
+			: label;
 	}
 }

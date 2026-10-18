@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ToolCallContributorKind, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
-import { deriveToolInvokedResult, toolSourceKindFromContributor } from '../../node/agentHostToolCallTracker.js';
+import { deriveToolInvokedResult } from '../../node/agentHostToolCallTracker.js';
+import { toolSourceKindFromContributor } from '../../node/shared/toolCallContributor.js';
 
 function result(success: boolean, code?: string): ToolCallResult {
 	return {

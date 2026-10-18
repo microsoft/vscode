@@ -44,7 +44,7 @@ export class DefaultConfiguration extends Disposable {
 	}
 
 	protected onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
-		this.updateConfigurationModel(properties, Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties());
+		this.updateConfigurationModel(properties, this.getConfigurationProperties());
 		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 	}
 
@@ -54,8 +54,21 @@ export class DefaultConfiguration extends Disposable {
 
 	private resetConfigurationModel(): void {
 		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
-		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const properties = this.getConfigurationProperties();
 		this.updateConfigurationModel(Object.keys(properties), properties);
+	}
+
+	private getConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema> {
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const properties = { ...registry.getConfigurationProperties() };
+		// Hidden experimental settings need defaults and change events too, while
+		// remaining absent from the schemas used by the Settings UI.
+		for (const [key, property] of Object.entries(registry.getExcludedConfigurationProperties())) {
+			if (property.experiment) {
+				properties[key] = property;
+			}
+		}
+		return properties;
 	}
 
 	private updateConfigurationModel(properties: string[], configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>): void {
@@ -122,8 +135,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	async initialize(): Promise<ConfigurationModel> {
 		this.logService.trace('PolicyConfiguration#initialize');
 
-		this.update(await this.updatePolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
-		this.update(await this.updatePolicyDefinitions(Object.keys(this.configurationRegistry.getExcludedConfigurationProperties())), false);
+		this.update(await this.updatePolicyDefinitions([
+			...this.defaultConfiguration.configurationModel.keys,
+			...Object.keys(this.configurationRegistry.getExcludedConfigurationProperties()),
+		]), false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.updatePolicyDefinitions(properties), true)));
 		return this._configurationModel;
@@ -297,10 +312,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			if (Array.isArray(currentParent)) {
 				currentParent.push(value);
 			} else if (currentProperty !== null) {
-				if (currentParent[currentProperty] !== undefined) {
+				if (Object.hasOwn(currentParent, currentProperty)) {
 					throw new Error(`Duplicate property found: ${currentProperty}`);
 				}
-				currentParent[currentProperty] = value;
+				json.setObjectProperty(currentParent, currentProperty, value);
 			}
 		}
 

@@ -24,8 +24,11 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
+import { getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -111,6 +114,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
+		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -269,10 +273,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected abstract _doReject(): Promise<void>;
 
 	protected _notifySessionAction(outcome: 'accepted' | 'rejected' | 'userModified') {
-		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome });
+		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: outcome === 'userModified', outcome });
 	}
 
 	protected _notifyAction(action: ChatUserAction) {
+		const isAgentHostSession = isAgentHostSessionResource(this._telemetryInfo.sessionResource);
 		if (action.kind === 'chatEditingHunkAction' && action.outcome === 'accepted') {
 			this._aiEditTelemetryService.handleCodeAccepted({
 				suggestionId: undefined, // TODO@hediet try to figure this out
@@ -291,6 +296,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				languageId: action.languageId,
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
+				isAgentHostSession,
+				...getChatSessionTelemetryIds(this._telemetryInfo.sessionResource, this._agentHostConnectionsService),
 			});
 		} else if (action.kind === 'chatEditingHunkAction' && action.outcome === 'rejected') {
 			this._aiEditTelemetryService.handleCodeRejected({
@@ -310,6 +317,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 				languageId: action.languageId,
 				source: undefined,
 				sourceRequestId: this._telemetryInfo.requestId,
+				isAgentHostSession,
+				...getChatSessionTelemetryIds(this._telemetryInfo.sessionResource, this._agentHostConnectionsService),
 			});
 		}
 
@@ -360,7 +369,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
 
-	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void>;
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata): Promise<void>;
 
 	async acceptStreamingEditsEnd() {
 		this._resetEditsState(undefined);

@@ -21,6 +21,7 @@ import './transcriptsView/voiceTranscripts.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -35,7 +36,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_RECONNECTING } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_MUTED, AGENTS_VOICE_RECONNECTING, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID, getAgentsVoicePolicyValue } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -54,6 +55,9 @@ import { CONFIGURE_VOICE_INSTRUCTIONS_ACTION_ID } from '../../chat/browser/actio
 import { IVoiceModeOnboardingService } from './voiceModeOnboarding.js';
 import { SHOW_VOICE_MODE_ONBOARDING_COMMAND } from '../../chat/browser/speechToText/micButtonMenuActions.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatExecuteActionContext } from '../../chat/browser/actions/chatExecuteActions.js';
 
 // --- Context Keys ---
 
@@ -102,11 +106,13 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
 		const reconnectingKey = AGENTS_VOICE_RECONNECTING.bindTo(contextKeyService);
+		const mutedKey = AGENTS_VOICE_MUTED.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
 			reconnectingKey.set(voiceSessionController.isReconnecting.read(reader));
 			listeningKey.set(voiceSessionController.voiceState.read(reader) === 'listening');
+			mutedKey.set(voiceSessionController.isMuted.read(reader));
 		}));
 	}
 }
@@ -253,7 +259,7 @@ registerAction2(class extends Action2 {
 			},
 		});
 	}
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const keybindingService = accessor.get(IKeybindingService);
 		const handsFree = accessor.get(IConfigurationService).getValue<boolean>('agents.voice.handsFree') === true;
@@ -272,7 +278,10 @@ registerAction2(class extends Action2 {
 
 		// An explicit press in another composer transfers Voice Mode ownership to
 		// that composer. The draft sentinel deliberately clears the concrete target.
-		const currentSession = await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
+		const widget = accessor.get(IWorkbenchEnvironmentService).isSessionsWindow
+			? undefined : context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		const currentSession = widget?.viewModel?.sessionResource.toString()
+			?? await accessor.get(ICommandService).executeCommand<string | undefined>('_chat.voice.getCurrentSession');
 		if (currentSession) {
 			try {
 				const resource = URI.parse(currentSession);
@@ -374,7 +383,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				AGENTS_VOICE_ENABLED,
-				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				ContextKeyExpr.or(AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -401,7 +410,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ContextKeyExpr.or(AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING),
 					VOICE_ACTIVE_ON_SURFACE,
 					// Don't disconnect voice while a request is running — pressing
 					// Escape there is meant to interrupt/cancel that request, not
@@ -421,12 +430,52 @@ registerAction2(class extends Action2 {
 	}
 });
 
+// --- Toggle Mute Microphone (command palette + keybinding) ---
+//
+// Voice Mode is always listening while connected, so it can pick up
+// conversations the user is having with others. Muting keeps the session
+// connected (so the user can resume instantly) while dropping captured audio.
+// Expose it as a keybindable command so users can mute/unmute without reaching
+// for the mute button.
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID,
+			title: nls.localize2('agentsVoice.toggleMute', "Voice Mode: Toggle Mute Microphone"),
+			f1: true,
+			toggled: {
+				condition: AGENTS_VOICE_MUTED.isEqualTo(true),
+				title: nls.localize('agentsVoice.unmuteMic', "Unmute Microphone"),
+			},
+			precondition: ContextKeyExpr.and(
+				AGENTS_VOICE_ENABLED,
+				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+			),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM,
+				when: ContextKeyExpr.and(
+					AGENTS_VOICE_ENABLED,
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
+					ChatContextKeys.inputHasFocus,
+				),
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		voiceController.setMuted(!voiceController.isMuted.get());
+	}
+});
+
 // --- Cancel Active Request via Escape (while voice-connected in the chat input) ---
 //
 // The Disconnect-on-Escape action above deliberately does NOTHING while a
 // request is running (its `when` negates hasActiveRequest) so it doesn't tear
 // down the voice session mid-turn. But the built-in Cancel action is bound to
-// Cmd/Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
+// Ctrl+Escape (Alt+Backspace on Windows), so plain Escape would otherwise
 // be a no-op there. Restore the expected behavior: plain Escape cancels the
 // in-flight request while leaving the idle-only disconnect intact.
 
@@ -597,11 +646,30 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
+			policy: {
+				name: 'AgentsVoice',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.137',
+				value: getAgentsVoicePolicyValue,
+				localization: {
+					description: {
+						key: 'agents.voice.enabled',
+						value: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
+					},
+				},
+			},
 		},
 		[AgentsVoiceSettingId.ShowButton]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('agents.voice.showButton', "Controls whether the Voice Mode button is shown in the chat input. When hidden, Voice Mode can still be started with its keyboard shortcut."),
 			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+		},
+		[AgentsVoiceSettingId.UseBYOKVoiceModel]: {
+			type: 'string',
+			markdownDescription: nls.localize('agents.voice.useBYOKVoiceModel', "The OpenAI live model ID to use for Voice Mode with your configured API key. Add the key in Models Management. Voice Mode uses this model when client BYOK is allowed and the key has access to it; leave empty to use the hosted voice model, which requires a paid Copilot plan."),
+			default: '',
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,
 		},

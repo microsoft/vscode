@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, dedupeMigratedCopilotCliSessions, migratedCopilotCliResource } from '../../browser/copilotCliEventsUri.js';
+import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
+import { buildLocalEventsUri, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME, dedupeMigratedCopilotCliSessions, migratedCopilotCliResource } from '../../browser/copilotCliEventsUri.js';
 
 suite('copilotCliEventsUri', () => {
 
@@ -16,6 +18,19 @@ suite('copilotCliEventsUri', () => {
 	const legacy = URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: `/${RAW_ID}` });
 	const twin = URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: `/${RAW_ID}` });
 	const remote = URI.from({ scheme: `remote-host1-${COPILOT_CLI_EH_SCHEME}`, path: `/${RAW_ID}` });
+
+	test('preserves injected Copilot home URI schemes and authorities', () => {
+		const home = URI.from({ scheme: Schemas.inMemory, authority: 'test-host', path: '/copilot' });
+		const service = new TestCopilotHomeService(URI.file('/unused'), home);
+
+		assert.deepStrictEqual({
+			home: service.home,
+			events: buildLocalEventsUri(service.home, RAW_ID),
+		}, {
+			home,
+			events: URI.joinPath(home, 'session-state', RAW_ID, 'events.jsonl'),
+		});
+	});
 
 	function dedupe(...resources: URI[]): string[] {
 		return dedupeMigratedCopilotCliSessions(resources, resource => resource).map(resource => resource.toString());

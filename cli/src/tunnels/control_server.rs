@@ -80,21 +80,6 @@ type CodeServerCell = Arc<Mutex<Option<SocketCodeServer>>>;
 pub type SharedActiveAgentHost =
 	Shared<BoxFuture<'static, Result<Arc<ActiveAgentHost>, Arc<AnyError>>>>;
 
-/// Wraps an already-known [`ActiveAgentHost`] into a [`SharedActiveAgentHost`]
-/// that resolves immediately, for callers that already *are* (or already
-/// know) the running supervisor and must not drive
-/// `ensure_supervisor_running`'s registry lookup/spawn path -- e.g. `code
-/// agent host --tunnel` routing its own tunneled `/agent-host` port back to
-/// itself (see [`super::agent_host::AgentHostSidecar::active_agent_host`]).
-/// Unlike the lazy future built in [`serve`] (which only resolves once a
-/// consumer actually awaits it), this is eagerly ready, since the caller
-/// already has every field it needs.
-pub fn ready_active_agent_host(active: ActiveAgentHost) -> SharedActiveAgentHost {
-	futures::future::ready(Ok(Arc::new(active)))
-		.boxed()
-		.shared()
-}
-
 struct HandlerContext {
 	/// Log handle for the server
 	log: log::Logger,
@@ -206,8 +191,6 @@ pub struct AgentHostServeOptions {
 	/// Overrides the user data directory whose agent-host endpoint registry the
 	/// selection gateway reads. `None` uses the platform default.
 	pub user_data_dir: Option<String>,
-	/// Serves only the agent-host port, without the control port.
-	pub agent_host_only: bool,
 	/// Pins the selection gateway to the live editor agent host.
 	pub delegate_to_editor: bool,
 }
@@ -226,14 +209,9 @@ pub async fn serve(
 ) -> Result<ServerTermination, AnyError> {
 	let AgentHostServeOptions {
 		user_data_dir,
-		agent_host_only,
 		delegate_to_editor,
 	} = agent_host_options;
-	let mut port = if agent_host_only {
-		None
-	} else {
-		Some(tunnel.add_port_direct(CONTROL_PORT).await?)
-	};
+	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
 	let mut agent_host_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
@@ -288,7 +266,7 @@ pub async fn serve(
 		});
 	}
 
-	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, !agent_host_only);
+	machine_status::emit_connected(&tunnel.name, Some(&tunnel.id), false, true);
 
 	loop {
 		tokio::select! {
@@ -332,17 +310,7 @@ pub async fn serve(
 					.await;
 				});
 			},
-			// `select!` builds every branch's future up front and only the
-			// polling is gated by the `if` guard, so this must not touch
-			// `port` eagerly: in agent-host-only mode there is no control
-			// port and doing so would panic. Resolving to `Pending` forever
-			// keeps the branch inert without depending on the guard.
-			l = async {
-				match port.as_mut() {
-					Some(p) => p.recv().await,
-					None => std::future::pending().await,
-				}
-			} => {
+			l = port.recv() => {
 				let socket = match l {
 					Some(p) => p,
 					None => {
@@ -527,16 +495,22 @@ fn make_socket_rpc(
 		handle_serve(c, params).await
 	});
 	rpc.register_async("update", |p: UpdateParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		handle_update(&c.http, &c.log, &c.did_update, &p).await
 	});
 	rpc.register_sync("servermsg", |m: ServerMessageParams, c| {
+		ensure_auth(&c.auth_state)?;
 		if let Err(e) = handle_server_message(&c.log, &c.server_bridges, m) {
 			warning!(c.log, "error handling call: {:?}", e);
 		}
 		Ok(EmptyObject {})
 	});
-	rpc.register_sync("prune", |_: EmptyObject, c| handle_prune(&c.launcher_paths));
+	rpc.register_sync("prune", |_: EmptyObject, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_prune(&c.launcher_paths)
+	});
 	rpc.register_async("callserverhttp", |p: CallServerHttpParams, c| async move {
+		ensure_auth(&c.auth_state)?;
 		let code_server = c.code_server.lock().await.clone();
 		handle_call_server_http(code_server, p).await
 	});
@@ -579,6 +553,7 @@ fn make_socket_rpc(
 		},
 	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
+		ensure_auth(&c.auth_state)?;
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
 			trace!(c.log, "got {} response for req {}", p.status_code, p.req_id);
 			req.initial_response(p.status_code, p.headers);
@@ -588,6 +563,7 @@ fn make_socket_rpc(
 		Ok(EmptyObject {})
 	});
 	rpc.register_sync("httpbody", move |p: HttpBodyParams, c| {
+		ensure_auth(&c.auth_state)?;
 		let mut reqs = c.http_requests.lock().unwrap();
 		if let Some(req) = reqs.get(&p.req_id) {
 			if !p.segment.is_empty() {
@@ -1555,4 +1531,27 @@ async fn do_challenge_response_flow(
 	shutdown.open(());
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn ensure_auth_allows_only_authenticated_state() {
+		let waiting = Arc::new(std::sync::Mutex::new(AuthState::WaitingForChallenge(None)));
+		let issued = Arc::new(std::sync::Mutex::new(AuthState::ChallengeIssued(
+			"challenge".into(),
+		)));
+		let authed = Arc::new(std::sync::Mutex::new(AuthState::Authenticated));
+
+		assert_eq!(
+			[
+				ensure_auth(&waiting).is_ok(),
+				ensure_auth(&issued).is_ok(),
+				ensure_auth(&authed).is_ok(),
+			],
+			[false, false, true]
+		);
+	}
 }

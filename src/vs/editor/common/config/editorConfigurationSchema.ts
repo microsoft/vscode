@@ -221,6 +221,11 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('useInlineViewWhenSpaceIsLimited', "If enabled and the editor width is too small, the inline view is used."),
 			agentsWindow: { default: true },
 		},
+		'diffEditor.hideOriginalLineNumbers': {
+			type: ['boolean', 'null'],
+			default: null,
+			description: nls.localize('hideOriginalLineNumbers', "Controls whether original line numbers are hidden in inline diffs. When set to null, uses the editor's default: hidden in compact multi diff editors and visible in other diff editors."),
+		},
 		'diffEditor.renderMarginRevertIcon': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.renderMarginRevertIcon,

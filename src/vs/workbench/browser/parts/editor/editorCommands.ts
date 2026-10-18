@@ -17,7 +17,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { canMoveModalEditorToEditorArea, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService, IOpenEvent, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchTreeStickyScrollFocused } from '../../../../platform/list/browser/listService.js';
@@ -27,14 +27,16 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isDiffEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
+import { IMultiDiffEditorOptions } from '../../../../editor/common/multiDiffEditor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, IModalEditorPart, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
+import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithEditorPicker.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
@@ -43,9 +45,8 @@ import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { DIFF_FOCUS_OTHER_SIDE, DIFF_FOCUS_PRIMARY_SIDE, DIFF_FOCUS_SECONDARY_SIDE, registerDiffEditorCommands } from './diffEditorCommands.js';
 import { IResolvedEditorCommandsContext, resolveCommandsContext } from './editorCommandsContext.js';
-import { prepareMoveCopyEditors } from './editor.js';
+import { fillActiveEditorSelection, prepareMoveCopyEditors } from './editor.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -935,7 +936,7 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, ...args: unknown[]) => {
-			return reopenEditorWith(accessor, EditorResolution.PICK, ...args);
+			return reopenEditorWith(accessor, undefined, ...args);
 		}
 	});
 
@@ -945,17 +946,21 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		handler: (accessor, override?: string, ...args: unknown[]) => {
-			return reopenEditorWith(accessor, override ?? EditorResolution.PICK, ...args);
+			return reopenEditorWith(accessor, override, ...args);
 		}
 	});
 
-	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | EditorResolution, ...args: unknown[]) {
+	/**
+	 * @param editorOverride The id of the editor to reopen with, or `undefined` to let the user pick it.
+	 */
+	async function reopenEditorWith(accessor: ServicesAccessor, editorOverride: string | undefined, ...args: unknown[]) {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const textFileService = accessor.get(ITextFileService);
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
+		const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
 		const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
@@ -969,7 +974,17 @@ function registerCloseEditorCommands() {
 					return; // Resolver can only resolve untyped editors
 				}
 
-				untypedEditor.options = { ...editorService.activeEditorPane?.options, override: editorOverride };
+				const options = fillActiveEditorSelection(group, editor, {
+					...untypedEditor.options,
+					...(group.activeEditor === editor ? group.activeEditorPane?.options : undefined),
+					override: editorOverride
+				});
+				const resolvedOptions = editorOverride === undefined ? await editorPicker.pick({ ...untypedEditor, options }) : options;
+				if (!resolvedOptions) {
+					return; // Picker was cancelled
+				}
+
+				untypedEditor.options = resolvedOptions;
 				const resolvedEditor = await editorResolverService.resolveEditor(untypedEditor, group);
 				if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 					return;
@@ -1457,12 +1472,12 @@ function registerModalEditorCommands(): void {
 				category: Categories.View,
 				f1: true,
 				icon: Codicon.openInProduct,
-				precondition: EditorPartModalContext,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
 					order: 0,
-					when: IsSessionsWindowContext.negate()
+					when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), EditorPartModalCanMoveToEditorAreaContext)
 				}
 			});
 		}
@@ -1471,6 +1486,9 @@ function registerModalEditorCommands(): void {
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
+					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+						return;
+					}
 					await part.close({ mergeAllEditorsToMainPart: true });
 					break;
 				}
@@ -1486,12 +1504,12 @@ function registerModalEditorCommands(): void {
 				category: Categories.View,
 				f1: true,
 				icon: Codicon.emptyWindow,
-				precondition: EditorPartModalContext,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
 				menu: [{
 					id: MenuId.ModalEditorTitleContext,
 					group: '1_window',
 					order: 0,
-					when: IsSessionsWindowContext
+					when: ContextKeyExpr.and(IsSessionsWindowContext, EditorPartModalCanMoveToEditorAreaContext)
 				}]
 			});
 		}
@@ -1500,6 +1518,9 @@ function registerModalEditorCommands(): void {
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
+					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+						return;
+					}
 					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
 					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {

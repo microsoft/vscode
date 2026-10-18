@@ -7,7 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
+import { modelConfigurationSourceKey } from '../../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import {
+	applyModelConfigurationDefaults,
 	computeStoredConfiguration,
 	extractSchemaDefaults,
 	filterConfigurationToSchema,
@@ -101,9 +103,51 @@ suite('chatModelConfigurationLogic', () => {
 			assert.deepStrictEqual(filtered, {});
 		});
 
+		test('a started chat falls back to the default when its tier becomes unavailable', () => {
+			const tierSchema: ILanguageModelConfigurationSchema = {
+				type: 'object',
+				properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } },
+			};
+			const applied = applyModelConfigurationDefaults({ tier: 'hydrafusion-max', [modelConfigurationSourceKey('tier')]: 'explicit' }, { tier: 'hydrafusion-max' }, tierSchema, ['tier']);
+			assert.strictEqual(applied.tier, 'balance');
+		});
+
+		test('drops an enum value the schema lists as unavailable', () => {
+			const tierSchema: ILanguageModelConfigurationSchema = {
+				type: 'object',
+				properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion-max'], enumItemDisabled: [false, true], default: 'balance' } },
+			};
+			assert.deepStrictEqual({
+				available: filterConfigurationToSchema({ tier: 'balance' }, tierSchema),
+				unavailable: filterConfigurationToSchema({ tier: 'hydrafusion-max' }, tierSchema),
+			}, {
+				available: { tier: 'balance' },
+				unavailable: {},
+			});
+		});
+
 		test('keeps values for non-enum properties (no constraint to validate)', () => {
 			const filtered = filterConfigurationToSchema({ contextSize: 2000 }, effortSchema);
 			assert.deepStrictEqual(filtered, { contextSize: 2000 });
+		});
+
+		test('drops prototype keys rather than resolving them through Object.prototype', () => {
+			assert.deepStrictEqual(filterConfigurationToSchema({ constructor: 'x', __proto__: 'y', toString: 'z' }, effortSchema), {});
+		});
+
+		test('drops a value from another model, so an Auto tier is not set from a thinking level', () => {
+			// Auto's navigation-group property is its routing tier, not a thinking effort.
+			const autoSchema: ILanguageModelConfigurationSchema = { properties: { tier: { group: 'navigation', enum: ['eco', 'balanced', 'max'] } } };
+			assert.deepStrictEqual(filterConfigurationToSchema({ thinkingLevel: 'high', tier: 'high' }, autoSchema), {});
+		});
+
+		test('drops values that do not match a declared primitive type', () => {
+			const schema: ILanguageModelConfigurationSchema = { properties: { contextSize: { type: 'number' }, label: { type: 'string' } } };
+			assert.deepStrictEqual([
+				filterConfigurationToSchema({ contextSize: 2000 }, schema),
+				filterConfigurationToSchema({ contextSize: 'banana' }, schema),
+				filterConfigurationToSchema({ label: 42 }, schema),
+			], [{ contextSize: 2000 }, {}, {}]);
 		});
 
 		test('returns empty when the schema (or its properties) is missing', () => {

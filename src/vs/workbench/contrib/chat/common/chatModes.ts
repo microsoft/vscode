@@ -179,6 +179,7 @@ class ChatModes extends Disposable implements IChatModes {
 					const uri = URI.revive(cachedMode.uri);
 					const customChatMode: ICustomAgent = {
 						id: cachedMode.id,
+						kind: cachedMode.kind === ChatModeKind.Ask ? ChatModeKind.Ask : undefined,
 						uri,
 						name: cachedMode.name,
 						description: cachedMode.description,
@@ -195,7 +196,7 @@ class ChatModes extends Disposable implements IChatModes {
 						enabled: true
 					};
 					const instance = new CustomChatMode(customChatMode);
-					this._customModeInstances.set(uri.toString(), instance);
+					this._customModeInstances.set(instance.id, instance);
 				} catch (error) {
 					this.logService.error(error, 'Failed to revive cached custom agent');
 				}
@@ -249,17 +250,16 @@ class ChatModes extends Disposable implements IChatModes {
 			}
 
 			// Create a new set of mode instances, reusing existing ones where possible
-			const seenUris = new Set<string>();
+			const seenIds = new Set<string>();
 			for (const customMode of customModes) {
 				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 
-				const uriString = customMode.uri.toString();
-				seenUris.add(uriString);
+				seenIds.add(customMode.id);
 
-				let modeInstance = this._customModeInstances.get(uriString);
-				if (modeInstance) {
+				let modeInstance = this._customModeInstances.get(customMode.id);
+				if (modeInstance && modeInstance.kind === (customMode.kind ?? ChatModeKind.Agent)) {
 					// Update existing instance with new data
 					if (modeInstance.updateData(customMode)) {
 						hasChanges = true;
@@ -267,15 +267,15 @@ class ChatModes extends Disposable implements IChatModes {
 				} else {
 					// Create new instance
 					modeInstance = new CustomChatMode(customMode);
-					this._customModeInstances.set(uriString, modeInstance);
+					this._customModeInstances.set(customMode.id, modeInstance);
 					hasChanges = true;
 				}
 			}
 
 			// Clean up instances for modes that no longer exist
-			for (const [uriString] of this._customModeInstances.entries()) {
-				if (!seenUris.has(uriString)) {
-					this._customModeInstances.delete(uriString);
+			for (const [id] of this._customModeInstances.entries()) {
+				if (!seenIds.has(id)) {
+					this._customModeInstances.delete(id);
 					hasChanges = true;
 				}
 			}
@@ -313,7 +313,9 @@ class ChatModes extends Disposable implements IChatModes {
 
 	private getCustomModes(): IChatMode[] {
 		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
-		return this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy() ? Array.from(this._customModeInstances.values()) : [];
+		return Array.from(this._customModeInstances.values())
+			.filter(mode => mode.kind === ChatModeKind.Ask || this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy())
+			.sort((a, b) => a.label.get().localeCompare(b.label.get()));
 	}
 
 	private isAgentModeDisabledByPolicy(): boolean {
@@ -475,6 +477,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 	private _sessionTypes: readonly string[] | undefined;
+	public readonly kind: ChatModeKind;
 
 	public readonly id: string;
 
@@ -487,7 +490,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get icon(): IObservable<ThemeIcon | undefined> {
-		return constObservable(undefined);
+		return this.kind === ChatModeKind.Ask ? ChatMode.Ask.icon : constObservable(undefined);
 	}
 
 	public get isBuiltin(): boolean {
@@ -515,7 +518,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get label(): IObservable<string> {
-		return this.name;
+		return this.kind === ChatModeKind.Ask ? ChatMode.Ask.label : this.name;
 	}
 
 	get handOffs(): IObservable<readonly IHandOff[] | undefined> {
@@ -542,12 +545,11 @@ export class CustomChatMode implements IChatMode {
 		return this._sessionTypes;
 	}
 
-	public readonly kind = ChatModeKind.Agent;
-
 	constructor(
 		customChatMode: ICustomAgent
 	) {
-		this.id = customChatMode.uri.toString();
+		this.id = customChatMode.id;
+		this.kind = customChatMode.kind ?? ChatModeKind.Agent;
 		this._nameObservable = observableValue('name', customChatMode.name);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);

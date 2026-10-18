@@ -17,6 +17,7 @@ import { IsSessionsWindowContext } from '../../../../workbench/common/contextkey
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { INewSessionComposerService } from './newSessionComposerService.js';
 
 export interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folderUri?: URI;
@@ -82,6 +83,7 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 		const recentWorkspacesService = accessor.get(ISessionsRecentWorkspacesService);
 		const labelService = accessor.get(ILabelService);
 		const fileDialogService = accessor.get(IFileDialogService);
+		const composerService = accessor.get(INewSessionComposerService);
 
 		const items = buildFolderQuickPickItems(recentWorkspacesService, labelService);
 
@@ -108,6 +110,7 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 			return;
 		}
 
+		composerService.notifyUserWorkspaceSelection();
 		await sessionsService.openNewSession({ folderUri, providerId });
 	}
 }

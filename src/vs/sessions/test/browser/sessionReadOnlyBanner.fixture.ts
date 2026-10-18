@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from '../../browser/parts/sessionReadOnlyBanner.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
@@ -21,14 +22,40 @@ export default defineThemedFixtureGroup({ path: 'sessions/readOnlyBanner/' }, {
 			action: { label: 'Restore', run: () => console.log('Restore') },
 		}),
 	}),
+
+	Reconnecting: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanner(context, {
+			icon: Codicon.sync,
+			message: 'Reconnecting to WSL: Ubuntu...',
+		}),
+	}),
+
+	HostNotRunning: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanner(context, {
+			icon: Codicon.debugDisconnect,
+			message: 'WSL: Ubuntu is not running.',
+			action: { label: 'Start WSL: Ubuntu', run: () => console.log('Start') },
+		}),
+	}),
+
+	HostDisconnected: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (context) => renderBanner(context, {
+			icon: Codicon.debugDisconnect,
+			message: 'Cannot reach WSL: Ubuntu.',
+		}),
+	}),
 });
 
-function renderBanner({ container, disposableStore }: ComponentFixtureContext, content: ISessionReadOnlyBannerContent): void {
+function renderBanner({ container, disposableStore, theme }: ComponentFixtureContext, content: ISessionReadOnlyBannerContent): void {
 	container.style.width = '480px';
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 
-	const banner = disposableStore.add(new SessionReadOnlyBanner());
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const banner = disposableStore.add(instantiationService.createInstance(SessionReadOnlyBanner));
 	banner.setContent(content);
 	banner.setVisible(true);
 	container.appendChild(banner.domNode);

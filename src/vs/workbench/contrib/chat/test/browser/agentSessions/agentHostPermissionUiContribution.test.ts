@@ -63,6 +63,7 @@ class FakeNotificationService implements IChatInputNotificationService {
 	}
 	dismissNotification(_id: string): void { /* */ }
 	getActiveNotification(): IChatInputNotification | undefined { return undefined; }
+	refresh(): void { /* */ }
 	handleMessageSent(): void { /* */ }
 	announceRendered(): void { /* */ }
 }

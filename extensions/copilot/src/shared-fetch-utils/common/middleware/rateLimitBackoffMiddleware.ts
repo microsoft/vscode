@@ -5,6 +5,9 @@
 
 import { FetchBlockedError, type FetchMiddleware, type HttpHeaders } from '../fetchTypes';
 
+export const DEFAULT_RATE_LIMIT_BACKOFF_MS = 60_000;
+export const MAX_RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
+
 export class RateLimitBackoffError extends FetchBlockedError {
 	constructor(retryAfterMs: number) {
 		super(`Rate limited, backing off for ${Math.round(retryAfterMs / 1000)}s`, retryAfterMs);
@@ -33,8 +36,8 @@ export interface RateLimitBackoffOptions {
  */
 export function rateLimitBackoffMiddleware(options?: RateLimitBackoffOptions): FetchMiddleware {
 	const {
-		initialDelayMs = 60_000,
-		maxDelayMs = 15 * 60_000,
+		initialDelayMs = DEFAULT_RATE_LIMIT_BACKOFF_MS,
+		maxDelayMs = MAX_RATE_LIMIT_BACKOFF_MS,
 		multiplier = 2,
 		now = Date.now,
 	} = options ?? {};
@@ -60,7 +63,7 @@ export function rateLimitBackoffMiddleware(options?: RateLimitBackoffOptions): F
 		}
 
 		consecutiveRateLimits++;
-		const hinted = retryAfterFromHeaders(response.headers, now);
+		const hinted = retryAfterFromRateLimitHeaders(response.headers, now);
 		const backoff = hinted ?? initialDelayMs * Math.pow(multiplier, consecutiveRateLimits - 1);
 		// `maxDelayMs` caps the server's hint too, so a bogus or hostile `Retry-After` cannot stall
 		// the client indefinitely. Retrying a little early simply re-arms the backoff.
@@ -79,7 +82,7 @@ function isRateLimited(status: number, headers: HttpHeaders): boolean {
 	return status === 403 && readHeader(headers, 'x-ratelimit-remaining') === '0';
 }
 
-function retryAfterFromHeaders(headers: HttpHeaders, now: () => number): number | undefined {
+export function retryAfterFromRateLimitHeaders(headers: HttpHeaders, now: () => number = Date.now): number | undefined {
 	const retryAfter = Number(readHeader(headers, 'retry-after'));
 	if (Number.isFinite(retryAfter) && retryAfter > 0) {
 		return retryAfter * 1000;
@@ -89,6 +92,19 @@ function retryAfterFromHeaders(headers: HttpHeaders, now: () => number): number 
 		return Math.max(0, reset * 1000 - now());
 	}
 	return undefined;
+}
+
+/** Converts a `Retry-After` value (seconds or an HTTP date) to milliseconds; `undefined` if missing or malformed. */
+export function parseRetryAfter(value: string | number | null | undefined, now: number = Date.now()): number | undefined {
+	if (value === undefined || value === null || value === '') {
+		return undefined;
+	}
+	const seconds = Number(value);
+	if (Number.isFinite(seconds)) {
+		return seconds >= 0 ? seconds * 1000 : undefined;
+	}
+	const date = typeof value === 'string' ? Date.parse(value) : NaN;
+	return isNaN(date) ? undefined : Math.max(0, date - now);
 }
 
 /** HTTP header names are case insensitive, but not every headers implementation normalises them. */

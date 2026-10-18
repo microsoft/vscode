@@ -3,7 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .action-item.tunnel-host-toggle {
+.monaco-action-bar .remote-connections-action {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.remote-connections-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-action-bar .tunnel-host-toggle {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -14,12 +22,6 @@
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.tunnel-host-toggle:has(.tunnel-host-toast.visible) {
-	gap: 4px;
-	width: auto;
-	padding: 4px 6px;
 }
 
 .tunnel-host-toggle:hover {
@@ -57,18 +59,4 @@
 	.tunnel-host-toggle.connecting .tunnel-host-icon .codicon {
 		animation: none;
 	}
-}
-
-.tunnel-host-toast {
-	max-width: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	opacity: 0;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
-	transition: max-width 0.3s ease-out, opacity 0.3s ease-out;
-}
-
-.tunnel-host-toast.visible {
-	max-width: 300px;
-	opacity: 1;
 }

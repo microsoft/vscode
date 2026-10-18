@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, ISettableObservable } from '../../../../../base/common/observable.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -16,6 +16,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
@@ -28,13 +29,14 @@ import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDe
  * the active session's `autoApprove` schema doesn't match the well-known
  * shape.
  */
-export class AgentHostPermissionPickerActionItem extends PermissionPickerActionItem {
+export class AgentHostPermissionPickerActionItem extends PermissionPickerActionItem implements IChatInputPickerResponsiveState {
 
 	private readonly _delegate: AgentHostPermissionPickerDelegate;
+	private readonly _compact: ISettableObservable<boolean>;
 
 	constructor(
 		action: MenuItemAction,
-		pickerOptions: IChatInputPickerOptions,
+		pickerOptions: IChatInputPickerOptions & { readonly compact: ISettableObservable<boolean> },
 		session: IObservable<IActiveSession | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
@@ -63,6 +65,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			hoverService,
 		);
 		this._delegate = this._register(delegate);
+		this._compact = pickerOptions.compact;
 
 		// The base widget's label is rendered on demand via `refresh()`. Keep it
 		// in sync with the delegate's level observable.
@@ -70,6 +73,14 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			delegate.currentPermissionLevel.read(reader);
 			this.refresh();
 		}));
+	}
+
+	isCompact(): boolean {
+		return this._compact.get();
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact.set(compact, undefined);
 	}
 
 	override render(container: HTMLElement): void {

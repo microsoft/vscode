@@ -163,6 +163,43 @@ suite('PromptTimelineGutterRail', () => {
 			tabbable: 1,
 		});
 	});
+
+	test('keeps the flyout above sticky scroll and the transcript scrollbar', () => {
+		const host = document.createElement('div');
+		host.classList.add('prompt-timeline-host');
+		host.style.position = 'fixed';
+		host.style.inset = '0 auto auto 0';
+		host.style.width = '400px';
+		host.style.height = '400px';
+		host.style.zIndex = '10000';
+		document.body.appendChild(host);
+		store.add(toDisposable(() => host.remove()));
+
+		const rail = store.add(new PromptTimelineGutterRail());
+		host.appendChild(rail.domNode);
+		rail.setTicks(Array.from({ length: 4 }, (_, index) => tick(index)));
+		rail.domNode.classList.add('revealed');
+
+		const transcriptChrome = document.createElement('div');
+		transcriptChrome.style.position = 'absolute';
+		transcriptChrome.style.inset = '0';
+		transcriptChrome.style.zIndex = '14';
+		host.appendChild(transcriptChrome);
+
+		const panel = rail.domNode.querySelector<HTMLElement>('.prompt-timeline-gutter-panel');
+		const firstRow = panel?.querySelector<HTMLElement>('.prompt-timeline-gutter-row-jump');
+		assert.ok(panel && firstRow);
+		const bounds = firstRow.getBoundingClientRect();
+		const topElement = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+
+		assert.deepStrictEqual({
+			panelReceivesPointer: panel.contains(topElement),
+			transcriptChromeReceivesPointer: transcriptChrome.contains(topElement),
+		}, {
+			panelReceivesPointer: true,
+			transcriptChromeReceivesPointer: false,
+		});
+	});
 });
 
 suite('restDotCount', () => {

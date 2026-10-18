@@ -8,6 +8,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IEnvService } from '../../env/common/envService';
 import { collectSingleLineErrorMessage } from '../../log/common/logService';
 import { CacheStatus, FetcherId, FetchOptions, IAbortController, isAbortError, PaginationOptions, ReportFetchEvent, Response, safeGetHostname } from '../common/fetcherService';
+import { stringifyJsonBody } from '../common/jsonBody';
 import { IFetcher, userAgentLibraryHeader } from '../common/networking';
 import { VSCODE_CACHE_STATUS_HEADER } from './taggedCacheInterceptor';
 
@@ -43,7 +44,7 @@ export abstract class BaseFetchFetcher implements IFetcher {
 				throw new Error(`Illegal arguments! Cannot pass in both 'body' and 'json'!`);
 			}
 			headers['Content-Type'] = 'application/json';
-			body = JSON.stringify(options.json);
+			body = stringifyJsonBody(options.json);
 		}
 
 		const method = options.method || 'GET';

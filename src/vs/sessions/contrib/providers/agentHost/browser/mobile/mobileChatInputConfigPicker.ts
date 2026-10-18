@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -18,12 +18,15 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { type ILanguageModelChatMetadataAndIdentifier } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { getModelProviderIcon } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelProviderIcons.js';
+import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -81,9 +84,11 @@ class MobileChatInputConfigPicker extends Disposable {
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
 		this._register(this._newChatModelPickerService.registerModelPicker({
+			getDomNode: () => this._triggerElement,
 			open: () => { void this._showSheet(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
 		}));
@@ -93,7 +98,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// The input-scoped selection model owns model initialization even when
 		// the desktop picker is gated off, so this surface only renders it.
 		this._register(autorun(reader => {
-			this._session.read(reader);
+			this._session.read(reader)?.activeChat.read(reader);
 			this._selectionModel.state.read(reader);
 			this._updateTrigger();
 		}));
@@ -104,7 +109,7 @@ class MobileChatInputConfigPicker extends Disposable {
 			this._watchProviders(e.added);
 			this._updateTrigger();
 		}));
-		this._watchProviders(this._sessionsProvidersService.getProviders());
+		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }));
 	}
 
 	/**
@@ -167,7 +172,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		}
 
 		// Mode (optional — agent may not advertise a well-known schema)
-		const config = provider.getSessionConfig(session.sessionId);
+		const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
@@ -251,13 +256,18 @@ class MobileChatInputConfigPicker extends Disposable {
 
 		// Sheet's mode row writes through `setSessionConfigValue`, so
 		// disable the button while a resolve is in flight.
-		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.session.activeChat.get().resource).get();
 		this._slotElement.classList.toggle('resolving', isResolving);
 		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
 	private _switchToModel(modelIdentifier: string): boolean {
-		return this._selectionModel.selectModel(modelIdentifier);
+		const previousModelIdentifier = this._selectionModel.state.get().currentModel?.identifier;
+		const selected = this._selectionModel.selectModel(modelIdentifier);
+		if (selected && didExplicitlySwitchChatPetModel(previousModelIdentifier, modelIdentifier)) {
+			this._chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
+		}
+		return selected;
 	}
 
 	private async _showSheet(): Promise<void> {
@@ -268,7 +278,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// button retains its tap target while visually disabled, so
 		// guard explicitly.
 		const ctx = this._getContext();
-		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get()) {
+		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId, ctx.session.activeChat.get().resource).get()) {
 			return;
 		}
 		// Delegate sheet construction to the shared phone presenter so
@@ -342,6 +352,11 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAutomationsDialog, SessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -364,6 +379,7 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -373,20 +389,24 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 		// bottom sheet. Publish this as a neutral context key so the core model
 		// picker can gate itself out without depending on agent-host identity.
 		const usesCombinedPicker = SessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
+		const providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this._register(autorun(reader => {
+			providersChanged.read(reader);
 			const session = sessionsService.activeSession.read(reader);
-			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
+			usesCombinedPicker.set(!!session && sessionsProvidersService.getProvider(session.providerId)?.usesCombinedNewSessionConfigPicker === true);
 		}));
 
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig,
-			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
-			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
-				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
-				return new MobileChatInputConfigPickerActionViewItem(picker);
-			},
-		));
+		for (const menu of [Menus.NewSessionConfig, Menus.AutomationsDialogInputToolbar]) {
+			this._register(actionViewItemService.register(
+				menu,
+				MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
+				(_action, _options, scopedInstantiationService) => {
+					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+					const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
+					return new MobileChatInputConfigPickerActionViewItem(picker);
+				},
+			));
+		}
 	}
 }
 

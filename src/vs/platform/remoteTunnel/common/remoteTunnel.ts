@@ -78,6 +78,7 @@ export interface ConnectionInfo {
 	link?: string;
 	domain?: string;
 	tunnelName: string;
+	tunnelId?: string;
 	isAttached: boolean;
 }
 

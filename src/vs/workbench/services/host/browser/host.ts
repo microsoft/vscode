@@ -13,6 +13,11 @@ import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, I
 export const IHostService = createDecorator<IHostService>('hostService');
 
 export interface IToastOptions {
+	/**
+	 * Prevents another live native toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
+
 	readonly title: string;
 	readonly body?: string;
 
@@ -23,6 +28,11 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+
+	/**
+	 * True when a live native toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;

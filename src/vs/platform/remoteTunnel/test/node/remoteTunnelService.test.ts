@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event, Emitter } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -14,10 +15,12 @@ import { LogLevel, NullLoggerService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { InMemoryStorageService } from '../../../storage/common/storage.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ActiveTunnelMode, TunnelMode, TunnelStatus } from '../../common/remoteTunnel.js';
 import { TunnelMachineStatus } from '../../common/tunnelMachineStatus.js';
+import { ITunnelServiceCorrelation } from '../../common/tunnelServiceHeaders.js';
 import { RemoteTunnelService } from '../../node/remoteTunnelService.js';
-import { IAgentHostSharingRequest, ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
+import { ITunnelProcessCoordinator, ITunnelProcessMachineStatus, ITunnelProcessOutput, ITunnelProcessStatus, TunnelProcessConnectionState, TunnelProcessMode } from '../../node/tunnelProcessCoordinator.js';
 import sinon from 'sinon';
 
 class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
@@ -48,10 +51,6 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 		return Promise.resolve();
 	}
 
-	setAgentHostSharing(_request: IAgentHostSharingRequest | undefined): Promise<void> {
-		return Promise.resolve();
-	}
-
 	restart(): Promise<void> {
 		return Promise.resolve();
 	}
@@ -65,8 +64,8 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 		this._onDidChangeStatus.fire(this._status);
 	}
 
-	fireMachineStatus(mode: TunnelProcessMode, status: TunnelMachineStatus, cancel = () => { }): void {
-		this._onDidMachineStatus.fire({ mode, status, cancel });
+	fireMachineStatus(mode: TunnelProcessMode, status: TunnelMachineStatus, cancel = () => { }, correlation?: ITunnelServiceCorrelation): void {
+		this._onDidMachineStatus.fire({ mode, status, cancel, correlation });
 	}
 
 	dispose(): void {
@@ -83,7 +82,8 @@ suite('Remote tunnel', () => {
 		const coordinator = new TestTunnelProcessCoordinator();
 		const loggerService = new NullLoggerService();
 		const storageService = new InMemoryStorageService();
-		const publicLog2 = sinon.spy(NullTelemetryService, 'publicLog2');
+		const telemetryService: ITelemetryService = NullTelemetryService;
+		const publicLog2 = sinon.spy(telemetryService, 'publicLog2');
 		const service = new RemoteTunnelService(
 			NullTelemetryService,
 			{ tunnelApplicationName: 'code-tunnel' } as IProductService,
@@ -101,12 +101,15 @@ suite('Remote tunnel', () => {
 		};
 		const tokenFailures: (typeof mode.session | undefined)[] = [];
 		const tokenFailureListener = service.onDidTokenFailed(session => tokenFailures.push(session));
+		const statusChanges: TunnelStatus[] = [];
+		let statusChangeListener: IDisposable | undefined;
 		try {
 			await service.initialize(mode);
+			statusChangeListener = service.onDidChangeTunnelStatus(status => statusChanges.push(status));
 			let didCancel = false;
-			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: true, link: 'https://vscode.dev/tunnel/test_host', domain: 'vscode.dev' });
+			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', tunnelId: 'tunnel-id', isAttached: true, link: 'https://vscode.dev/tunnel/test_host', domain: 'vscode.dev' });
 			const linkedStatus = await service.getTunnelStatus();
-			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: false });
+			coordinator.fireMachineStatus('remoteAccess', { type: 'connected', tunnelName: 'test_host', isAttached: false }, undefined, { sessionId: 'telemetry-session', operationId: 'operation-id' });
 			const noLinkStatus = await service.getTunnelStatus();
 			coordinator.fireMachineStatus('remoteAccess', { type: 'tokenError', message: 'token expired' }, () => didCancel = true);
 			const disconnectedStatus = await service.getTunnelStatus();
@@ -115,16 +118,23 @@ suite('Remote tunnel', () => {
 				linkedStatus,
 				noLinkStatus,
 				disconnectedStatus,
+				statusChanges,
 				tokenFailures,
 				didCancel,
 				telemetryCallCount: publicLog2.callCount,
+				connectedTelemetry: publicLog2.getCalls().filter(call => call.args[0] === 'remoteTunnel.connected').map(call => call.args[1]),
 			}, {
+				connectedTelemetry: [
+					{ tunnelName: 'test_host', isAttached: true },
+					{ tunnelName: 'test_host', isAttached: false, tunnelSessionId: 'telemetry-session', operationId: 'operation-id' },
+				],
 				linkedStatus: {
 					type: 'connected',
 					info: {
 						link: 'https://vscode.dev/tunnel/test_host',
 						domain: 'vscode.dev',
 						tunnelName: 'test_host',
+						tunnelId: 'tunnel-id',
 						isAttached: true,
 					},
 					serviceInstallFailed: false,
@@ -141,11 +151,37 @@ suite('Remote tunnel', () => {
 					type: 'disconnected',
 					onTokenFailed: mode.session,
 				},
+				statusChanges: [
+					{
+						type: 'connected',
+						info: {
+							link: 'https://vscode.dev/tunnel/test_host',
+							domain: 'vscode.dev',
+							tunnelName: 'test_host',
+							tunnelId: 'tunnel-id',
+							isAttached: true,
+						},
+						serviceInstallFailed: false,
+					},
+					{
+						type: 'connected',
+						info: {
+							tunnelName: 'test_host',
+							isAttached: false,
+						},
+						serviceInstallFailed: false,
+					},
+					{
+						type: 'disconnected',
+						onTokenFailed: mode.session,
+					},
+				],
 				tokenFailures: [mode.session],
 				didCancel: true,
 				telemetryCallCount: 3,
 			});
 		} finally {
+			statusChangeListener?.dispose();
 			tokenFailureListener.dispose();
 			publicLog2.restore();
 			service.dispose();

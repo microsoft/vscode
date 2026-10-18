@@ -113,6 +113,7 @@ export interface IModelPromo {
 	/** ISO 8601 end date; absent for open-ended promotions. */
 	ends_at?: string;
 	message: string;
+	show_banner?: boolean;
 }
 
 export interface IModelBilling {
@@ -155,6 +156,12 @@ export type IChatModelInformation = IModelAPIResponse & {
 	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
+	 * BYOK Custom Endpoint setting declaring whether the Responses API server retains prior
+	 * responses, so requests may chain via `previous_response_id` and send only post-marker
+	 * history. Unset is treated as `true`; set `false` for stateless servers.
+	 */
+	statefulResponses?: boolean;
+	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
 	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
 	 * Anthropic Messages API → `output_config.effort`, Chat Completions → top-level `reasoning_effort`).
@@ -180,7 +187,7 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 	return model.capabilities.type === 'completion';
 }
 
-export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small' | 'copilot-dictation-cleanup-luna';
+export type ChatEndpointFamily = 'copilot-utility' | 'copilot-utility-small' | 'copilot-dictation-cleanup-nano' | 'copilot-dictation-cleanup-luna';
 
 /**
  * A model family accepted by {@link IEndpointProvider.getChatEndpoint}: either

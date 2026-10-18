@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Fetches the Foundry Local native core libraries (Foundry Local Core +
- * onnxruntime + onnxruntime-genai) from NuGet for an EXPLICIT RID, so a single
+ * Fetches the Foundry Local native dependencies (onnxruntime +
+ * onnxruntime-genai) from NuGet for an EXPLICIT RID, so a single
  * build agent can assemble a tarball for any target regardless of its own
  * `process.platform`/`process.arch`.
  *
@@ -17,19 +17,26 @@
  * tarballs; extracting `runtimes/<rid>/native/*` from the same `.nupkg` files
  * for an explicit RID is host-independent and fixes that.
  *
- * Only the "standard" artifact set is supported (the three packages selected by
+ * Only the "standard" artifact set is supported (the two packages selected by
  * `package.ts`); the SDK installer's WinML override / `includeFiles` /
  * `removeFiles` paths are intentionally not ported.
  */
 
 import { createRequire } from 'module';
+import { Buffer } from 'buffer';
 import * as fs from 'fs';
 import * as https from 'https';
 import * as os from 'os';
 import * as path from 'path';
-import { SDK_PACKAGE_NAME } from './common.ts';
+import { resolveSdkPackageRoot } from './common.ts';
 
 const SCRIPT = 'nuget.ts';
+const VSCODE_FEED_PREFIX = 'https://pkgs.dev.azure.com/monacotools/';
+const VSS_NUGET_ACCESSTOKEN = 'VSS_NUGET_ACCESSTOKEN';
+const MAX_DOWNLOAD_ATTEMPTS = 5;
+const INITIAL_RETRY_DELAY_MS = 1_000;
+const MAX_RETRY_DELAY_MS = 30_000;
+export const VSCODE_NUGET_FEED = 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json';
 
 /**
  * `adm-zip`, resolved through `foundry-local-sdk`'s own dependency tree (it is a
@@ -37,21 +44,29 @@ const SCRIPT = 'nuget.ts';
  * `.nupkg` archives.
  */
 function loadAdmZip(): any {
-	const sdkRequire = createRequire(import.meta.url);
-	const fromSdk = createRequire(sdkRequire.resolve(`${SDK_PACKAGE_NAME}/package.json`));
+	const fromSdk = createRequire(path.join(resolveSdkPackageRoot(), 'package.json'));
 	return fromSdk('adm-zip');
 }
 
-/**
- * NuGet feeds tried in order, matching `foundry-local-sdk`'s installer: the
- * stable nuget.org feed first, then the public ORT-Nightly Azure DevOps feed
- * (where pre-release Foundry Local Core / ORT / ORT-GenAI builds live before
- * they reach nuget.org).
- */
+/** The authenticated VS Code NuGet feed used for native runtime packages. */
 const FEEDS: readonly string[] = [
-	'https://api.nuget.org/v3/index.json',
-	'https://pkgs.dev.azure.com/aiinfra/PublicPackages/_packaging/ORT-Nightly/nuget/v3/index.json',
+	VSCODE_NUGET_FEED,
 ];
+
+function getRequestOptions(url: string): https.RequestOptions {
+	if (!url.startsWith(VSCODE_FEED_PREFIX)) {
+		return {};
+	}
+	const token = process.env[VSS_NUGET_ACCESSTOKEN];
+	if (!token) {
+		throw new Error(`${VSS_NUGET_ACCESSTOKEN} is required to access the VS Code NuGet feed.`);
+	}
+	return {
+		headers: {
+			Authorization: `Basic ${Buffer.from(`vscode:${token}`).toString('base64')}`,
+		},
+	};
+}
 
 /** The NuGet Runtime IDentifier for each supported runtime target. */
 const RID_BY_TARGET: Readonly<Record<string, string>> = {
@@ -72,18 +87,80 @@ export interface INugetArtifact {
 	readonly version: string;
 }
 
+export interface IFoundryDependencyVersions {
+	readonly onnxruntime: { readonly version: string };
+	readonly 'onnxruntime-genai': { readonly version: string };
+}
+
+export interface IFetchDependencyLibrariesOptions {
+	readonly feeds?: readonly string[];
+}
+
+export function getStandardArtifacts(dependencies: IFoundryDependencyVersions): readonly INugetArtifact[] {
+	return [
+		{ name: 'Microsoft.ML.OnnxRuntime', version: dependencies.onnxruntime.version },
+		{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: dependencies['onnxruntime-genai'].version },
+	];
+}
+
+export function requiredDependencyLibraryNames(target: string, dependencies: IFoundryDependencyVersions): readonly string[] {
+	return [
+		onnxRuntimeLibraryName(target, dependencies.onnxruntime.version),
+		onnxRuntimeGenAiLibraryName(target),
+	];
+}
+
+function onnxRuntimeLibraryName(target: string, version: string): string {
+	const isWin = target.startsWith('win32-');
+	const isDarwin = target.startsWith('darwin-');
+	return isWin
+		? 'onnxruntime.dll'
+		: isDarwin
+			? `libonnxruntime.${version.split('.')[0]}.dylib`
+			: 'libonnxruntime.so.1';
+}
+
+function onnxRuntimeGenAiLibraryName(target: string): string {
+	return target.startsWith('win32-')
+		? 'onnxruntime-genai.dll'
+		: target.startsWith('darwin-')
+			? 'libonnxruntime-genai.dylib'
+			: 'libonnxruntime-genai.so';
+}
+
+export function normalizeOrtLibraryName(binDir: string, target: string, version: string): void {
+	let unversioned: string;
+	let versioned: string;
+	if (target.startsWith('linux-')) {
+		unversioned = path.join(binDir, 'libonnxruntime.so');
+		versioned = path.join(binDir, 'libonnxruntime.so.1');
+	} else if (target.startsWith('darwin-')) {
+		unversioned = path.join(binDir, 'libonnxruntime.dylib');
+		versioned = path.join(binDir, `libonnxruntime.${version.split('.')[0]}.dylib`);
+	} else {
+		return;
+	}
+	if (!fs.existsSync(versioned) && fs.existsSync(unversioned)) {
+		fs.renameSync(unversioned, versioned);
+	}
+	if (target.startsWith('darwin-') && fs.existsSync(versioned) && !fs.existsSync(unversioned)) {
+		fs.symlinkSync(path.basename(versioned), unversioned);
+	}
+}
+
 /**
  * Download each `artifact` `.nupkg` for `target`'s RID and extract its native
  * shared libraries into `binDir`. Throws if a package can't be fetched from any
  * feed; callers verify the resulting library set separately.
  */
-export async function fetchCoreLibraries(target: string, artifacts: readonly INugetArtifact[], binDir: string): Promise<void> {
+export async function fetchDependencyLibraries(target: string, artifacts: readonly INugetArtifact[], binDir: string, options?: IFetchDependencyLibrariesOptions): Promise<void> {
 	const rid = RID_BY_TARGET[target];
 	if (!rid) {
 		throw new Error(`[${SCRIPT}] No NuGet RID mapping for target '${target}'.`);
 	}
 	const ext = libExt(target);
 	const AdmZip = loadAdmZip();
+	const feeds = options?.feeds ?? FEEDS;
 
 	fs.mkdirSync(binDir, { recursive: true });
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dictation-nuget-'));
@@ -91,7 +168,7 @@ export async function fetchCoreLibraries(target: string, artifacts: readonly INu
 	try {
 		console.log(`[${SCRIPT}] Fetching native libraries for RID ${rid} (target ${target})...`);
 		for (const artifact of artifacts) {
-			await installPackage(artifact, rid, ext, tempDir, binDir, AdmZip, serviceIndexCache);
+			await installPackage(artifact, rid, ext, tempDir, binDir, AdmZip, serviceIndexCache, feeds);
 		}
 	} finally {
 		fs.rmSync(tempDir, { recursive: true, force: true });
@@ -106,10 +183,11 @@ async function installPackage(
 	binDir: string,
 	AdmZip: any,
 	serviceIndexCache: Map<string, unknown>,
+	feeds: readonly string[],
 ): Promise<void> {
 	let lastError: unknown;
-	for (let i = 0; i < FEEDS.length; i++) {
-		const feedUrl = FEEDS[i];
+	for (let i = 0; i < feeds.length; i++) {
+		const feedUrl = feeds[i];
 		const feedHost = new URL(feedUrl).host;
 		try {
 			const baseAddress = await getBaseAddress(feedUrl, serviceIndexCache);
@@ -134,13 +212,13 @@ async function installPackage(
 		} catch (err) {
 			lastError = err;
 			const reason = err instanceof Error ? err.message : String(err);
-			if (i < FEEDS.length - 1) {
+			if (i < feeds.length - 1) {
 				console.warn(`[${SCRIPT}]   ${artifact.name} ${artifact.version}: download from ${feedHost} failed (${reason}); trying next feed...`);
 			}
 		}
 	}
-	const feeds = FEEDS.map(f => new URL(f).host).join(', ');
-	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feeds}): ${lastError instanceof Error ? lastError.message : lastError}`);
+	const feedHosts = feeds.map(feed => new URL(feed).host).join(', ');
+	throw new Error(`[${SCRIPT}] Failed to download ${artifact.name} ${artifact.version} from any feed (${feedHosts}): ${lastError instanceof Error ? lastError.message : lastError}`);
 }
 
 /**
@@ -200,11 +278,33 @@ function downloadToFile(url: string, dest: string): Promise<void> {
 	}));
 }
 
-/** Issue a GET, following up to 5 redirects, then hand the 200 response to `onOk`. */
+function isRetryableStatus(status: number): boolean {
+	return status === 408 || status === 429 || status >= 500;
+}
+
+function getRetryDelay(response: import('http').IncomingMessage, attempt: number): number {
+	const retryAfterHeader = response.headers['retry-after'];
+	const retryAfter = Array.isArray(retryAfterHeader) ? retryAfterHeader[0] : retryAfterHeader;
+	if (retryAfter) {
+		const seconds = Number(retryAfter);
+		if (Number.isFinite(seconds)) {
+			return Math.min(Math.max(seconds * 1_000, 0), MAX_RETRY_DELAY_MS);
+		}
+
+		const date = Date.parse(retryAfter);
+		if (!Number.isNaN(date)) {
+			return Math.min(Math.max(date - Date.now(), 0), MAX_RETRY_DELAY_MS);
+		}
+	}
+
+	return Math.min(INITIAL_RETRY_DELAY_MS * 2 ** (attempt - 1), MAX_RETRY_DELAY_MS);
+}
+
+/** Issue a GET with bounded retries, following up to 5 redirects, then hand the 200 response to `onOk`. */
 function followRedirects<T>(url: string, onOk: (res: import('http').IncomingMessage) => Promise<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const request = (currentUrl: string, redirectsLeft: number): void => {
-			https.get(currentUrl, res => {
+		const request = (currentUrl: string, redirectsLeft: number, attempt: number): void => {
+			https.get(currentUrl, getRequestOptions(currentUrl), res => {
 				const status = res.statusCode ?? 0;
 				if (status >= 300 && status < 400 && res.headers.location) {
 					res.resume();
@@ -212,17 +312,23 @@ function followRedirects<T>(url: string, onOk: (res: import('http').IncomingMess
 						reject(new Error(`Too many redirects downloading ${url}.`));
 						return;
 					}
-					request(new URL(res.headers.location, currentUrl).toString(), redirectsLeft - 1);
+					request(new URL(res.headers.location, currentUrl).toString(), redirectsLeft - 1, attempt);
 					return;
 				}
 				if (status !== 200) {
 					res.resume();
+					if (isRetryableStatus(status) && attempt < MAX_DOWNLOAD_ATTEMPTS) {
+						const delay = getRetryDelay(res, attempt);
+						console.warn(`[${SCRIPT}] Download failed with status ${status}; retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_DOWNLOAD_ATTEMPTS})...`);
+						setTimeout(() => request(currentUrl, redirectsLeft, attempt + 1), delay);
+						return;
+					}
 					reject(new Error(`Download failed with status ${status}: ${currentUrl}`));
 					return;
 				}
 				onOk(res).then(resolve, reject);
 			}).on('error', reject);
 		};
-		request(url, 5);
+		request(url, 5, 1);
 	});
 }

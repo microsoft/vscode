@@ -15,9 +15,7 @@ import {
 	PullRequestComment,
 	PullRequestCore,
 	PullRequestFragment,
-	PullRequestInlineComment,
 	PullRequestMergeability,
-	PullRequestParticipants,
 	PullRequestRef,
 	PullRequestRefreshOptions,
 	PullRequestResource,
@@ -28,7 +26,8 @@ import {
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from './pullRequestQueryService.js';
@@ -37,7 +36,6 @@ import { PullRequestScheduler } from './pullRequestScheduler.js';
 export interface IPullRequestResources {
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription;
 	invalidatePullRequest(ref: PullRequestRef, fragments: readonly PullRequestFragment[]): void;
-	clear(): void;
 }
 
 function formatPullRequestRef(ref: PullRequestRef): string {
@@ -70,9 +68,7 @@ export interface PullRequestPollingPolicy {
 	readonly checksBackstop: number;
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
-	readonly participants: number;
-	readonly failureRetryBase: number;
-	readonly failureRetryMaximum: number;
+	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -89,9 +85,7 @@ const defaultPollingPolicy: PullRequestPollingPolicy = {
 	checksBackstop: 300_000,
 	mergeabilityVisible: 30_000,
 	mergeabilityBackground: 120_000,
-	participants: 300_000,
-	failureRetryBase: 30_000,
-	failureRetryMaximum: 300_000,
+	failureBackoff: { immediateRetries: 0, base: 30_000, maximum: 300_000, jitter: 5_000 },
 	jitter: 5_000,
 };
 
@@ -99,28 +93,25 @@ const fragments: readonly PullRequestFragment[] = [
 	'core',
 	'topLevelComments',
 	'submittedReviews',
-	'inlineComments',
 	'reviewThreads',
 	'checks',
 	'mergeability',
-	'participants',
 ];
 
 type AnyFragmentState =
 	| FragmentState<PullRequestCore>
 	| FragmentState<readonly PullRequestComment[]>
 	| FragmentState<readonly PullRequestReview[]>
-	| FragmentState<readonly PullRequestInlineComment[]>
 	| FragmentState<readonly PullRequestReviewThread[]>
 	| FragmentState<PullRequestChecks>
-	| FragmentState<PullRequestMergeability>
-	| FragmentState<PullRequestParticipants>;
+	| FragmentState<PullRequestMergeability>;
 
 interface IFragmentOperation {
 	readonly controller: AbortController;
 	readonly generation: number;
 	readonly interest: EffectivePullRequestFragmentInterest;
 	readonly promise: Promise<void>;
+	requestSignal?: AbortSignal;
 }
 
 class PullRequestResourceImpl implements PullRequestResource {
@@ -220,7 +211,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	private _entryId = 0;
 
 	constructor(
-		scheduler: IGitHubScheduler = systemGitHubScheduler,
+		scheduler: IRequestScheduler = systemRequestScheduler,
 		private readonly _policy: PullRequestPollingPolicy = defaultPollingPolicy,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _queries: IPullRequestQuery,
@@ -232,7 +223,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
 
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
 		const normalized = normalizeRef(ref);
@@ -330,7 +321,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._trimDormantEntries();
 	}
 
-	clear(): void {
+	override dispose(): void {
 		for (const entry of [...this._entries]) {
 			this._disposeEntry(entry);
 		}
@@ -338,10 +329,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._entriesByKey.clear();
 		this._entries.clear();
 		this._dormant.clear();
-	}
-
-	override dispose(): void {
-		this.clear();
 		super.dispose();
 	}
 
@@ -374,6 +361,10 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					this._scheduler.cancel(this._bodyTaskKey(entry, fragment));
 				}
 				if (oldInterest.priority !== newInterest.priority) {
+					const requestSignal = entry.operations.get(fragment)?.requestSignal;
+					if (requestSignal) {
+						this._queries.promote(requestSignal, newInterest.priority);
+					}
 					this._scheduleNext(entry, fragment, newInterest);
 				}
 			}
@@ -456,13 +447,19 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			if (!sameAccount(credential.account, entry.ref)) {
 				throw new GitHubRequestError('Pull request resource account does not match the current GitHub credential', 'authentication');
 			}
+			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			const operation = entry.operations.get(fragment);
+			if (operation?.controller === controller) {
+				operation.requestSignal = signal;
+			}
+			const options = pullRequestOptionsForFragment(fragment, interest);
 			const result = await this._queries.fetch(
 				fragment,
 				entry.ref,
 				entry.snapshot.get().core.value,
-				pullRequestOptionsForFragment(fragment, interest),
+				{ ...options, get priority() { return entry.effective.get(fragment)?.priority ?? interest.priority; } },
 				credential,
-				AbortSignal.any([controller.signal, credential.signal]),
+				signal,
 			);
 			if (!this._canCommit(entry, fragment, entryGeneration, fragmentGeneration, credential, headAtStart)) {
 				if (!controller.signal.aborted && this._isFragmentActive(entry, fragment)) {
@@ -544,9 +541,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'submittedReviews':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
 				break;
-			case 'inlineComments':
-				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
-				break;
 			case 'reviewThreads':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
 				break;
@@ -555,9 +549,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				break;
 			case 'mergeability':
 				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt, result.headSha));
-				break;
-			case 'participants':
-				this._setFragmentState(entry, result.fragment, readyState(result.value, result.complete, observedAt));
 				break;
 		}
 		return entry;
@@ -667,14 +658,13 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			return;
 		}
 		if (error instanceof GitHubRequestError
-			&& (error.kind === 'authorization' || error.kind === 'notFound' || error.kind === 'validation' || error.kind === 'schema' || error.kind === 'rateLimit')) {
+			&& (error.kind === 'notFound' || error.kind === 'validation' || error.kind === 'schema' || error.kind === 'rateLimit')) {
 			this._scheduleNext(entry, fragment, interest);
 			return;
 		}
 		const failures = (entry.failureCounts.get(fragment) ?? 0) + 1;
 		entry.failureCounts.set(fragment, failures);
-		const delay = Math.min(this._policy.failureRetryBase * 2 ** (failures - 1), this._policy.failureRetryMaximum);
-		this._scheduleFragment(entry, fragment, this._clock.now() + delay + this._clock.jitter(this._policy.jitter));
+		this._scheduleFragment(entry, fragment, this._clock.now() + backoffDelay(this._policy.failureBackoff, this._clock, failures));
 	}
 
 	private _pollDelay(entry: PullRequestEntry, fragment: PullRequestFragment, interest: EffectivePullRequestFragmentInterest): number | undefined {
@@ -687,17 +677,17 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 				return visible ? this._policy.coreVisible : this._policy.coreBackground;
 			case 'topLevelComments':
 			case 'submittedReviews':
-			case 'inlineComments':
 			case 'reviewThreads':
 				return visible ? this._policy.conversationVisible : this._policy.conversationBackground;
-			case 'checks':
-				return checksPending(entry.snapshot.get().checks.value)
+			case 'checks': {
+				// An errored fragment carries no trustworthy pending signal.
+				const checks = entry.snapshot.get().checks;
+				return checks.status !== 'error' && checksPending(checks.value)
 					? visible ? this._policy.checksPendingVisible : this._policy.checksPendingBackground
 					: this._policy.checksBackstop;
+			}
 			case 'mergeability':
 				return visible ? this._policy.mergeabilityVisible : this._policy.mergeabilityBackground;
-			case 'participants':
-				return this._policy.participants;
 		}
 	}
 
@@ -720,11 +710,6 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			case 'submittedReviews':
 				if (snapshot.submittedReviews.value) {
 					this._setFragmentState(entry, fragment, { ...snapshot.submittedReviews, value: snapshot.submittedReviews.value.map(({ body, ...review }) => review) });
-				}
-				break;
-			case 'inlineComments':
-				if (snapshot.inlineComments.value) {
-					this._setFragmentState(entry, fragment, { ...snapshot.inlineComments, value: snapshot.inlineComments.value.map(({ body, ...comment }) => comment) });
 				}
 				break;
 			case 'reviewThreads':
@@ -921,11 +906,9 @@ function initialSnapshot(ref: PullRequestRef): PullRequestSnapshot {
 		core: missing,
 		topLevelComments: missing,
 		submittedReviews: missing,
-		inlineComments: missing,
 		reviewThreads: missing,
 		checks: missing,
 		mergeability: missing,
-		participants: missing,
 	};
 }
 
@@ -965,8 +948,8 @@ function sameInterest(left: EffectivePullRequestFragmentInterest, right: Effecti
 		&& (left.includeOptionalChecks === true) === (right.includeOptionalChecks === true);
 }
 
-function isConversationFragment(fragment: PullRequestFragment): fragment is 'topLevelComments' | 'submittedReviews' | 'inlineComments' | 'reviewThreads' {
-	return fragment === 'topLevelComments' || fragment === 'submittedReviews' || fragment === 'inlineComments' || fragment === 'reviewThreads';
+function isConversationFragment(fragment: PullRequestFragment): fragment is 'topLevelComments' | 'submittedReviews' | 'reviewThreads' {
+	return fragment === 'topLevelComments' || fragment === 'submittedReviews' || fragment === 'reviewThreads';
 }
 
 function isHeadFragment(fragment: PullRequestFragment): fragment is 'reviewThreads' | 'checks' | 'mergeability' {
@@ -990,11 +973,9 @@ function fragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestFragm
 		case 'core': return snapshot.core;
 		case 'topLevelComments': return snapshot.topLevelComments;
 		case 'submittedReviews': return snapshot.submittedReviews;
-		case 'inlineComments': return snapshot.inlineComments;
 		case 'reviewThreads': return snapshot.reviewThreads;
 		case 'checks': return snapshot.checks;
 		case 'mergeability': return snapshot.mergeability;
-		case 'participants': return snapshot.participants;
 	}
 }
 
@@ -1003,11 +984,9 @@ function withFragmentState(snapshot: PullRequestSnapshot, fragment: PullRequestF
 		case 'core': return { ...snapshot, core: state as FragmentState<PullRequestCore> };
 		case 'topLevelComments': return { ...snapshot, topLevelComments: state as FragmentState<readonly PullRequestComment[]> };
 		case 'submittedReviews': return { ...snapshot, submittedReviews: state as FragmentState<readonly PullRequestReview[]> };
-		case 'inlineComments': return { ...snapshot, inlineComments: state as FragmentState<readonly PullRequestInlineComment[]> };
 		case 'reviewThreads': return { ...snapshot, reviewThreads: state as FragmentState<readonly PullRequestReviewThread[]> };
 		case 'checks': return { ...snapshot, checks: state as FragmentState<PullRequestChecks> };
 		case 'mergeability': return { ...snapshot, mergeability: state as FragmentState<PullRequestMergeability> };
-		case 'participants': return { ...snapshot, participants: state as FragmentState<PullRequestParticipants> };
 	}
 }
 
@@ -1038,11 +1017,9 @@ function mergeSnapshotValues(target: PullRequestSnapshot, source: PullRequestSna
 		...target,
 		topLevelComments: retainFragmentValue(target.topLevelComments, source.topLevelComments),
 		submittedReviews: retainFragmentValue(target.submittedReviews, source.submittedReviews),
-		inlineComments: retainFragmentValue(target.inlineComments, source.inlineComments),
 		reviewThreads: retainFragmentValue(target.reviewThreads, source.reviewThreads),
 		checks: retainFragmentValue(target.checks, source.checks),
 		mergeability: retainFragmentValue(target.mergeability, source.mergeability),
-		participants: retainFragmentValue(target.participants, source.participants),
 	};
 }
 

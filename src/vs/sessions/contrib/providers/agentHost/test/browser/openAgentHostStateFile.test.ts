@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -17,16 +18,22 @@ import { TestNotificationService } from '../../../../../../platform/notification
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { isResourceEditorInput } from '../../../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
-import { openAgentHostStateFile, OpenAgentHostStateFileAction as WorkbenchOpenAgentHostStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.js';
+import { OpenAgentHostStateFileAction as WorkbenchOpenAgentHostStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openAgentHostStateFileAction.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
 import { OpenAgentHostStateFileAction } from '../../browser/openAgentHostStateFileAction.js';
 
 suite('Open Agent Host State File', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const userHome = URI.file('/home/me');
+	const copilotHome = URI.file('/home/me/.copilot');
 
 	function makeRemoteConn(address: string, defaultDirectory: string | undefined): IRemoteAgentHostConnectionInfo {
 		return {
@@ -74,19 +81,18 @@ suite('Open Agent Host State File', () => {
 	});
 
 	test('local AH copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
-		const result = resolveEventsUri(URI.parse('agent-host-copilotcli:/abc'), userHome, () => undefined);
+		const result = resolveEventsUri(URI.parse('agent-host-copilotcli:/abc'), copilotHome, () => undefined);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
 		);
 	});
 
-	test('local AH copilotcli session resolves from COPILOT_HOME', () => {
+	test('local AH copilotcli session resolves from a configured Copilot home', () => {
 		const result = resolveEventsUri(
 			URI.parse('agent-host-copilotcli:/abc'),
-			userHome,
+			URI.file('/custom/copilot'),
 			() => undefined,
-			{ COPILOT_HOME: '/custom/copilot' },
 		);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
@@ -100,7 +106,7 @@ suite('Open Agent Host State File', () => {
 		assert.deepStrictEqual({
 			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
 			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
-			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
+			localLogs: buildLocalCopilotLogsUri(copilotHome).toString(),
 			remoteLogs: remoteLogs ? {
 				scheme: remoteLogs.scheme,
 				authority: remoteLogs.authority,
@@ -118,15 +124,15 @@ suite('Open Agent Host State File', () => {
 		});
 	});
 
-	test('local copilot log root resolves from COPILOT_HOME', () => {
+	test('local copilot log root resolves from a configured Copilot home', () => {
 		assert.strictEqual(
-			buildLocalCopilotLogsUri(userHome, { COPILOT_HOME: '/custom/copilot' }).toString(),
+			buildLocalCopilotLogsUri(URI.file('/custom/copilot')).toString(),
 			'file:///custom/copilot/logs',
 		);
 	});
 
 	test('EH CLI copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
-		const result = resolveEventsUri(URI.parse('copilotcli:/abc'), userHome, () => undefined);
+		const result = resolveEventsUri(URI.parse('copilotcli:/abc'), copilotHome, () => undefined);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
@@ -137,7 +143,7 @@ suite('Open Agent Host State File', () => {
 		const conn = makeRemoteConn('localhost:4321', '/home/remote');
 		const result = resolveEventsUri(
 			URI.parse('remote-localhost__4321-copilotcli:/xyz'),
-			userHome,
+			copilotHome,
 			authority => authority === 'localhost__4321' ? conn : undefined,
 		);
 		assert.deepStrictEqual(
@@ -149,7 +155,7 @@ suite('Open Agent Host State File', () => {
 	test('remote scheme without an active connection returns remote-not-connected', () => {
 		const result = resolveEventsUri(
 			URI.parse('remote-myhost-copilotcli:/abc'),
-			userHome,
+			copilotHome,
 			() => undefined,
 		);
 		assert.deepStrictEqual(result, { kind: 'remote-not-connected', authority: 'myhost' });
@@ -159,42 +165,45 @@ suite('Open Agent Host State File', () => {
 		const conn = makeRemoteConn('myhost', undefined);
 		const result = resolveEventsUri(
 			URI.parse('remote-myhost-copilotcli:/abc'),
-			userHome,
+			copilotHome,
 			authority => authority === 'myhost' ? conn : undefined,
 		);
 		assert.deepStrictEqual(result, { kind: 'remote-no-home', authority: 'myhost' });
 	});
 
 	test('unknown scheme returns unsupported-scheme', () => {
-		const result = resolveEventsUri(URI.parse('claude:/abc'), userHome, () => undefined);
+		const result = resolveEventsUri(URI.parse('claude:/abc'), copilotHome, () => undefined);
 		assert.deepStrictEqual(result, { kind: 'unsupported-scheme', scheme: 'claude' });
 	});
 
 	test('missing session resource returns no-session', () => {
-		const result = resolveEventsUri(undefined, userHome, () => undefined);
+		const result = resolveEventsUri(undefined, copilotHome, () => undefined);
 		assert.deepStrictEqual(result, { kind: 'no-session' });
 	});
 
-	test('opens the state file returned by the owning Agent Host connection', async () => {
+	test('opens the active peer chat state file returned by the owning Agent Host connection', async () => {
 		const clientSession = URI.parse('agent-host-copilotcli:/client-session-id');
 		const backendSession = URI.parse('copilotcli:/backend-session-id');
+		const clientPeerChat = clientSession.with({ fragment: 'peer-1' });
+		let backendPeerChat: URI | undefined = URI.parse('ahp-chat://peer-1/backend-session');
 		const stateFile = URI.file('/state/sdk-conversation-id/events.jsonl');
-		const calls: { resolved: string[]; requested: string[]; opened: string[]; notifications: string[] } = {
+		const calls: { mapped: string[]; resolved: string[]; requested: { session: string; chat: string | undefined }[]; opened: string[]; notifications: string[] } = {
+			mapped: [],
 			resolved: [],
 			requested: [],
 			opened: [],
 			notifications: [],
 		};
 		const connection = new class extends mock<IAgentConnection>() {
-			override async getSessionStateFile(session: URI): Promise<URI | undefined> {
-				calls.requested.push(session.toString());
+			override async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
+				calls.requested.push({ session: session.toString(), chat: chat?.toString() });
 				return stateFile;
 			}
 		}();
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
 			override resolveSessionResource(session: URI) {
 				calls.resolved.push(session.toString());
-				return { connection, backendSession };
+				return { connection, connectionAuthority: 'local', backendSession };
 			}
 		}();
 		const editorService = new class extends mock<IEditorService>() {
@@ -212,18 +221,70 @@ suite('Open Agent Host State File', () => {
 				return super.notify(notification);
 			}
 		}();
+		const activeChat = new class extends mock<IChat>() {
+			override readonly resource = clientPeerChat;
+		}();
+		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly resource = clientSession;
+			override readonly providerId = 'local-agent-host';
+			override readonly activeChat = constObservable(activeChat);
+		}();
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+		}();
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'local-agent-host';
+			override getBackendChatResource(chat: URI): URI | undefined {
+				calls.mapped.push(chat.toString());
+				return backendPeerChat;
+			}
+		}();
+		const registeredProvider: ISessionsProvider = provider;
+		const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return registeredProvider as T;
+			}
+		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostConnectionsService, connectionsService);
 		instantiationService.stub(IEditorService, editorService);
 		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(ISessionsService, sessionsService);
+		instantiationService.stub(ISessionsProvidersService, sessionsProvidersService);
 
-		await openAgentHostStateFile(instantiationService, clientSession);
+		await new OpenAgentHostStateFileAction().run(instantiationService);
 
-		assert.deepStrictEqual(calls, {
-			resolved: ['agent-host-copilotcli:/client-session-id'],
-			requested: ['copilotcli:/backend-session-id'],
-			opened: ['file:///state/sdk-conversation-id/events.jsonl'],
-			notifications: [],
+		const resolved = {
+			mapped: [...calls.mapped],
+			resolved: [...calls.resolved],
+			requested: [...calls.requested],
+			opened: [...calls.opened],
+			notifications: [...calls.notifications],
+		};
+		backendPeerChat = undefined;
+		for (const values of Object.values(calls)) {
+			values.length = 0;
+		}
+		await new OpenAgentHostStateFileAction().run(instantiationService);
+
+		assert.deepStrictEqual({ resolved, unresolved: calls }, {
+			resolved: {
+				mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
+				resolved: ['agent-host-copilotcli:/client-session-id'],
+				requested: [{
+					session: 'copilotcli:/backend-session-id',
+					chat: 'ahp-chat://peer-1/backend-session',
+				}],
+				opened: ['file:///state/sdk-conversation-id/events.jsonl'],
+				notifications: [],
+			},
+			unresolved: {
+				mapped: ['agent-host-copilotcli:/client-session-id#peer-1'],
+				resolved: [],
+				requested: [],
+				opened: [],
+				notifications: ['The active Agent Host chat does not expose a state file.'],
+			},
 		});
 	});
 });

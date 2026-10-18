@@ -10,7 +10,7 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -25,6 +25,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 const EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY = 'sessions.externalSessionBanner.dismissed';
@@ -47,13 +48,17 @@ export function shouldConfirmExternalSessionVisibilityChange(mode: ChatExternalS
 			return true;
 		case ChatExternalSessionsMode.None:
 			return true;
-		case ChatExternalSessionsMode.All:
-			return false;
 		case ChatExternalSessionsMode.Last24Hours:
 			return updatedAt.getTime() < now - DAY;
 		case ChatExternalSessionsMode.Last7Days:
 			return updatedAt.getTime() < now - 7 * DAY;
+		case ChatExternalSessionsMode.Last30Days:
+			return updatedAt.getTime() < now - 30 * DAY;
 	}
+}
+
+export function getExternalSessionBannerSelectedMode(initialMode: ChatExternalSessionsMode | undefined, configuredMode: ChatExternalSessionsMode): ChatExternalSessionsMode {
+	return initialMode ?? configuredMode;
 }
 
 export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessionsMode, updatedAt: Date, now: number, productName: string): IConfirmation {
@@ -66,7 +71,7 @@ export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessi
 		return {
 			type: 'warning',
 			message,
-			detail: localize('externalSessionBanner.confirm.recent.detail', "Only the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
+			detail: localize('externalSessionBanner.confirm.recent.detail', "Only up to the 2 most recently updated external sessions from the last 7 days will be shown. Are you sure you want to save this change?"),
 			primaryButton,
 		};
 	}
@@ -86,7 +91,9 @@ export function getExternalSessionVisibilityConfirmation(mode: ChatExternalSessi
 		: localize('externalSessionBanner.confirm.daysAgo', "{0} days ago", daysAgo);
 	const detail = mode === ChatExternalSessionsMode.Last24Hours
 		? localize('externalSessionBanner.confirm.lastDay.detail', "Only external sessions updated in the last day will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated)
-		: localize('externalSessionBanner.confirm.last7Days.detail', "Only external sessions updated in the last 7 days will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated);
+		: mode === ChatExternalSessionsMode.Last7Days
+			? localize('externalSessionBanner.confirm.last7Days.detail', "Only external sessions updated in the last 7 days will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated)
+			: localize('externalSessionBanner.confirm.last30Days.detail', "Only external sessions updated in the last 30 days will be shown. This session was last updated {0}. Are you sure you want to save this change?", lastUpdated);
 
 	return { type: 'warning', message, detail, primaryButton };
 }
@@ -121,7 +128,7 @@ export class ExternalSessionBanner extends Disposable {
 
 		this._session = observableValue(this, undefined);
 		this._dismissed = observableValue(this, this._storageService.getBoolean(EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY, StorageScope.PROFILE, false));
-		this._selectedMode = _bannerOptions.initialMode;
+		this._selectedMode = this._getSelectedMode();
 		this._options = this._createOptions();
 
 		this.domNode = dom.append(container, dom.$('.external-session-banner.hidden'));
@@ -134,11 +141,7 @@ export class ExternalSessionBanner extends Disposable {
 			"{0} picked up this session, which was created in another application.",
 			this._productService.nameShort
 		);
-		dom.append(content, dom.$('.external-session-banner-description', { role: 'status' })).textContent = localize(
-			'externalSessionBanner.description',
-			"Choose how you want external sessions to appear in {0}. You can change this later in Settings.",
-			this._productService.nameShort
-		);
+		const description = dom.append(content, dom.$('.external-session-banner-description', { role: 'status' }));
 
 		const controls = dom.append(content, dom.$('.external-session-banner-controls'));
 		const selectContainer = dom.append(controls, dom.$('.external-session-banner-select'));
@@ -187,11 +190,41 @@ export class ExternalSessionBanner extends Disposable {
 			this._dismissed.set(this._storageService.getBoolean(EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY, StorageScope.PROFILE, false), undefined);
 		}));
 
+		const groupExternalSessions = observableFromEvent(this, this._configurationService.onDidChangeConfiguration,
+			() => this._configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true);
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			const visible = !this._dismissed.read(reader) && session?.isExternal?.read(reader) === true;
+			const grouped = groupExternalSessions.read(reader);
+			const text = grouped
+				? this._getContinuationDescription(session?.sessionType)
+				: localize('externalSessionBanner.description', "Choose how you want external sessions to appear in {0}. You can change this later in Settings.", this._productService.nameShort);
+			const contentChanged = description.textContent !== text;
+			description.textContent = text;
+			if (grouped) {
+				dom.hide(controls);
+			} else {
+				dom.show(controls);
+			}
+			this.domNode.setAttribute('aria-label', grouped
+				? localize('externalSessionBanner.continuation.ariaLabel', "External session")
+				: localize('externalSessionBanner.ariaLabel', "External session visibility"));
+			if (contentChanged && visible && this._visible) {
+				this._bannerOptions.onDidChangeLayout?.(visible);
+			}
 			this._setVisible(visible);
 		}));
+	}
+
+	private _getContinuationDescription(sessionType: string | undefined): string {
+		switch (sessionType) {
+			case 'codex':
+				return localize('externalSessionBanner.continue.codex', "You can continue this session here with your ChatGPT or Copilot subscription. Choose your subscription in the model picker.");
+			case 'claude':
+				return localize('externalSessionBanner.continue.claude', "You can continue this session here with your Copilot subscription.");
+			default:
+				return localize('externalSessionBanner.continue', "You can continue this session here.");
+		}
 	}
 
 	get visible(): boolean {
@@ -200,8 +233,9 @@ export class ExternalSessionBanner extends Disposable {
 
 	setSession(session: ISession | undefined): void {
 		if (this._lastSession && (!session || !isEqual(this._lastSession.resource, session.resource))) {
-			this._setSelectedMode(undefined);
-			this._selectBox.select(0);
+			const mode = this._getSelectedMode();
+			this._setSelectedMode(mode);
+			this._selectBox.select(Math.max(0, this._options.findIndex(option => option.mode === mode)));
 		}
 		this._lastSession = session;
 		this._session.set(session, undefined);
@@ -227,7 +261,7 @@ export class ExternalSessionBanner extends Disposable {
 				mode: ChatExternalSessionsMode.Recent,
 				item: {
 					text: localize('externalSessionBanner.select.recent', "Recent"),
-					description: localize('externalSessionBanner.select.recent.description', "Show the 2 most recently updated external sessions from the last 7 days."),
+					description: localize('externalSessionBanner.select.recent.description', "Show up to the 2 most recent external sessions updated in the last 7 days. Once at least 2 local sessions exist, external sessions older than the second-newest local session are hidden."),
 				},
 			},
 			{
@@ -245,13 +279,20 @@ export class ExternalSessionBanner extends Disposable {
 				},
 			},
 			{
-				mode: ChatExternalSessionsMode.All,
+				mode: ChatExternalSessionsMode.Last30Days,
 				item: {
-					text: localize('externalSessionBanner.select.all', "All"),
-					description: localize('externalSessionBanner.select.all.description', "Show all sessions created in another application."),
+					text: localize('externalSessionBanner.select.last30Days', "Last 30 Days"),
+					description: localize('externalSessionBanner.select.last30Days.description', "Show external sessions updated in the last 30 days."),
 				},
 			},
 		];
+	}
+
+	private _getSelectedMode(): ChatExternalSessionsMode {
+		return getExternalSessionBannerSelectedMode(
+			this._bannerOptions.initialMode,
+			this._configurationService.getValue<ChatExternalSessionsMode>(ChatConfiguration.ShowExternalAgentSessions)
+		);
 	}
 
 	private _setSelectedMode(mode: ChatExternalSessionsMode | undefined): void {

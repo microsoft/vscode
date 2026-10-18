@@ -15,6 +15,7 @@ import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
@@ -110,6 +111,31 @@ suite('AgentPluginManager', () => {
 
 	suite('syncCustomizations', () => {
 
+		test('uses agent host file URIs in place and reads file URIs from the client', async () => {
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const directory = URI.file('/local/bundle');
+			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('host'));
+			await fileService.writeFile(URI.joinPath(toAgentClientUri(directory, AUTOMATION_ACTIVE_CLIENT_ID), 'index.js'), VSBuffer.fromString('client-served'));
+			const hostRef = { ...makeRef('host', 'revision'), uri: toAgentHostFileUri(directory).toString() };
+			const clientRef = { ...makeRef('client', 'revision'), uri: directory.toString() };
+			const [host] = await manager.syncCustomizations('not-connected', [hostRef]);
+			const cacheExistsAfterHost = await fileService.exists(URI.joinPath(manager.basePath, 'cache.json'));
+			const [client] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [clientRef]);
+			assert.deepStrictEqual({
+				hostPluginDir: host.pluginDir?.toString(),
+				hostCustomization: host.customization,
+				cacheExistsAfterHost,
+				clientCopied: client.pluginDir?.toString() !== directory.toString(),
+				clientContent: (await fileService.readFile(URI.joinPath(client.pluginDir!, 'index.js'))).value.toString(),
+			}, {
+				hostPluginDir: directory.toString(),
+				hostCustomization: { ...hostRef, load: { kind: 'loaded' } },
+				cacheExistsAfterHost: false,
+				clientCopied: true,
+				clientContent: 'client-served',
+			});
+		});
+
 		test('returns loaded status and pluginDir for each synced plugin', async () => {
 			await seedPluginDir('alpha', { 'index.js': 'a' });
 			await seedPluginDir('beta', { 'index.js': 'b' });
@@ -168,7 +194,7 @@ suite('AgentPluginManager', () => {
 			assert.strictEqual(result1[0].pluginDir!.toString(), result2[0].pluginDir!.toString());
 		});
 
-		test('new nonce materializes a fresh subdirectory and evicts the stale one', async () => {
+		test('new nonce materializes a fresh subdirectory and retains the previous one', async () => {
 			await seedPluginDir('rev', { 'index.js': 'v1' });
 
 			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
@@ -181,8 +207,39 @@ suite('AgentPluginManager', () => {
 
 			assert.notStrictEqual(dir1.toString(), dir2.toString(), 'new nonce should use a new subdirectory');
 			assert.strictEqual(await fileService.exists(dir2), true, 'new nonce subdirectory should exist');
-			assert.strictEqual(await fileService.exists(dir1), false, 'stale nonce subdirectory should be evicted');
-			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
+			assert.strictEqual(await fileService.exists(dir1), true, 'superseded nonce should be retained within the window');
+			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-1', 'nonce-2']));
+		});
+
+		test('a nonce that cycles back to a retained revision is a cache hit', async () => {
+			await seedPluginDir('rev', { 'index.js': 'v1' });
+			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+			const dir1 = r1[0].pluginDir!;
+
+			await seedPluginDir('rev', { 'index.js': 'v2' });
+			await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+
+			// Back to the original content. The source no longer matters: a hit
+			// must reuse the retained directory rather than re-copying.
+			await fileService.del(toAgentClientUri(URI.from({ scheme: Schemas.inMemory, path: '/plugins/rev' }), 'test-client'), { recursive: true });
+			const r3 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
+
+			assert.strictEqual(r3[0].pluginDir?.toString(), dir1.toString());
+			assert.strictEqual((r3[0].customization as PluginCustomization).load?.kind, 'loaded');
+			assert.strictEqual((await fileService.readFile(URI.joinPath(dir1, 'index.js'))).value.toString(), 'v1');
+		});
+
+		test('evicts the oldest revision once the per-plugin retention window is exceeded', async () => {
+			// One more revision than the retention window (8).
+			for (let i = 1; i <= 9; i++) {
+				await seedPluginDir('rev', { 'index.js': `v${i}` });
+				await manager.syncCustomizations('test-client', [makeRef('rev', `nonce-${i}`)]);
+			}
+
+			assert.deepStrictEqual(
+				await readCacheNonces(),
+				new Set(['nonce-2', 'nonce-3', 'nonce-4', 'nonce-5', 'nonce-6', 'nonce-7', 'nonce-8', 'nonce-9']),
+			);
 		});
 
 		test('retains a locked older nonce so both revisions coexist', async () => {
@@ -208,28 +265,33 @@ suite('AgentPluginManager', () => {
 			const dir1 = r1[0].pluginDir!;
 			provider.lockedPaths.add(dir1.path);
 
-			await seedPluginDir('rev', { 'index.js': 'v2' });
-			await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+			// Push the locked revision out of the retention window so eviction
+			// is attempted (and fails) while the lock is held.
+			for (let i = 2; i <= 9; i++) {
+				await seedPluginDir('rev', { 'index.js': `v${i}` });
+				await manager.syncCustomizations('test-client', [makeRef('rev', `nonce-${i}`)]);
+			}
+			assert.strictEqual(await fileService.exists(dir1), true, 'locked nonce should survive while held');
 
 			// Release the lock and start a fresh manager against the same base path.
 			provider.lockedPaths.clear();
 			const manager2 = new AgentPluginManager(basePath, fileService, new NullLogService());
-			await manager2.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
+			await manager2.syncCustomizations('test-client', [makeRef('rev', 'nonce-9')]);
 
 			assert.strictEqual(await fileService.exists(dir1), false, 'released older nonce should be evicted on startup');
-			assert.deepStrictEqual(await readCacheNonces(), new Set(['nonce-2']));
+			assert.ok(!(await readCacheNonces()).has('nonce-1'));
 		});
 
 		test('drops a stale cache entry when its directory is already gone', async () => {
 			await seedPluginDir('rev', { 'index.js': 'v1' });
 			const r1 = await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-1')]);
 			const dir1 = r1[0].pluginDir!;
-			provider.lockedPaths.add(dir1.path);
 
 			await seedPluginDir('rev', { 'index.js': 'v2' });
 			await manager.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);
 
-			provider.lockedPaths.clear();
+			// nonce-1 is still inside the retention window, so only the missing
+			// directory itself can tell us the entry is worthless.
 			await fileService.del(dir1, { recursive: true });
 			const manager2 = new AgentPluginManager(basePath, fileService, new NullLogService());
 			await manager2.syncCustomizations('test-client', [makeRef('rev', 'nonce-2')]);

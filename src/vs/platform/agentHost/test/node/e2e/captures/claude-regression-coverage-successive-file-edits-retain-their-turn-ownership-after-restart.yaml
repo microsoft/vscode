@@ -1,0 +1,307 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/successive.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tEDIT_ZERO\n2"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: Edit
+          input:
+            file_path: ${workdir}/successive.txt
+            old_string: EDIT_ZERO
+            new_string: EDIT_ONE
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tEDIT_ZERO\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ZERO
+                new_string: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tEDIT_ZERO\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ZERO
+                new_string: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ONE with EDIT_TWO. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: Read
+          input:
+            file_path: ${workdir}/successive.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tEDIT_ZERO\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ZERO
+                new_string: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ONE with EDIT_TWO. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: "1\tEDIT_ONE\n2"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: Edit
+          input:
+            file_path: ${workdir}/successive.txt
+            old_string: EDIT_ONE
+            new_string: EDIT_TWO
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tEDIT_ZERO\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ZERO
+                new_string: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ONE with EDIT_TWO. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: "1\tEDIT_ONE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ONE
+                new_string: EDIT_TWO
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ZERO with EDIT_ONE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tEDIT_ZERO\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ZERO
+                new_string: EDIT_ONE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read successive.txt with Read, then use Edit exactly once to replace EDIT_ONE with EDIT_TWO. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/successive.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: "1\tEDIT_ONE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/successive.txt
+                old_string: EDIT_ONE
+                new_string: EDIT_TWO
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: The file ${workdir}/successive.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Reply exactly "TWO_EDITS_READY". Do not use tools.
+    response:
+      content: TWO_EDITS_READY
+      stopReason: end_turn

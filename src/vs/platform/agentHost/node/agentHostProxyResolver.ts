@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates, type Log as ProxyLog } from '@vscode/proxy-agent';
+import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -13,11 +14,37 @@ import { AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../requ
 import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
 import { IAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { AgentHostProxyConfigKey, agentHostProxyConfigSchema } from '../common/agentHostSchema.js';
+import { originsOnlyForLog } from '../common/logRedaction.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>('agentHostProxyResolver');
 
 type AgentHostProxyConfigurationKey = keyof typeof agentHostProxyConfigSchema.definition & string;
+
+/** Load system and process-supplied CA certificates for Agent Host networking. */
+export async function loadAgentHostCertificates(
+	logService: ILogService,
+	extraCertificates: readonly string[] = getCACertificates('extra'),
+	systemCertificateLoader: typeof loadSystemCertificates = loadSystemCertificates,
+): Promise<string[]> {
+	const systemCertificates = await systemCertificateLoader({
+		loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
+		log: logService,
+	});
+	return [...systemCertificates, ...extraCertificates];
+}
+
+/** The log `@vscode/proxy-agent` writes to, with URLs reduced to their origins: a model download URL's path and query must never be logged. */
+function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
+	const redactArg = (value: unknown) => typeof value === 'string' ? originsOnlyForLog(value) : value instanceof Error ? originsOnlyForLog(value.message) : value;
+	return {
+		trace: (message: string, ...args: unknown[]) => logService.trace(originsOnlyForLog(message), ...args.map(redactArg)),
+		debug: (message: string, ...args: unknown[]) => logService.debug(originsOnlyForLog(message), ...args.map(redactArg)),
+		info: (message: string, ...args: unknown[]) => logService.info(originsOnlyForLog(message), ...args.map(redactArg)),
+		warn: (message: string, ...args: unknown[]) => logService.warn(originsOnlyForLog(message), ...args.map(redactArg)),
+		error: (message: string | Error, ...args: unknown[]) => logService.error(originsOnlyForLog(typeof message === 'string' ? message : message.message), ...args.map(redactArg)),
+	};
+}
 
 /**
  * Node-side registry of renderer {@link IAgentHostClientProxyConnection}s keyed
@@ -37,12 +64,6 @@ export interface IAgentHostProxyResolver {
 
 	/** Register a renderer connection. Disposing the result removes it. */
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable;
-
-	/**
-	 * Binds the Agent Host configuration after the orchestrator has initialized it.
-	 * Local hosts mark mirrored values transient; remote hosts persist manual values.
-	 */
-	bindConfigurationService(configurationService: IAgentConfigurationService, transient: boolean): void;
 
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
@@ -70,25 +91,18 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	private readonly _configurationListener = this._register(new MutableDisposable());
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
-	private _configurationService: IAgentConfigurationService | undefined;
 	private _configurationValues: Record<string, unknown> = {};
 	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
 	private _proxyAgentParams: ProxyAgentParams | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
 
-	constructor(@ILogService private readonly _logService: ILogService) {
+	constructor(
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
-	}
-
-	bindConfigurationService(configurationService: IAgentConfigurationService, transient: boolean): void {
-		this._configurationService = configurationService;
-		if (transient) {
-			configurationService.publishRootTransientValues?.(Object.fromEntries(
-				Object.values(AgentHostProxyConfigKey).map(key => [key, undefined])
-			));
-		}
 		this._configurationValues = this._readConfigurationValues();
-		this._configurationListener.value = configurationService.onDidRootConfigChange(() => {
+		this._configurationListener.value = this._configurationService.onDidRootConfigChange(() => {
 			const values = this._readConfigurationValues();
 			if (!equals(this._configurationValues, values)) {
 				this._configurationValues = values;
@@ -98,9 +112,6 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	}
 
 	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined {
-		if (!this._configurationService) {
-			return undefined;
-		}
 		return this._configurationService.getRootValue(agentHostProxyConfigSchema, key) as T | undefined;
 	}
 
@@ -135,6 +146,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 
 	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
 		if (!this._proxyResolver) {
+			const proxyLog = createUrlRedactingProxyLog(this._logService);
 			// Mirror `workbench/api/node/proxyResolver.ts`.
 			const params: ProxyAgentParams = {
 				// The host proxy resolution runs in VS Code: reverse-call a connected
@@ -142,7 +154,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				// session (system settings / PAC scripts).
 				resolveProxy: (url) => this._hostResolveProxy(url),
 				lookupProxyAuthorization: createProxyAuthorizationLookup({
-					log: this._logService,
+					log: proxyLog,
 					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
 					lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(url),
 				}),
@@ -154,11 +166,8 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				addCertificatesV1: () => true,
 				addCertificatesV2: () => false,
 				loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-				loadAdditionalCertificates: async () => loadSystemCertificates({
-					loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-					log: this._logService,
-				}),
-				log: this._logService,
+				loadAdditionalCertificates: () => loadAgentHostCertificates(this._logService),
+				log: proxyLog,
 				getLogLevel: () => {
 					switch (this._logService.getLevel()) {
 						case LogLevel.Trace: return ProxyLogLevel.Trace;

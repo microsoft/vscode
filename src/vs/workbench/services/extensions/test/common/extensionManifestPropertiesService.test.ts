@@ -9,7 +9,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -145,14 +145,51 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		], [true, false, false]);
 	});
 
-	test('uses configured sessions window support override', async () => {
-		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+	test('preserves built-in defaults when no agents window support is declared', () => {
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', contributes: { themes: [] } })),
-		], [true, false]);
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js' }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ browser: './out/extension.js' }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { viewsContainers: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { debuggers: [] } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { walkthroughs: [] } }), true),
+		], [true, true, false, false, false, false]);
+	});
+
+	for (const isBuiltin of [false, true]) {
+		test(`uses configured sessions window support override for ${isBuiltin ? 'built-in' : 'user'} extensions`, async () => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+			testObject = createTestObject();
+
+			assert.deepStrictEqual([
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { views: {} } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', capabilities: { agentsWindow: { supported: true } }, contributes: { themes: [] } }), isBuiltin),
+			], [true, false]);
+		});
+
+		test(`uses declared agents window support for ${isBuiltin ? 'built-in' : 'user'} extensions without the proposal`, async () => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
+			testObject = createTestObject();
+
+			assert.deepStrictEqual([
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ browser: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } }), isBuiltin),
+			], [true, true, false]);
+		});
+	}
+
+	test('ignores declared agents window support for user extensions when the capability setting is disabled', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, false);
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), true),
+		], [false, true, true]);
 	});
 });
 

@@ -312,8 +312,8 @@ function advanceOscillation(waves: readonly MutableWave[], dt: number): void {
 
 /**
  * Draw the row of bars. Heights are symmetric about the centre line and follow
- * the same centre-peak silhouette as the toolbar waveform, so the two read as
- * the same instrument at different sizes.
+ * a centre-peak silhouette so the trace reads as one instrument rather than a
+ * strip of unrelated levels.
  */
 function drawBars(
 	context: CanvasRenderingContext2D,
@@ -358,9 +358,8 @@ function bandFraction(position: number, waves: readonly MutableWave[]): number {
 	if (total === 0) {
 		return 0;
 	}
-	// Centre-peak silhouette, matching the toolbar waveform: tallest in the
-	// middle, tapering to the ends, so the row reads as one instrument rather
-	// than a strip cut off at both edges.
+	// Centre-peak silhouette: tallest in the middle and tapering to the ends, so
+	// the row reads as one instrument rather than a strip cut off at both edges.
 	const taper = Math.sin(Math.PI * Math.min(1, Math.max(0, position)));
 	return (amplitude / total) * (0.35 + 0.65 * taper);
 }
@@ -462,6 +461,7 @@ class VoiceModeOnboardingAnimator extends Disposable {
 			return;
 		}
 		this.running = true;
+		this.lastTimestamp = undefined;
 		const targetWindow = dom.getWindow(this.container);
 		const tick = (time: number) => {
 			if (!this.running) {
@@ -504,7 +504,8 @@ class VoiceModeOnboardingAnimator extends Disposable {
 		// paused the loop) simply advances the trace to where it should be: the
 		// phase is periodic and the easing factor stays bounded, so there is no
 		// lurch to guard against.
-		const dt = this.lastTimestamp === undefined
+		// Redraws for resize or theme changes must not advance a reduced-motion or suspended waveform.
+		const dt = !this.running || this.lastTimestamp === undefined
 			? 0
 			: Math.max(0, (timestamp - this.lastTimestamp) * 0.001);
 		this.lastTimestamp = timestamp;
@@ -618,6 +619,11 @@ class VoiceSamplePlayer extends Disposable {
 			audio.pause();
 			audio.src = '';
 		}));
+
+		// Tests inject audio elements to avoid opening the host audio output device.
+		if (this.audioFactory) {
+			return audio;
+		}
 
 		try {
 			const context = new targetWindow.AudioContext();

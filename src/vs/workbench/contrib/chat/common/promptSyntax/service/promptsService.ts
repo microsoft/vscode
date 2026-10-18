@@ -11,6 +11,7 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
+import { ChatModeKind } from '../../constants.js';
 import { PromptFileSource, PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -29,6 +30,7 @@ export interface InstructionsCollectionDebugEntry {
 }
 
 export type InstructionsCollectionEvent = {
+	provider?: string;
 	applyingInstructionsCount: number;
 	referencedInstructionsCount: number;
 	agentInstructionsCount: number;
@@ -120,16 +122,6 @@ export enum PromptsStorage {
 	builtIn = 'builtin',
 }
 
-/**
- * Whether the AI Customizations UI offers Enable/Disable affordances for a
- * customization with the given type and storage — and therefore whether a user
- * who disables it can turn it back on again.
- *
- * Gate any behaviour that *hides* a customization because it is in
- * {@link IPromptsService.getDisabledPromptFiles} on this predicate; that store
- * is shared with surfaces that own a separate unhide affordance. See
- * "Enabling and Disabling Built-in Skills" in `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
- */
 export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
 	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
 }
@@ -289,6 +281,8 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 export interface ICustomAgent {
 
 	readonly id: string;
+	/** Optional Ask semantics for a host-provided read-only agent. */
+	readonly kind?: ChatModeKind.Ask;
 	/**
 	 * URI of a custom agent file.
 	 */
@@ -392,7 +386,7 @@ export interface IChatPromptSlashCommand {
 }
 
 export interface IResolvedChatPromptSlashCommand extends IChatPromptSlashCommand {
-	readonly parsedPromptFile: ParsedPromptFile;
+	readonly parsedPromptFile?: ParsedPromptFile;
 }
 
 

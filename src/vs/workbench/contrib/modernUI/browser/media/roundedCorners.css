@@ -215,36 +215,6 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-/*
- * Notification center (floats above the status bar). It already clips its
- * children with `overflow: hidden`. Match the final row's bottom corners to the
- * container so its focused and hover backgrounds follow the outer surface.
- */
-.modern-ui.monaco-workbench > .notifications-center {
-	border-radius: var(--vscode-cornerRadius-large);
-}
-
-.modern-ui.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
-	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
-}
-
-/*
- * Notification toasts. The visible, shadowed surface is the nested
- * `.notifications-list-container`, wrapped by `.notification-toast` (and its
- * scrollable element / list row). The base styles round every one of these
- * layers to the same radius; round them together here too, otherwise a larger
- * radius on the outer wrapper leaves a gap at the corner where the smaller
- * inner radius shows through. Matching the base structure also gives these
- * rules enough specificity to replace its control-tier radius.
- */
-.modern-ui.monaco-workbench > .notifications-toasts .notifications-list-container,
-.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast,
-.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-scrollable-element,
-.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list:not(.element-focused):focus:before,
-.modern-ui.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast .monaco-list-row {
-	border-radius: var(--vscode-cornerRadius-large);
-}
-
 /* Modal dialogs */
 .modern-ui .monaco-dialog-box {
 	border-radius: var(--vscode-cornerRadius-large);

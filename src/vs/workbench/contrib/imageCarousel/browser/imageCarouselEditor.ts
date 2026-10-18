@@ -5,16 +5,28 @@
 
 import { addDisposableListener, clearNode, Dimension, EventType, h } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getExtensionForMimeType } from '../../../../base/common/mime.js';
 import { clamp } from '../../../../base/common/numbers.js';
+import { extname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { downloadFile } from '../../../browser/download.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -53,6 +65,7 @@ export class ImageCarouselEditor extends EditorPane {
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
 	private readonly _blobUrlCache = new Map<string, string>();
+	private _blobUrlCacheGeneration = 0;
 
 	private _videoWebview: IWebviewElement | undefined;
 	private _elements: {
@@ -77,7 +90,11 @@ export class ImageCarouselEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IFileService private readonly _fileService: IFileService,
-		@IWebviewService private readonly _webviewService: IWebviewService
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super(ImageCarouselEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -156,9 +173,12 @@ export class ImageCarouselEditor extends EditorPane {
 			]),
 			h('div.bottom-bar@bottomBar', [
 				h('div.image-info-bar', [
-					h('span.caption-text@captionText'),
-					h('span.caption-separator@captionSeparator'),
-					h('span.image-counter@counter'),
+					h('span.image-info-text', [
+						h('span.caption-text@captionText'),
+						h('span.caption-separator@captionSeparator'),
+						h('span.image-counter@counter'),
+					]),
+					h('div.image-actions@imageActions'),
 				]),
 				h('div.sections-container@sectionsContainer'),
 				h('span.sr-only@ariaStatus'),
@@ -173,6 +193,16 @@ export class ImageCarouselEditor extends EditorPane {
 		elements.ariaStatus.setAttribute('aria-atomic', 'true');
 		elements.sectionsContainer.setAttribute('role', 'group');
 		elements.sectionsContainer.setAttribute('aria-label', localize('imageCarousel.thumbnails', "Image thumbnails"));
+
+		const toolbar = this._contentDisposables.add(this._instantiationService.createInstance(WorkbenchToolBar, elements.imageActions, {
+			ariaLabel: localize('imageCarousel.actions', "Images Preview actions"),
+		}));
+		toolbar.setActions([toAction({
+			id: 'imageCarousel.download',
+			label: localize('imageCarousel.download', "Download"),
+			class: ThemeIcon.asClassName(Codicon.cloudDownload),
+			run: () => this.downloadCurrentImage(),
+		})]);
 
 		this._elements = {
 			root: elements.root,
@@ -389,6 +419,7 @@ export class ImageCarouselEditor extends EditorPane {
 		// Capture the navigation index before starting async work so that
 		// we can discard stale results if the user navigates while loading/decoding.
 		const navigationIndex = this._currentIndex;
+		const blobUrlCacheGeneration = this._blobUrlCacheGeneration;
 
 		// Swap main image using cached/lazy-loaded blob URL.
 		// Pre-decode via decode() before assigning to <img> so the browser
@@ -406,7 +437,7 @@ export class ImageCarouselEditor extends EditorPane {
 
 			// Load raw data to send via postMessage
 			const rawData = await this._loadRawData(currentImage);
-			if (this._currentIndex !== navigationIndex) {
+			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
 				return;
 			}
 
@@ -453,7 +484,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const url = await this._loadBlobUrl(currentImage);
 
 			// If the user navigated while loading the blob URL, discard this result.
-			if (this._currentIndex !== navigationIndex) {
+			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
 				return;
 			}
 
@@ -461,13 +492,13 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			tmp.src = url;
 			tmp.decode().then(() => {
 				// Only apply if user hasn't navigated away during decode
-				if (this._currentIndex === navigationIndex && this._elements) {
+				if (this._currentIndex === navigationIndex && this._blobUrlCacheGeneration === blobUrlCacheGeneration && this._elements) {
 					this._elements.mainImage.src = url;
 					this._elements.mainImage.alt = currentImage.name;
 				}
 			}, () => {
 				// Decode failed (invalid image) — still show src for browser fallback
-				if (this._currentIndex === navigationIndex && this._elements) {
+				if (this._currentIndex === navigationIndex && this._blobUrlCacheGeneration === blobUrlCacheGeneration && this._elements) {
 					this._elements.mainImage.src = url;
 					this._elements.mainImage.alt = currentImage.name;
 				}
@@ -539,6 +570,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		if (cached) {
 			return cached;
 		}
+		const blobUrlCacheGeneration = this._blobUrlCacheGeneration;
 
 		let buffer: Uint8Array;
 		if (image.data) {
@@ -550,14 +582,18 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 		} else {
 			return '';
 		}
+		if (this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
+			return '';
+		}
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
-		const url = URL.createObjectURL(blob);
+		const url = this._blobUrlCache.get(image.id) ?? URL.createObjectURL(blob);
 		this._blobUrlCache.set(image.id, url);
 		return url;
 	}
 
 	private _revokeCachedBlobUrls(): void {
+		this._blobUrlCacheGeneration++;
 		for (const url of this._blobUrlCache.values()) {
 			URL.revokeObjectURL(url);
 		}
@@ -572,6 +608,20 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			return content.value.buffer;
 		}
 		return new Uint8Array(0);
+	}
+
+	private async downloadCurrentImage(): Promise<void> {
+		const image = this._flatImages[this._currentIndex].image;
+		try {
+			const source = image.uri ?? image.data;
+			if (!source) {
+				throw new Error(localize('imageCarousel.missingImageData', "The image has no data to download."));
+			}
+			const name = extname(image.name) ? image.name : image.name + (getExtensionForMimeType(image.mimeType) ?? '');
+			await downloadFile(source, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
+		} catch (error) {
+			this._notificationService.error(localize('imageCarousel.downloadError', "Failed to download {0}: {1}", image.name, toErrorMessage(error)));
+		}
 	}
 
 	private _preloadAdjacentImages(): void {

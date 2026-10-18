@@ -1,0 +1,42 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DEFAULT_READY".
+    response:
+      content: DEFAULT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DEFAULT_READY".
+        - role: assistant
+          content: DEFAULT_READY
+        - role: user
+          content: Reply with the exact sentinel from your agent instructions.
+    response:
+      content: CUSTOM_AGENT_CHILD_OK
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DEFAULT_READY".
+        - role: assistant
+          content: DEFAULT_READY
+        - role: user
+          content: Reply with the exact sentinel from your agent instructions.
+        - role: assistant
+          content: CUSTOM_AGENT_CHILD_OK
+        - role: user
+          content: Reply exactly "RESUMED".
+    response:
+      content: RESUMED
+      stopReason: end_turn

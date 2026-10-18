@@ -5,8 +5,9 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { IBrowserViewAudience, IBrowserViewOwner, matchesBrowserViewAudience } from './browserView.js';
+import { IBrowserViewAudience, IBrowserViewCreationContext, IBrowserViewOwner, matchesBrowserViewAudience } from './browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
 
@@ -25,7 +26,11 @@ export interface IBrowserViewGroup extends IDisposable {
 }
 
 export interface IBrowserViewGroupFilter {
+	/** Require agent ownership and isolated storage for this session, even for explicitly added views. */
+	readonly sandboxSessionId?: string;
+	/** Include views granted to this audience. */
 	readonly audience?: IBrowserViewAudience;
+	/** Include these views regardless of their audiences. */
 	readonly browserIds?: readonly string[];
 }
 
@@ -33,6 +38,12 @@ export function matchesBrowserViewGroupFilter(browserId: string, audiences: read
 	const audienceFilter = filter.audience;
 	return filter.browserIds?.includes(browserId) === true
 		|| (audienceFilter !== undefined && audiences.some(audience => matchesBrowserViewAudience(audienceFilter, audience)));
+}
+
+/** Shared visibility gate for sandboxed automation and its workbench page list. */
+export function matchesBrowserViewSandboxSession(owner: IBrowserViewOwner | undefined, sandboxSessionId: string | undefined, expectedSessionId: string | undefined): boolean {
+	return expectedSessionId === undefined || (owner?.type === 'agent'
+		&& owner.sessionId === expectedSessionId && sandboxSessionId === expectedSessionId);
 }
 
 /**
@@ -45,6 +56,7 @@ export function matchesBrowserViewGroupFilter(browserId: string, audiences: read
  * The main-process implementation is {@link BrowserViewGroupMainService}.
  */
 export interface IBrowserViewGroupService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
 
 	// Dynamic events - one per group instance, keyed by group ID.
 	onDynamicDidDestroy(groupId: string): Event<void>;
@@ -52,11 +64,11 @@ export interface IBrowserViewGroupService {
 
 	/**
 	 * Create a new browser view group.
-	 * @param owner The owner of the group's lifecycle.
 	 * @param filter The browser views to include in the group.
+	 * @param targetContext Context inherited by targets created through the group's CDP endpoint.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(owner: IBrowserViewOwner, filter?: IBrowserViewGroupFilter): Promise<string>;
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.

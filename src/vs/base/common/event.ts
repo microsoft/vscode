@@ -267,7 +267,7 @@ export namespace Event {
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number | typeof MicrotaskDelay, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number | typeof MicrotaskDelay, leading?: boolean, flushOnListenerRemove?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
-		let subscription: IDisposable;
+		let subscription: IDisposable = Disposable.None;
 		let output: O | undefined = undefined;
 		let handle: Timeout | undefined | null = undefined;
 		let numDebouncedCalls = 0;
@@ -1293,7 +1293,7 @@ export class Emitter<T> {
 			let stack: Stacktrace | undefined;
 			if (this._leakWarningThreshold !== undefined && this._size >= Math.ceil(this._leakWarningThreshold * 0.2)) {
 				const leakageMon = this._getLeakageMonitor();
-				if (leakageMon) {
+				if (leakageMon && this._size + 1 >= leakageMon.threshold) {
 					// check and record this emitter for potential leakage
 					contained.stack = Stacktrace.create();
 					removeMonitor = leakageMon.check(contained.stack, this._size + 1);

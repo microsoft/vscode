@@ -17,6 +17,7 @@ import { IKeybindingRule, KeybindingsRegistry } from '../../keybinding/common/ke
 
 export interface IMenuItem {
 	command: ICommandAction;
+	/** Alternative command for this menu item. */
 	alt?: ICommandAction;
 	/**
 	 * Menu item is hidden if this expression returns false.
@@ -108,6 +109,7 @@ export class MenuId {
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
 	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
 	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
+	static readonly DiffEditorViewSubmenu = new MenuId('DiffEditorViewSubmenu');
 	static readonly EditorRenderWhitespaceSubmenu = new MenuId('EditorRenderWhitespaceSubmenu');
 	static readonly EditorSplitMoveSubmenu = new MenuId('EditorSplitMoveSubmenu');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
@@ -403,7 +405,7 @@ export interface IMenuService {
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
 
 	/**
-	 * Creates a new menu, gets the actions, and then disposes of the menu.
+	 * Gets the actions for the current context without creating a menu.
 	 */
 	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 

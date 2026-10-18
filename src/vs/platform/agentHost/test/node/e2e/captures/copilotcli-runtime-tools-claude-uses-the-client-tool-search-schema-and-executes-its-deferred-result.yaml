@@ -1,0 +1,73 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Search for get_magic_word first, then call it exactly once. Reply with only its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: tool_search_tool
+          input:
+            query: get_magic_word
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Search for get_magic_word first, then call it exactly once. Reply with only its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: tool_search_tool
+              input:
+                query: get_magic_word
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: tool_reference
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: get_magic_word
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Search for get_magic_word first, then call it exactly once. Reply with only its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: tool_search_tool
+              input:
+                query: get_magic_word
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content:
+                - type: tool_reference
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_magic_word
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SEARCH_RESULT_WORD
+    response:
+      content: SEARCH_RESULT_WORD
+      stopReason: end_turn

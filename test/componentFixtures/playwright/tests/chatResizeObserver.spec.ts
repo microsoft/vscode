@@ -34,7 +34,7 @@ for (const scenario of scenarios) {
 			const geometry = await page.locator('.interactive-list').evaluate(element => {
 				const list = element.querySelector<HTMLElement>('.monaco-list');
 				return {
-					expectedHeight: Number((element as HTMLElement).dataset['expectedHeight']),
+					expectedHeight: Number((element as HTMLElement).dataset.expectedHeight),
 					containerHeight: element.getBoundingClientRect().height,
 					listHeight: list?.getBoundingClientRect().height,
 				};

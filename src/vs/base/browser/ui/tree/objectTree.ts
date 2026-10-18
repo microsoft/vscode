@@ -234,6 +234,9 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			endIndex: lastStickyNode.endIndex,
 			position: stickyNodes[0].position,
 			height: stickyNodes[0].height,
+			sourceNodeEnd: stickyNodes[0].sourceNodeEnd,
+			sourceNodePartiallyVisible: stickyNodes.some(node => node.sourceNodePartiallyVisible),
+			hasExplicitHeight: stickyNodes[0].hasExplicitHeight,
 		};
 
 		this.compressedStickyNodes.set(stickyTreeNode, compressedNode);
@@ -311,6 +314,10 @@ export class CompressibleObjectTree<T, TFilterData = void> extends ObjectTree<T,
 		if (typeof optionsUpdate.compressionEnabled !== 'undefined') {
 			this.model.setCompressionEnabled(optionsUpdate.compressionEnabled);
 		}
+	}
+
+	isCompressionEnabled(): boolean {
+		return this.model.isCompressionEnabled();
 	}
 
 	getCompressedTreeNode(element: T | null = null): ITreeNode<ICompressedTreeNode<T> | null, TFilterData> {

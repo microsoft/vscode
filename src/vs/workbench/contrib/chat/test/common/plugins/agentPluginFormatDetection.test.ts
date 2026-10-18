@@ -33,7 +33,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
  */
 class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 	private _sources: URI[] = [];
-	private _remove: (() => void) | undefined = () => { };
+	private _remove: (() => Promise<boolean>) | undefined = async () => true;
 	private _nextDiscoveryBarrier: Promise<void> | undefined;
 
 	constructor(
@@ -55,13 +55,13 @@ class TestPluginDiscovery extends AbstractAgentPluginDiscovery {
 		await this._refreshPlugins();
 	}
 
-	async setRemoveAndRefresh(uri: URI, remove: (() => void) | undefined): Promise<void> {
+	async setRemoveAndRefresh(uri: URI, remove: (() => Promise<boolean>) | undefined): Promise<void> {
 		this._sources = [uri];
 		this._remove = remove;
 		await this._refreshPlugins();
 	}
 
-	async setRemoveAndRefreshAfter(uri: URI, remove: (() => void) | undefined, barrier: Promise<void>): Promise<void> {
+	async setRemoveAndRefreshAfter(uri: URI, remove: (() => Promise<boolean>) | undefined, barrier: Promise<void>): Promise<void> {
 		this._sources = [uri];
 		this._remove = remove;
 		this._nextDiscoveryBarrier = barrier;
@@ -150,17 +150,23 @@ suite('AgentPlugin format detection', () => {
 		const removeCounts = [0, 0];
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
-		await discovery.setRemoveAndRefresh(uri, () => removeCounts[0]++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCounts[0]++;
+			return true;
+		});
 		const initialPlugin = getDiscoveredPlugins(discovery)[0];
-		initialPlugin.remove?.();
+		await initialPlugin.remove?.();
 
 		await discovery.setRemoveAndRefresh(uri, undefined);
 		const managedPlugin = getDiscoveredPlugins(discovery)[0];
 		const managedRemove = managedPlugin.remove;
 
-		await discovery.setRemoveAndRefresh(uri, () => removeCounts[1]++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCounts[1]++;
+			return true;
+		});
 		const removablePlugin = getDiscoveredPlugins(discovery)[0];
-		removablePlugin.remove?.();
+		await removablePlugin.remove?.();
 
 		assert.deepStrictEqual({
 			reusedManagedPlugin: managedPlugin === initialPlugin,
@@ -182,16 +188,19 @@ suite('AgentPlugin format detection', () => {
 		let removeCount = 0;
 		const discovery = createDiscovery();
 		discovery.start(mockEnablementModel);
-		await discovery.setRemoveAndRefresh(uri, () => { });
+		await discovery.setRemoveAndRefresh(uri, async () => true);
 
 		const staleDiscoveryBarrier = new DeferredPromise<void>();
 		const staleRefresh = discovery.setRemoveAndRefreshAfter(uri, undefined, staleDiscoveryBarrier.p);
-		await discovery.setRemoveAndRefresh(uri, () => removeCount++);
+		await discovery.setRemoveAndRefresh(uri, async () => {
+			removeCount++;
+			return true;
+		});
 		staleDiscoveryBarrier.complete();
 		await staleRefresh;
 
 		const plugin = getDiscoveredPlugins(discovery)[0];
-		plugin.remove?.();
+		await plugin.remove?.();
 
 		assert.deepStrictEqual({
 			hasRemove: plugin.remove !== undefined,
@@ -232,6 +241,56 @@ suite('AgentPlugin format detection', () => {
 		assert.strictEqual(plugins.length, 1);
 		await waitForState(plugins[0].commands, cmds => cmds.length > 0);
 		assert.strictEqual(plugins[0].commands.get()[0].name, 'greet');
+	}));
+
+	test('Claude manifest takes priority over root Copilot manifest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/dual-claude-plugin');
+		await writeFile('/plugins/dual-claude-plugin/.claude-plugin/plugin.json', JSON.stringify({
+			name: 'claude-plugin',
+			mcpServers: { 'claude-server': { command: 'echo' } },
+		}));
+		await writeFile('/plugins/dual-claude-plugin/plugin.json', JSON.stringify({
+			name: 'copilot-plugin',
+			mcpServers: { 'copilot-server': { command: 'echo' } },
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.mcpServerDefinitions, definitions => definitions.length > 0);
+		assert.deepStrictEqual({
+			format: plugin.format,
+			mcpServers: plugin.mcpServerDefinitions.get().map(server => server.name),
+		}, {
+			format: PluginFormat.Claude,
+			mcpServers: ['claude-server'],
+		});
+	}));
+
+	test('plugins inside .claude use Claude format with a root manifest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/home/.claude/plugins/root-manifest');
+		await writeFile('/home/.claude/plugins/root-manifest/plugin.json', JSON.stringify({ name: 'root-manifest' }));
+		await writeFile('/home/.claude/plugins/root-manifest/hooks/hooks.json', JSON.stringify({
+			hooks: {
+				Stop: [{ type: 'command', command: 'echo stop' }],
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.hooks, hooks => hooks.length > 0);
+		assert.deepStrictEqual({
+			format: plugin.format,
+			hooks: plugin.hooks.get().map(hook => hook.type),
+		}, {
+			format: PluginFormat.Claude,
+			hooks: ['Stop'],
+		});
 	}));
 
 	test('falls back to Copilot format when no vendor manifest exists', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -423,6 +482,40 @@ suite('AgentPlugin format detection', () => {
 		});
 	}));
 
+	test('changing Copilot manifest path rebuilds the plugin entry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/copilot-manifest-move');
+		await writeFile('/plugins/copilot-manifest-move/.github/plugin/plugin.json', JSON.stringify({
+			name: 'nested',
+			agents: { paths: ['nested-agents'], exclusive: true },
+		}));
+		await writeFile('/plugins/copilot-manifest-move/nested-agents/nested.agent.md', '# Nested');
+		await writeFile('/plugins/copilot-manifest-move/root-agents/root.agent.md', '# Root');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+		const initialPlugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(initialPlugin.agents, agents => agents.length > 0);
+		assert.deepStrictEqual(initialPlugin.agents.get().map(agent => agent.name), ['nested.agent']);
+
+		await writeFile('/plugins/copilot-manifest-move/plugin.json', JSON.stringify({
+			name: 'root',
+			agents: { paths: ['root-agents'], exclusive: true },
+		}));
+		const updatedPlugins = await waitForState(discovery.plugins, plugins => plugins?.[0] !== initialPlugin);
+		const updatedPlugin = updatedPlugins?.[0];
+		assert.ok(updatedPlugin);
+		await waitForState(updatedPlugin.agents, agents => agents.some(agent => agent.name === 'root.agent'));
+
+		assert.deepStrictEqual({
+			replaced: updatedPlugin !== initialPlugin,
+			agents: updatedPlugin.agents.get().map(agent => agent.name),
+		}, {
+			replaced: true,
+			agents: ['root.agent'],
+		});
+	}));
+
 	test('Open Plugin reads MCP definitions from .plugin/plugin.json inline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/mcp-plugin');
 		await writeFile('/plugins/mcp-plugin/.plugin/plugin.json', JSON.stringify({
@@ -536,6 +629,70 @@ suite('AgentPlugin format detection', () => {
 
 		await waitForState(plugins[0].agents, a => a.length > 0);
 		assert.strictEqual(plugins[0].agents.get()[0].name, 'reviewer');
+	}));
+
+	test('reads Automation blueprints from Agent Plugin default and configured directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/automation-plugin');
+		await writeFile('/plugins/automation-plugin/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'automation-plugin',
+			extensions: {
+				'com.github.copilot': {
+					automations: { paths: ['./custom-automations/'] },
+				},
+			},
+		}));
+		await writeFile('/plugins/automation-plugin/automations/daily-review.automation.md', [
+			'---',
+			'version: 1',
+			'id: daily-review',
+			'name: Daily review',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "0 9 * * *"',
+			'  timeZone: local',
+			'---',
+			'Review the workspace.',
+		].join('\n'));
+		await writeFile('/plugins/automation-plugin/com.github.copilot/custom-automations/weekly-review.automation.md', [
+			'---',
+			'version: 1',
+			'id: weekly-review',
+			'name: Weekly review',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "30 10 * * 5"',
+			'  timeZone: local',
+			'---',
+			'Review the workspace for the past week.',
+		].join('\n'));
+		await writeFile('/plugins/automation-plugin/automations/invalid.automation.md', 'Not a blueprint');
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		await waitForState(plugins[0].automations, automations => automations.length === 2);
+		assert.deepStrictEqual(plugins[0].automations.get().map(automation => ({
+			id: automation.blueprint.id,
+			name: automation.blueprint.name,
+			schedule: automation.blueprint.schedule,
+			path: automation.uri.path,
+		})), [
+			{
+				id: 'daily-review',
+				name: 'Daily review',
+				schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+				path: '/plugins/automation-plugin/automations/daily-review.automation.md',
+			},
+			{
+				id: 'weekly-review',
+				name: 'Weekly review',
+				schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 5 },
+				path: '/plugins/automation-plugin/com.github.copilot/custom-automations/weekly-review.automation.md',
+			},
+		]);
 	}));
 
 	test('manifest skills field adds supplemental skill directories', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -849,6 +1006,38 @@ suite('AgentPlugin format detection', () => {
 		// ${PLUGIN_ROOT} should be expanded to the plugin's fsPath
 		const command = hookCommands[0].command;
 		assert.ok(command && !command.includes('${PLUGIN_ROOT}'), `Expected PLUGIN_ROOT to be expanded, got: ${command}`);
+	}));
+
+	test('Copilot plugin hooks expose PLUGIN_ROOT', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/copilot-root-expansion');
+		await writeFile('/plugins/copilot-root-expansion/plugin.json', JSON.stringify({
+			name: 'copilot-root-expansion',
+			hooks: {
+				hooks: {
+					PostToolUse: [{
+						hooks: [{
+							type: 'command',
+							command: 'echo ${PLUGIN_ROOT}',
+						}],
+					}],
+				},
+			},
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugins = getDiscoveredPlugins(discovery);
+		await waitForState(plugins[0].hooks, hooks => hooks.length > 0);
+
+		assert.deepStrictEqual(plugins[0].hooks.get()[0].hooks.map(hook => ({
+			command: hook.command,
+			env: hook.env,
+		})), [{
+			command: `echo ${uri.fsPath}`,
+			env: { PLUGIN_ROOT: uri.fsPath },
+		}]);
 	}));
 
 	test('manifest commands field pointing to a specific file', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
