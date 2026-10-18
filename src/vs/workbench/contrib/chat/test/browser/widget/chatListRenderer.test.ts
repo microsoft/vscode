@@ -10,6 +10,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -5134,10 +5135,71 @@ suite('ChatListRenderer', () => {
 			});
 		}
 
-		(isWeb ? test : test.skip)('downloads original images through the browser without opening a save dialog', async () => {
+		for (const scheme of [Schemas.http, Schemas.https]) {
+			desktopTest(`downloads a mixed batch of embedded and ${scheme} images`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.parse(`${scheme}://example.com/generated-image.png`);
+				const urlImageData = dom.$<HTMLCanvasElement>('canvas', { width: 12, height: 6 }).toDataURL('image/png').split(',')[1];
+				const readImage = sinon.stub<[URI, CancellationToken], Promise<VSBuffer | undefined>>().resolves(decodeBase64(urlImageData));
+				context.instantiationService.stub(ISharedWebContentExtractorService, { readImage });
+				await context.finishTool(context.addTool('download-embedded'));
+				await context.finishTool(context.addTool('download-url'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				context.render();
+				context.getDownload().click();
+				await context.dialogShown.p;
+				await context.destination.complete(context.target);
+				await context.waitForDownload();
+				const images = getGeneratedImageResources(context.response.response, context.response.sessionResource);
+				assert.deepStrictEqual({
+					entries: readArchive((await context.fileService.readFile(context.target)).value),
+					urlReads: readImage.args,
+					errors: context.errors.callCount,
+				}, {
+					entries: images.map((image, index) => ({ path: image.name, data: index === 0 ? context.imageData : urlImageData })),
+					urlReads: [[source, CancellationToken.None]],
+					errors: 0,
+				});
+			});
+		}
+
+		for (const rejected of [false, true]) {
+			desktopTest(`reports unavailable URL image data without saving a partial batch (rejected: ${rejected})`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.parse('https://example.com/generated-image.png');
+				const readImage = sinon.stub<[URI, CancellationToken], Promise<VSBuffer | undefined>>();
+				if (rejected) {
+					readImage.rejects(new Error('Image request failed'));
+				} else {
+					readImage.resolves(undefined);
+				}
+				context.instantiationService.stub(ISharedWebContentExtractorService, { readImage });
+				await context.finishTool(context.addTool('download-embedded'));
+				await context.finishTool(context.addTool('download-url'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				await context.fileService.writeFile(context.target, VSBuffer.fromString('previous archive'));
+				context.render();
+				context.getDownload().click();
+				await context.waitForDownload();
+				assert.deepStrictEqual({
+					saved: (await context.fileService.readFile(context.target)).value.toString(),
+					urlReads: readImage.args,
+					dialogs: context.dialogs.length,
+					errors: context.errors.args,
+				}, {
+					saved: 'previous archive',
+					urlReads: [[source, CancellationToken.None]],
+					dialogs: 0,
+					errors: [[rejected ? 'Failed to download image batch: Image request failed' : 'Failed to download image batch: Unable to read image data from the URL.']],
+				});
+			});
+		}
+
+		(isWeb ? test : test.skip)('downloads embedded and HTTPS images through the browser without opening a save dialog', async () => {
 			const context = await createDownloadRenderer();
+			const source = URI.parse('https://example.com/generated-image.png');
+			store.add(context.fileService.registerProvider(Schemas.https, store.add(new InMemoryFileSystemProvider())));
+			await context.fileService.writeFile(source, decodeBase64(context.imageData));
 			await context.finishTool(context.addTool('download-1'));
-			await context.finishTool(context.addTool('download-2'));
+			await context.finishTool(context.addTool('download-2'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
 			context.render();
 			const downloaded = new DeferredPromise<{ name: string; url: string }>();
 			store.add(dom.addDisposableListener(mainWindow.document, dom.EventType.CLICK, event => {

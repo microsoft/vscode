@@ -7,12 +7,15 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { matchesSomeScheme, Schemas } from '../../../../../../base/common/network.js';
 import { autorun, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { createZip } from '../../../../../../base/common/zip.js';
@@ -264,9 +267,20 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 			}, async progress => {
 				const files: { path: string; contents: VSBuffer }[] = [];
 				for (const image of images) {
-					const contents = image.base64Value !== undefined ? decodeBase64(image.base64Value)
-						: image.value ? VSBuffer.wrap(image.value)
-							: (await this.fileService.readFile(image.uri)).value;
+					let contents: VSBuffer;
+					if (image.base64Value !== undefined) {
+						contents = decodeBase64(image.base64Value);
+					} else if (image.value) {
+						contents = VSBuffer.wrap(image.value);
+					} else if (!isWeb && matchesSomeScheme(image.uri, Schemas.http, Schemas.https)) {
+						const extracted = await this.webContentExtractorService.readImage(image.uri, CancellationToken.None);
+						if (!extracted) {
+							throw new Error(localize('chat.imageBatch.imageUnavailable', "Unable to read image data from the URL."));
+						}
+						contents = extracted;
+					} else {
+						contents = (await this.fileService.readFile(image.uri)).value;
+					}
 					files.push({ path: image.name ?? basename(image.uri), contents });
 					progress.report({ increment: 1, total: images.length });
 				}
