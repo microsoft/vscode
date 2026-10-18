@@ -1114,7 +1114,7 @@ export class TabbedModelPicker extends Disposable {
 			];
 		const organizationDefault = this._getOrganizationDefaultForModel(fusion, context);
 		// The organization default is Fusion at its default tier, else its first.
-		const organizationDefaultIndex = organizationDefault ? Math.max(0, entries.findIndex(({ choice, model }) => model === fusion && choice?.isDefault)) : -1;
+		const organizationDefaultIndex = organizationDefault ? Math.max(0, entries.findIndex(({ choice }) => choice?.isDefault)) : -1;
 		const now = Date.now();
 		return [
 			{ kind: ActionListItemKind.Separator, label: fusion.metadata.name, detail: localize('chat.modelPicker.fusionSubtitle', "Choose the capability for your task") },
