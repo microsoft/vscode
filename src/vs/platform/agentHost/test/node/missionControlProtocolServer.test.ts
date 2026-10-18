@@ -12,7 +12,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise, Promises } from '../../../../base/common/async.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -1821,6 +1821,8 @@ suite('Mission Control WPS', () => {
 				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
 				changePolicy: (policy: Record<string, unknown> | undefined) => Promise<void>;
 				refreshPolicy: () => void;
+				/** Resolves once `count` errors were reported, without advancing the fake clock. */
+				waitForErrors: (count: number) => Promise<void>;
 				setSessionEventsFormats: (formats: readonly string[] | undefined) => void;
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
@@ -1852,6 +1854,7 @@ suite('Mission Control WPS', () => {
 				let policy: Record<string, unknown> | undefined;
 				let policyReported: DeferredPromise<void> | undefined;
 				const policyChanged = store.add(new Emitter<void>());
+				const errorReported = store.add(new Emitter<void>());
 				let identityApiBase = 'https://api.github.com';
 				const identityAuthorityChanged = store.add(new Emitter<void>());
 				const environment = {
@@ -1905,7 +1908,10 @@ suite('Mission Control WPS', () => {
 						return { dispose() { } };
 					},
 					updateProjects: async () => { projectUpdates++; },
-					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
+					onError: error => {
+						errors.push(error instanceof Error ? error.message : String(error));
+						errorReported.fire();
+					},
 					socketFactory: () => {
 						const socket = new FakeWpsSocket(true, overrides.manualPublishAcks);
 						sockets.push(socket);
@@ -1948,6 +1954,11 @@ suite('Mission Control WPS', () => {
 						identityAuthorityChanged.fire();
 					},
 					refreshPolicy: () => policyChanged.fire(),
+					waitForErrors: async count => {
+						while (errors.length < count) {
+							await Event.toPromise(errorReported.event);
+						}
+					},
 				});
 			} finally {
 				service?.dispose();
@@ -1985,16 +1996,27 @@ suite('Mission Control WPS', () => {
 		});
 
 		test('a same-valued policy refresh cannot reset failed signing-key recovery without remote work', async () => {
-			await withEnvironment([], async ({ clock, heartbeats, requests, refreshPolicy }) => {
-				await clock.tickAsync(301_000);
+			await withEnvironment([], async ({ clock, heartbeats, requests, errors, refreshPolicy, waitForErrors }) => {
+				// A failed refresh settles through real async work; let it be reported before moving the fake clock past it.
+				await clock.tickAsync(300_000);
+				await waitForErrors(1);
+				await clock.tickAsync(1_000);
 				refreshPolicy();
-				await clock.tickAsync(299_000);
+				await clock.tickAsync(59_000);
+				await waitForErrors(2);
+				await clock.tickAsync(240_000);
 				assert.deepStrictEqual({
 					signingKeyRequests: requests.filter(request => request.path.endsWith('/jwks.json')).length,
 					heartbeats,
+					errors,
 				}, {
 					signingKeyRequests: 3,
 					heartbeats: [0, 60_000, 120_000, 180_000, 240_000, 300_000, 360_000].map(time => ({ time, status: 'online' })),
+					errors: [
+						'Mission Control request failed (503) code=service_unavailable',
+						'Mission Control request failed (503) code=service_unavailable',
+						'Mission Control request retry budget exhausted; reconfigure the environment to reconnect.',
+					],
 				});
 			}, undefined, false, { failSigningKeyRefresh: true });
 		});
