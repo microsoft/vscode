@@ -23,6 +23,23 @@ export function getInlineFusionTierLabel(value: unknown, label: string): string 
 }
 
 /**
+ * The description under an inline Fusion tier: why it is unavailable, else what it is for. A tier
+ * Fusion does not know keeps the provider's description.
+ */
+export function getInlineFusionTierDetail(value: unknown, choice?: { readonly description?: string; readonly unavailable?: boolean }): string | undefined {
+	if (choice?.unavailable) {
+		return choice.description || localize('chat.modelPicker.fusionTierUnavailable', "Not available for your account.");
+	}
+	switch (value) {
+		case 'balance': return localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute");
+		case 'intelligence':
+		case COPILOT_HYDRA_FUSION_MODEL_ID: return localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute");
+		case COPILOT_HYDRA_FUSION_MAX_MODEL_ID: return localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
+		default: return choice?.description || undefined;
+	}
+}
+
+/**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
  * HydraFusion Max as its Max tier.

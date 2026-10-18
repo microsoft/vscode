@@ -518,6 +518,42 @@ suite('ModelPickerTelemetry', () => {
 		]);
 	});
 
+	test('inline Fusion with provider tiers names the selected tier, and only Fusion when none is available', async () => {
+		const providerFusion = (enumItemDisabled: boolean[], value?: string) => ({
+			...autoModel,
+			metadata: {
+				...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true }, autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: {
+							type: 'string' as const, group: 'navigation', title: 'Effort Level',
+							enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'],
+							enumItemDisabled, ...(value !== undefined && { default: value }),
+						},
+					},
+				},
+			},
+		});
+		const label = async (fusion: ILanguageModelChatMetadataAndIdentifier) => {
+			const result = createPicker(fusion, undefined, [fusion, model]);
+			await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+			result.picker.render(result.container);
+			return {
+				name: result.container.querySelector('.model-picker-name')?.textContent,
+				configVisible: result.container.querySelector<HTMLElement>('.model-picker-config')?.style.display !== 'none',
+			};
+		};
+		assert.deepStrictEqual({
+			high: await label(providerFusion([false, false, false], 'hydrafusion')),
+			max: await label(providerFusion([false, false, false], 'hydrafusion-max')),
+			noneAvailable: await label(providerFusion([true, true, true])),
+		}, {
+			high: { name: 'Fusion High', configVisible: false },
+			max: { name: 'Fusion Max', configVisible: false },
+			noneAvailable: { name: 'Fusion', configVisible: false },
+		});
+	});
+
 	test('a chat moves between HydraFusion and Fusion\'s High as Fusion routes High', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
 		const open = async (balanceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'fusionHigh') => {

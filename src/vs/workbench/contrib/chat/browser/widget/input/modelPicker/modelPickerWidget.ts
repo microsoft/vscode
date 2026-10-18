@@ -877,7 +877,7 @@ export class ModelPickerWidget extends Disposable {
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
 		const inlineFusion = !comparisonSummary && !!shownModel?.metadata.autoModelFusion && this._configurationService.getValue<boolean>(ChatConfiguration.FusionModelPickerInlineTiers);
 		const effort = inlineFusion ? getModelConfigProperty(shownModel, configurationAccess, MODEL_CONFIG_GROUP_EFFORT) : undefined;
-		const fusionTier = inlineFusion && (routingTier?.label ?? (effort && getModelConfigValueLabel(effort.schema, effort.value)));
+		const fusionTier = inlineFusion && (routingTier?.label ?? (effort && effort.value !== undefined ? getModelConfigValueLabel(effort.schema, effort.value) : undefined));
 		const displayName = fusionTier
 			? localize('chat.modelPicker.fusionTier', "Fusion {0}", getInlineFusionTierLabel(routingTier ? this._selectedModel?.metadata.id : effort?.value, fusionTier))
 			: shownName;
@@ -947,7 +947,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || !!fusionTier || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || !!fusionTier || !!effort || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);
