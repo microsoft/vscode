@@ -17,6 +17,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async get(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'GET',
 			path: repositoryPath(repository),
 			authentication: 'optional',
@@ -27,6 +28,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async getById(repositoryId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'GET',
 			path: `/repositories/${numberSegment(repositoryId)}`,
 			authentication: 'optional',
@@ -38,6 +40,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 	async listForAuthenticatedUser(signal: AbortSignal, options?: ListRepositoriesOptions): Promise<readonly Repository[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'repositories',
 			method: 'GET',
 			path: withQuery('/user/repos', { ...query }),
 			authentication: 'required',
@@ -49,6 +52,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 	async listForUser(username: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'repositories',
 			method: 'GET',
 			path: withQuery(`/users/${pathSegment(username)}/repos`, { ...query }),
 			authentication: 'optional',
@@ -60,6 +64,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 	async listForOrganization(org: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly RepositoryIdentity[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'repositories',
 			method: 'GET',
 			path: withQuery(`/orgs/${pathSegment(org)}/repos`, { ...query }),
 			authentication: 'optional',
@@ -70,6 +75,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async create(request: CreateRepositoryRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'POST',
 			path: '/user/repos',
 			authentication: 'required',
@@ -81,6 +87,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async fork(repository: RepositoryRef, request: ForkRepositoryRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Repository> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'POST',
 			path: `${repositoryPath(repository)}/forks`,
 			authentication: 'required',
@@ -93,6 +100,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 	async listBranches(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Branch[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'repositories',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/branches`, { ...query }),
 			authentication: 'optional',
@@ -103,6 +111,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async getBranch(repository: RepositoryRef, branch: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Branch> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/branches/${pathSegment(branch)}`,
 			authentication: 'optional',
@@ -113,6 +122,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async getBranchProtection(repository: RepositoryRef, branch: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<BranchProtection> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/branches/${pathSegment(branch)}/protection`,
 			authentication: 'required',
@@ -124,6 +134,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 	async listRulesets(repository: RepositoryRef, signal: AbortSignal, options?: ListRulesetsOptions): Promise<readonly RepositoryRuleset[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'repositories',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/rulesets`, { ...query }),
 			authentication: 'optional',
@@ -134,6 +145,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 
 	async getRuleset(repository: RepositoryRef, rulesetId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryRuleset> {
 		return this._client.request({
+			domain: 'repositories',
 			method: 'GET',
 			path: `${repositoryPath(repository)}/rulesets/${numberSegment(rulesetId)}`,
 			authentication: 'optional',
@@ -146,6 +158,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'repositories',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/commits/${pathSegment(ref)}`, { ...query }),
 				authentication: 'optional',
@@ -165,6 +178,7 @@ export class RepositoriesClient implements IRepositoriesClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'repositories',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/compare/${pathSegment(base)}...${pathSegment(head)}`, { ...query }),
 				authentication: 'optional',

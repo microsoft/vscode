@@ -11,8 +11,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ClientConnectionEvent, IChannel, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { parseGraphQLRequest } from '../../common/client/graphql.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
@@ -75,14 +77,15 @@ class RecordingGitHubService extends GitHubService {
 	}
 }
 
-function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService())) {
+function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService()), telemetryService: ITelemetryService = NullTelemetryService) {
 	const service = store.add(new RecordingGitHubService({
 		fetch,
+		telemetrySource: 'sharedProcess',
 		credentialProvider: {
 			onDidChange: Event.None,
 			getToken: () => assert.fail('IPC must not use the engine host credential provider'),
 		},
-	}, logService, NullTelemetryService));
+	}, logService, telemetryService));
 	const onDidConnect = store.add(new Emitter<ClientConnectionEvent>());
 	const server = store.add(new IPCServer<string>(onDidConnect.event));
 	const registration = store.add(registerGitHubChannel(server, service));
@@ -416,6 +419,11 @@ suite('GitHub anonymous IPC clients', () => {
 		}
 		for (const priority of [null, '', 'urgent', 1]) {
 			await assert.rejects(connection.channel.call('request', [{ clientId: 'client', target: 'rest', request: { ...read, options: { priority } } }, undefined]), {
+				name: 'SchemaError',
+			});
+		}
+		for (const domain of [null, '', 1, 'private-owner/private-repository', 'content/private', 'https://private.example']) {
+			await assert.rejects(connection.channel.call('request', [{ clientId: 'client', target: 'rest', request: { ...read, domain } }, undefined]), {
 				name: 'SchemaError',
 			});
 		}
@@ -791,12 +799,21 @@ suite('GitHub authenticated IPC clients', () => {
 		});
 	});
 
-	test('preserves request priorities through IPC for every provider and keeps operation defaults', async () => {
+	test('preserves request priorities and API domains through IPC for every provider', async () => {
 		const traces: string[] = [];
+		const domainSummaries: ITelemetryData[] = [];
+		const telemetry = new class extends mock<ITelemetryService>() {
+			override telemetryLevel = TelemetryLevel.USAGE;
+			override publicLog2(name: string, data?: ITelemetryData): void {
+				if (name === 'githubRequestDomainSummary' && data) {
+					domainSummaries.push(data);
+				}
+			}
+		}();
 		const logService = store.add(new class extends NullLogService {
 			override trace(message: string): void { traces.push(message); }
 		}());
-		const { connect } = createTestServer(store, async (input, init) => {
+		const { connect, service } = createTestServer(store, async (input, init) => {
 			const url = new URL(String(input));
 			if (url.hostname === 'raw.githubusercontent.com') {
 				return new Response('raw content');
@@ -814,7 +831,7 @@ suite('GitHub authenticated IPC clients', () => {
 				return new Response(null, { status: 205 });
 			}
 			return Response.json([]);
-		}, logService);
+		}, logService, telemetry);
 		const { remote, connection } = connect();
 		const broker = store.add(new TestCredentialBroker());
 		broker.options = { ...broker.options, missionControl: { endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test-integration' } } };
@@ -827,10 +844,25 @@ suite('GitHub authenticated IPC clients', () => {
 		await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
 		await client.tasks.list(signal());
 		await client.notifications.markRead('42', signal());
+		const released = Event.toPromise(service.onDidReleaseClient.event);
+		client.dispose();
+		await released;
+		service.dispose();
 
-		assert.deepStrictEqual(traces.filter(message => message.includes(' started on ')).map(message =>
-			/\(priority: (?<priority>[^)]+)\)$/.exec(message)?.groups?.priority
-		), ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation']);
+		assert.deepStrictEqual({
+			priorities: traces.filter(message => message.includes(' started on ')).map(message =>
+				/\(priority: (?<priority>[^)]+)\)$/.exec(message)?.groups?.priority),
+			domains: domainSummaries.map(summary => ({ domain: summary.domain, source: summary.source, completed: summary.admittedCompleted })),
+		}, {
+			priorities: ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation'],
+			domains: [
+				{ domain: 'credentials', source: 'sharedProcess', completed: 1 },
+				{ domain: 'notifications', source: 'sharedProcess', completed: 2 },
+				{ domain: 'reviews', source: 'sharedProcess', completed: 1 },
+				{ domain: 'tasks', source: 'sharedProcess', completed: 2 },
+				{ domain: 'content', source: 'sharedProcess', completed: 1 },
+			],
+		});
 	});
 
 	for (const authenticated of [false, true]) {
@@ -2010,7 +2042,7 @@ suite('GitHub authenticated IPC clients', () => {
 		const wire = await connection.channel.call<ApiResponseMessage>('request', [{ clientId: 'graphql', target: 'graphql', request }, bodyText]);
 		const provider = new RemoteApiRequestProvider(connection.channel, 'graphql', 'graphql', signal());
 		let serializations = 0;
-		const parsed = await new CoreClient(provider, provider).graphql(query, {
+		const parsed = await new CoreClient(provider, provider).graphql('other', query, {
 			toJSON() { serializations++; return { id: 'missing' }; },
 		}, signal(), parse.object({ node: parse.nullable(parse.object({ id: parse.string })) }));
 		assert.deepStrictEqual({ wire, parsed, bodies, serializations }, {

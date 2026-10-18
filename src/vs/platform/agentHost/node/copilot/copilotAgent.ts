@@ -6898,6 +6898,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
+	withdrawSteeringMessage(chat: URI, messageId: string): void {
+		void this._findChatByUri(chat)?.withdrawSteering(messageId);
+	}
+
 	private async _getChatMessages(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<readonly Turn[]> {
 		if (this._isShuttingDown) {
 			return [];
