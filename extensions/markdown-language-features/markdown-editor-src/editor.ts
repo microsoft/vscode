@@ -22,6 +22,9 @@ import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
 import { DiagnosticsController } from './diagnosticsController';
 import { ImagePasteController } from './imagePasteController';
+import { createTaskProgressProvider, isTaskProgressLabels } from './taskProgress/taskProgressProvider';
+import { codeBlockEditorTheme } from './codeBlockEditorTheme';
+import type { MarkdownEditorInitialState } from '../src/preview/webviewInitialState';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -41,13 +44,7 @@ interface PersistedViewState {
 	selection?: { anchor: number; active: number };
 }
 
-interface InitialState {
-	readonly content: string;
-	readonly documentVersion: number;
-	/** Identifies the authoritative text baseline against which local edits are computed. */
-	readonly editEpoch: number;
-	readonly readonly: boolean;
-	readonly richLinksEnabled: boolean;
+interface InitialState extends MarkdownEditorInitialState {
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
 }
 
@@ -115,6 +112,7 @@ class CodeBlockEditorHostTransport implements IframeEmbeddedEditorHostTransport 
 
 class Editor extends Disposable {
 	readonly model = new EditorModel();
+	readonly #taskProgressProvider: IframeEmbeddedEditorProvider;
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
 	#mermaidCounter = 0;
@@ -125,10 +123,16 @@ class Editor extends Disposable {
 	#rename: RenameController | undefined;
 	#completion: CompletionController | undefined;
 	#diagnostics: DiagnosticsController | undefined;
+	#imagePaste: ImagePasteController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
 	#editEpoch: number;
+	#navigationRevision = 0;
+	#navigationReady = false;
+	#navigationReportScheduled = false;
+	readonly #pendingEdits = new Set<Promise<void>>();
+	readonly #scrollHost: HTMLElement;
 
 	readonly #comments = new CommentsModel();
 	#commentsView: CommentsView | undefined;
@@ -144,6 +148,8 @@ class Editor extends Disposable {
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
+		this.#scrollHost = host;
+		this.#taskProgressProvider = createTaskProgressProvider(this.model, initialState.taskProgressLabels);
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
 		if (!messageSecret) {
@@ -177,6 +183,10 @@ class Editor extends Disposable {
 		this.model.readonlyMode.set(initialState.readonly, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
+			readClipboardMedia: (request, _context, { signal }) => {
+				if (!this.#imagePaste) { throw new Error('The Markdown editor is not ready to paste media.'); }
+				return this.#imagePaste.readClipboardMedia(request, signal);
+			},
 			diagnosticsChanged: () => this.#diagnostics?.refresh(),
 			update: ({ content, editEpoch }) => {
 				// Applying authoritative text maps selection and clears stale pending-paragraph state.
@@ -187,6 +197,7 @@ class Editor extends Disposable {
 				} finally {
 					this.isUpdatingFromExtension = false;
 				}
+				this.#scheduleSelectionReport();
 			},
 			codeBlockEditorProviders: ({ codeBlockEditorProviders }) => {
 				this.#codeBlockEditorProviders = codeBlockEditorProviders;
@@ -220,16 +231,32 @@ class Editor extends Disposable {
 				this.#commentsView?.revealComment(id);
 			},
 			revealLinkTarget: ({ start, endExclusive, selectionStart }) => {
-				const contentLength = this.model.sourceText.get().value.length;
-				if (start <= endExclusive && endExclusive <= contentLength && selectionStart <= contentLength) {
-					transaction(tx => {
-						this.model.pendingParagraph.set(undefined, tx);
-						this.model.selectionSource.set('user', tx);
-						this.model.selection.set(Selection.collapsed(selectionStart), tx);
-					});
-					this.#view?.focus();
-					this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
+				this.#revealRange(start, endExclusive, { anchor: selectionStart, active: selectionStart }, false);
+			},
+			captureNavigationState: async (_message, _context, { signal }) => {
+				await this.#drainEdits();
+				signal.throwIfAborted();
+				const selection = this.model.selection.get();
+				return {
+					editEpoch: this.#editEpoch, revision: this.#navigationRevision,
+					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
+					scrollTop: this.#scrollHost.scrollTop,
+				};
+			},
+			revealRange: (message, _context, { signal }) => {
+				signal.throwIfAborted();
+				this.#checkNavigationState(message);
+				this.#revealRange(message.start, message.endExclusive, message.selection, message.preserveFocus);
+			},
+			restoreNavigationState: (state, _context, { signal }) => {
+				signal.throwIfAborted();
+				this.#checkNavigationState(state);
+				if (state.selection) {
+					this.#revealRange(state.selection.active, state.selection.active, state.selection, true);
+				} else {
+					this.model.selection.set(undefined, undefined);
 				}
+				this.#scrollHost.scrollTop = state.scrollTop;
 			},
 			command: async ({ command: commandId }) => {
 				if (commandId === 'markdown.editor.triggerSuggest') {
@@ -248,19 +275,70 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
+			configurationChanged: ({ highlightActiveBlock }) => {
+				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
+			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
 			},
 		}));
-		this.#createView(host, initialState.content);
+		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
 		this.#send('ready', this.#host.ready({
 			documentVersion: initialState.documentVersion,
 			editEpoch: this.#editEpoch,
+		}).then(() => {
+			this.#navigationReady = true;
+			this.#scheduleSelectionReport();
 		}));
 		window.addEventListener('pagehide', this.#onPageHide);
 	}
 
 	readonly #onPageHide = (): void => this.dispose();
+
+	#checkNavigationState(state: { editEpoch: number; revision: number }): void {
+		if (this.#disposed || state.editEpoch !== this.#editEpoch || state.revision !== this.#navigationRevision) {
+			throw new Error('The Markdown document changed during navigation. Try again.');
+		}
+	}
+
+	#revealRange(start: number, endExclusive: number, selection: { anchor: number; active: number } | undefined, preserveFocus: boolean): void {
+		const length = this.model.sourceText.get().value.length;
+		if (start > endExclusive || endExclusive > length || selection && Math.max(selection.anchor, selection.active) > length) {
+			throw new Error('Invalid Markdown editor navigation range');
+		}
+		if (selection) {
+			transaction(tx => {
+				this.model.pendingParagraph.set(undefined, tx);
+				this.model.selectionSource.set('user', tx);
+				this.model.selection.set(new Selection(selection.anchor, selection.active), tx);
+			});
+		}
+		if (!preserveFocus) { this.#view?.focus(); }
+		this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
+	}
+
+	async #drainEdits(): Promise<void> {
+		while (this.#pendingEdits.size) {
+			await Promise.all(this.#pendingEdits);
+		}
+		if (this.#disposed) { throw new Error('Markdown editor is disposed'); }
+	}
+
+	#scheduleSelectionReport(): void {
+		if (!this.#navigationReady || this.#navigationReportScheduled || this.#disposed) { return; }
+		this.#navigationReportScheduled = true;
+		queueMicrotask(() => {
+			this.#navigationReportScheduled = false;
+			if (this.#disposed) { return; }
+			this.#send('selectionChanged', this.#drainEdits().then(() => {
+				const selection = this.model.selection.get();
+				return this.#host.selectionChanged({
+					editEpoch: this.#editEpoch,
+					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
+				});
+			}));
+		});
+	}
 
 	#send(operation: string, request: Promise<void> | void): void {
 		void request?.catch(error => {
@@ -284,7 +362,7 @@ class Editor extends Disposable {
 		this.#connection.close();
 	}
 
-	#createView(host: HTMLElement, content: string): void {
+	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
@@ -293,7 +371,7 @@ class Editor extends Disposable {
 		const embeddedCodeEditorFactory = this._register(new LazyCodeBlockEditorFactory({
 			providers: this.#createIframeProviders(this.#codeBlockEditorProviders),
 			scriptNonce,
-			themeCss: () => `:root { ${document.documentElement.getAttribute('style') ?? ''} }`,
+			...codeBlockEditorTheme(document),
 			iframeBootstrapUrl: iframeBootstrapUrl.href,
 			onAmbiguous: (language, providers) => this.#send('codeBlockEditorDiagnostic', this.#host.codeBlockEditorDiagnostic({
 				message: `Ambiguous providers for ${language}: ${providers.map(provider => provider.id).join(', ')}`,
@@ -316,6 +394,7 @@ class Editor extends Disposable {
 
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
+			highlightActiveBlock,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
 			linkPresentationProvider: this.#linkPresentationProvider,
@@ -373,7 +452,7 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
+			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -483,6 +562,7 @@ class Editor extends Disposable {
 		this._register(autorun((reader) => {
 			const sel = reader.readObservable(this.model.selection);
 			this.#patchViewState({ selection: sel ? { anchor: sel.anchor, active: sel.active } : undefined });
+			this.#scheduleSelectionReport();
 		}));
 
 		// Persist the edit/read-only mode as the global default whenever the lock
@@ -504,11 +584,17 @@ class Editor extends Disposable {
 		let previousText = this.model.sourceText.get().value;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
+			if (text !== previousText) {
+				this.#navigationRevision++;
+				this.#scheduleSelectionReport();
+			}
 			if (!this.isUpdatingFromExtension && text !== previousText) {
-				this.#send('edit', this.#host.edit({
+				const edit = this.#host.edit({
 					...computeTextEdit(previousText, text),
 					editEpoch: this.#editEpoch,
-				}));
+				});
+				this.#pendingEdits.add(edit);
+				this.#send('edit', edit.finally(() => this.#pendingEdits.delete(edit)));
 			}
 			previousText = text;
 		}));
@@ -520,14 +606,14 @@ class Editor extends Disposable {
 	}
 
 	#createIframeProviders(definitions: readonly CodeBlockEditorProviderDefinition[]): readonly IframeEmbeddedEditorProvider[] {
-		return definitions.map(definition => ({
+		return [...definitions.map<IframeEmbeddedEditorProvider>(definition => ({
 			id: definition.id,
 			selector: definition.selector,
 			createHostTransport: runtimeKey => this.#createCodeBlockEditorHostTransport(definition.id, runtimeKey),
 			resolve: definition.source.kind === 'static'
 				? async () => definition.source.kind === 'static' ? definition.source.descriptor : undefined
 				: language => this.#resolveCodeBlockEditor(definition.id, language),
-		}));
+		})), this.#taskProgressProvider];
 	}
 
 	#createCodeBlockEditorHostTransport(providerId: string, runtimeKey: string): CodeBlockEditorHostTransport {
@@ -620,11 +706,13 @@ function isInitialState(value: unknown): value is InitialState {
 	}
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
+		&& isTaskProgressLabels(candidate.taskProgressLabels)
 		&& typeof candidate.documentVersion === 'number'
 		&& typeof candidate.editEpoch === 'number'
 		&& Number.isInteger(candidate.editEpoch)
 		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
+		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
 }

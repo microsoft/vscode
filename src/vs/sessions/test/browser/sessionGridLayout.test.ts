@@ -10,11 +10,13 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/chatCompositeBar.css';
+import '../../browser/parts/media/sessionsPart.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,6 +30,7 @@ suite('Sessions - Grid Layout', () => {
 		readonly onDidChange = Event.None;
 		visible = true;
 		size = { width: 0, height: 0 };
+		readonly contentGaps: number[] = [];
 		onLayoutContainer: (() => void) | undefined;
 		onLayoutContents: (() => void) | undefined;
 		onVisibilityChange: ((visible: boolean) => void) | undefined;
@@ -39,7 +42,10 @@ suite('Sessions - Grid Layout', () => {
 			this.size = { width, height };
 			this.onLayoutContainer?.();
 		}
-		layoutContents(): void { this.onLayoutContents?.(); }
+		layoutContents(gap = 0): void {
+			this.contentGaps.push(gap);
+			this.onLayoutContents?.();
+		}
 		setVisible(visible: boolean): void {
 			this.visible = visible;
 			this.onVisibilityChange?.(visible);
@@ -73,6 +79,206 @@ suite('Sessions - Grid Layout', () => {
 		grid.layout(1400, 700, 0, 0, false);
 		grid.layout(1400, 700, 0, 0, false);
 		assert.deepStrictEqual(operations, ['geometry a', 'geometry b', 'contents a', 'contents b']);
+	});
+
+	test('insets adjacent views by the configured gap and restores flush compact allocations', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], 'a');
+		const leafElements = new Map([a, b, c].map(entry => [entry.id, entry.view.element.parentElement!]));
+		const grippers = () => Array.from(grid.element.querySelectorAll<HTMLElement>('.monaco-sash'))
+			.filter(sash => sash.closest('.monaco-grid-view')?.parentElement === grid.element)
+			.map(sash => sash.classList.contains(GRID_GAP_SASH_CLASS));
+		const snapshot = () => ({
+			hasGaps: grid.element.classList.contains('session-grid-has-gaps'),
+			grippers: grippers(),
+			views: [a, b, c].map(entry => {
+				const style = leafElements.get(entry.id)!.style;
+				return {
+					size: entry.view.size,
+					insets: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+				};
+			}),
+		});
+
+		grid.layout(1200, 600, 0, 0, false, 4);
+		const gapped = snapshot();
+		grid.toggleMaximized('a');
+		const maximized = {
+			hasGaps: grid.element.classList.contains('session-grid-has-gaps'),
+			grippers: grippers(),
+			size: a.view.size,
+			insets: snapshot().views[0].insets,
+		};
+		grid.toggleMaximized('a');
+		grid.layout(1200, 600, 0, 0, false);
+		const compact = snapshot();
+
+		assert.deepStrictEqual({ gapped, maximized, compact }, {
+			gapped: {
+				hasGaps: true,
+				grippers: [true, true],
+				views: [
+					{ size: { width: 398, height: 600 }, insets: ['0px', '2px', '0px', '0px'] },
+					{ size: { width: 798, height: 298 }, insets: ['0px', '0px', '2px', '2px'] },
+					{ size: { width: 798, height: 298 }, insets: ['2px', '0px', '0px', '2px'] },
+				],
+			},
+			maximized: {
+				hasGaps: false,
+				grippers: [false, false],
+				size: { width: 1200, height: 600 },
+				insets: ['0px', '0px', '0px', '0px'],
+			},
+			compact: {
+				hasGaps: false,
+				grippers: [false, false],
+				views: [
+					{ size: { width: 400, height: 600 }, insets: ['0px', '0px', '0px', '0px'] },
+					{ size: { width: 800, height: 300 }, insets: ['0px', '0px', '0px', '0px'] },
+					{ size: { width: 800, height: 300 }, insets: ['0px', '0px', '0px', '0px'] },
+				],
+			},
+		});
+	});
+
+	test('hides the gripper when a constrained session sash is disabled', () => {
+		const { grid, a, b } = harness();
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-spacing-size20', '2px');
+		workbench.style.setProperty('--vscode-cornerRadius-circle', '50%');
+		workbench.style.setProperty('--agents-floating-panel-gap', '4px');
+		const sessionsPart = mainWindow.document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart');
+		sessionsPart.appendChild(grid.element);
+		workbench.appendChild(sessionsPart);
+		mainWindow.document.body.appendChild(workbench);
+		store.add(toDisposable(() => workbench.remove()));
+
+		grid.reconcile([a, b], 'a');
+		const snapshot = () => {
+			const sash = grid.element.querySelector<HTMLElement>(`.monaco-sash.${GRID_GAP_SASH_CLASS}`);
+			assert.ok(sash);
+			return {
+				disabled: sash.classList.contains('disabled'),
+				gripper: mainWindow.getComputedStyle(sash, '::after').content,
+			};
+		};
+		grid.layout(400, 600, 0, 0, false, 4);
+		const resizable = snapshot();
+		grid.layout(160, 600, 0, 0, false, 4);
+		const constrained = {
+			...snapshot(),
+			contentWidths: [a.view.size.width, b.view.size.width],
+			wrapperWidths: [grid.getSize('a')?.width, grid.getSize('b')?.width],
+		};
+		grid.layout(400, 600, 0, 0, false, 4);
+
+		assert.deepStrictEqual({ resizable, constrained, restored: snapshot() }, {
+			resizable: { disabled: false, gripper: '""' },
+			constrained: {
+				disabled: true,
+				gripper: 'none',
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			restored: { disabled: false, gripper: '""' },
+		});
+	});
+
+	test('updates constraints when the density gap changes', () => {
+		const { grid, a, b } = harness();
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const events: number[] = [];
+		store.add(leaves.get('a')!.onDidChange(() => events.push(leaves.get('a')!.minimumWidth)));
+		const snapshot = () => ({
+			constraints: [leaves.get('a')!.minimumWidth, leaves.get('b')!.minimumWidth],
+			contentWidths: [a.view.size.width, b.view.size.width],
+			wrapperWidths: [grid.getSize('a')?.width, grid.getSize('b')?.width],
+		});
+
+		grid.layout(160, 600, 0, 0, false, 4);
+		const gapped = snapshot();
+		grid.layout(160, 600, 0, 0, false);
+		const compact = snapshot();
+		grid.layout(160, 600, 0, 0, false, 4);
+
+		assert.deepStrictEqual({ gapped, compact, restored: snapshot(), events }, {
+			gapped: {
+				constraints: [82, 82],
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			compact: {
+				constraints: [80, 80],
+				contentWidths: [80, 80],
+				wrapperWidths: [80, 80],
+			},
+			restored: {
+				constraints: [82, 82],
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			events: [82, 80, 82],
+		});
+	});
+
+	test('updates constraints when the grid topology changes', () => {
+		const { grid, a, b, c } = harness();
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const bEvents: { width: number; height: number }[] = [];
+		store.add(leaves.get('b')!.onDidChange(() => bEvents.push({
+			width: leaves.get('b')!.minimumWidth,
+			height: leaves.get('b')!.minimumHeight,
+		})));
+
+		grid.reconcile([a, b, c], 'a');
+		grid.layout(160, 160, 0, 0, false, 4);
+		const nested = {
+			constraints: [b, c].map(entry => {
+				const leaf = leaves.get(entry.id)!;
+				return { width: leaf.minimumWidth, height: leaf.minimumHeight };
+			}),
+			contentSizes: [b, c].map(entry => entry.view.size),
+			wrapperSizes: [b, c].map(entry => grid.getSize(entry.id)),
+		};
+
+		grid.reconcile([a, b], 'a');
+		grid.layout(160, 160, 0, 0, false, 4);
+
+		assert.deepStrictEqual({
+			nested,
+			flattenedConstraint: {
+				width: leaves.get('b')!.minimumWidth,
+				height: leaves.get('b')!.minimumHeight,
+			},
+			flattenedContentSize: b.view.size,
+			flattenedWrapperSize: grid.getSize('b'),
+			bEvents,
+		}, {
+			nested: {
+				constraints: [{ width: 82, height: 82 }, { width: 82, height: 82 }],
+				contentSizes: [{ width: 80, height: 80 }, { width: 80, height: 80 }],
+				wrapperSizes: [{ width: 82, height: 82 }, { width: 82, height: 82 }],
+			},
+			flattenedConstraint: { width: 82, height: 80 },
+			flattenedContentSize: { width: 80, height: 160 },
+			flattenedWrapperSize: { width: 82, height: 160 },
+			bEvents: [{ width: 82, height: 82 }, { width: 82, height: 80 }],
+		});
+	});
+
+	test('propagates density gap changes when a single leaf keeps the same geometry', () => {
+		const { grid, a } = harness();
+		grid.reconcile([a], 'a');
+		grid.layout(1200, 600, 0, 0, false);
+		a.view.contentGaps.length = 0;
+
+		grid.layout(1200, 600, 0, 0, false, 4);
+		grid.layout(1200, 600, 0, 0, false);
+
+		assert.deepStrictEqual(a.view.contentGaps, [4, 0]);
 	});
 
 	test('coalesces direct grid allocations into one cancellable frame using the latest dimensions', () => {
@@ -158,10 +364,10 @@ suite('Sessions - Grid Layout', () => {
 		});
 	});
 
-	test('only exposed session-grid corners use the native connected-tabs radius', () => {
+	test('connected-tab styling preserves complete panel frames and exposed grid corners', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
-		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px;';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
 		card.className = 'part sessionspart agents-part-card';
 		root.appendChild(card);
@@ -197,9 +403,13 @@ suite('Sessions - Grid Layout', () => {
 			return [style.borderBottomLeftRadius, style.borderBottomRightRadius];
 		});
 		grid.reconcile([a, b], 'a');
-		grid.layout(1200, 600, 20, 100, false);
+		grid.layout(1200, 600, 20, 100, false, 4);
 		grid.reconcile([a, d, b, c], 'a');
 		const split = corners();
+		const frames = [a, b, c, d].map(({ view }) => {
+			const style = mainWindow.getComputedStyle(view.element, '::after');
+			return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+		});
 		grid.reconcile([d, a, c, b].map(({ id, view }) => ({ id, view })), 'a');
 		const reordered = corners();
 		grid.toggleMaximized('c');
@@ -211,8 +421,14 @@ suite('Sessions - Grid Layout', () => {
 		grid.reconcile([a], 'a');
 		const single = corners()[0];
 
-		assert.deepStrictEqual({ split, reordered, maximized, unmaximized, resized, single }, {
+		assert.deepStrictEqual({ split, frames, reordered, maximized, unmaximized, resized, single }, {
 			split: [['7px', '7px'], ['7px', '7px'], ['7px', '11px'], ['11px', '7px']],
+			frames: [
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+			],
 			reordered: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
 			maximized: [['7px', '7px'], ['7px', '7px'], ['11px', '11px'], ['7px', '7px']],
 			unmaximized: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
@@ -244,13 +460,75 @@ suite('Sessions - Grid Layout', () => {
 		}, { order: ['a', 'c', 'b'], above: 'a', right: 'b', focused: true, input: 'unsent input' });
 	});
 
+	test('explicit placement is not overwritten by the model order when a chat pane is appended', () => {
+		const { grid, a, b } = harness();
+		grid.element.style.width = '1200px';
+		grid.element.style.height = '600px';
+		const c = { id: 'c', view: new View() };
+		grid.reconcile([a, b, c], 'a');
+		grid.layout(1200, 600, 0, 0, false, 4);
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Down } };
+		const entries = [a, b, c, child];
+		grid.reconcile(entries, child.id);
+		const snapshot = () => ({
+			order: grid.order,
+			allocations: [a, b, c, child].map(entry => {
+				const leaf = entry.view.element.parentElement!;
+				return { id: entry.id, allocated: [leaf.clientWidth, leaf.clientHeight], laidOut: [entry.view.size.width, entry.view.size.height] };
+			}),
+		});
+		const placed = snapshot();
+		grid.reconcile(entries, b.id);
+		const expected = {
+			order: ['a', 'b', 'child', 'c'],
+			allocations: [
+				{ id: 'a', allocated: [398, 600], laidOut: [398, 600] },
+				{ id: 'b', allocated: [396, 298], laidOut: [396, 298] },
+				{ id: 'c', allocated: [398, 600], laidOut: [398, 600] },
+				{ id: 'child', allocated: [396, 298], laidOut: [396, 298] },
+			],
+		};
+		assert.deepStrictEqual({ placed, afterFocus: snapshot() }, { placed: expected, afterFocus: expected });
+		grid.reconcile([b, c, child], child.id);
+		assert.deepStrictEqual({
+			order: grid.order,
+			geometry: [b, c, child].map(entry => ({ id: entry.id, ...entry.view.size })),
+		}, {
+			order: ['b', 'child', 'c'],
+			geometry: [{ id: 'b', width: 398, height: 298 }, { id: 'c', width: 798, height: 600 }, { id: 'child', width: 398, height: 298 }],
+		});
+	});
+
+	test('closing a restored parent preserves the topology of retained panes despite binding order', () => {
+		const { grid, a, b } = harness();
+		const child = { id: 'child', view: new View(), placement: { reference: b.id, direction: Direction.Left } };
+		grid.reconcile([a, b, child], child.id);
+		grid.resize(child.id, 300, 600);
+		const saved = grid.serialize()!;
+		const restored = harness();
+		const restoredChild = { id: child.id, view: new View() };
+		restored.grid.reconcile([restored.a, restored.b, restoredChild], child.id);
+		restored.grid.restore(saved);
+		restoredChild.view.element.value = 'retained draft';
+		restoredChild.view.element.focus();
+		grid.reconcile([b, child], child.id);
+		restored.grid.reconcile([restored.b, restoredChild], child.id);
+		assert.deepStrictEqual({
+			geometry: restored.grid.serialize(),
+			sizes: sizes(restored.grid),
+			connected: restoredChild.view.element.isConnected,
+			focused: document.activeElement === restoredChild.view.element,
+			input: restoredChild.view.element.value,
+		}, { geometry: grid.serialize(), sizes: sizes(grid), connected: true, focused: true, input: 'retained draft' });
+	});
+
 	test('reordering and balanced arrangement never steal external focus', () => {
 		const { grid, a, b, c } = harness();
 		const outside = document.createElement('input');
 		document.body.appendChild(outside);
 		store.add(toDisposable(() => outside.remove()));
 		outside.focus();
-		grid.reconcile([c, a, b], 'a');
+		grid.reconcile([{ id: c.id, view: c.view }, a, b], 'a');
 		grid.arrange();
 		assert.deepStrictEqual({ order: grid.order, focused: document.activeElement === outside }, { order: ['c', 'a', 'b'], focused: true });
 	});
@@ -424,6 +702,38 @@ suite('Sessions - Grid Layout', () => {
 		assert.deepStrictEqual({ maximized: grid.maximized, visible: [a, b].map(entry => entry.view.visible), sizes: sizes(grid) }, {
 			maximized: undefined, visible: [true, true],
 			sizes: [{ id: 'a', width: 400, height: 600 }, { id: 'b', width: 800, height: 600 }],
+		});
+	});
+
+	test('a partial restore does not leave a singleton branch that prevents closing its child', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], c.id);
+		const partial = projectSessionGrid(grid.serialize()!, id => id === b.id ? undefined : id)!;
+		grid.reconcile([a, c], c.id);
+		grid.restore(partial);
+		const restored = sizes(grid);
+		grid.reconcile([a], a.id);
+		assert.deepStrictEqual({ restored, closed: sizes(grid) }, {
+			restored: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 800, height: 600 }],
+			closed: [{ id: a.id, width: 1200, height: 600 }],
+		});
+	});
+
+	test('pruning a singleton branch preserves the orientation and proportions of its nested split', () => {
+		const { grid, a, b, c } = harness();
+		const d = { id: 'd', view: new View(), placement: { reference: c.id, direction: Direction.Right } };
+		grid.reconcile([a, b, c, d], c.id);
+		const original = grid.serialize()!;
+		const originalJson = JSON.stringify(original);
+		const partial = projectSessionGrid(original, id => id === b.id ? undefined : id)!;
+		grid.reconcile([a, c, d], c.id);
+		grid.restore(partial);
+		const restored = sizes(grid);
+		grid.reconcile([a, c], c.id);
+		assert.deepStrictEqual({ restored, removed: sizes(grid), originalUnchanged: JSON.stringify(original) === originalJson }, {
+			restored: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 400, height: 600 }, { id: d.id, width: 400, height: 600 }],
+			removed: [{ id: a.id, width: 400, height: 600 }, { id: c.id, width: 800, height: 600 }],
+			originalUnchanged: true,
 		});
 	});
 

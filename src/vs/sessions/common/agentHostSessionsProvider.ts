@@ -73,7 +73,7 @@ export interface IAgentHostConnectionLabels {
 export interface IAgentHostGroup {
 	/** Stable id shared by every member, and the filter key of the collapsed entry. */
 	readonly id: string;
-	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	/** Display name of the collapsed entry (e.g. "Cloud"). */
 	readonly label: string;
 	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
 	readonly icon?: ThemeIcon;
@@ -163,6 +163,17 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
+	/**
+	 * Whether the host can move the session under another session of this provider (Block 4): the host moves sessions
+	 * (`vscode.sessionMove`) and says this one can move (its default chat is its only chat).
+	 */
+	canMoveSessionUnder(sessionId: string): boolean;
+	/**
+	 * Moves the session under `destinationSessionId` (Block 4): its chat becomes a chat of the destination, placed
+	 * after the destination's chat `after` (`undefined`: first), and the session ends. Rejects when the host refuses.
+	 */
+	moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void>;
+
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
@@ -225,6 +236,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
+	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
 	readonly removeLabel?: string;
 	readonly disconnectLabel?: string;
 
@@ -261,24 +274,32 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
-	/** Returns the last resolved dynamic configuration for a session. */
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Returns the last resolved dynamic configuration of a session's chat: the session's, with the chat's own values applied. */
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
+	/** Returns the session's own configuration, which {@link replaceSessionConfig} edits: the values of its chats that set none of their own. */
+	getSessionOwnConfig(sessionId: string): ResolveSessionConfigResult | undefined;
 	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
-	/** Last sandbox enablement successfully applied by the host. */
-	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
+	/** Last sandbox enablement successfully applied by the host for a session's chat. */
+	getSessionSandboxEnabled?(sessionId: string, chat: URI): boolean | undefined;
+	/** Whether the latest sandbox configuration change for a session's chat failed to apply. */
+	hasSessionSandboxChangeError?(sessionId: string, chat: URI): boolean;
+	/** Whether a rejected sandbox selection of a session's chat should remain visible during rollback synchronization. */
+	hasSessionSandboxRejectedSelection?(sessionId: string, chat: URI): boolean;
+	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
+	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Pickers gate on this rather than `session.loading` so they
 	 * stay interactive in the required-values-missing state.
 	 */
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	/** Sets one dynamic configuration property and re-resolves the schema. */
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	/** Sets one dynamic configuration property, for the chat when the chat may set it for itself, and re-resolves the schema. */
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	/** Tracks a draft configuration side effect that must finish before the first request. */
 	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**

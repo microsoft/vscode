@@ -228,39 +228,41 @@ suite('Session Context Keys', () => {
 			isVirtualWorkspace: true,
 			hasGitRepository: true,
 		});
+	});
 
-		test('does not advertise archive for an archived active chat', () => {
-			const contextKeyService = store.add(new MockContextKeyService());
-			const isArchived = observableValue('chatArchived', true);
-			const activeChat: IChat = {
-				...stubChat,
-				isArchived,
-				capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
-			};
-			const session = upcastPartial<IActiveSession>({
-				...stubSession({
-					sessionId: 'archive',
-					chats: constObservable([activeChat]),
-					mainChat: constObservable(stubChat),
-				}),
-				isCreated: constObservable(true),
-				sticky: constObservable(false),
-				activeChat: constObservable(activeChat),
-				visibleChatTabs: constObservable([activeChat]),
-				shouldShowChatTabs: constObservable(false),
-			});
+	test('does not advertise archive for an archived active chat', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const isArchived = observableValue('chatArchived', true);
+		// The main chat can never be archived, so the active chat has to be another one.
+		const activeChat: IChat = {
+			...stubChat,
+			resource: URI.parse('test:/archive-peer-chat'),
+			isArchived,
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+		};
+		const session = upcastPartial<IActiveSession>({
+			...stubSession({
+				sessionId: 'archive',
+				chats: constObservable([activeChat]),
+				mainChat: constObservable(stubChat),
+			}),
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+			activeChat: constObservable(activeChat),
+			visibleChatTabs: constObservable([activeChat]),
+			shouldShowChatTabs: constObservable(false),
+		});
 
-			store.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
-			const archived = SessionActiveChatCanArchiveContext.getValue(contextKeyService);
-			isArchived.set(false, undefined);
+		store.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
+		const archived = SessionActiveChatCanArchiveContext.getValue(contextKeyService);
+		isArchived.set(false, undefined);
 
-			assert.deepStrictEqual({
-				archived,
-				active: SessionActiveChatCanArchiveContext.getValue(contextKeyService),
-			}, {
-				archived: false,
-				active: true,
-			});
+		assert.deepStrictEqual({
+			archived,
+			active: SessionActiveChatCanArchiveContext.getValue(contextKeyService),
+		}, {
+			archived: false,
+			active: true,
 		});
 	});
 });

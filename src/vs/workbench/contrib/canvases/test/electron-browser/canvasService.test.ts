@@ -205,6 +205,30 @@ suite('CanvasService', () => {
 		});
 	});
 
+	test('preserves manual reveal intent while a dismissed canvas source recovers', async () => {
+		const harness = createHarness();
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+		const reference = harness.opened[0].reference;
+		harness.opened[0].dispose();
+		harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+
+		await harness.service.revealCanvas(reference);
+		const afterUnavailableReveal = harness.opened.length;
+		harness.canvases.set([harness.canvas], undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			afterUnavailableReveal,
+			afterRecovery: harness.opened.length,
+			sameLifetime: harness.opened[0].matches(harness.opened[1]),
+		}, {
+			afterUnavailableReveal: 1,
+			afterRecovery: 2,
+			sameLifetime: true,
+		});
+	});
+
 	test('closes a late-opened editor after authoritative removal', async () => {
 		const harness = createHarness();
 		const pending = harness.delayOpen();

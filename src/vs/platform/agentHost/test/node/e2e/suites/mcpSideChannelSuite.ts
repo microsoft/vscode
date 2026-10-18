@@ -15,12 +15,12 @@ import { AgentHostMcpServersConfigKey } from '../../../../common/agentHostSchema
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildDefaultChatUri, CustomizationType, ROOT_STATE_URI, type McpServerCustomization, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationType, ROOT_STATE_URI, type McpServerCustomization, type RootState, type SessionState } from '../../../../common/state/sessionState.js';
 import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../common/state/sessionProtocol.js';
 import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -544,7 +544,7 @@ export function defineMcpSideChannelTests(context: IAgentHostE2ETestContext): vo
 	scenario('rejects an unsupported method without closing the AHP connection', async ({ channel, session }) => {
 		await assert.rejects(context.client.call('prompts/list', { channel }), error => error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound);
 		await context.client.call('ping', { channel: ROOT_STATE_URI });
-		const result = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(session) });
+		const result = await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(session) });
 		assert.ok(result.snapshot);
 	});
 

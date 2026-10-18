@@ -5,16 +5,19 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IReader } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
+import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -99,6 +102,49 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				this.removedOwner.fire(owner);
 			}
 		}
+	}
+}
+
+export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
+
+	declare readonly _serviceBrand: undefined;
+	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
+
+	constructor(
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ICanvasService private readonly canvasService: ICanvasService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		this.availableCanvases = this._register(new CanvasDefinitionStore(reader => {
+			const session = sessionsService.activeSession.read(reader);
+			const chat = session?.activeChat.read(reader);
+			// Hosts republish canvas membership when their registry changes, so refresh on every emission.
+			chat?.canvases?.read(reader);
+			if (!session || !chat || !canvasService.enabled.read(reader) || session.capabilities.read(reader).supportsCanvases !== true) {
+				return undefined;
+			}
+			return {
+				owner: { providerId: session.providerId, session: session.resource, chat: chat.resource },
+				listCanvases: () => sessionsManagementService.listCanvases(session, chat),
+			};
+		}, '[SessionCanvasRegistryService]', logService)).definitions;
+	}
+
+	async openCanvas(canvas: ISessionCanvasDefinition): Promise<void> {
+		const session = this.sessionsService.activeSession.get();
+		if (!session || !this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
+			return;
+		}
+		const chat = session.activeChat.get();
+		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
+		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
+		if (existing?.source) {
+			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
+			return;
+		}
+		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
 	}
 }
 

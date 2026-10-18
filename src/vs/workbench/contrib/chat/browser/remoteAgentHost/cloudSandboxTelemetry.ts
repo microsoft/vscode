@@ -24,13 +24,13 @@ export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'getEnvironmen
  */
 export type CloudSandboxRequestOutcome = 'succeeded' | 'waking' | 'clientError' | 'serverError' | 'networkError' | 'unexpectedStatus';
 
-/** Why the credential-refresh scheduler stopped. A closed set of client-side decisions. */
+/** Why on-demand credential acquisition stopped. A closed set of client-side decisions. */
 export type CloudSandboxRefreshStopReason =
 	/** Mission Control rejected the request in a way that repeating cannot fix (e.g. 404). */
 	| 'permanentError'
 	/** Too many consecutive failed refreshes. */
 	| 'consecutiveFailures'
-	/** `/reconnect` kept answering "waking" for a client that is supposed to be connected. */
+	/** `/reconnect` kept answering "waking" during credential acquisition. */
 	| 'environmentWaking'
 	/** Refreshed tokens kept arriving already expired, or without a usable `expires_at`. */
 	| 'unusableToken';
@@ -84,13 +84,7 @@ export interface ICloudSandboxTelemetryService {
 	/** Report client-observed task/VM provisioning separately from connecting to the returned environment. */
 	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number): void;
 
-	/**
-	 * Report that credential refresh for a connection stopped, and why.
-	 *
-	 * Refresh is what keeps a sandbox connection usable, so each of these marks a connection that
-	 * will drop once its current token expires — and, equally, a retry loop that was stopped from
-	 * running indefinitely.
-	 */
+	/** Report a permanent rejection or exhausted credential retry budget; token expiry does not close an established socket. */
 	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void;
 
 	/** Track one logical connection, including retries and subsequent outages. No identity is recorded. */
@@ -175,9 +169,17 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		}
 		const environmentOperation = context?.environmentKind === 'user-local' ? 'attach' : source === 'created' ? 'provision' : 'resume';
 		const connection = new CloudSandboxConnectionTelemetry(stage, surface, source, context?.environmentKind ?? 'cloud', environmentOperation, context?.provisioningStartedAt, event => {
-			this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('cloudSandboxConnectionOutcome', event);
+			if (event.environmentKind === 'user-local') {
+				this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('userLocalRelayConnectionOutcome', event);
+			} else {
+				this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('cloudSandboxConnectionOutcome', event);
+			}
 		}, event => {
-			this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('cloudSandboxFirstSessionRequest', event);
+			if (event.environmentKind === 'user-local') {
+				this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('userLocalRelayFirstSessionRequest', event);
+			} else {
+				this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('cloudSandboxFirstSessionRequest', event);
+			}
 		}, () => {
 			const counts = connection.takeHealthSnapshot(Date.now());
 			this._connections.delete(connection);
@@ -214,7 +216,11 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 
 	private _reportConnectionHealth(counts: CloudSandboxConnectionHealthEvent): void {
 		if (counts.connectedMs || counts.unexpectedDisconnects || counts.receivedFrames) {
-			this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('cloudSandboxConnectionHealth', counts);
+			if (counts.environmentKind === 'user-local') {
+				this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('userLocalRelayConnectionHealth', counts);
+			} else {
+				this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('cloudSandboxConnectionHealth', counts);
+			}
 		}
 	}
 
@@ -612,7 +618,7 @@ export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmen
 	authenticationFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed authentication phases. May overlap nested credential preparation failures.' };
 	restorationFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed subscription restoration phases in this operation.' };
 	owner: 'osortega';
-	comment: 'One outcome per logical sandbox connect or recovery, excluding reuse of a ready connection.';
+	comment: 'One outcome per logical cloud sandbox or user-local relay connect or recovery, excluding reuse of a ready connection.';
 };
 
 type CloudSandboxProvisioningOutcomeEvent = {
@@ -656,7 +662,7 @@ export type CloudSandboxConnectionHealthClassification = CloudSandboxEnvironment
 	unexpectedDisconnects: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Losses of previously ready connections; excludes initial retries and intentional teardown.' };
 	receivedFrames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Inbound relay WebSocket frames, including setup, recovery, control, malformed and chunk frames; not unique protocol messages.' };
 	owner: 'osortega';
-	comment: 'Delta sandbox connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
+	comment: 'Delta cloud sandbox or user-local relay connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
 };
 
 type CloudSandboxRequestsEvent = {
@@ -692,8 +698,8 @@ type CloudSandboxRefreshStoppedEvent = {
 };
 
 type CloudSandboxRefreshStoppedClassification = {
-	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Why the scheduler gave up: permanentError, consecutiveFailures, environmentWaking or unusableToken.' };
-	consecutiveFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Consecutive unhealthy refresh cycles preceding the stop.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Why on-demand acquisition stopped: permanentError, consecutiveFailures, environmentWaking or unusableToken.' };
+	consecutiveFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Consecutive failed credential acquisitions preceding the stop.' };
 	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status that caused a permanent stop, when the stop was caused by a rejected request.' };
 	owner: 'osortega';
 	comment: 'Reports that credential refresh for a cloud sandbox connection stopped, so unrecoverable sandbox sessions can be distinguished from transient failures.';

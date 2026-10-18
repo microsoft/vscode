@@ -36,8 +36,9 @@ import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from 
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
+import { ChatConfiguration } from '../../../../../common/constants.js';
 
 function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -81,7 +82,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -89,6 +90,7 @@ suite('ModelPickerTelemetry', () => {
 		const eventNames: string[] = [];
 		const openedLinks: string[] = [];
 		const configurations = new Map<string, IStringDictionary<unknown>>();
+		const savedConfigurations: string[] = [];
 		const pinnedModelIds: string[] = [];
 		const delegateSelections: string[] = [];
 		const programmaticDelegateSelections: string[] = [];
@@ -100,9 +102,15 @@ suite('ModelPickerTelemetry', () => {
 		const configurationAccess: IModelConfigurationAccess = {
 			getModelConfiguration: id => configurations.get(id),
 			setModelConfiguration: async (id, values) => {
+				savedConfigurations.push(id);
 				await beforeSave?.(id);
 				configurations.set(id, { ...configurations.get(id), ...values });
 			},
+			...(presentsConfiguration ? {
+				presentModelConfiguration: (id: string, values: IStringDictionary<unknown>) => {
+					configurations.set(id, { ...configurations.get(id), ...values });
+				},
+			} : {}),
 			getModelConfigurationActions: () => [],
 		};
 		const container = dom.append(mainWindow.document.body, dom.$('.monaco-reduce-motion'));
@@ -120,7 +128,6 @@ suite('ModelPickerTelemetry', () => {
 		let showCard: (label: string) => HTMLElement = () => assert.fail('Picker has not opened');
 		let refreshList = () => { };
 		let searchModels: () => void = () => assert.fail('Tabbed picker has not opened');
-		let toggleAuto: () => void = () => assert.fail('Tabbed picker has not opened');
 		const hideTabbedPicker = () => {
 			visible = false;
 			detailsOptions = undefined;
@@ -188,12 +195,6 @@ suite('ModelPickerTelemetry', () => {
 					const rendered = options.renderEmpty?.(body, activeTab);
 					return rendered ? (store.add(rendered), body) : undefined;
 				};
-				toggleAuto = () => {
-					const toggle = options.tabs.find(tab => tab.id === activeTab)?.toggle;
-					const state = toggle?.getState();
-					assert.ok(toggle && state?.enabled);
-					toggle.onChange(!state.checked);
-				};
 				searchModels = () => {
 					const search = options.tabBarActions?.find(action => action.id === 'search');
 					assert.ok(search && !search.checked, 'Model must be available in the picker or in search');
@@ -242,7 +243,15 @@ suite('ModelPickerTelemetry', () => {
 				// Replace the random session id with its open order and check each duration
 				// is a real elapsed time, so events stay deterministic to compare.
 				const normalized: IStringDictionary<unknown> = { ...data };
-				if (name !== 'chat.modelPickerInteraction') {
+				if (name === 'chat.modelPickerOpened' || name === 'chat.modelChange' || name === 'chat.thinkingEffortChange') {
+					assert.strictEqual(normalized.agentSessionId, 'owner-1');
+					assert.strictEqual(normalized.chatSessionId, 'session-1');
+					delete normalized.agentSessionId;
+					if (name === 'chat.thinkingEffortChange') {
+						delete normalized.chatSessionId;
+					}
+				}
+				if (name !== 'chat.modelPickerInteraction' && name !== 'experimentTrigger') {
 					assert.strictEqual(normalized.provider, 'copilotcli');
 					delete normalized.provider;
 				}
@@ -262,6 +271,7 @@ suite('ModelPickerTelemetry', () => {
 		});
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
+			override getModelsControlManifest() { return controlManifest; }
 			override getRecentlyUsedModelIds() { return [model.identifier]; }
 			override getPinnedModelIds() { return [...pinnedModelIds]; }
 			// The real service reports pin changes; record what the picker passes it instead.
@@ -288,7 +298,8 @@ suite('ModelPickerTelemetry', () => {
 		instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 		instantiationService.stub(IWorkspaceTrustRequestService, { requestWorkspaceTrust: async () => { trustRequests++; return true; } });
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
 
 		const picker = store.add(instantiationService.createInstance(ModelPickerWidget, {
 			currentModel: constObservable(selectedModel),
@@ -296,6 +307,7 @@ suite('ModelPickerTelemetry', () => {
 			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
+			getAgentSessionId: () => 'owner-1',
 			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
 				showManageModelsAction: false, showUnavailableFeatured: true,
@@ -307,7 +319,7 @@ suite('ModelPickerTelemetry', () => {
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections,
+			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
 			get visible() { return visible; },
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
@@ -329,7 +341,6 @@ suite('ModelPickerTelemetry', () => {
 			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
-			toggleAuto: () => toggleAuto(),
 			hide: () => hideTabbedPicker(),
 			showCard: (label: string) => showCard(label),
 			backToModels: () => hideDetails(),
@@ -342,7 +353,7 @@ suite('ModelPickerTelemetry', () => {
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
-			const hydraFusion = createModel('hydrafusion');
+			const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
 			const result = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model], entitlement);
 			assert.deepStrictEqual({
 				selected: result.picker.selectedModel?.identifier,
@@ -357,7 +368,7 @@ suite('ModelPickerTelemetry', () => {
 	}
 
 	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
-		const hydraFusion = createModel('hydrafusion');
+		const hydraFusion = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
 		const result = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free, false);
 		assert.deepStrictEqual({
 			selected: result.picker.selectedModel?.identifier,
@@ -434,6 +445,209 @@ suite('ModelPickerTelemetry', () => {
 		result.hide();
 	});
 
+	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier, and opening on a Fusion that can route High reports its trigger', () => {
+		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true }, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'], default: 'balance' } } } } };
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
+		const triggers = (picker: ReturnType<typeof createPicker>) => picker.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []);
+		const input = (picker: ReturnType<typeof createPicker>) => {
+			picker.picker.render(picker.container);
+			return Array.from(picker.container.querySelectorAll('.chat-input-picker-label'), label => label.textContent);
+		};
+		const plain = createPicker(max, undefined, [autoModel, hydraFusion, max, model]);
+		const plainDefault = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model]);
+		const withoutMax = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model]);
+		// The picker does not offer a Max this build cannot run, so neither tier is shown.
+		// A Fusion this build cannot run is not offered, so HydraFusion keeps its own tiers.
+		const fusionNeedsUpdate = createPicker(max, undefined, [fusion, hydraFusion, max, model], undefined, undefined, undefined, {
+			free: {}, paid: { auto: { label: 'Fusion', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
+		});
+		const maxNeedsUpdate = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model], undefined, undefined, undefined, {
+			free: {}, paid: { 'hydrafusion-max': { label: 'HydraFusion Max', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
+		});
+		const withoutHydraFusion = createPicker(max, undefined, [fusion, max, model]);
+		const result = createPicker(max, undefined, [fusion, hydraFusion, max, model]);
+		const high = createPicker(hydraFusion, undefined, [fusion, hydraFusion, max, model]);
+		const standard = createPicker(fusion, undefined, [fusion, hydraFusion, max, model]);
+		assert.deepStrictEqual({
+			input: input(result),
+			high: input(high),
+			standard: input(standard),
+			hydraFusionMax: input(plain),
+			hydraFusionDefault: input(plainDefault),
+			hydraFusionWithoutMax: input(withoutMax),
+			hydraFusionMaxNeedsUpdate: input(maxNeedsUpdate),
+			fusionNeedsUpdate: input(fusionNeedsUpdate),
+			fusionTriggers: triggers(result),
+			withoutHydraFusionTriggers: triggers(withoutHydraFusion),
+			autoTriggers: triggers(plain),
+		}, {
+			input: ['Fusion', 'Max'],
+			high: ['Fusion', 'High'],
+			standard: ['Fusion', 'Standard'],
+			hydraFusionMax: ['HydraFusion', 'Max'],
+			hydraFusionDefault: ['HydraFusion', 'Default'],
+			hydraFusionWithoutMax: ['HydraFusion'],
+			hydraFusionMaxNeedsUpdate: ['HydraFusion'],
+			fusionNeedsUpdate: ['HydraFusion', 'Max'],
+			fusionTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
+			withoutHydraFusionTriggers: [],
+			autoTriggers: [],
+		});
+	});
+
+	test('inline Fusion shows its tier in the model button without a separate configuration button', async () => {
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
+		const hydra = createModel('hydrafusion', { modelGroup: { id: 'copilotcli' } });
+		const max = createModel('hydrafusion-max', { modelGroup: { id: 'copilotcli' } });
+		const result = createPicker(max, undefined, [fusion, hydra, max, model]);
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.render(result.container);
+		const labels = [fusion, max, hydra, model].map(selected => {
+			result.picker.setSelectedModel(selected);
+			return {
+				name: result.container.querySelector('.model-picker-name')?.textContent,
+				configVisible: result.container.querySelector<HTMLElement>('.model-picker-config')?.style.display !== 'none',
+			};
+		});
+		assert.deepStrictEqual(labels, [
+			{ name: 'Fusion Standard', configVisible: false },
+			{ name: 'Fusion Max', configVisible: false },
+			{ name: 'Fusion High', configVisible: false },
+			{ name: 'test-model', configVisible: true },
+		]);
+	});
+
+	test('inline Fusion with provider tiers names the selected tier, and only Fusion when none is available', async () => {
+		const providerFusion = (enumItemDisabled: boolean[], value?: string) => ({
+			...autoModel,
+			metadata: {
+				...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true }, autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: {
+							type: 'string' as const, group: 'navigation', title: 'Effort Level',
+							enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'],
+							enumItemDisabled, ...(value !== undefined && { default: value }),
+						},
+					},
+				},
+			},
+		});
+		const label = async (fusion: ILanguageModelChatMetadataAndIdentifier) => {
+			const result = createPicker(fusion, undefined, [fusion, model]);
+			await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+			result.picker.render(result.container);
+			return {
+				name: result.container.querySelector('.model-picker-name')?.textContent,
+				configVisible: result.container.querySelector<HTMLElement>('.model-picker-config')?.style.display !== 'none',
+			};
+		};
+		assert.deepStrictEqual({
+			high: await label(providerFusion([false, false, false], 'hydrafusion')),
+			max: await label(providerFusion([false, false, false], 'hydrafusion-max')),
+			noneAvailable: await label(providerFusion([true, true, true])),
+		}, {
+			high: { name: 'Fusion High', configVisible: false },
+			max: { name: 'Fusion Max', configVisible: false },
+			noneAvailable: { name: 'Fusion', configVisible: false },
+		});
+	});
+
+	test('a chat moves between HydraFusion and Fusion\'s High as Fusion routes High', async () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const open = async (balanceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'fusionHigh') => {
+			const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion } } };
+			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [fusion, hydraFusion, model]);
+			if (selected === 'fusionHigh') {
+				result.configurations.set(fusion.identifier, { tier: 'intelligence' });
+				result.picker.setSelectedModel(fusion);
+			}
+			await timeout(0);
+			return {
+				selected: result.picker.selectedModel?.identifier,
+				tier: result.configurations.get(fusion.identifier)?.tier,
+				triggers: result.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []),
+			};
+		};
+		const triggers = ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'];
+		assert.deepStrictEqual({
+			hydraFusionNotRouted: await open(false, 'hydraFusion'),
+			hydraFusionRouted: await open(true, 'hydraFusion'),
+			fusionHighRouted: await open(true, 'fusionHigh'),
+			fusionHighNotRouted: await open(false, 'fusionHigh'),
+		}, {
+			hydraFusionNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+			hydraFusionRouted: { selected: hydraFusion.identifier, tier: undefined, triggers },
+			fusionHighRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
+			fusionHighNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+		});
+	});
+
+	test('showing HydraFusion as Fusion\'s High is not a selection', async () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
+		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			tier: result.configurations.get(fusion.identifier)?.tier,
+			savedConfigurations: result.savedConfigurations,
+			delegateSelections: result.delegateSelections,
+			programmaticDelegateSelections: result.programmaticDelegateSelections,
+		}, {
+			selected: fusion.identifier,
+			tier: 'intelligence',
+			savedConfigurations: [],
+			delegateSelections: [],
+			programmaticDelegateSelections: [fusion.identifier],
+		});
+	});
+
+	test('a chat on a HydraFusion model moves to Fusion\'s matching provider tier, unless that tier is unavailable', async () => {
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const open = async (disabled: boolean) => {
+			const fusion = {
+				...autoModel,
+				metadata: {
+					...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true },
+					configurationSchema: {
+						properties: {
+							tier: {
+								type: 'string' as const, group: 'navigation', title: 'Effort Level',
+								enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'],
+								enumItemDisabled: [false, false, disabled], default: 'balance',
+							},
+						},
+					},
+				},
+			};
+			const result = createPicker(max, undefined, [fusion, max, model], undefined, undefined, undefined, undefined, presentsConfiguration);
+			await timeout(0);
+			return { selected: result.picker.selectedModel?.identifier, tier: result.configurations.get(fusion.identifier)?.tier, savedConfigurations: result.savedConfigurations };
+		};
+		let presentsConfiguration = true;
+		const available = await open(false);
+		const unavailable = await open(true);
+		presentsConfiguration = false;
+		const withoutChatConfiguration = await open(false);
+		assert.deepStrictEqual({ available, unavailable, withoutChatConfiguration }, {
+			available: { selected: autoModel.identifier, tier: 'hydrafusion-max', savedConfigurations: [] },
+			unavailable: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
+			withoutChatConfiguration: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
+		});
+	});
+
+	test('normalizing a matching HydraFusion selection does not persist it again', () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true } } };
+		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
+		result.picker.setSelectedModel({ ...hydraFusion });
+
+		assert.deepStrictEqual(result.programmaticDelegateSelections, []);
+	});
+
 	test('the input readout opens details directly and restores the invoking control', () => {
 		const result = createPicker();
 		result.picker.render(result.container);
@@ -469,8 +683,8 @@ suite('ModelPickerTelemetry', () => {
 		}, { layer: 1, model: model.metadata.name, expanded: 'true', events: [] });
 	});
 
-	for (const target of ['name', 'config']) {
-		test(`the Auto ${target} pill opens routing choices, not Details`, async () => {
+	for (const target of ['name', 'config'] as const) {
+		test(`the Auto ${target} pill opens ${target === 'name' ? 'the model list' : 'Auto\'s Details'} and restores focus`, async () => {
 			const result = createPicker(autoModel);
 			result.picker.render(result.container);
 			result.picker.show(result.container);
@@ -478,15 +692,15 @@ suite('ModelPickerTelemetry', () => {
 			trigger.focus();
 			trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
 			const opened = {
-				details: !!result.container.querySelector('.chat-model-card'),
+				details: result.container.querySelector('.chat-model-card-name')?.textContent,
 				expanded: Array.from(result.container.querySelectorAll('.model-picker-section'), pill => pill.getAttribute('aria-expanded')),
 				readoutPopup: result.container.querySelector('.model-picker-config')?.getAttribute('aria-haspopup'),
 			};
-			result.selectItem('Efficiency');
+			option(result.showCard(autoModel.metadata.name), 'Efficiency').click();
 			await timeout(0);
 			result.picker.show(result.container);
 			assert.deepStrictEqual({ opened, focused: document.activeElement === trigger, saved: result.configurations.get(autoModel.identifier) }, {
-				opened: { details: false, expanded: ['true', 'true'], readoutPopup: 'menu' },
+				opened: { details: target === 'config' ? autoModel.metadata.name : undefined, expanded: target === 'config' ? ['false', 'true'] : ['true', 'false'], readoutPopup: 'dialog' },
 				focused: true, saved: { tier: 'efficiency' },
 			});
 		});
@@ -506,7 +720,7 @@ suite('ModelPickerTelemetry', () => {
 				focusedRole: document.activeElement?.getAttribute('role'),
 				focusedSetting: document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label'),
 				events: result.events,
-			}, { focusedRole: 'radio', focusedSetting: 'Thinking Effort', events: [] });
+			}, { focusedRole: 'radio', focusedSetting: 'Effort Level', events: [] });
 		});
 	}
 
@@ -523,7 +737,7 @@ suite('ModelPickerTelemetry', () => {
 		}, { hasConfig: true, targets: ['button', 'button'], summary: 'Medium · 264K' });
 	});
 
-	test('opening from the model name keeps the whole chip active in Auto until dismissal', () => {
+	test('opening from the model name keeps the whole chip active in Auto until dismissal', async () => {
 		const result = createPicker();
 		result.picker.render(result.container);
 		result.picker.show(result.container);
@@ -531,8 +745,9 @@ suite('ModelPickerTelemetry', () => {
 		const name = result.container.querySelector<HTMLElement>('.model-picker-name')!;
 		name.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
 		const afterOpen = chip.classList.contains('model-picker-active');
-		result.toggleAuto();
-		const inAuto = chip.classList.contains('model-picker-active');
+		option(result.showCard(autoModel.metadata.name), 'Efficiency').click();
+		await timeout(0);
+		const inAuto = chip.classList.contains('model-picker-active') && result.picker.selectedModel?.identifier === autoModel.identifier;
 		result.picker.show(result.container);
 		assert.deepStrictEqual({
 			afterOpen,
@@ -740,11 +955,7 @@ suite('ModelPickerTelemetry', () => {
 		]) {
 			test(`reports ${change.model.metadata.vendor} ${change.property ?? 'context size'} changes`, async () => {
 				const result = createPicker(change.model);
-				if (change.model === autoModel) {
-					result.selectItem(change.label);
-				} else {
-					option(result.showCard(change.model.metadata.name), change.label).click();
-				}
+				option(result.showCard(change.model.metadata.name), change.label).click();
 				await timeout(0);
 				assert.deepStrictEqual(result.events, [{
 					name: change.event,
@@ -794,9 +1005,9 @@ suite('ModelPickerTelemetry', () => {
 				assert.strictEqual(data?.provider, 'codex-openai');
 				logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId });
 			},
-		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'codex-openai', () => now);
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, { chatSessionId: 'session-1' }, 'codex-openai', () => now);
 		now = 1250.4;
-		session.logModelChange(model, otherModel, 'session-1');
+		session.logModelChange(model, otherModel);
 		now = 2000;
 		const saved = new DeferredPromise<void>();
 		session.close(saved.p);
@@ -816,6 +1027,25 @@ suite('ModelPickerTelemetry', () => {
 				{ name: 'chat.modelPickerClosed', durationMs: 1000, pickerSessionId: session.id },
 			],
 		});
+	});
+
+	test('retains the originating chat when a configuration save completes after context changes', () => {
+		const events: { name: string; data: IStringDictionary<unknown> | undefined }[] = [];
+		const context = { chatSessionId: 'chat-original', agentSessionId: 'owner-original' };
+		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => events.push({ name, data }),
+		}), new NullLanguageModelsService(), { entryPoint: 'configuration', inputMethod: 'mouse' }, model, context, 'copilotcli');
+		context.chatSessionId = 'chat-new';
+		context.agentSessionId = 'owner-new';
+		session.logModelChange(model, otherModel);
+		session.logConfigurationChange(model, 'navigation', 'reasoningEffort', 'medium', 'high', Date.now());
+		assert.deepStrictEqual(events.map(event => ({
+			name: event.name,
+			chatSessionId: event.data?.chatSessionId,
+			agentSessionId: event.data?.agentSessionId,
+		})), ['chat.modelPickerOpened', 'chat.modelChange', 'chat.thinkingEffortChange'].map(name => ({
+			name, chatSessionId: 'chat-original', agentSessionId: 'owner-original',
+		})));
 	});
 
 	test('dismissing during a pending configuration save still reports the change before the close', async () => {
@@ -898,7 +1128,7 @@ suite('ModelPickerTelemetry', () => {
 		const relayedAuto = relayed(autoModel);
 		const relayedModel = relayed(model);
 		const result = createPicker(relayedAuto, undefined, [relayedAuto, relayedModel]);
-		result.toggleAuto();
+		result.selectItem(relayedModel.metadata.name);
 		assert.deepStrictEqual(result.events, [{
 			name: 'chat.modelChange',
 			data: {
@@ -909,38 +1139,38 @@ suite('ModelPickerTelemetry', () => {
 		}]);
 	});
 
-	test('tabbed Auto toggles report the current previous model while the popup stays open', () => {
+	test('choosing Auto from the list reports the current previous model each time', () => {
 		const result = createPicker();
-		result.toggleAuto();
-		result.toggleAuto();
-		result.toggleAuto();
-		assert.deepStrictEqual(result.events, [modelChange(model, autoModel), modelChange(autoModel, model), modelChange(model, autoModel)]);
+		result.selectItem(autoModel.metadata.name);
+		result.picker.show(result.container);
+		result.selectItem(model.metadata.name);
+		result.picker.show(result.container);
+		result.selectItem(autoModel.metadata.name);
+		assert.deepStrictEqual(result.events, [modelChange(model, autoModel, 0), modelChange(autoModel, model, 1), modelChange(model, autoModel, 2)]);
 	});
 
-	test('activating the remembered Auto tier only reports switching to Auto', async () => {
+	test('activating Auto\'s current tier from its Details only reports switching to Auto', async () => {
 		const result = createPicker();
-		result.toggleAuto();
-		result.selectItem('Balance');
+		option(result.showCard(autoModel.metadata.name), 'Balance').click();
 		await timeout(0);
 		assert.deepStrictEqual(result.events, [modelChange(model, autoModel)]);
 	});
 
-	test('activating the current Auto tier while already enabled does not report a change', async () => {
+	test('activating the current Auto tier while Auto is selected does not report a change', async () => {
 		const result = createPicker(autoModel);
-		result.selectItem('Balance');
+		option(result.showCard(autoModel.metadata.name), 'Balance').click();
 		await timeout(0);
 		assert.deepStrictEqual(result.events, []);
 	});
 
-	test('enabling Auto and then changing the tier reports each change once', async () => {
+	test('choosing another Auto tier reports the tier and the switch to Auto once each', async () => {
 		const result = createPicker();
-		result.toggleAuto();
-		result.selectItem('Intelligence');
+		option(result.showCard(autoModel.metadata.name), 'Intelligence').click();
 		await timeout(0);
-		assert.deepStrictEqual(result.events, [modelChange(model, autoModel), {
+		assert.deepStrictEqual(result.events, [{
 			name: 'chat.thinkingEffortChange',
 			data: { model: new TelemetryTrustedValue(autoModel.identifier), property: 'tier', fromValue: 'balance', toValue: 'intelligence', pickerSessionId: 0 },
-		}]);
+		}, modelChange(model, autoModel)]);
 	});
 
 	test('configuring another model reports both the configuration and model change', async () => {
@@ -1002,8 +1232,7 @@ suite('ModelPickerTelemetry', () => {
 			});
 			option(result.showCard(otherModel.metadata.name), 'High').click();
 			if (latest === 'Auto') {
-				result.backToModels();
-				result.toggleAuto();
+				option(result.showCard(autoModel.metadata.name), 'Balance').click();
 			} else {
 				option(result.showCard(model.metadata.name), 'High').click();
 			}

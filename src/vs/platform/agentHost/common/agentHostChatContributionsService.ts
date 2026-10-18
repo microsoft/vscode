@@ -8,10 +8,11 @@ import type { ISettableObservable } from '../../../base/common/observable.js';
 import type { StopWatch } from '../../../base/common/stopwatch.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
-import type { IAgent } from './agent.js';
+import type { IAgent, IAgentChatUsageSignal } from './agent.js';
+import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ActionOrigin, StateAction } from './state/sessionActions.js';
-import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
+import type { ChatConfigState, ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
 
@@ -84,6 +85,7 @@ export interface IOutgoingTurnContributionResult {
 
 /** A turn request that has entered host state and is asking to proceed to a provider. */
 export interface IIncomingRequest {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly session: ProtocolURI;
 	/** The chat the turn targets. */
 	readonly chat: ProtocolURI;
@@ -118,6 +120,10 @@ export type IncomingRequestDisposition =
 export interface IHydrationContext {
 	readonly session: ProtocolURI;
 	readonly chat: ProtocolURI;
+	/** Whether the chat is the session's recorded default chat; hydration can run before the chat is registered. */
+	readonly isDefaultChat: boolean;
+	/** Resource the chat's persisted data is keyed by, recorded for the chat being hydrated. */
+	readonly storageResource: ProtocolURI;
 	/** Workspace transitions preloaded from this chat's backing storage, when present. */
 	readonly workspaceTransitions?: ReadonlyMap<string, string>;
 }
@@ -134,10 +140,13 @@ export interface IHydrationContext {
 export interface IRestoredChat {
 	readonly title?: string;
 	readonly draft?: Message;
+	/** The chat's own config values (`ChatState.config`). */
+	readonly config?: ChatConfigState;
 }
 
 /** A client action after it has been reduced into host state. */
 export interface IAppliedClientAction {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly channel: ProtocolURI;
 	readonly session: ProtocolURI;
 	readonly action: StateAction;
@@ -154,6 +163,7 @@ export interface IAppliedClientAction {
  * observing both would see the same client action twice.
  */
 export interface IDispatchedAction {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly channel: ProtocolURI;
 	/** The owning session URI, or the channel itself when it is not a chat channel. */
 	readonly session: ProtocolURI;
@@ -165,11 +175,13 @@ export interface IDispatchedAction {
 }
 
 export interface IQueuedMessageSender {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
 export interface ISendTurnMessageOptions {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly agent: IAgent;
 	readonly sessionChannel: ProtocolURI;
 	readonly turnChannel: ProtocolURI;
@@ -269,6 +281,14 @@ export interface IAgentHostChatContribution extends IDisposable {
 	 */
 	onDidDispatchAction?(dispatched: IDispatchedAction): void;
 	/**
+	 * Observes provider-reported aggregate billing, which can arrive before the
+	 * chat enters the restored catalog and independently of any active turn.
+	 * Must not throw; the dispatcher isolates failures.
+	 */
+	onChatUsage?(signal: IAgentChatUsageSignal): void;
+	/** Runs after a cold-restored session's catalog and metadata are fully populated. */
+	onDidRestoreSession?(session: ProtocolURI): void;
+	/**
 	 * Awaited before the turn is sent. Instructions are concatenated in `order`;
 	 * text replacements are threaded in `order`, so each contribution observes
 	 * the prior contribution's text. Failures are isolated and do not block the send.
@@ -329,6 +349,8 @@ export interface IAgentHostChatContributions extends IDisposable {
 	turnEnd(turn: ITurnEnd): void;
 	didApplyClientAction(action: IAppliedClientAction): void;
 	didDispatchAction(dispatched: IDispatchedAction): void;
+	chatUsage(signal: IAgentChatUsageSignal): void;
+	didRestoreSession(session: ProtocolURI): void;
 	outgoingTurn(turn: IOutgoingTurn): Promise<IOutgoingTurnContributionResult>;
 	incomingRequest(request: IIncomingRequest): IncomingRequestDisposition;
 	hydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]>;

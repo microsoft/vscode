@@ -20,6 +20,7 @@ suite('AgentHostClientConnectionService', () => {
 				hasSeenClient: () => true,
 				isClientConnected: () => true,
 				isLocalClient: clientId => local && clientId === 'local',
+				usesLegacyChatUris: () => false,
 				getConnectedClientTransportCounts: () => new Map(),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async () => false,
@@ -48,6 +49,7 @@ suite('AgentHostClientConnectionService', () => {
 				hasSeenClient: () => false,
 				isClientConnected: () => false,
 				isLocalClient: () => false,
+				usesLegacyChatUris: () => false,
 				getConnectedClientTransportCounts: () => new Map(),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async request => {

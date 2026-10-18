@@ -133,13 +133,12 @@ suite('Mission Control environment picker', () => {
 		quickPick.hide();
 		await done;
 		await inventory.complete([]);
-		const offline = { label: 'Host offline', description: 'Offline', detail: undefined };
 		assert.deepStrictEqual(states, [
-			[{ label: 'Host online', description: 'Online', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online · Connecting', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online · Connected', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online · Reconnecting', detail: undefined }, offline],
-			[{ label: 'Host online', description: 'Online', detail: undefined }, offline],
+			[{ label: 'Host online', description: 'Online', detail: undefined }],
+			[{ label: 'Host online', description: 'Online · Connecting', detail: undefined }],
+			[{ label: 'Host online', description: 'Online · Connected', detail: undefined }],
+			[{ label: 'Host online', description: 'Online · Reconnecting', detail: undefined }],
+			[{ label: 'Host online', description: 'Online', detail: undefined }],
 		]);
 	});
 
@@ -157,7 +156,31 @@ suite('Mission Control environment picker', () => {
 		await done;
 		assert.deepStrictEqual(copy, {
 			title: 'Environments', placeholder: 'Select an environment to connect',
-			refresh: 'Refresh Environments', empty: 'No environments found.',
+			refresh: 'Refresh Environments', empty: 'No online environments found.',
+		});
+	});
+
+	test('filters cached and refreshed offline hosts and clears a selection that goes offline', async () => {
+		const stale = { ...environment('stale'), status: 'offline' };
+		const { quickPick, inventory, calls, hosts, run } = fixture([stale, environment('a')]);
+		const done = run();
+		await quickPick.shown.p;
+		const cached = quickPick.hostItems().map(item => item.label);
+		quickPick.activeItems = quickPick.selectedItems = [quickPick.hostItems()[0]];
+		await inventory.complete([stale, { ...environment('a'), status: 'offline' }]);
+		await quickPick.refreshed.p;
+		const offline = {
+			items: quickPick.hostItems(), active: quickPick.activeItems, selected: quickPick.selectedItems,
+			message: quickPick.validationMessage,
+		};
+		quickPick.accept();
+		hosts.set([stale, environment('a')], undefined);
+		const online = quickPick.hostItems().map(item => item.label);
+		quickPick.hide();
+		await done;
+		assert.deepStrictEqual({ cached, offline, online, connections: calls.connections }, {
+			cached: ['Host a'], offline: { items: [], active: [], selected: [], message: 'No online environments found.' },
+			online: ['Host a'], connections: [],
 		});
 	});
 

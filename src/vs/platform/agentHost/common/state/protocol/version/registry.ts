@@ -165,6 +165,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatDraftChanged]: '0.5.0',
 	[ActionType.ChatIsReadChanged]: '0.9.0',
 	[ActionType.ChatIsArchivedChanged]: '0.9.0',
+	[ActionType.ChatConfigChanged]: '1.1.0',
 	[ActionType.ChatInputRequested]: '0.4.0',
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',
 	[ActionType.ChatInputCompleted]: '0.4.0',
@@ -241,6 +242,12 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
 	'otlp/exportLogs': '0.2.0',
 	'otlp/exportTraces': '0.2.0',
 	'otlp/exportMetrics': '0.2.0',
+	'channel/frame': '1.1.0',
+	'channel/credit': '1.1.0',
+	'channel/snapshot': '1.1.0',
+	'tcp/data': '1.1.0',
+	'tcp/eof': '1.1.0',
+	'tcp/reset': '1.1.0',
 };
 
 /**
