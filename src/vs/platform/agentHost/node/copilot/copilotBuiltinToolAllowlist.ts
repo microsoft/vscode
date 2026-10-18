@@ -30,9 +30,8 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	'bash', 'read_bash', 'stop_bash', 'list_bash',
 	'powershell', 'read_powershell', 'stop_powershell', 'list_powershell',
 	'local_shell',
-	// Files and search. Most GPT models get `apply_patch` and `rg` instead of `create`, `edit` and `grep`;
-	// `oswe-magpie` and `oswe-rook` get `str_replace_editor` in place of `view`, `create` and `edit`.
-	'view', 'create', 'edit', 'apply_patch', 'str_replace_editor', 'grep', 'rg', 'glob', 'web_fetch',
+	// Files and search. Most GPT models get `apply_patch` and `rg` instead of `create`, `edit` and `grep`.
+	'view', 'create', 'edit', 'apply_patch', 'grep', 'rg', 'glob', 'web_fetch',
 	// Search subagent, kept off by `excludedTools` unless its setting is on.
 	'search_code_subagent',
 	// Turn control: plan mode and autopilot (`task_complete`, `exit_plan_mode`), elicitation, image generation.
