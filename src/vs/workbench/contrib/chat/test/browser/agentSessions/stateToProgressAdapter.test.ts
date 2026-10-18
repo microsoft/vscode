@@ -22,7 +22,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
@@ -667,7 +667,7 @@ suite('stateToProgressAdapter', () => {
 				history[2].type === 'request' ? history[2].origin : undefined,
 			], [{
 				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), undefined, 'creating-turn', 'local')),
+				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), 'ahp-chat://default/Y29waWxvdDovY3JlYXRvcg', 'creating-turn', 'local')),
 				delegationScope: 'session',
 			}, undefined]);
 		});
@@ -694,7 +694,7 @@ suite('stateToProgressAdapter', () => {
 
 				assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
 					kind: ChatRequestOriginKind.Delegation,
-					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), undefined, undefined, 'remote')),
+					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I', undefined, 'remote')),
 					delegationScope: 'session',
 				});
 			});
@@ -1843,6 +1843,30 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('image generation', () => {
+		for (const success of [false, true]) {
+			test(`preserves authoritative image usage through live and restored tool state (${success})`, () => {
+				const backendSession = URI.parse('another-host:/opaque-image-session');
+				const imageGeneration = {
+					requestedModel: { id: 'provider/image:model' },
+					usage: { requestId: 'metered-operation', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } },
+				};
+				const running = createToolCallState({ toolName: 'remote_create_image' });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success,
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'AQID' }] : [],
+					...(success ? {} : { error: { message: 'Image decoding failed.' } }),
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'another-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'another-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'another-host');
+				assert.deepStrictEqual([live, restored].map(part => {
+					const data = part.toolSpecificData;
+					return data?.kind === 'generatedImage' || data?.kind === 'input' ? data.imageGeneration : undefined;
+				}), [imageGeneration, imageGeneration]);
+			});
+		}
+
 		test('preserves metadata-only image failure details and classification in live and restored state', () => {
 			const backendSession = URI.parse('other-host:/opaque-image-session');
 			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };
@@ -3016,13 +3040,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData, undefined);
 		});
 
-		test('synthesizes subagent chatResource from the tool call id when no discovery content block is present', () => {
-			// A background subagent's `subagent_started` can arrive after its
-			// spawning tool call has already completed, so the running-only
-			// discovery content update is dropped and the child chat resource
-			// never lands on the tool call. The chat resource must still be
-			// derivable from the session + tool call id so the inline subagent
-			// pill remains linkable.
+		test('does not derive a subagent chatResource when neither the tool call nor discovery content carries one', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Map aux bar + editor part creation' },
 			});
@@ -3030,7 +3048,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 			if (invocation.toolSpecificData?.kind === 'subagent') {
-				assert.strictEqual(invocation.toolSpecificData.chatResource, buildSubagentChatUri(URI.file('/').toString(), 'tc-1'));
+				assert.strictEqual(invocation.toolSpecificData.chatResource, undefined);
 			}
 		});
 
@@ -4450,6 +4468,49 @@ suite('stateToProgressAdapter', () => {
 				}],
 			});
 		});
+
+		for (const authority of ['local', 'remote-host']) {
+			test(`maps pending file confirmations through the connection while preserving ${authority} content references`, () => {
+				const file = URI.parse('file:///tmp/foo.txt');
+				const originalFile = URI.parse('file:///tmp/old.txt');
+				const before = URI.parse('pending-edit-content:///opaque/before');
+				const after = URI.parse('pending-edit-content:///opaque/after');
+				const resourceUris = authority === 'local' ? identityAgentHostResourceUriMapper : {
+					fromAgentHost: (resource: URI) => resource.with({ scheme: 'test-remote', authority }),
+					toAgentHost: (resource: URI) => resource.with({ scheme: file.scheme, authority: '' }),
+				};
+				const invocation = rawToolCallStateToInvocation({
+					toolCallId: 'tc-rename',
+					toolName: 'edit',
+					displayName: 'Edit',
+					invocationMessage: 'Editing foo.txt',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Write file?',
+					edits: {
+						items: [{
+							before: { uri: originalFile.toString(), content: { uri: before.toString() } },
+							after: { uri: file.toString(), content: { uri: after.toString() } },
+						}],
+					},
+				}, undefined, URI.parse('custom-session:/opaque'), authority, undefined, undefined, resourceUris);
+
+				assert.deepStrictEqual(invocation.toolSpecificData, {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Allow'],
+					modifiedFiles: [{
+						uri: resourceUris.fromAgentHost(file),
+						editKind: 'rename',
+						originalUri: resourceUris.fromAgentHost(originalFile),
+						modifiedContentUri: toAgentHostContentUri(after, authority, file),
+						originalContentUri: toAgentHostContentUri(before, authority, originalFile),
+						insertions: undefined,
+						deletions: undefined,
+						title: 'foo.txt',
+						description: '/tmp/foo.txt',
+					}],
+				});
+			});
+		}
 
 		test('includes all parts in correct order', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([

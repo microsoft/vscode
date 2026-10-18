@@ -124,33 +124,35 @@ suite('BrowserEditorInput', () => {
 			untypedResource: input.resource.toString(),
 			override: BrowserEditorInput.EDITOR_ID
 		});
+	});
 
-		test('reports sharing availability from the model state', () => {
-			const input = createInput({ id: 'sharing-state-browser' });
-			let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
-			input.model = new class extends mock<IBrowserViewModel>() {
-				override get sharingState(): BrowserViewSharingState { return sharingState; }
-				override readonly onWillDispose = Event.None;
-				override readonly onDidClose = Event.None;
-				override readonly onDidChangeTitle = Event.None;
-				override readonly onDidChangeFavicon = Event.None;
-				override readonly onDidChangeLoadingState = Event.None;
-			}();
+	test('reports sharing availability from the model state', () => {
+		const input = createInput({ id: 'sharing-state-browser' });
+		let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override get sharingState(): BrowserViewSharingState { return sharingState; }
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override dispose(): void { }
+		}();
 
-			const blocked = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Available;
-			const notShared = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Shared;
-			const shared = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Unavailable;
-			const unavailable = input.isSharingAvailable;
+		const blocked = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Available;
+		const notShared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Shared;
+		const shared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Unavailable;
+		const unavailable = input.isSharingAvailable;
 
-			assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
-				blocked: false,
-				notShared: true,
-				shared: true,
-				unavailable: false,
-			});
+		assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
+			blocked: false,
+			notShared: true,
+			shared: true,
+			unavailable: false,
 		});
 	});
 

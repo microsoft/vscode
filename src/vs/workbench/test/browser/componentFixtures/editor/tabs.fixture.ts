@@ -17,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -47,6 +48,7 @@ import { ComponentFixtureContext, createEditorServices, createTextModel, defineC
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
+import '../../../../contrib/welcomeGettingStarted/browser/media/gettingStarted.css';
 
 // ============================================================================
 // Fixture editor input
@@ -54,6 +56,7 @@ import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 interface IFixtureEditorInputOptions {
 	readonly typeId?: string;
+	readonly name?: string;
 	readonly dirty?: boolean;
 	readonly capabilities?: EditorInputCapabilities;
 	readonly icon?: ThemeIcon | URI;
@@ -82,7 +85,7 @@ class FixtureEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return basename(this.resource);
+		return this._options.name ?? basename(this.resource);
 	}
 
 	/**
@@ -123,6 +126,7 @@ class FixtureEditorInput extends EditorInput {
 interface IEditorSpec {
 	readonly resource: URI;
 	readonly typeId?: string;
+	readonly name?: string;
 	readonly dirty?: boolean;
 	readonly icon?: ThemeIcon | URI;
 	readonly capabilities?: EditorInputCapabilities;
@@ -273,6 +277,7 @@ export interface IEditorTabsFixtureOptions {
 	readonly reserveHeaderSpace?: boolean;
 	readonly headerWidth?: number;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
+	readonly layoutActionsMenu?: MenuId;
 	readonly editorContents?: string;
 	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
 }
@@ -292,6 +297,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 	for (const [index, spec] of ordered.entries()) {
 		const input = disposableStore.add(new FixtureEditorInput(spec.resource, {
 			typeId: spec.typeId,
+			name: spec.name,
 			dirty: spec.dirty,
 			icon: spec.icon,
 			capabilities: spec.capabilities,
@@ -366,6 +372,11 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	populateModel(model, options.editors ?? defaultEditorSpecs(), disposableStore);
 
 	const createEditorActions = (disposables: DisposableStore, menuId: MenuId) => {
+		const fixtureMenuId = menuId === MenuId.EditorTitleLayout ? options.layoutActionsMenu : menuId !== MenuId.EditorTitle ? menuId : undefined;
+		if (fixtureMenuId) {
+			const menu = disposables.add(instantiationService.get(IMenuService).createMenu(fixtureMenuId, contextKeyService));
+			return { actions: getActionBarActions(menu.getActions({ shouldForwardArgs: true }), 'navigation'), onDidChange: menu.onDidChange };
+		}
 		return { actions: createFixtureEditorTitleActions(disposables, menuId), onDidChange: Event.None };
 	};
 
@@ -671,6 +682,19 @@ function createLayoutFixtures() {
 			fileIconTheme: 'vs-minimal',
 			render: render(true, {}),
 		}),
+		FileIconsModernWelcome: defineComponentFixture({
+			fileIconTheme: 'vscode-modern-icons',
+			render: render(true, {
+				editors: [{
+					resource: URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' }),
+					name: 'Welcome',
+					pinned: true,
+					active: true,
+				}],
+				width: 320,
+			}),
+			expectedVisualDescriptions: ['The Welcome tab displays one full-color product icon without a generic file mask or overlapping artwork.'],
+		}),
 		FileIconsNone: defineComponentFixture({
 			fileIconTheme: 'none',
 			render: render(true, {}),
@@ -755,6 +779,16 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 			expectedVisualDescriptions: [
 				'Pill tabs retain their transparent modern surface and separate rounded geometry instead of adopting the connected-tab strip color.',
 			],
+		}),
+		PillMultiSelected: defineComponentFixture({
+			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill, editors: multiSelectEditorSpecs() }),
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			expectedVisualDescriptions: ['Multi-selected Pill tabs keep a single outer stroke around their fill, including the action area.'],
+		}),
+		PillMultiSelectedActionsOnLeft: defineComponentFixture({
+			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill, editors: multiSelectEditorSpecs(), partOptions: { tabActionLocation: 'left' } }),
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			expectedVisualDescriptions: ['Multi-selected Pill tabs with leading actions keep the same outer stroke ownership as trailing actions.'],
 		}),
 	}),
 });

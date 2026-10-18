@@ -28,6 +28,7 @@ import { IAgentHostCustomizationService } from './agentHostCustomizationService.
 import { type ISyncedCustomizationOrigin } from './syncedCustomizationBundler.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage as PromptStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { ChatModeKind } from '../../../common/constants.js';
 import { localize } from '../../../../../../nls.js';
 import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js';
 
@@ -246,29 +247,33 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		}
 		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
-		return agents.map(agent => ({
-			id: agent.uri,
-			uri: this.toRemoteUri(agent.uri),
-			name: agent.name,
-			description: agent.description,
-			sessionTypes: sessionTypes,
-			enabled: true,
-			// fill default/empty values for all other properties they will not be used by the UI
-			// when making a request, all that's needed is the agent id.
-			source: { storage: PromptStorage.local } satisfies IAgentSource,
-			tools: undefined,
-			agents: undefined,
-			argumentHint: undefined,
-			handOffs: undefined,
-			hooks: undefined,
-			model: undefined,
-			agentInstructions: { content: '', toolReferences: [] },
-			visibility: {
-				agentInvocable: true,
-				userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false
-			},
-			target: Target.Undefined
-		} satisfies ICustomAgent));
+		return agents.map(agent => {
+			const isAsk = readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask';
+			return {
+				id: agent.uri,
+				kind: isAsk ? ChatModeKind.Ask : undefined,
+				uri: this.toRemoteUri(agent.uri),
+				name: agent.name,
+				description: agent.description,
+				sessionTypes: sessionTypes,
+				enabled: true,
+				// fill default/empty values for all other properties they will not be used by the UI
+				// when making a request, all that's needed is the agent id.
+				source: { storage: isAsk ? PromptStorage.builtIn : PromptStorage.local } satisfies IAgentSource,
+				tools: undefined,
+				agents: undefined,
+				argumentHint: undefined,
+				handOffs: undefined,
+				hooks: undefined,
+				model: undefined,
+				agentInstructions: { content: '', toolReferences: [] },
+				visibility: {
+					agentInvocable: true,
+					userInvocable: readAgentCustomizationMeta(agent).userInvocable !== false
+				},
+				target: Target.Undefined
+			} satisfies ICustomAgent;
+		});
 
 	}
 

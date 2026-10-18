@@ -46,6 +46,10 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IProgressNotificationOptions, IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { getAgentHostAhpLogDirectoryMeta } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
+import { InitializeResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -453,26 +457,30 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			preferredHomeCalls: 1,
 			statUris: [configuredDirectory.toString(), missingDirectory.toString()],
 		});
+	});
 
-		test('returns partial-export status when a remote directory-artifact read fails', async () => {
-			const logService = new NullLogService();
-			const fileService = disposables.add(new FileService(logService));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-			const instantiation = disposables.add(new TestInstantiationService());
-			instantiation.stub(IFileService, fileService);
-			instantiation.stub(ILogService, logService);
-			instantiation.stub(IConfigurationService, new TestConfigurationService());
-			instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
-			const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
-			const destination = URI.file('/exports/logs');
-			const result = await service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], {
-				artifact: { ...artifactOfSize(10), kind: 'directory' },
-				readChunk: async () => { throw new Error('Remote log read failed'); },
-			});
-			assert.deepStrictEqual({
-				result,
-				clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
-			}, { result: { hostSaveError: 'Remote log read failed' }, clientLog: 'client' });
+	test('returns partial-export status when a remote directory-artifact read fails', async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IFileService, fileService);
+		instantiation.stub(ILogService, logService);
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.file('/exports/logs');
+		const result = await service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], {
+			artifact: { ...artifactOfSize(10), kind: 'directory' },
+			readChunk: async () => { throw new Error('Remote log read failed'); },
+		});
+		assert.deepStrictEqual({
+			// The failing write targets a staging folder named with a random id, and the path separator is platform specific.
+			result: { hostSaveError: result.hostSaveError?.replace(/\\/g, '/').replace(/\.agent-host-debug-logs-[0-9a-f-]+/, '.agent-host-debug-logs-<id>') },
+			clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
+		}, {
+			result: { hostSaveError: `Unable to write file '/exports/.agent-host-debug-logs-<id>/agenthost.log' (Error: Remote log read failed)` },
+			clientLog: 'client',
 		});
 	});
 });
@@ -647,9 +655,9 @@ suite('toActiveAgentHostSession', () => {
 		};
 
 		assert.deepStrictEqual({
-			defaultChat: getSessionChatResource(state, 'default'),
-			sideChat: getSessionChatResource(state, 'side-chat'),
-			missing: getSessionChatResource(state, 'missing'),
+			defaultChat: getSessionChatResource(state, 'default', state.defaultChat),
+			sideChat: getSessionChatResource(state, 'side-chat', state.defaultChat),
+			missing: getSessionChatResource(state, 'missing', state.defaultChat),
 		}, {
 			defaultChat,
 			sideChat,
@@ -674,7 +682,7 @@ suite('toActiveAgentHostSession', () => {
 suite('collectAgentHostDebugLogs', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive', missionControlLogsIncluded = false) {
+	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive', missionControlLogsIncluded = false, missionControlConnection = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const warnings: string[] = [];
 		const logService = new class extends NullLogService {
@@ -702,11 +710,22 @@ suite('collectAgentHostDebugLogs', () => {
 			mtime,
 		});
 		const connection = upcastPartial<IAgentConnection>({
-			collectDebugLogs: async () => hostArtifact,
+			clientConnectionKind: missionControlConnection ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.Local,
+			initializeResult: observableValue('initialize', upcastPartial<InitializeResult>({
+				_meta: getAgentHostAhpLogDirectoryMeta(URI.from({ scheme: Schemas.inMemory, path: '/host-log-directory' })),
+			})),
+			resourceUris: identityAgentHostResourceUriMapper,
+			collectDebugLogs: async () => {
+				assert.strictEqual(missionControlConnection, false, 'Mission Control must not use host-management RPCs');
+				return hostArtifact;
+			},
 			getSubscriptionUnmanaged: () => undefined,
 		});
 		instantiationService.stub(IAgentHostConnectionsService, {
 			ambientConnection: connection,
+			resolveSessionResourceIdentity: () => missionControlConnection ? {
+				connectionAddress: 'native-host', connectionAuthority: 'native', backendSession: URI.parse('copilotcli:/session-1'),
+			} : undefined,
 			resolveSessionResource: () => ({
 				connection,
 				connectionAuthority: 'local',
@@ -720,6 +739,8 @@ suite('collectAgentHostDebugLogs', () => {
 				let children: IFileStatWithMetadata[];
 				if (resource.path === '/logs/ahp') {
 					children = ahpFiles.map(file => fileStat(resource, file.name, file.mtime));
+				} else if (resource.path === '/host-log-directory') {
+					children = ahpFiles.filter(file => isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, file.name)).map(file => fileStat(resource, file.name, file.mtime));
 				} else if (resource.path === windowLogs.path) {
 					children = [fileStat(resource, 'renderer.log')];
 				} else if (resource.path === logsHome.path) {
@@ -741,7 +762,7 @@ suite('collectAgentHostDebugLogs', () => {
 		});
 		instantiationService.stub(IAgentHostDebugLogsExportService, { hostArtifactKind });
 
-		const activeSession = sessionScoped ? toActiveAgentHostSession(URI.parse('agent-host-copilotcli:/session-1'), 'Chat', 'Session') : undefined;
+		const activeSession = sessionScoped ? toActiveAgentHostSession(URI.parse(missionControlConnection ? 'remote-native-copilotcli:/session-1' : 'agent-host-copilotcli:/session-1'), 'Chat', 'Session') : undefined;
 		const result = await instantiationService.invokeFunction(accessor => collectAgentHostDebugLogs(accessor, activeSession ? {
 			...activeSession,
 			backendChatResource: URI.parse('copilotcli:/session-1/chat/default'),
@@ -757,6 +778,20 @@ suite('collectAgentHostDebugLogs', () => {
 			mtime,
 		};
 	};
+
+	test('exports Mission Control host wire logs without invoking disabled management APIs', async () => {
+		const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
+		const { result, warnings } = await collectWithFiles([relay], 0, 1, true, 'archive', false, true);
+		assert.deepStrictEqual({
+			wireFiles: result.files.filter(file => file.path.startsWith('ahp/')).map(file => ({ path: file.path, resource: hasKey(file, { resource: true }) ? file.resource.path : undefined })),
+			hostArtifact: result.hostArtifact,
+			warnings,
+		}, {
+			wireFiles: [{ path: `ahp/mission-control/${relay.name}`, resource: `/host-log-directory/${relay.name}` }],
+			hostArtifact: undefined,
+			warnings: [],
+		});
+	});
 
 	test('keeps the newest ten transport files per host, including an older connection that is still active', async () => {
 		const reconnectFiles = Array.from({ length: 1160 }, (_, index) => ahpFile('a', index));

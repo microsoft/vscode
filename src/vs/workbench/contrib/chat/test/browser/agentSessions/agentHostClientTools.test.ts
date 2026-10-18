@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -20,10 +21,12 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
@@ -31,7 +34,7 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, ToolCallCancellationReason, type ChatState, type ComponentToState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -44,6 +47,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { PieceCtorKind, PromptNodeType } from '../../../common/tools/promptTsxTypes.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -54,7 +58,7 @@ import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -321,6 +325,22 @@ suite('AgentHostClientTools', () => {
 		modelDescription: 'Reads a file',
 		source: ToolDataSource.Internal,
 	};
+	const createPullRequestTool: IToolData = {
+		id: 'github-pull-request_create_pull_request',
+		toolReferenceName: 'create_pull_request',
+		displayName: 'Create a GitHub pull request',
+		modelDescription: 'Creates a pull request',
+		source: { type: 'extension', label: 'GitHub Pull Requests', extensionId: new ExtensionIdentifier('GitHub.vscode-pull-request-github') },
+		inputSchema: { type: 'object', properties: { repo: { type: 'object' }, title: { type: 'string' }, head: { type: 'string' } } },
+	};
+	const mcpCreatePullRequestTool: IToolData = {
+		...createPullRequestTool,
+		id: 'github-mcp-server-create_pull_request',
+		displayName: 'Open new pull request',
+		source: { type: 'mcp', label: 'GitHub', serverLabel: 'GitHub', instructions: undefined, collectionId: 'copilot-chat-github', definitionId: 'github' },
+		canRequestPreApproval: true,
+		inputSchema: { type: 'object', properties: { owner: { type: 'string' }, repo: { type: 'string' } } },
+	};
 
 	async function publishedTools(tools: readonly IToolData[], sessionType: string) {
 		const searchToolSet = new class extends mock<IToolSet>() {
@@ -354,6 +374,16 @@ suite('AgentHostClientTools', () => {
 			other: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
 		});
+	});
+
+	test('does not publish MCP tools as client tools even when an enabled tool set contains them', async () => {
+		const tools = [mcpCreatePullRequestTool, createPullRequestTool];
+		const expected = [['create_pull_request', 'Create a GitHub pull request']];
+		assert.deepStrictEqual({
+			local: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE),
+			remote: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE),
+			other: await publishedTools(tools, 'agent-host-claude'),
+		}, { local: expected, remote: expected, other: expected });
 	});
 
 	// ── toolDataToDefinition ─────────────────────────────────────────────
@@ -815,6 +845,22 @@ suite('AgentHostClientTools', () => {
 				};
 			}
 
+			override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+				const resourceStr = resource.toString();
+				const entry = this._liveSubscriptions.get(resourceStr);
+				if (!entry) {
+					return undefined;
+				}
+				const self = this;
+				return {
+					get value() { return self._liveSubscriptions.get(resourceStr)?.state as ComponentToState[T] | undefined; },
+					get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as ComponentToState[T] | undefined; },
+					onDidChange: entry.emitter.event as unknown as Event<ComponentToState[T]>,
+					onWillApplyAction: Event.None,
+					onDidApplyAction: Event.None,
+				};
+			}
+
 			private _ensureLiveSubscription(kind: StateComponents, resourceStr: string): { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> } {
 				let entry = this._liveSubscriptions.get(resourceStr);
 				if (entry) {
@@ -858,14 +904,17 @@ suite('AgentHostClientTools', () => {
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const inputNotifications = new Map<string, IChatInputNotification>();
 			const configValues: Record<string, unknown> = {};
-			const onDidChangeConfig = disposables.add(new Emitter<IConfigurationChangeEvent>());
-			const configService: Partial<IConfigurationService> = {
-				getValue: (key: string) => configValues[key],
-				onDidChangeConfiguration: onDidChangeConfig.event,
-			} as Partial<IConfigurationService>;
+			const configService = new TestConfigurationService(configValues);
+			const onDidChangeConfig = disposables.add(configService.onDidChangeConfigurationEmitter);
 
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IAgentHostService, connection);
+			instantiationService.stub(IAgentHostEnablementService, {
+				_serviceBrand: undefined,
+				enabled: constObservable(true),
+				managedSandboxEnforced: constObservable(false),
+				managedSandboxAllowsBypass: constObservable(false),
+			} satisfies IAgentHostEnablementService);
 			instantiationService.stub(IRemoteAgentHostService, new NullRemoteAgentHostService());
 			instantiationService.stub(IPathService, { registerPathProvider: () => Disposable.None });
 			instantiationService.stub(IAgentHostConnectionsService, disposables.add(instantiationService.createInstance(AgentHostConnectionsService)));
@@ -873,7 +922,7 @@ suite('AgentHostClientTools', () => {
 				override readonly extUri = extUriBiasedIgnorePathCase;
 			});
 			instantiationService.stub(IProductService, { quality: 'insider' });
-			instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
+			instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Free }));
 			instantiationService.stub(IChatAgentService, {
 				registerDynamicAgent: () => toDisposable(() => { }),
 			});
@@ -885,6 +934,8 @@ suite('AgentHostClientTools', () => {
 				registerChatSessionContribution: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatWidgetService, {
+				onDidChangeFocusedSession: Event.None,
+				onDidChangeWidgetVisibility: Event.None,
 				getWidgetBySessionResource: () => undefined,
 			});
 			instantiationService.stub(IChatInputNotificationService, {
@@ -1242,13 +1293,17 @@ suite('AgentHostClientTools', () => {
 				_meta: { [agentSandboxDiagnosticsMetaKey]: ['Install bubblewrap.'] },
 			});
 			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
-			const shown = [...inputNotifications.values()].map(notification => ({
-				description: notification.description,
-				sessions: notification.sessionResources?.map(resource => resource.toString()),
-			}));
+			const shown = [...inputNotifications.values()].map(notification => {
+				assert.ok(isMarkdownString(notification.description));
+				const rendered = disposables.add(renderMarkdown(notification.description));
+				return {
+					description: rendered.element.textContent?.replace(/\u00a0/g, ' '),
+					sessions: notification.sessionResources?.map(resource => resource.toString()),
+				};
+			});
 			session.dispose();
 			assert.deepStrictEqual({ shown, remaining: inputNotifications.size }, {
-				shown: [{ description: new MarkdownString().appendText('Install bubblewrap.'), sessions: [sessionResource.toString()] }],
+				shown: [{ description: 'Install bubblewrap. Troubleshooting Guide | Disable Sandboxing', sessions: [sessionResource.toString()] }],
 				remaining: 0,
 			});
 		});
@@ -1307,6 +1362,67 @@ suite('AgentHostClientTools', () => {
 				&& entry.action.type === ActionType.ChatToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
 		});
+
+		for (const mcpFirst of [true, false]) {
+			test(`invokes the extension client tool when an MCP tool has the same name (MCP first: ${mcpFirst})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const tools = mcpFirst ? [mcpCreatePullRequestTool, createPullRequestTool] : [createPullRequestTool, mcpCreatePullRequestTool];
+				const { handler, connection, toolsService } = createHandlerWithMocks(disposables, tools);
+				const sessionResource = URI.parse('agent-host-copilot:/session-1');
+				const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+				const chat = buildSubagentChatUri(backendSession, 'task-call-1');
+				const parameters = { repo: { owner: 'microsoft', name: 'vscode' }, title: 'Fix tool routing', head: 'fix-tool-routing' };
+				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+				applyRunningClientExecution(connection, chat, 'turn-1', {
+					toolCallId: 'create-pr',
+					toolName: 'create_pull_request',
+					displayName: 'Create Pull Request',
+					invocationMessage: 'Creating pull request',
+					toolInput: JSON.stringify(parameters),
+				});
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					begun: toolsService.begunToolCalls.map(call => call.toolId),
+					invoked: toolsService.invokedToolCalls.map(call => ({ toolId: call.toolId, parameters: call.parameters })),
+					completed: connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatToolCallComplete
+						? [{ channel: entry.channel, success: entry.action.result.success }]
+						: []),
+				}, {
+					begun: [createPullRequestTool.id],
+					invoked: [{ toolId: createPullRequestTool.id, parameters }],
+					completed: [{ channel: chat, success: true }],
+				});
+			}));
+		}
+
+		test('rejects a client tool request when only an MCP tool has the requested name', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [mcpCreatePullRequestTool]);
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+			const chat = buildSubagentChatUri(backendSession, 'task-call-1');
+			await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/session-1'), CancellationToken.None);
+
+			applyRunningClientExecution(connection, chat, 'turn-1', {
+				toolCallId: 'create-pr',
+				toolName: 'create_pull_request',
+				displayName: 'Create Pull Request',
+				invocationMessage: 'Creating pull request',
+				toolInput: '{}',
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				begun: toolsService.begunToolCalls.length,
+				invoked: toolsService.invokedToolCalls.length,
+				completed: connection.dispatchedActions.flatMap(entry => entry.action.type === ActionType.ChatToolCallComplete
+					? [{ channel: entry.channel, success: entry.action.result.success, code: entry.action.result.error?.code }]
+					: []),
+			}, {
+				begun: 0,
+				invoked: 0,
+				completed: [{ channel: chat, success: false, code: 'toolUnavailable' }],
+			});
+		}));
 
 		test('resolves base64 referenced input before invoking an owned client tool', async () => {
 			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);

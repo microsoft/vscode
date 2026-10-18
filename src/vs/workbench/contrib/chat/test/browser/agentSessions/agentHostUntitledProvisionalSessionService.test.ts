@@ -92,7 +92,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		} as unknown as IAgentSubscription<RootState>;
 	})();
 
-	/** Simulates the host re-advertising after a `multiRootEnabled` change. */
+	/** Simulates the host advertising updated capabilities. */
 	fireRootStateChange(): void {
 		this._onRootStateChange.fire({ agents: this.rootStateAgents } as unknown as RootState);
 	}
@@ -352,6 +352,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 	function seedImportedConversation(resource: URI): void {
 		importStore.set(resource, {
+			title: 'Original imported conversation',
 			turns: [{
 				id: 'imported-turn',
 				message: { text: 'Imported message', origin: { kind: MessageKind.User } },
@@ -751,12 +752,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			rebound: rebound?.toString(),
 			createCount: agentHost.createCalls.length,
 			importedTurns: agentHost.createCalls.at(-1)?.importConversation?.turns.map(turn => turn.id),
+			importedTitle: agentHost.createCalls.at(-1)?.importConversation?.title,
 			disposed: agentHost.disposed.map(uri => uri.toString()),
 			remainingImport: importStore.take(real),
 		}, {
 			rebound: URI.from({ scheme: 'copilot', path: real.path }).toString(),
 			createCount: 2,
 			importedTurns: ['imported-turn'],
+			importedTitle: 'Original imported conversation',
 			disposed: [backend.toString()],
 			remainingImport: undefined,
 		});
@@ -1124,9 +1127,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const ui = untitledChatUri('multi-root-enabled-at-runtime');
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
-		// The hidden `multiRootEnabled` setting is toggled on: the host
-		// re-advertises `multipleWorkingDirectories`, so `rootState` changes
-		// without a window reload.
+		// The host advertises multipleWorkingDirectories without a window reload.
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
 		agentHost.fireRootStateChange();
 		await provisional.waitForPending(ui);

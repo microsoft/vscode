@@ -37,6 +37,21 @@ export type RequestAccount = AccountHandle | AnonymousAccount | BootstrapAccount
 /** Internal scheduling lanes, ordered independently from caller authentication. */
 export type RequestPriority = 'mutationReconciliation' | 'mutation' | 'interactive' | 'mergeGate' | 'visible' | 'background' | 'enrichment';
 
+const priorityOrder: Record<RequestPriority, number> = {
+	mutationReconciliation: 0,
+	mutation: 1,
+	interactive: 2,
+	mergeGate: 3,
+	visible: 4,
+	background: 5,
+	enrichment: 6,
+};
+
+/** Compares scheduling lanes from highest to lowest priority. */
+export function compareRequestPriority(left: RequestPriority, right: RequestPriority): number {
+	return priorityOrder[left] - priorityOrder[right];
+}
+
 /** Content-free transport and admission failure categories shared by API services. */
 export type RequestErrorKind = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'schema' | 'rateLimit' | 'network' | 'server' | 'overloaded' | 'timeout' | 'responseTooLarge' | 'malformedResponse' | 'unknown';
 

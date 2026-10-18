@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryResourceType } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
 import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
@@ -94,8 +94,55 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
+	test('keeps native page sizes below the registry continuation failure boundary', async () => {
+		const requests: IMcpGalleryQueryPageOptions[] = [];
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage(options: IMcpGalleryQueryPageOptions) {
+				requests.push(options);
+				return { items: [server], nextCursor: options.cursor ? undefined : 'next' };
+			}
+		}();
+		const provider = new McpGalleryMarketplaceProvider('custom', gallery, manifest(customUrl), configuration(), product);
+		const first = await provider.query({ pageSize: 100 }, CancellationToken.None);
+		await provider.query({ pageSize: 100, cursor: first.nextCursor }, CancellationToken.None);
+
+		assert.deepStrictEqual(requests, [
+			{ text: undefined, pageSize: 99, cursor: undefined },
+			{ text: undefined, pageSize: 99, cursor: 'next' },
+		]);
+	});
+
 	test('advertises only the MCP Gallery platform source', () => {
 		assert.deepStrictEqual(getCustomizationMarketplaceSourceInfos().map(source => source.id), ['mcpGallery']);
+	});
+
+	test('retains the registry card URL for provider-owned installation', async () => {
+		const gallery = new class extends mock<IMcpGalleryService>() {
+			override async queryPage() {
+				return { items: [server] };
+			}
+		}();
+		const manifests = new class extends mock<IMcpGalleryManifestService>() {
+			override async getMcpGalleryManifest() {
+				return {
+					url: customUrl,
+					version: 'v0.1',
+					resources: [{
+						type: McpGalleryResourceType.McpServerLatestVersionUri,
+						id: `${customUrl}/v0.1/servers/{name}/versions/latest`,
+					}],
+				};
+			}
+		}();
+		const page = await new McpGalleryMarketplaceProvider('custom', gallery, manifests, configuration(), product).query({}, CancellationToken.None);
+
+		assert.deepStrictEqual(page.items[0].installation, {
+			kind: 'mcpGallery',
+			name: server.name,
+			registry: 'custom',
+			registryUrl: customUrl,
+			cardUrl: `${customUrl}/v0.1/servers/io.github.owner%2Fserver/versions/latest`,
+		});
 	});
 
 	test('uses an item page or repository as its review link, never the registry root', async () => {

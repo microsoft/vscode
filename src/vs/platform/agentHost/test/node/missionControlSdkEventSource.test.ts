@@ -16,13 +16,15 @@ import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
 const session = 'ahp-session:/native';
 const chat = URI.parse(buildDefaultChatUri(session));
@@ -38,13 +40,14 @@ suite('MissionControlSdkEventSource', () => {
 	setup(() => { clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); });
 	teardown(() => sinon.restore());
 
-	function fixture(history: readonly IAgentChatSessionEvent[] = [], metadata = new Map<string, string>(), initiallyEnabled = true, provisional = false) {
+	function fixture(history: readonly IAgentChatSessionEvent[] = [], metadata = new Map<string, string>(), initiallyEnabled = true, provisional = false, registration?: Promise<void>) {
 		const instantiation = store.add(new TestInstantiationService());
 		const log = store.add(new NullLogService());
 		const errors = sinon.spy(log, 'error');
 		instantiation.stub(ILogService, log);
+		instantiation.stub(IAgentHostAuthenticationService, store.add(new AgentHostAuthenticationService(log)));
 		const state = store.add(new AgentHostStateManager(log));
-		const summary = { resource: session, provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
+		const summary = { resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
 		if (provisional) {
 			state.createSession(summary, { emitNotification: false });
 		} else {
@@ -83,13 +86,54 @@ suite('MissionControlSdkEventSource', () => {
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() {
 			override openDatabase() { return { object: db, dispose: () => { } }; }
 		}());
+		// The cursors are the default chat's own data in its own db: the central store must never be asked for them.
+		instantiation.stub(IAgentHostSessionStateStore, new class extends mock<IAgentHostSessionStateStore>() {
+			override peek() { return undefined; }
+			override async load(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override legacyMetadata(): never { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override async writeMetadata(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
+		}());
 		const events: MissionControlMirrorEvent[] = [];
 		const mirror = store.add(instantiation.createInstance(MissionControlSessionMirror, 'env', {}));
 		store.add(mirror.attach(value => { events.push(value); }));
 		let enabled = initiallyEnabled;
-		const source = store.add(instantiation.createInstance(MissionControlSdkEventSource, 'env', mirror, () => enabled));
+		const source = store.add(instantiation.createInstance(MissionControlSdkEventSource, 'env', mirror, () => enabled, async session => {
+			if (registration) {
+				await registration;
+			}
+			mirror.registerSession(session, { uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode' });
+		}));
 		return { state, source, mirror, emitter, provider, events, errors, writes, metadata, setEnabled: (value: boolean) => { enabled = value; }, historyRead: () => historyRead };
 	}
+
+	test('waits for shared project registration before reading or publishing native history', async () => {
+		const registration = new DeferredPromise<void>();
+		const f = fixture([event('idle')], new Map(), true, false, registration.p);
+		f.emitter.fire(event('live', 'assistant.turn_start', { turnId: 'turn' }));
+		clock.tick(1);
+		assert.deepStrictEqual({ events: f.events, reads: f.historyRead(), sessions: f.mirror.statistics.sessions }, { events: [], reads: 0, sessions: 0 });
+		await registration.complete();
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual(f.events.flatMap(value => value.event === 'sessionEvents' ? [value.data.project] : []), Array.from({ length: 3 }, () => ({
+			uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode',
+		})));
+	});
+
+	test('does not reserve metadata for a chat that changes owner during project registration', async () => {
+		const registration = new DeferredPromise<void>();
+		const f = fixture([event('idle')], new Map(), true, false, registration.p);
+		const other = 'ahp-session:/moved-during-registration';
+		f.state.createSession({
+			resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other',
+			status: SessionStatus.Idle, createdAt: at, modifiedAt: at,
+		}, { emitNotification: false });
+		f.state.reassignChatOwner(chat.toString(), other);
+		await registration.complete();
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({ events: f.events, reads: f.historyRead(), writes: f.writes }, { events: [], reads: 0, writes: [] });
+	});
 
 	test('does not register, read or synchronize an unused draft at startup or on native events', async () => {
 		const f = fixture([event('idle')], new Map(), true, true);
@@ -217,6 +261,72 @@ suite('MissionControlSdkEventSource', () => {
 			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
 			logged: f.errors.called,
 		}, { types: ['session.idle', 'assistant.turn_start'], logged: true });
+	});
+
+	const sdkEvents = (events: readonly MissionControlMirrorEvent[]) => events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [`${value.data.session_id} ${value.data.payload.type}`] : []);
+
+	test('a chat promoted into a new session starts that session\'s stream from the start of its journal, and its old session\'s stream goes on (Block 4)', async () => {
+		const f = fixture();
+		await f.source.whenIdle();
+		clock.runAll();
+		const peer = URI.parse(buildChatUri(session, 'promoted'));
+		f.state.addChat(session, peer.toString(), peer.toString());
+		const promoted = 'ahp-session:/promoted';
+		const reads: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			const read = args[0] as URI;
+			reads.push(`${read.toString()} ${String(args[3])}`);
+			if (read.toString() === peer.toString()) {
+				yield { ...event('peer-start', 'session.start', { sessionId: 'peer' }), chat: peer };
+			}
+		});
+		f.events.length = 0;
+
+		f.state.promoteChats(session, { resource: promoted, defaultChat: peer.toString(), provider: 'copilotcli', title: 'Promoted', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, undefined, [peer.toString()]);
+		await f.source.whenIdle();
+		clock.runAll();
+		// The new stream starts with the promotion, before the chat's next native event.
+		const readsOnPromotion = [...reads];
+		f.emitter.fire({ ...event('peer-idle'), chat: peer });
+		f.emitter.fire(event('source-idle'));
+		await f.source.whenIdle();
+		clock.runAll();
+
+		// Each stream is ordered; the two streams interleave in no particular order.
+		assert.deepStrictEqual({ readsOnPromotion, reads, sdk: sdkEvents(f.events).filter(entry => !entry.endsWith('session.title_changed')).sort() }, {
+			// The peer was never replicated, so it has no cursor: its new stream reads its journal from the start.
+			readsOnPromotion: [`${peer.toString()} undefined`],
+			reads: [`${peer.toString()} undefined`],
+			sdk: [`${session} session.idle`, `${promoted} session.idle`, `${promoted} session.start`],
+		});
+	});
+
+	test('a default chat that moved under another session is replicated no more, neither its history nor its live events (Block 4)', async () => {
+		// Its stream had not drained its history yet when it moved.
+		const f = fixture([event('before-move')]);
+		const other = 'ahp-session:/move-target';
+		f.state.restoreSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, [], creationTimeChatStorageResource);
+
+		const movedChatReads: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			if ((args[0] as URI).toString() === chat.toString()) {
+				movedChatReads.push(chat.toString());
+				yield event('before-move');
+			}
+		});
+
+		// Until it is removed, the session still advertises the chat as its default chat: no new stream starts for it.
+		const registered = sinon.spy(f.mirror, 'registerSession');
+		f.state.reassignChatOwner(chat.toString(), other);
+		f.emitter.fire(event('after-move'));
+		await f.source.whenIdle();
+		clock.runAll();
+
+		assert.deepStrictEqual({
+			sdk: sdkEvents(f.events).filter(entry => entry.startsWith(session)),
+			movedChatReads,
+			restarted: registered.args.filter(([candidate]) => candidate === session).length,
+		}, { sdk: [], movedChatReads: [], restarted: 0 });
 	});
 
 	test('an unreadable journal is reported without preventing fresh native metadata', async () => {

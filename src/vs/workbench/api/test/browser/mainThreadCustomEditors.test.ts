@@ -352,6 +352,26 @@ suite('MainThreadCustomEditors', () => {
 		await timeout(0);
 	});
 
+	test('custom editor pane accepts missing options when switching back to an open editor', async () => {
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+		});
+		const { input } = fixture.createInput();
+		await input.resolve();
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const pane = store.add(instantiationService.createInstance(class extends WebviewEditor {
+			override get input() { return input; }
+		}, new class extends mock<IEditorGroup>() { }));
+
+		await pane.setInput(input, undefined, {}, CancellationToken.None);
+		pane.setOptions(undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ options: pane.options, unexpectedErrors }, { options: undefined, unexpectedErrors: [] });
+		input.dispose();
+		await timeout(0);
+	});
+
 	test('custom editor pane exposes live navigation selections for editor type switches', async () => {
 		let handle: string | undefined;
 		const fixture = createCustomEditors({

@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ClaudeRuntimeEffortLevel } from '../../common/claudeModelConfig.js';
-import { AgentSignal } from '../../common/agent.js';
+import { AgentSignal, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -248,7 +248,7 @@ export class ClaudeSdkPipeline extends Disposable {
 	constructor(
 		readonly sessionId: string,
 		readonly chatChannelUri: URI,
-		ownerSession: URI,
+		owner: IAgentChatOwnerRef,
 		resource: URI,
 		warm: WarmQuery,
 		abortController: AbortController,
@@ -273,7 +273,7 @@ export class ClaudeSdkPipeline extends Disposable {
 			}),
 		));
 		this._router = this._register(instantiationService.createInstance(
-			ClaudeSdkMessageRouter, chatChannelUri, ownerSession, resource, dbRef, subagents, clientToolOwner,
+			ClaudeSdkMessageRouter, chatChannelUri, owner, resource, dbRef, subagents, clientToolOwner,
 		));
 		this._register(this._router.onDidProduceSignal(s => this._onDidProduceSignal.fire(s)));
 		// Dispose chain → abort → SDK cleanup. Reads the *current*

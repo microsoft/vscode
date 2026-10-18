@@ -61,6 +61,8 @@ export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
 	readonly element: HTMLElement = $('.chat-view');
+	/** Content-only inset kept on each side; scrollable viewports retain the leaf's full width. */
+	protected contentInset = 0;
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
@@ -118,6 +120,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
+	}
+
+	/** Retry a failed load when the user explicitly opens the selected chat again. */
+	reopenChat(_resource: URI): Promise<void> {
+		return Promise.resolve();
 	}
 
 	/**
@@ -221,8 +228,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * to the allocated dimensions and then delegates to {@link doLayout} so
 	 * subclasses can forward sizing to their hosted widget.
 	 */
-	layout(width: number, height: number, top: number, left: number): void {
+	layout(width: number, height: number, top: number, left: number, contentInset = 0): void {
 		size(this.element, width, height);
+		this.contentInset = contentInset;
+		this.element.classList.toggle('has-session-activity-bar', contentInset > 0);
+		this.element.style.setProperty('--session-activity-bar-reserved-width', `${contentInset}px`);
 		this.doLayout(width, height, top, left);
 	}
 

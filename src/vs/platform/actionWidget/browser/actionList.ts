@@ -294,6 +294,7 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 interface ISeparatorTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
+	readonly detail: HTMLElement;
 	readonly badges: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 }
@@ -310,13 +311,17 @@ class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparat
 		const text = document.createElement('span');
 		container.append(text);
 		const badges = dom.append(container, dom.$('span.action-item-additional-badges', { 'aria-hidden': 'true' }));
+		const detail = dom.append(container, dom.$('span.detail'));
 
-		return { container, text, badges, elementDisposables: new DisposableStore() };
+		return { container, text, detail, badges, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
 		templateData.container.classList.toggle('has-label', !!element.label);
 		templateData.text.textContent = element.label ?? '';
+		templateData.container.classList.toggle('has-detail', !!element.detail);
+		templateData.detail.textContent = element.detail ?? '';
+		templateData.detail.style.display = element.detail ? '' : 'none';
 		templateData.elementDisposables.clear();
 		renderAdditionalBadges(element.additionalBadges, templateData.badges, templateData.elementDisposables, this._hoverService);
 	}
@@ -346,9 +351,9 @@ function renderAdditionalBadges(
 	container.style.display = badges?.length ? '' : 'none';
 }
 
-/** Whether the row exposes a submenu or keyboard-accessible hover panel. */
+/** Whether the row exposes a submenu or keyboard-accessible hover panel; a submenu is always advertised, since ArrowRight opens it. */
 function hasExpandablePanel<T>(item: IActionListItem<T>): boolean {
-	return (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable;
+	return !!item.submenuActions?.length || !!item.hover?.expandable;
 }
 
 function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
@@ -1735,10 +1740,12 @@ export class ActionListWidget<T> extends Disposable {
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem || focusItemId) {
-				restoreItemFocus();
+				const restored = restoreItemFocus();
 				if (listHasFocus) {
-					// The focused row or its toolbar may have been removed by the update.
-					this._focusCheckedOrFirst();
+					if (!restored) {
+						// The focused row or its toolbar may have been removed by the update.
+						this._focusCheckedOrFirst();
+					}
 					this._list.domFocus();
 				}
 			}
@@ -1909,7 +1916,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._suppressHover ||= preservePanel || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
 			// Restoring focus after a passive refresh must not open an unrequested hover.
-			this._applyFilter(false, false, preservePanel ? focusItemId ?? expandedItemId : undefined);
+			// An explicitly requested focusItemId (e.g. refocusing a row a caller just
+			// toggled) is honored unconditionally; only the fallback to the previously
+			// expanded hover/submenu's item is gated on actually preserving that panel.
+			this._applyFilter(false, false, focusItemId ?? (preservePanel ? expandedItemId : undefined));
 		} finally {
 			this._suppressHover = suppressHover;
 		}
@@ -2126,7 +2136,7 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
 			case ActionListItemKind.Separator:
-				return item.label ? this._actionLineHeight : this._separatorLineHeight;
+				return item.detail ? (options?.detailItemHeight ?? 48) : item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
 				if (item.inlineToggle) {
 					return options?.inlineToggleItemHeight ?? 70;
@@ -2377,18 +2387,24 @@ export class ActionListWidget<T> extends Disposable {
 		return true;
 	}
 
-	collapseFocusedSection() {
+	/** Collapses the section containing the focused row, returning whether it was expanded. */
+	collapseFocusedSection(): boolean {
 		const section = this._getFocusedSection();
 		if (section && !this._collapsedSections.has(section)) {
 			this._toggleSection(section);
+			return true;
 		}
+		return false;
 	}
 
-	expandFocusedSection() {
+	/** Expands the section containing the focused row, returning whether it was collapsed. */
+	expandFocusedSection(): boolean {
 		const section = this._getFocusedSection();
 		if (section && this._collapsedSections.has(section)) {
 			this._toggleSection(section);
+			return true;
 		}
+		return false;
 	}
 
 	toggleFocusedSection(): boolean {
@@ -2404,16 +2420,10 @@ export class ActionListWidget<T> extends Disposable {
 		return false;
 	}
 
+	/** The focused row's section, if that section has a toggle that can expand it again. */
 	private _getFocusedSection(): string | undefined {
-		const focused = this._list.getFocus();
-		if (focused.length === 0) {
-			return undefined;
-		}
-		const element = this._list.element(focused[0]);
-		if (element.isSectionToggle && element.section) {
-			return element.section;
-		}
-		return element.section;
+		const section = this.getFocusedElement()?.section;
+		return section && this._allMenuItems.some(item => item.section === section && item.isSectionToggle) ? section : undefined;
 	}
 
 	acceptSelected(preview?: boolean) {
@@ -3513,12 +3523,12 @@ export class ActionList<T> extends Disposable {
 		this._widget.focusNext();
 	}
 
-	collapseFocusedSection(): void {
-		this._widget.collapseFocusedSection();
+	collapseFocusedSection(): boolean {
+		return this._widget.collapseFocusedSection();
 	}
 
-	expandFocusedSection(): void {
-		this._widget.expandFocusedSection();
+	expandFocusedSection(): boolean {
+		return this._widget.expandFocusedSection();
 	}
 
 	toggleFocusedSection(): boolean {
