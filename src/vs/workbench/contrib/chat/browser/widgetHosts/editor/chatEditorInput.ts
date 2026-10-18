@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
@@ -30,12 +31,12 @@ import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/e
 import { IEditorGroup } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isNewChatSessionTypeUsable, managedPolicyRequiresAgentHostMessage } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, SessionTypeSelectionReason, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isNewChatSessionTypeUsable, managedPolicyRequiresAgentHostMessage } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { adoptLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
 import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -64,6 +65,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	private get model(): IChatModel | undefined {
 		return this.modelRef.value?.object;
+	}
+
+	/** Whether this input holds the chat model it resolved, e.g. because it was shown before. */
+	get hasResolvedModel(): boolean {
+		return !!this.model;
 	}
 
 	static getNewEditorUri(): URI {
@@ -257,9 +263,26 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		return getChatSessionType(this._sessionResource ?? this.resource);
 	}
 
-	override async resolve(): Promise<ChatEditorModel | null> {
+	override async resolve(token: CancellationToken = CancellationToken.None): Promise<ChatEditorModel | null> {
+		if (token.isCancellationRequested || this.isDisposed()) {
+			return null;
+		}
+		const acquireSession = async (resource: URI, debugOwner: string, selectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined> => {
+			if (token.isCancellationRequested || this.isDisposed()) {
+				throw new CancellationError();
+			}
+			const reference = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, debugOwner, selectionReason);
+			if (token.isCancellationRequested || this.isDisposed()) {
+				reference?.dispose();
+				throw new CancellationError();
+			}
+			return reference;
+		};
 		if (!this.options.target?.data && (!this._sessionResource || isUntitledChatSession(this._sessionResource))) {
 			await whenAccountPolicySettled(this.accountPolicyGateService);
+			if (token.isCancellationRequested || this.isDisposed()) {
+				return null;
+			}
 		}
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
@@ -273,7 +296,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			// redirect, so the progress wrapper is skipped for every normal restore.
 			// Migration is invisible to the user, so the adopt runs under a subtle
 			// status-bar hint rather than a silent wait while the (cold) host settles.
-			if (migratedCopilotCliResource(this._sessionResource)) {
+			const twin = migratedCopilotCliResource(this._sessionResource);
+			if (twin) {
 				const migrated = await this.progressService.withProgress(
 					{ location: ProgressLocation.Window, title: nls.localize('chat.openingSession', "Opening chat…") },
 					() => adoptLegacyCopilotCliResource(
@@ -289,14 +313,21 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				if (migrated) {
 					this._sessionResource = migrated;
 					migratedResource = migrated;
+				} else if (isLegacyMigrationEnabledAtStartup(this.configurationService)
+					&& this.chatSessionsService.getChatSessionContribution
+					&& !this.chatSessionsService.getChatSessionContribution(this._sessionResource.scheme)) {
+					this._sessionResource = twin;
 				}
 			}
 			try {
-				this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolve', this.options.sessionTypeSelectionReason);
+				this.modelRef.value = await acquireSession(this._sessionResource, 'ChatEditorInput#resolve', this.options.sessionTypeSelectionReason);
 				if (migratedResource) {
 					reportLegacyMigrationOpen(this.telemetryService, 'restore', migratedResource, !!this.model);
 				}
 			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested) {
+					return null;
+				}
 				if (migratedResource) {
 					reportLegacyMigrationOpen(this.telemetryService, 'restore', migratedResource, false, error);
 				}
@@ -311,6 +342,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			if (LocalChatSessionUri.isLocalSession(this._sessionResource) && !this.model?.hasRequests) {
 				await whenAccountPolicySettled(this.accountPolicyGateService);
+				if (token.isCancellationRequested || this.isDisposed()) {
+					return null;
+				}
 			}
 			if (this.shouldReplaceEmptyLocalSession(this._sessionResource)) {
 				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
@@ -318,8 +352,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				if (getChatSessionType(defaultResource) !== localChatSessionType) {
 					let modelRef: IChatModelReference | undefined;
 					try {
-						modelRef = await this.chatService.acquireOrLoadSession(defaultResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolveDefaultSession', defaultTypeAndReason.selectionReason);
+						modelRef = await acquireSession(defaultResource, 'ChatEditorInput#resolveDefaultSession', defaultTypeAndReason.selectionReason);
 					} catch (error) {
+						if (isCancellationError(error) || token.isCancellationRequested) {
+							return null;
+						}
 						this.logService.warn(`[ChatEditorInput] Failed to acquire default session ${defaultResource.toString()}`, error);
 					}
 					if (modelRef) {
@@ -346,8 +383,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 					this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled', sessionTypeSelectionReason: defaultTypeAndReason.selectionReason });
 				} else {
 					try {
-						this.modelRef.value = await this.chatService.acquireOrLoadSession(defaultResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolveDefaultUntitled', defaultTypeAndReason.selectionReason);
+						this.modelRef.value = await acquireSession(defaultResource, 'ChatEditorInput#resolveDefaultUntitled', defaultTypeAndReason.selectionReason);
 					} catch (error) {
+						if (isCancellationError(error) || token.isCancellationRequested) {
+							return null;
+						}
 						this.logService.warn(`[ChatEditorInput] Failed to acquire default session ${defaultResource.toString()}`, error);
 					}
 					if (this.model) {
@@ -406,6 +446,12 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this._trackModelChanges();
 		this.cachedIcon = undefined;
 		this._onDidChangeLabel.fire();
+	}
+
+	/** Release the old provider's model before resolving its replacement. */
+	releaseModel(): void {
+		this._modelChangeListener.clear();
+		this.modelRef.clear();
 	}
 
 	private _trackModelChanges(): void {

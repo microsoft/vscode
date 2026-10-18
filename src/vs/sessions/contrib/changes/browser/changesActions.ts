@@ -298,7 +298,7 @@ class ChangesMultiDiffSourceResolverContribution extends Disposable implements I
 	}
 }
 
-class ChangesetOperationsActionControllerContribution extends Disposable implements IWorkbenchContribution {
+export class ChangesetOperationsActionControllerContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.sessions.changesetOperationsActionController';
 
 	constructor(
@@ -373,12 +373,17 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 			}
 
 			for (const operation of resourceOperations) {
+				const precondition = operation.status === SessionChangesetOperationStatus.Disabled
+					|| operation.status === SessionChangesetOperationStatus.Running
+					? ContextKeyExpr.false()
+					: undefined;
 				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: `workbench.contrib.sessions.changesetOperation.${operation.id}`,
 							title: operation.label,
 							icon: operation.icon,
+							precondition,
 							f1: false,
 							menu: [{
 								id: MenuId.AgentsChangeInlineToolbar,
@@ -387,6 +392,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							},
 							{
 								id: MenuId.MultiDiffEditorFileToolbar,
+								when: ContextKeyExpr.equals('resourceScheme', 'changes-multi-diff-source'),
 								group: 'navigation',
 								order: 100
 							}]
@@ -402,9 +408,15 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 							return;
 						}
 
+						const change = changesViewService.activeSessionChangesObs.read(undefined)
+							.find(change => isChangesFileResource(change, resource));
+						if (!change) {
+							return;
+						}
+
 						await changeset?.invokeOperation(operation.id, {
 							kind: 'resource',
-							resource: getWorkspaceResource(resource, changesViewService.activeSessionChangesObs.read(undefined)),
+							resource: getChangesFileUri(change),
 						});
 					}
 				}));

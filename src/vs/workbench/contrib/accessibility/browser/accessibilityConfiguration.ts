@@ -49,6 +49,7 @@ export const enum ViewDimUnfocusedOpacityProperties {
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
+	MultiDiffEditorFileList = 'accessibility.verbosity.multiDiffEditorFileList',
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
@@ -76,6 +77,7 @@ export const enum AccessibilityVerbositySettingId {
 	SessionWorktreeCleanup = 'accessibility.verbosity.sessionWorktreeCleanup',
 	NewSessionWelcome = 'accessibility.verbosity.newSessionWelcome',
 	SessionsChanges = 'accessibility.verbosity.sessionsChanges',
+	EmptyFileEditorSearch = 'accessibility.verbosity.emptyFileEditorSearch',
 	SessionsListNotification = 'accessibility.verbosity.sessionsListNotification',
 	SessionCanvas = 'accessibility.verbosity.sessionCanvas',
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
@@ -152,6 +154,10 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.MultiDiffEditorFileList]: {
+			description: localize('verbosity.multiDiffEditorFileList.description', 'Provide information about how to navigate the changed files list in the multi diff editor when it is focused.'),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.Chat]: {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
 			...baseVerbosityProperty
@@ -198,6 +204,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.EmptyFileEditorSearch]: {
+			description: localize('verbosity.emptyFileEditorSearch', 'Provide information about how to use file search in the empty Files editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ReplEditor]: {

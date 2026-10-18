@@ -343,7 +343,6 @@ function createGitHubService(
 		}),
 		topLevelComments: missing,
 		submittedReviews: missing,
-		inlineComments: missing,
 		reviewThreads: missing,
 		checks: ready({
 			headSha: 'head',
@@ -364,14 +363,12 @@ function createGitHubService(
 			expectedSuitesComplete: true,
 		}),
 		mergeability: missing,
-		participants: missing,
 	};
 
 	const client = new class extends mock<IGitHubClient>() {
 		override readonly credentials = {
 			onDidInvalidate: Event.None,
 			getCredential,
-			resolveCredential: async () => { throw new Error('Not implemented'); },
 			handleRequestError: () => { },
 		};
 		override readonly query = new class extends mock<IGitHubClient['query']>() {
@@ -383,21 +380,11 @@ function createGitHubService(
 					resource: {
 						ref,
 						state: observableValue('repository', ready<GitHubRepository>({
-							owner: { login: 'microsoft' },
-							name: 'vscode',
 							nameWithOwner: 'microsoft/vscode',
 							language: 'TypeScript',
 							stars: 170_000,
-							defaultBranch: 'main',
-							private: false,
-							description: '',
-							url: 'https://github.com/microsoft/vscode',
-							archived: false,
-							fork: false,
 						})),
 					},
-					update: () => { },
-					refresh: async () => { },
 					dispose: () => { },
 				};
 			}

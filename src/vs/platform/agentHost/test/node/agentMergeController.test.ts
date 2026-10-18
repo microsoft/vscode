@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
+import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -21,23 +21,27 @@ import { constObservable, observableValue } from '../../../../base/common/observ
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { ChatOriginKind, SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
-import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
-import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
+import { PullRequestMutationApi, PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentMergeController, firstCredentialFailure, isSamlEnforcementError } from '../../node/agentMergeController.js';
+import type { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentMergeTools } from '../../node/agentMergeTools.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostChatContributionContext } from '../../common/agentHostChatContributionsService.js';
 import { createPullRequestOperationMeta } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 let sessionCounter = 0;
 
@@ -58,6 +62,26 @@ const noopGitService = new class extends mock<IAgentHostGitService>() {
 	override async getCurrentBranchName(directory: URI): Promise<string | undefined> { return directory.toString() === OTHER_REPOSITORY ? 'feature-tools' : 'feature'; }
 	override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
 }();
+
+/** The default chat's effective mode and approvals, and the elevation Agent Merge recorded for it. */
+function defaultChatConfig(configurationService: AgentConfigurationService, session: string) {
+	const chat = buildDefaultChatUri(session);
+	const values = configurationService.getChatConfigValues({ session, chat });
+	return {
+		mode: values?.[SessionConfigKey.Mode],
+		autoApprove: values?.[SessionConfigKey.AutoApprove],
+		injected: readAgentMergeChatInjectedConfigurations(configurationService.getSessionConfigValues(session)).get(chat),
+	};
+}
+
+/** Gives `session` the platform schema with no property a chat may set, so Agent Merge elevates session-wide. */
+function setSchemaWithoutChatProperties(stateManager: AgentHostStateManager, session: string): void {
+	const protocol = platformSessionSchema.toProtocol();
+	stateManager.setSessionConfig(session, {
+		schema: { ...protocol, properties: Object.fromEntries(Object.entries(protocol.properties).map(([key, property]) => [key, { ...property, chatMutable: undefined }])) },
+		values: {},
+	});
+}
 
 suite('AgentMergeController', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,6 +105,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -105,49 +130,65 @@ suite('AgentMergeController', () => {
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		const injected = configurationService.getSessionConfigValues(session);
-		configurationService.updateSessionConfig(session, {
-			[SessionConfigKey.Mode]: 'plan',
-			[SessionConfigKey.AgentMerge]: { enabled: false },
-		});
-		const restored = configurationService.getSessionConfigValues(session);
+		const injected = { ...defaultChatConfig(configurationService, session), agentMerge: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)) };
+		// The user changes the chat's mode while Agent Merge runs, then turns it off.
+		configurationService.updateChatConfig({ session, chat: buildDefaultChatUri(session) }, { [SessionConfigKey.Mode]: 'plan' });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+		const restored = { ...defaultChatConfig(configurationService, session), agentMerge: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)) };
 
 		assert.deepStrictEqual({
-			injected: {
-				mode: injected?.[SessionConfigKey.Mode],
-				autoApprove: injected?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(injected),
-			},
-			restored: {
-				mode: restored?.[SessionConfigKey.Mode],
-				autoApprove: restored?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(restored),
-			},
+			injected,
+			restored,
 			rootEnabled: configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled),
 		}, {
 			injected: {
 				mode: 'autopilot',
 				autoApprove: 'assisted',
-				agentMerge: {
-					enabled: true,
-					injectedConfiguration: {
-						previous: {
-							[SessionConfigKey.Mode]: 'interactive',
-							[SessionConfigKey.AutoApprove]: 'default',
-						},
-						applied: {
-							[SessionConfigKey.Mode]: 'autopilot',
-							[SessionConfigKey.AutoApprove]: 'assisted',
-						},
+				// The chat had no values of its own, so restoring falls back to the session's.
+				injected: {
+					previous: {},
+					applied: {
+						[SessionConfigKey.Mode]: 'autopilot',
+						[SessionConfigKey.AutoApprove]: 'assisted',
 					},
 				},
+				agentMerge: { enabled: true },
 			},
 			restored: {
 				mode: 'plan',
 				autoApprove: 'default',
+				injected: undefined,
 				agentMerge: { enabled: false },
 			},
 			rootEnabled: true,
+		});
+	});
+
+	test('elevates properties no chat may set session-wide', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive',
+			[SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const values = configurationService.getSessionConfigValues(session);
+		const injected = { mode: values?.[SessionConfigKey.Mode], autoApprove: values?.[SessionConfigKey.AutoApprove], session: readAgentMergeSessionState(values)?.injectedConfiguration, chat: defaultChatConfig(configurationService, session).injected };
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
+		const restoredValues = configurationService.getSessionConfigValues(session);
+
+		assert.deepStrictEqual({ injected, restored: [restoredValues?.[SessionConfigKey.Mode], restoredValues?.[SessionConfigKey.AutoApprove]] }, {
+			injected: {
+				mode: 'autopilot',
+				autoApprove: 'assisted',
+				session: {
+					previous: { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' },
+					applied: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' },
+				},
+				chat: undefined,
+			},
+			restored: ['interactive', 'default'],
 		});
 	});
 
@@ -169,44 +210,32 @@ suite('AgentMergeController', () => {
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
 		await tools.setEnabled(session, true);
-		const enabled = configurationService.getSessionConfigValues(session);
+		const enabledState = readAgentMergeSessionState(configurationService.getSessionConfigValues(session));
+		const enabled = { ...defaultChatConfig(configurationService, session), agentMerge: enabledState };
 		await tools.setEnabled(session, false);
-		const disabled = configurationService.getSessionConfigValues(session);
+		const disabled = { ...defaultChatConfig(configurationService, session), agentMerge: readAgentMergeSessionState(configurationService.getSessionConfigValues(session)) };
 
-		assert.deepStrictEqual({
-			enabled: {
-				mode: enabled?.[SessionConfigKey.Mode],
-				autoApprove: enabled?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(enabled),
-			},
-			disabled: {
-				mode: disabled?.[SessionConfigKey.Mode],
-				autoApprove: disabled?.[SessionConfigKey.AutoApprove],
-				agentMerge: readAgentMergeSessionState(disabled),
-			},
-		}, {
+		assert.deepStrictEqual({ enabled, disabled }, {
 			enabled: {
 				mode: 'autopilot',
 				autoApprove: 'assisted',
+				injected: {
+					previous: {},
+					applied: {
+						[SessionConfigKey.Mode]: 'autopilot',
+						[SessionConfigKey.AutoApprove]: 'assisted',
+					},
+				},
 				agentMerge: {
 					enabled: true,
 					overrides: { fixCI: false },
-					target: readAgentMergeSessionState(enabled)?.target,
-					injectedConfiguration: {
-						previous: {
-							[SessionConfigKey.Mode]: 'interactive',
-							[SessionConfigKey.AutoApprove]: 'default',
-						},
-						applied: {
-							[SessionConfigKey.Mode]: 'autopilot',
-							[SessionConfigKey.AutoApprove]: 'assisted',
-						},
-					},
+					target: enabledState?.target,
 				},
 			},
 			disabled: {
 				mode: 'interactive',
 				autoApprove: 'default',
+				injected: undefined,
 				agentMerge: { enabled: false, overrides: { fixCI: false } },
 			},
 		});
@@ -215,7 +244,7 @@ suite('AgentMergeController', () => {
 	test('tools enable Agent Merge for the invoking chat folder', async () => {
 		const { stateManager, configurationService, controller, gitService, session } = createControllerHarness(disposables);
 		const peerChat = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat), { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		const branchReads: string[] = [];
 		gitService.getCurrentBranchName = async directory => {
 			branchReads.push(directory.toString());
@@ -247,8 +276,9 @@ suite('AgentMergeController', () => {
 		});
 	});
 
-	test('keeps elevation until the last enabled folder stops', () => {
+	test('keeps session-wide elevation until the last enabled folder stops', () => {
 		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
 		const repoKey = getWorkingDirectoryKey(REPOSITORY);
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const values = {
@@ -262,39 +292,222 @@ suite('AgentMergeController', () => {
 		configurationService.updateSessionConfig(session, values);
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		const injected = configurationService.getSessionConfigValues(session);
+		const pick = () => {
+			const values = configurationService.getSessionConfigValues(session);
+			return { mode: values?.[SessionConfigKey.Mode], autoApprove: values?.[SessionConfigKey.AutoApprove] };
+		};
+		const injected = pick();
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
 				[repoKey]: { enabled: false },
 				[otherKey]: { enabled: true },
 			},
 		});
-		const oneRemaining = configurationService.getSessionConfigValues(session);
+		const oneRemaining = pick();
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: {
 				[repoKey]: { enabled: false },
 				[otherKey]: { enabled: false },
 			},
 		});
-		const restored = configurationService.getSessionConfigValues(session);
+		const restored = pick();
 
-		assert.deepStrictEqual({
-			injected: {
-				mode: injected?.[SessionConfigKey.Mode],
-				autoApprove: injected?.[SessionConfigKey.AutoApprove],
-			},
-			oneRemaining: {
-				mode: oneRemaining?.[SessionConfigKey.Mode],
-				autoApprove: oneRemaining?.[SessionConfigKey.AutoApprove],
-			},
-			restored: {
-				mode: restored?.[SessionConfigKey.Mode],
-				autoApprove: restored?.[SessionConfigKey.AutoApprove],
-			},
-		}, {
+		assert.deepStrictEqual({ injected, oneRemaining, restored }, {
 			injected: { mode: 'autopilot', autoApprove: 'assisted' },
 			oneRemaining: { mode: 'autopilot', autoApprove: 'assisted' },
 			restored: { mode: 'interactive', autoApprove: 'default' },
+		});
+	});
+
+	test('same-chat native re-enablement refreshes the monitor sponsor only after the active turn settles', () => {
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const first: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'first', revision: 1, expiresAt: undefined }) };
+		const second: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'second', revision: 1, expiresAt: undefined }) };
+		let selected = first;
+		const captures: string[] = [];
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialSource = () => selected;
+		gitHubService.captureSessionCredentialSource = (_chat, source) => {
+			const captured = source ?? selected;
+			captures.push(captured.getCredential({ resource: principal.apiOrigin })!.token);
+			return captured;
+		};
+		const { stateManager, configurationService, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		const chat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date().toISOString(),
+			message: { text: 'Already admitted', origin: { kind: MessageKind.User } },
+		});
+		selected = second;
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: false } },
+		});
+		const busyCaptures = [...captures];
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'running', duration: 1 });
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true, overrides: { fixCI: true } },
+		});
+		assert.deepStrictEqual({ busyCaptures, captures }, { busyCaptures: ['first'], captures: ['first', 'second'] });
+	});
+
+	test('failed configuration sponsorship leaves configuration and the previous binding unchanged', () => {
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const first: IAgentHostCredentialSource = { principal, getCredential: request => ({ resource: request.resource, token: 'first', revision: 1, expiresAt: undefined }) };
+		let selected: IAgentHostCredentialSource | undefined = first;
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialSource = () => selected;
+		gitHubService.getAgentMergeCredentialBinding = () => selected;
+		gitHubService.bindAgentMergeCredentialSource = (_session, _chat, source) => { selected = source; };
+		gitHubService.captureSessionCredentialSource = (_chat, source) => source
+			? captureCredentialSource(source, [{ resource: principal.apiOrigin }])
+			: undefined;
+		const { stateManager, configurationService, controller, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const missing: IAgentHostCredentialSource = { principal, getCredential: () => { throw new Error('Connection ended'); } };
+		let dispatched = false;
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, missing, () => { dispatched = true; }), /Connection ended/);
+		assert.deepStrictEqual({
+			dispatched,
+			unchanged: selected === first,
+			enabled: readAgentMergeSessionState(configurationService.getSessionConfigValues(session))?.enabled,
+		}, { dispatched: false, unchanged: true, enabled: undefined });
+	});
+
+	test('failed configuration sponsorship restores an absent explicit binding rather than pinning the execution default', () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+		const source = (token: string): IAgentHostCredentialSource => ({
+			principal, getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined }),
+		});
+		const first = source('first');
+		const second = source('second');
+		const gitHubService = createTestGitHubService();
+		gitHubService.getAgentMergeCredentialBinding = chat => authentication.getSessionCredentialSource(chat, 'agentMerge');
+		gitHubService.getAgentMergeCredentialSource = chat => gitHubService.getAgentMergeCredentialBinding(chat) ?? authentication.getSessionCredentialSource(chat);
+		gitHubService.bindAgentMergeCredentialSource = (session, chat, source) => authentication.bindSessionCredentials(session, source, chat, 'agentMerge');
+		gitHubService.captureSessionCredentialSource = (_chat, source) => source ? captureCredentialSource(source, [{ resource: principal.apiOrigin }]) : undefined;
+		const { stateManager, controller, session } = createControllerHarness(disposables, undefined, Event.None, gitHubService);
+		const chat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		authentication.bindSessionCredentials(session, first, chat);
+		assert.throws(() => controller.dispatchConfigurationWithCredentials(session, {
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		}, second, () => { throw new Error('Configuration rejected'); }), /Configuration rejected/);
+		authentication.bindSessionCredentials(session, second, chat);
+		assert.deepStrictEqual({
+			explicit: gitHubService.getAgentMergeCredentialBinding(chat),
+			effectiveToken: gitHubService.getAgentMergeCredentialSource(chat)?.getCredential({ resource: principal.apiOrigin })?.token,
+		}, { explicit: undefined, effectiveToken: 'second' });
+	});
+
+	test('elevates a multi-root chat for any of its folders, and session-wide for a folder no chat has', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' });
+		const defaultChat = buildDefaultChatUri(session);
+		// The peer's first folder is elsewhere; the enabled folder is its second.
+		const peerChat = buildChatUri(session, 'multi-root');
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, defaultChat), { workingDirectories: ['file:///first', OTHER_REPOSITORY] });
+		// A later chat with the same folder loses the tie to the earlier one in the catalog.
+		const laterChat = buildChatUri(session, 'later');
+		stateManager.addChat(session, laterChat, creationTimeChatStorageResource(session, laterChat, defaultChat), { workingDirectories: ['file:///second', OTHER_REPOSITORY] });
+		const orphanKey = getWorkingDirectoryKey('file:///no-chat');
+		const read = () => ({
+			session: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getSessionConfigValues(session)?.[key]),
+			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
+			later: configurationService.getChatOwnConfigValues({ session, chat: laterChat }),
+			defaultChat: configurationService.getChatOwnConfigValues({ session, chat: defaultChat }),
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: true } } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const secondFolder = read();
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: false }, [orphanKey]: { enabled: true } } });
+		const noChat = read();
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: false }, [orphanKey]: { enabled: false } } });
+
+		assert.deepStrictEqual({ secondFolder, noChat, none: read() }, {
+			secondFolder: { session: ['interactive', 'default'], peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' }, later: {}, defaultChat: {} },
+			noChat: { session: ['autopilot', 'assisted'], peer: {}, later: {}, defaultChat: {} },
+			none: { session: ['interactive', 'default'], peer: {}, later: {}, defaultChat: {} },
+		});
+	});
+
+	test('never elevates a subagent that owns the folder\'s repairs, but a normal chat working in it', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' });
+		const defaultChat = buildDefaultChatUri(session);
+		// A subagent of the default chat works in the folder and comes first in the catalog, so it owns the folder's repairs.
+		const subagent = buildChatUri(session, 'subagent');
+		stateManager.addChat(session, subagent, creationTimeChatStorageResource(session, subagent, defaultChat), { workingDirectories: [OTHER_REPOSITORY], origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'spawn' } });
+		const peerChat = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, defaultChat), { workingDirectories: [OTHER_REPOSITORY] });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(OTHER_REPOSITORY)]: { enabled: true } } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+
+		assert.deepStrictEqual({
+			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
+			defaultChat: configurationService.getChatOwnConfigValues({ session, chat: defaultChat }),
+		}, {
+			peer: { [SessionConfigKey.Mode]: 'autopilot', [SessionConfigKey.AutoApprove]: 'assisted' },
+			defaultChat: {},
+		});
+	});
+
+	test('elevates the own values of the chat that owns each enabled folder, and restores them when it owns none', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		const protocol = platformSessionSchema.toProtocol();
+		stateManager.setSessionConfig(session, {
+			schema: {
+				...protocol, properties: {
+					...protocol.properties,
+					[SessionConfigKey.Mode]: { ...protocol.properties[SessionConfigKey.Mode], chatMutable: true },
+					[SessionConfigKey.AutoApprove]: { ...protocol.properties[SessionConfigKey.AutoApprove], chatMutable: true },
+				}
+			},
+			values: { [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default' },
+		});
+		const defaultChat = buildDefaultChatUri(session);
+		const peerChat = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, defaultChat), { workingDirectories: [OTHER_REPOSITORY], config: { values: { [SessionConfigKey.AutoApprove]: 'default' } } });
+		const repoKey = getWorkingDirectoryKey(REPOSITORY);
+		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
+		const snapshot = () => ({
+			session: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getSessionConfigValues(session)?.[key]),
+			defaultChat: [SessionConfigKey.Mode, SessionConfigKey.AutoApprove].map(key => configurationService.getChatConfigValues({ session, chat: defaultChat })?.[key]),
+			peer: configurationService.getChatOwnConfigValues({ session, chat: peerChat }),
+			elevation: Object.fromEntries([...readAgentMergeChatInjectedConfigurations(configurationService.getSessionConfigValues(session))].map(([chat, injected]) => [chat === defaultChat ? 'default' : 'peer', injected.previous])),
+		});
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: true }, [otherKey]: { enabled: true } } });
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const both = snapshot();
+		// Narrowing does not wait for the peer's turn to end.
+		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatTurnStarted, turnId: 'peer-turn', startedAt: new Date().toISOString(), message: { text: 'go', origin: { kind: MessageKind.User } } });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: true } } });
+		const peerOnly = snapshot();
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMergeFolders]: { [repoKey]: { enabled: false }, [otherKey]: { enabled: false } } });
+
+		assert.deepStrictEqual({ both, peerOnly, none: snapshot() }, {
+			both: {
+				session: ['interactive', 'default'],
+				defaultChat: ['autopilot', 'assisted'],
+				peer: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+				elevation: { default: {}, peer: { [SessionConfigKey.AutoApprove]: 'default' } },
+			},
+			peerOnly: {
+				session: ['interactive', 'default'],
+				defaultChat: ['interactive', 'default'],
+				peer: { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'autopilot' },
+				elevation: { peer: { [SessionConfigKey.AutoApprove]: 'default' } },
+			},
+			none: {
+				session: ['interactive', 'default'],
+				defaultChat: ['interactive', 'default'],
+				peer: { [SessionConfigKey.AutoApprove]: 'default' },
+				elevation: {},
+			},
 		});
 	});
 
@@ -330,6 +543,11 @@ suite('AgentMergeController', () => {
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const started = new DeferredPromise<void>();
 		const startTurns: { readonly chat: string; readonly prompt: string }[] = [];
+		const source: IAgentHostCredentialSource = {
+			principal: { apiOrigin: 'https://api.github.com', userId: '1' },
+			getCredential: request => ({ resource: request.resource, token: 'captured-repair-token', revision: 1, expiresAt: undefined }),
+		};
+		const turnSources: (IAgentHostCredentialSource | undefined)[] = [];
 		const notices: { readonly chat: string; readonly kind: AgentSystemNotificationKind }[] = [];
 		const snapshot = repairSnapshot();
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
@@ -343,8 +561,9 @@ suite('AgentMergeController', () => {
 		}();
 		disposables.add(new AgentMergeController(
 			{
-				startTurn: (chat, _turnId, prompt) => {
+				startTurn: (chat, _turnId, prompt, credentials) => {
 					startTurns.push({ chat, prompt });
+					turnSources.push(credentials);
 					started.complete();
 					return true;
 				},
@@ -352,6 +571,7 @@ suite('AgentMergeController', () => {
 				postNotice: (chat, kind) => notices.push({ chat, kind }),
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -371,13 +591,13 @@ suite('AgentMergeController', () => {
 						};
 					}
 				}();
-			}()),
+			}(), Event.None, {}, source),
 			disposables.add(new AgentHostGitHubEndpointService(configurationService, logService)),
 			createProviderService(() => ({})),
 			logService,
 		));
 		stateManager.createSession(summary(session));
-		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat), { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
 		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
@@ -398,16 +618,18 @@ suite('AgentMergeController', () => {
 		assert.deepStrictEqual({
 			startTurns: startTurns.map(turn => ({ chat: turn.chat, hasPrompt: turn.prompt.includes('Build') })),
 			notices,
+			turnSources: turnSources.map(source => source?.getCredential({ resource: 'https://api.github.com' })?.token),
 		}, {
 			startTurns: [{ chat: peerChat, hasPrompt: true }],
 			notices: [{ chat: peerChat, kind: AgentSystemNotificationKind.AgentMergeEnabled }],
+			turnSources: ['captured-repair-token'],
 		});
 	});
 
 	test('only the chat running a repair turn may use its authorization, and removing that chat ends the turn', async () => {
 		const { stateManager, controller, session, peerChat, refreshes, start } = createPeerRepairHarness(disposables);
 		const sameFolderChat = buildChatUri(session, 'same-folder');
-		stateManager.addChat(session, sameFolderChat, creationTimeChatStorageResource(session, sameFolderChat), { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, sameFolderChat, creationTimeChatStorageResource(session, sameFolderChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		await start();
 		const authorized = { owner: controller.getTurnContext(peerChat) !== undefined, sameFolder: controller.getTurnContext(sameFolderChat) !== undefined };
 
@@ -426,11 +648,11 @@ suite('AgentMergeController', () => {
 
 		function createReviewReplyHarness() {
 			const initial = repairSnapshot();
-			const replies: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
-			const mutations = new class extends mock<IPullRequestMutations>() {
+			const replies: Parameters<PullRequestMutationApi['replyAndResolveThread']>[] = [];
+			const mutations = new class extends mock<PullRequestMutationApi>() {
 				outcome: 'pending' | 'succeeded' | 'reconciled' | 'indeterminate' = 'pending';
 				beforeReply: (() => Promise<void>) | undefined;
-				override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
+				override async replyAndResolveThread(...args: Parameters<PullRequestMutationApi['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
 					replies.push(args);
 					await this.beforeReply?.();
 					const published = this.outcome === 'succeeded' || this.outcome === 'reconciled';
@@ -746,6 +968,31 @@ suite('AgentMergeController', () => {
 		}
 	}));
 
+	test('requests authentication rather than logging an error when isolated monitoring has no sponsor', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const gitHubService = createTestGitHubService();
+		gitHubService.captureSessionCredentialSource = () => {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The monitor sponsor must authenticate');
+		};
+		gitHubService.acquireRepositoryClient = (_signal, source) => {
+			source?.getCredential({ resource: 'https://api.github.com/repos' });
+			throw new Error('An unavailable source cannot acquire a repository client');
+		};
+		const h = createControllerHarness(disposables, repairSnapshot(), Event.None, gitHubService);
+		const authenticationRequests: string[] = [];
+		disposables.add(h.stateManager.onDidEmitNotification(notification => {
+			if (notification.type === 'auth/required') {
+				authenticationRequests.push(notification.type);
+			}
+		}));
+		h.stateManager.setSessionMeta(h.session, withSessionGitHubState(withSessionGitState(undefined, { branchName: 'feature' }), REPOSITORY, {
+			pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature',
+		}));
+		h.configurationService.updateSessionConfig(h.session, { [SessionConfigKey.AgentMerge]: { enabled: true } });
+		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+		await timeout(1);
+		assert.deepStrictEqual({ authenticationRequests, errors: h.errors }, { authenticationRequests: ['auth/required'], errors: [] });
+	}));
+
 	test('rechecks peer folder options after attachment without blocking on another chat', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createPeerRepairHarness(disposables);
 		try {
@@ -789,7 +1036,7 @@ suite('AgentMergeController', () => {
 			const otherSession = `copilot:/agent-merge-controller-${++sessionCounter}`;
 			stateManager.createSession(summary(otherSession));
 			const foreignChat = buildChatUri(otherSession, 'foreign');
-			stateManager.addChat(otherSession, foreignChat, creationTimeChatStorageResource(otherSession, foreignChat), { workingDirectories: [OTHER_REPOSITORY] });
+			stateManager.addChat(otherSession, foreignChat, creationTimeChatStorageResource(otherSession, foreignChat, buildDefaultChatUri(otherSession)), { workingDirectories: [OTHER_REPOSITORY] });
 			return foreignChat;
 		});
 		await start();
@@ -832,20 +1079,21 @@ suite('AgentMergeController', () => {
 			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		const injected = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.Mode];
+		const injected = defaultChatConfig(configurationService, session).mode;
 
-		configurationService.updateSessionConfig(session, { [SessionConfigKey.Mode]: 'plan' });
+		configurationService.updateChatConfig({ session, chat: buildDefaultChatUri(session) }, { [SessionConfigKey.Mode]: 'plan' });
+		configurationService.updateSessionConfig(session, { [SessionConfigKey.AgentMerge]: { enabled: false } });
 
-		assert.deepStrictEqual({ injected, afterUserChange: configurationService.getSessionConfigValues(session)?.[SessionConfigKey.Mode] }, {
+		assert.deepStrictEqual({ injected, afterUserChangeAndStop: defaultChatConfig(configurationService, session).mode }, {
 			injected: 'autopilot',
-			afterUserChange: 'plan',
+			afterUserChangeAndStop: 'plan',
 		});
 	});
 
 	test('posts notices to the chat that turned Agent Merge on', () => {
 		const { stateManager, configurationService, session, noticeChats } = createControllerHarness(disposables);
 		const peerChat = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat), { workingDirectories: [REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [REPOSITORY] });
 		configurationService.updateSessionConfig(session, {
 			[SessionConfigKey.AgentMergeFolders]: { [getWorkingDirectoryKey(REPOSITORY)]: { enabled: true, chat: peerChat } },
 		});
@@ -895,16 +1143,11 @@ suite('AgentMergeController', () => {
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 
-		const values = configurationService.getSessionConfigValues(session);
-		assert.deepStrictEqual({
-			mode: values?.[SessionConfigKey.Mode],
-			autoApprove: values?.[SessionConfigKey.AutoApprove],
-			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
-		}, {
+		assert.deepStrictEqual(defaultChatConfig(configurationService, session), {
 			mode: 'autopilot',
 			autoApprove: 'default',
 			injected: {
-				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				previous: {},
 				applied: { [SessionConfigKey.Mode]: 'autopilot' },
 			},
 		});
@@ -918,23 +1161,17 @@ suite('AgentMergeController', () => {
 			[SessionConfigKey.AgentMerge]: { enabled: true },
 		});
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
-		const elevated = configurationService.getSessionConfigValues(session)?.[SessionConfigKey.AutoApprove];
+		const elevated = defaultChatConfig(configurationService, session).autoApprove;
 
 		// Policy revokes the elevated level while the session stays enabled.
 		configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
 
-		const values = configurationService.getSessionConfigValues(session);
-		assert.deepStrictEqual({
-			elevated,
-			mode: values?.[SessionConfigKey.Mode],
-			autoApprove: values?.[SessionConfigKey.AutoApprove],
-			injected: readAgentMergeSessionState(values)?.injectedConfiguration,
-		}, {
+		assert.deepStrictEqual({ elevated, ...defaultChatConfig(configurationService, session) }, {
 			elevated: 'assisted',
 			mode: 'autopilot',
 			autoApprove: 'default',
 			injected: {
-				previous: { [SessionConfigKey.Mode]: 'interactive' },
+				previous: {},
 				applied: { [SessionConfigKey.Mode]: 'autopilot' },
 			},
 		});
@@ -1048,6 +1285,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1318,6 +1556,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			noopGitService,
@@ -1371,6 +1610,7 @@ suite('AgentMergeController', () => {
 				postNotice: () => { },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			new class extends mock<IAgentHostGitService>() {
@@ -1567,7 +1807,7 @@ suite('AgentMergeController', () => {
 		}));
 	}
 
-	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None): {
+	function createControllerHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, snapshot?: PullRequestSnapshot, onDidChangeRepositoryClient: Event<void> = Event.None, githubService?: IAgentHostGitHubService): {
 		readonly stateManager: AgentHostStateManager;
 		readonly configurationService: AgentConfigurationService;
 		readonly gitService: IAgentHostGitService;
@@ -1608,10 +1848,11 @@ suite('AgentMergeController', () => {
 				},
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			gitService,
-			createTestGitHubService(new class extends mock<IGitHubClient>() {
+			githubService ?? createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						assert.ok(snapshot);
@@ -1653,7 +1894,7 @@ suite('AgentMergeController', () => {
 	 * for that folder and owned by `owningChat` (the peer chat by default). The
 	 * pull request has a failing check, so the controller starts a repair turn.
 	 */
-	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: IPullRequestMutations) {
+	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: PullRequestMutationApi) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1694,11 +1935,12 @@ suite('AgentMergeController', () => {
 				postNotice: (chat, kind, content) => { notices.push({ chat, kind, content }); },
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			gitService,
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
-				override readonly mutations = mutations ?? new class extends mock<IPullRequestMutations>() { }();
+				override readonly mutations = mutations ?? new class extends mock<PullRequestMutationApi>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 						return { account: snapshot.get().ref, token: 'test-token', generation: 1, signal };
@@ -1720,7 +1962,7 @@ suite('AgentMergeController', () => {
 			logService,
 		));
 		stateManager.createSession(summary(session));
-		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat), { workingDirectories: [OTHER_REPOSITORY] });
+		stateManager.addChat(session, peerChat, creationTimeChatStorageResource(session, peerChat, buildDefaultChatUri(session)), { workingDirectories: [OTHER_REPOSITORY] });
 		stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		stateManager.setSessionMeta(session, withFolderGitHubState(undefined, otherKey, { pullRequestUrls: ['https://github.com/octo/repo/pull/1'], pullRequestBranchName: 'feature-tools' }));
 		const start = () => {
@@ -1752,11 +1994,9 @@ suite('AgentMergeController', () => {
 				},
 				topLevelComments: { status: 'missing', complete: false },
 				submittedReviews: { status: 'missing', complete: false },
-				inlineComments: { status: 'missing', complete: false },
 				reviewThreads: { status: 'missing', complete: false },
 				checks: { status: 'missing', complete: false },
 				mergeability: { status: 'missing', complete: false },
-				participants: { status: 'missing', complete: false },
 			};
 			const { stateManager, configurationService, session, notices } = createControllerHarness(disposables, snapshot);
 			stateManager.setSessionMeta(session, withSessionGitHubState(
@@ -1813,6 +2053,7 @@ suite('AgentMergeController', () => {
 				postNotice: (_session, kind, content) => notices.push({ kind, content }),
 			},
 			stateManager,
+			createTestChatOwnershipService(stateManager),
 			configurationService,
 			gitStateService,
 			new class extends mock<IAgentHostGitService>() {
@@ -2101,7 +2342,6 @@ function repairSnapshot(): PullRequestSnapshot {
 		},
 		topLevelComments: { status: 'ready', complete: true, value: [] },
 		submittedReviews: { status: 'ready', complete: true, value: [] },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'ready', complete: true, headSha: 'head', value: [] },
 		checks: {
 			status: 'ready',
@@ -2133,11 +2373,10 @@ function repairSnapshot(): PullRequestSnapshot {
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	};
 }
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
 	return {
 		resource,
@@ -2147,5 +2386,6 @@ function summary(resource: string): SessionSummary {
 		createdAt: now,
 		modifiedAt: now,
 		workingDirectories: [REPOSITORY],
+		defaultChat: buildDefaultChatUri(resource),
 	};
 }

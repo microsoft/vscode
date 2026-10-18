@@ -6,6 +6,7 @@
 import { localize } from '../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarFocusContext, EditorAreaFocusContext } from '../../workbench/common/contextkeys.js';
+import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from './sessionConfig.js';
 
 //#region < --- Active Session --- >
 
@@ -121,7 +122,8 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 //#region < --- Experiments --- >
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
-export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT = true;
+export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
 
 //#endregion
@@ -186,5 +188,19 @@ export const DesktopFilesTabAvailableContext = new RawContextKey<boolean>('agent
 
 export const IsPhoneLayoutContext = new RawContextKey<boolean>('sessionsIsPhoneLayout', false, localize('sessionsIsPhoneLayout', "Whether the current layout is the phone layout"));
 export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
+
+/**
+ * Whether the desktop layout shows the Session Activity Bar with its layout actions. It then hosts
+ * the Toggle Side Panel and Toggle Panel actions in place of the title bar. The activity bar is
+ * hidden while the editor is maximized (which hides the Sessions part) and in the phone layout, so
+ * the title bar keeps the toggles then.
+ */
+export const SessionActivityBarLayoutActionsContext = ContextKeyExpr.and(
+	DesktopLayoutContext,
+	IsPhoneLayoutContext.negate(),
+	EditorMaximizedContext.negate(),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`, true),
+)!;
 
 //#endregion

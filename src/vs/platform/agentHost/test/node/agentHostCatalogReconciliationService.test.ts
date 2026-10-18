@@ -5,19 +5,21 @@
 
 import * as assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
-import { type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import type { AgentProvider } from '../../common/agent.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
-import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
+import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 function catalogData(summary: string): AgentHostCatalogData {
@@ -43,10 +45,10 @@ function summaryOf(payload: string): string {
 	return JSON.parse(payload).data.summary;
 }
 
-function registered(name: string): IRegisteredSession {
+function registered(name: string, provider: AgentProvider = 'copilot'): IRegisteredSession {
 	return {
 		session: URI.parse(`agenthost:${name}`),
-		provider: 'copilot',
+		provider,
 		startTime: 1,
 		modifiedTime: 1,
 		external: false,
@@ -176,9 +178,9 @@ interface ITestHarness {
 suite('AgentHostCatalogReconciliationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createHarness(names: readonly string[], missing: ReadonlySet<string> = new Set()): Promise<ITestHarness> {
+	async function createHarness(names: readonly string[], missing: ReadonlySet<string> = new Set(), providerOf?: (name: string) => AgentProvider): Promise<ITestHarness> {
 		const central = store.add(new RecordingCatalogDatabase());
-		const sessions = names.map(registered);
+		const sessions = names.map(name => registered(name, providerOf?.(name)));
 		for (const session of sessions) {
 			await central.registerSessionV2(session.session.toString(), {
 				provider: session.provider,
@@ -204,12 +206,22 @@ suite('AgentHostCatalogReconciliationService', () => {
 				return database ? reference(database) : undefined;
 			},
 			deleteSessionData: async () => { },
+			deleteSessionDataExcept: async () => { },
 			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
 		const storage = new TestStorageService();
-		const sync = new AgentHostCatalogSyncService(sessionDataService, central, new NullLogService());
+		const stateDatabase = new AgentHostDatabase(':memory:');
+		store.add(toDisposable(() => { void stateDatabase.close(); }));
+		const sync = new AgentHostCatalogSyncService(sessionDataService, central, createTestSessionStateStore(stateDatabase, {
+			// The state store's own loads are not part of the opens these tests account for.
+			...sessionDataService,
+			tryOpenDatabase: async session => {
+				const database = locals.get(session.toString());
+				return database ? reference(database) : undefined;
+			},
+		}), new NullLogService());
 		return {
 			central,
 			locals,
@@ -325,6 +337,169 @@ suite('AgentHostCatalogReconciliationService', () => {
 			migrated: ['agenthost:a', 'agenthost:b', 'agenthost:c', 'agenthost:a'],
 			databaseOpens: 0,
 		});
+	});
+
+	test('the chat conversion batch also hands normalized catalogs an older build edited to the import, and no others', async () => {
+		const harness = await createHarness(['a', 'b']);
+		for (const owner of ['a', 'b']) {
+			await harness.central.registerChatCatalogV2(`agenthost:${owner}`, {
+				defaultChat: { chat: `agenthost-chat:${owner}/default`, order: 0 },
+				peers: [{ chat: `agenthost-chat:${owner}/peer`, order: 1 }],
+				privateDescendants: [],
+			});
+		}
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does: with the revision.
+		const raw = await harness.central['_ensureDatabase']();
+		await new Promise<void>((resolve, reject) => raw.exec(
+			`UPDATE session_chats SET archived = 1 WHERE session_uri = 'agenthost:a';
+			UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = 'agenthost:a'`,
+			error => error ? reject(error) : resolve(),
+		));
+		const migrated: string[] = [];
+		await harness.createService(async () => {
+			throw new Error('Chat conversion must not resolve a provider');
+		}, { migrateChatCatalog: async session => { migrated.push(session.toString()); } }).runPass();
+		assert.deepStrictEqual(migrated, ['agenthost:a']);
+	});
+
+	test('a conversion that waits for the session\'s re-projection is retried right after it, in the same pass', async () => {
+		const harness = await createHarness(['a']);
+		const attempts: string[] = [];
+		const scheduler = new TestScheduler();
+		const service: AgentHostCatalogReconciliationService = harness.createService(undefined, {
+			schedule: scheduler.schedule,
+			// As the agent service's conversion: not ready until the aggregate is verified and clean.
+			migrateChatCatalog: async session => {
+				const source = await harness.central.getSessionV2(session.toString());
+				if (!source?.verified || source.payloadDirty !== 0) {
+					attempts.push('notReady');
+					service.convertAfterReprojection(session.toString());
+				} else {
+					attempts.push('converted');
+				}
+			},
+		});
+		await service.runPass();
+		assert.deepStrictEqual(attempts, ['notReady', 'converted']);
+	});
+
+	test('a conversion that stays not ready is retried after re-projection at most five times, then at the batches\' cadence', async () => {
+		const harness = await createHarness(['a']);
+		const scheduler = new TestScheduler();
+		let attempts = 0;
+		const service: AgentHostCatalogReconciliationService = harness.createService(undefined, {
+			schedule: scheduler.schedule,
+			migrateChatCatalog: async session => {
+				attempts++;
+				service.convertAfterReprojection(session.toString());
+			},
+		});
+		const perPass: number[] = [];
+		for (let pass = 0; pass < 7; pass++) {
+			attempts = 0;
+			await service.runPass();
+			perPass.push(attempts);
+		}
+		// The first batch attempt and its prompt retry; then one prompt retry per pass while the budget lasts (the batch
+		// skips a session that waits for its re-projection), then one conversion batch attempt per pass.
+		assert.deepStrictEqual(perPass, [2, 1, 1, 1, 1, 1, 1]);
+	});
+
+	test('sessions whose re-projection cannot happen are not retried by conversion, and convert once they can', async () => {
+		// Twelve 30 s passes (six minutes) over legacy sessions whose provider cannot vouch for them: the shape that
+		// re-queued about 110 sessions ten times each in production.
+		const names = Array.from({ length: 12 }, (_, index) => `old-${String(index).padStart(2, '0')}`);
+		const harness = await createHarness(names);
+		const scheduler = new TestScheduler();
+		let resolvable = false;
+		let attempts = 0;
+		const converted = new Set<string>();
+		const service: AgentHostCatalogReconciliationService = harness.createService(async session => resolvable
+			? { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: {} } }
+			: { status: 'sourceUnresolvable' }, {
+			batchSize: 4,
+			schedule: scheduler.schedule,
+			// As the agent service's conversion: not ready, from central state alone, until the aggregate is verified and clean.
+			migrateChatCatalog: async session => {
+				attempts++;
+				const source = await harness.central.getSessionV2(session.toString());
+				if (!source?.verified || source.payloadDirty !== 0) {
+					service.convertAfterReprojection(session.toString());
+				} else {
+					converted.add(session.toString());
+				}
+			},
+		});
+		service.schedule();
+		scheduler.run(1000);
+		await service.whenIdle();
+		const perPass: { attempts: number; databaseOpens: number }[] = [];
+		for (let pass = 0; pass < 12; pass++) {
+			attempts = 0;
+			const opens = harness.getDatabaseOpenAttempts();
+			await service.runPass();
+			perPass.push({ attempts, databaseOpens: harness.getDatabaseOpenAttempts() - opens });
+		}
+		const followUps = scheduler.allDelays.filter(delay => delay === 30 * 1000).length;
+		// Writes to a waiting session (its metadata, say) owe no pass either: only its re-projection releases it.
+		const backgroundPasses = scheduler.allDelays.filter(delay => delay === 1000).length;
+		for (const name of names) {
+			service.convertAfterReprojection(`agenthost:${name}`);
+		}
+		const passesOwedByWrites = scheduler.allDelays.filter(delay => delay === 1000).length - backgroundPasses;
+
+		// The provider can vouch for them again (it registered, say): every session converts right after its re-projection.
+		resolvable = true;
+		service.wakeParkedSessions();
+		for (let pass = 0; pass < 3; pass++) {
+			await service.runPass();
+		}
+
+		assert.deepStrictEqual({ perPass, followUps, passesOwedByWrites, converted: [...converted].sort() }, {
+			// The batch reaches four sessions per pass, each attempted once without a session database, and the
+			// re-projections that park them are the only opens. Nothing is retried after.
+			perPass: [
+				{ attempts: 4, databaseOpens: 4 },
+				{ attempts: 4, databaseOpens: 4 },
+				...Array.from({ length: 10 }, () => ({ attempts: 0, databaseOpens: 0 })),
+			],
+			followUps: 0,
+			passesOwedByWrites: 0,
+			converted: names.map(name => `agenthost:${name}`),
+		});
+	});
+
+	test('older-build imports run one batch per pass, the rest carried to the next passes', async () => {
+		const owners = ['a', 'b', 'c', 'd', 'e'];
+		const harness = await createHarness(owners);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write session_chats as a build without normalized authority does: with the revision.
+		const raw = await harness.central['_ensureDatabase']();
+		const exec = (sql: string) => new Promise<void>((resolve, reject) => raw.exec(sql, error => error ? reject(error) : resolve()));
+		for (const owner of owners) {
+			await harness.central.registerChatCatalogV2(`agenthost:${owner}`, {
+				defaultChat: { chat: `agenthost-chat:${owner}/default`, order: 0 },
+				peers: [{ chat: `agenthost-chat:${owner}/peer`, order: 1 }],
+				privateDescendants: [],
+			});
+			await exec(`UPDATE session_chats SET archived = 1 WHERE session_uri = 'agenthost:${owner}';
+				UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = 'agenthost:${owner}'`);
+		}
+		let migrated: string[] = [];
+		const service = harness.createService(undefined, {
+			batchSize: 2,
+			// The import leaves the catalog current, as the peer store's does.
+			migrateChatCatalog: async session => {
+				migrated.push(session.toString());
+				await exec(`UPDATE session_chat_catalogs SET projected_revision = revision WHERE session_uri = '${session.toString()}'`);
+			},
+		});
+		const passes: string[][] = [];
+		for (let pass = 0; pass < 4; pass++) {
+			await service.runPass();
+			passes.push(migrated);
+			migrated = [];
+		}
+		assert.deepStrictEqual(passes, [['agenthost:a', 'agenthost:b'], ['agenthost:c', 'agenthost:d'], ['agenthost:e'], []]);
 	});
 
 	test('damaged normalized private metadata and a failed conversion do not block healthy repair or migration progress', async () => {
@@ -555,7 +730,8 @@ suite('AgentHostCatalogReconciliationService', () => {
 				firstSourceStarted();
 				await firstSourceGate;
 			}
-			return { status: 'providerUnavailable' };
+			// A failure that is not parked leaves the session dirty for the trailing pass.
+			throw new Error('source failed');
 		});
 
 		const fullPass = service.runFullPass();
@@ -572,12 +748,12 @@ suite('AgentHostCatalogReconciliationService', () => {
 			markAllCalls: harness.central.markAllCalls,
 		}, {
 			fullOutcomes: [
-				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
-				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
+				{ session: 'agenthost:one', status: 'failed', reason: 'unexpected', error: 'source failed' },
+				{ session: 'agenthost:one', status: 'failed', reason: 'unexpected', error: 'source failed' },
 			],
 			joinedOutcomes: [
-				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
-				{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' },
+				{ session: 'agenthost:one', status: 'failed', reason: 'unexpected', error: 'source failed' },
+				{ session: 'agenthost:one', status: 'failed', reason: 'unexpected', error: 'source failed' },
 			],
 			sourceResolutions: 2,
 			markAllCalls: 1,
@@ -604,7 +780,8 @@ suite('AgentHostCatalogReconciliationService', () => {
 				trailingSourceStarted();
 				await trailingSourceGate;
 			}
-			return { status: 'providerUnavailable' };
+			// A failure that is not parked leaves the session dirty for the trailing pass.
+			throw new Error('source failed');
 		});
 
 		const fullPass = service.runFullPass();
@@ -699,6 +876,31 @@ suite('AgentHostCatalogReconciliationService', () => {
 				['agenthost:one', 'agenthost:three'],
 				['agenthost:two', 'agenthost:one'],
 			],
+		});
+	});
+
+	test('an upgraded verification version repairs clean catalogs once and persists the new version', async () => {
+		const harness = await createHarness(['one']);
+		const session = registered('one');
+		await harness.sync.synchronize(session.session, { data: catalogData('one'), legacyMetadata: { customTitle: 'one' } });
+		const storage = new TestStorageService();
+		storage.set(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION - 1);
+		const resolveSource = async (): Promise<AgentHostCatalogReconciliationSourceResult> => ({
+			status: 'available',
+			request: { data: { ...catalogData('one'), isArchived: true }, legacyMetadata: { customTitle: 'one', isArchived: 'true' } },
+		});
+		const upgraded = harness.createService(resolveSource, undefined, storage);
+		await upgraded.runPass();
+		const restarted = harness.createService(resolveSource, undefined, storage);
+		const afterRestart = await restarted.runPass();
+		const row = await harness.central.getSessionV2(session.session.toString());
+		assert.deepStrictEqual({
+			archived: row && JSON.parse(row.payload).data.isArchived,
+			markAllCalls: harness.central.markAllCalls,
+			verificationVersion: storage.get(AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY),
+			afterRestart: afterRestart.outcomes,
+		}, {
+			archived: true, markAllCalls: 1, verificationVersion: CATALOG_VERIFICATION_VERSION, afterRestart: [],
 		});
 	});
 
@@ -985,7 +1187,7 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
-	test('keeps provider-unavailable payloads dirty without evicting the cached row', async () => {
+	test('parks a provider-unavailable session with its payload dirty, without evicting the cached row', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');
 		await harness.sync.synchronize(session.session, { data: catalogData('cached'), legacyMetadata: { customTitle: 'cached' } });
@@ -1003,8 +1205,8 @@ suite('AgentHostCatalogReconciliationService', () => {
 			payloadDirty: cached?.payloadDirty,
 		}, {
 			first: [{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
-			second: [{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
-			databaseOpenAttempts: 2,
+			second: [],
+			databaseOpenAttempts: 1,
 			cachedSummary: 'cached',
 			payloadDirty: 3,
 		});
@@ -1091,24 +1293,33 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
-	test('an unavailable source is retried without opening local session storage', async () => {
+	test('an unregistered provider\'s session is parked without opening local session storage, until a provider registers', async () => {
 		const harness = await createHarness(['one']);
 		let sourceResolutions = 0;
+		let providerRegistered = false;
 		const service = harness.createService(async session => {
 			sourceResolutions++;
 			return { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: {} } };
-		}, { isSourceAvailable: () => false });
+		}, { isSourceAvailable: () => providerRegistered });
 
-		const report = await service.runPass();
+		const first = await service.runPass();
+		const second = await service.runPass();
+		providerRegistered = true;
+		service.wakeParkedSessions();
+		const registeredPass = await service.runPass();
 
 		assert.deepStrictEqual({
-			outcomes: report.outcomes,
+			outcomes: [first.outcomes, second.outcomes, registeredPass.outcomes],
 			databaseOpenAttempts: harness.getDatabaseOpenAttempts(),
 			sourceResolutions,
 		}, {
-			outcomes: [{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
-			databaseOpenAttempts: 0,
-			sourceResolutions: 0,
+			outcomes: [
+				[{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
+				[],
+				[{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
+			],
+			databaseOpenAttempts: 1,
+			sourceResolutions: 1,
 		});
 	});
 
@@ -1164,6 +1375,124 @@ suite('AgentHostCatalogReconciliationService', () => {
 			woken: [{ session: 'agenthost:one', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 }],
 			sourceResolutions: 2,
 		});
+	});
+
+	test('sessions whose provider cannot read its catalog are parked, re-attempted only on that provider\'s wake or the hourly verification', async () => {
+		// About 110 older sessions whose provider is registered but cannot read its catalog, as in production; some
+		// without a session database. Passes every 30 s of user activity, for an hour.
+		const names = Array.from({ length: 110 }, (_, index) => `old-${String(index).padStart(3, '0')}`);
+		const providerOf = (name: string): AgentProvider => Number(name.slice(4)) % 2 === 0 ? 'codex' : 'claude';
+		const harness = await createHarness(names, new Set(names.slice(100).map(name => `agenthost:${name}`)), providerOf);
+		const readable = new Set<AgentProvider>();
+		let now = 0;
+		const service = harness.createService(async session => readable.has(session.provider)
+			? { status: 'available', request: { data: catalogData(session.session.path), legacyMetadata: {} } }
+			: { status: 'providerUnavailable' }, { now: () => now });
+		const runPass = async () => {
+			const opens = harness.getDatabaseOpenAttempts();
+			const report = await service.runPass();
+			return { opens: harness.getDatabaseOpenAttempts() - opens, outcomes: report.outcomes };
+		};
+
+		const hourOpens: number[] = [];
+		for (let pass = 0; pass < 120; pass++) {
+			now = pass * 30 * 1000;
+			hourOpens.push((await runPass()).opens);
+		}
+		// Late in the hour the codex catalog becomes readable: only its sessions are re-attempted, and they re-project.
+		now += 10 * 1000;
+		readable.add('codex');
+		const wokeCodex = service.wakeParkedProviderSessions('codex');
+		const wokeNone = service.wakeParkedProviderSessions('copilot');
+		const afterCodexWake = [await runPass(), await runPass()];
+		// The hourly verification wakes the rest, which park again (and samples the clean codex rows, as for any clean row).
+		now = 60 * 60 * 1000;
+		const verification = await runPass();
+
+		const providersOf = (outcomes: readonly { readonly session: string; readonly status: string }[]) => [...new Set(outcomes.map(outcome => `${providerOf(outcome.session.slice('agenthost:'.length))} ${outcome.status}`))];
+		assert.deepStrictEqual({
+			firstPasses: hourOpens.slice(0, 4),
+			restOfHour: hourOpens.slice(4).reduce((sum, opens) => sum + opens, 0),
+			hourTotal: hourOpens.reduce((sum, opens) => sum + opens, 0),
+			wokeCodex,
+			wokeNone,
+			afterCodexWake: afterCodexWake.map(pass => ({ opens: pass.opens, outcomes: providersOf(pass.outcomes) })),
+			verification: { opens: verification.opens, outcomes: providersOf(verification.outcomes) },
+		}, {
+			// Unparked, every pass reaches a batch of 50 and opens each: 6,000 opens in the hour.
+			firstPasses: [50, 50, 10, 0],
+			restOfHour: 0,
+			hourTotal: 110,
+			wokeCodex: true,
+			wokeNone: false,
+			afterCodexWake: [
+				{ opens: 50, outcomes: ['codex succeeded'] },
+				{ opens: 5, outcomes: ['codex succeeded'] },
+			],
+			verification: { opens: 50, outcomes: ['claude retry', 'codex skipped'] },
+		});
+	});
+
+	test('parking a session whose provider cannot vouch for it, and that provider\'s wake, are announced per session', async () => {
+		// Chat movability reads `isParked`, so every change must be announced.
+		const harness = await createHarness(['codex-a', 'codex-b', 'claude'], new Set(), name => name.startsWith('codex') ? 'codex' : 'claude');
+		const service = harness.createService(async () => ({ status: 'providerUnavailable' }));
+		const changes: (string | undefined)[] = [];
+		store.add(service.onDidChangeParkedSessions(session => changes.push(session)));
+
+		await service.runPass();
+		const parked = ['agenthost:codex-a', 'agenthost:codex-b', 'agenthost:claude'].filter(session => service.isParked(session));
+		const parkedChanges = changes.splice(0).sort();
+		service.wakeParkedProviderSessions('codex');
+
+		assert.deepStrictEqual({
+			parked,
+			parkedChanges,
+			wakeChanges: changes.sort(),
+			stillParked: ['agenthost:codex-a', 'agenthost:codex-b', 'agenthost:claude'].filter(session => service.isParked(session)),
+		}, {
+			parked: ['agenthost:codex-a', 'agenthost:codex-b', 'agenthost:claude'],
+			parkedChanges: ['agenthost:claude', 'agenthost:codex-a', 'agenthost:codex-b'],
+			wakeChanges: ['agenthost:codex-a', 'agenthost:codex-b'],
+			stillParked: ['agenthost:claude'],
+		});
+	});
+
+	test('a provider wake while a pass resolves a source keeps that session from being parked', async () => {
+		const harness = await createHarness(['one'], new Set(), () => 'codex');
+		let sourceResolutions = 0;
+		const service: AgentHostCatalogReconciliationService = harness.createService(async () => {
+			sourceResolutions++;
+			if (sourceResolutions === 1) {
+				// The provider's catalog became readable after this lookup read it as unreadable.
+				service.wakeParkedProviderSessions('codex');
+			}
+			return { status: 'providerUnavailable' };
+		});
+
+		const outcomes = [(await service.runPass()).outcomes, (await service.runPass()).outcomes, (await service.runPass()).outcomes];
+
+		assert.deepStrictEqual({ outcomes, sourceResolutions }, {
+			outcomes: [
+				[{ session: 'agenthost:one', status: 'retry', reason: 'superseded' }],
+				[{ session: 'agenthost:one', status: 'retry', reason: 'providerUnavailable' }],
+				[],
+			],
+			sourceResolutions: 2,
+		});
+	});
+
+	test('marks an empty source-unresolvable session provisional only when its default chat stores at the session', async () => {
+		const harness = await createHarness(['empty', 'promoted']);
+		const promoted = 'agenthost:promoted';
+		// A promoted session's default chat keeps the storage it had as a peer; nothing is at the session's own storage.
+		await harness.central.registerChatCatalogV2(promoted, { defaultChat: { chat: 'ahp-chat://promoted', order: 0, storageResource: 'ahp-chat://promoted' }, peers: [], privateDescendants: [] });
+		const marked: string[] = [];
+		const service = harness.createService(async () => ({ status: 'sourceUnresolvable' }), { onDidMarkSessionsProvisional: sessions => marked.push(...sessions) });
+
+		await service.runPass();
+
+		assert.deepStrictEqual(marked, ['agenthost:empty']);
 	});
 
 	test('a mutation arriving during source resolution is not parked away', async () => {

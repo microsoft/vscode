@@ -10,7 +10,7 @@ import { readAgentMergeFolderState } from './agentMerge.js';
 import { getWorkingDirectoryKey } from './agentHostWorkingDirectories.js';
 import { isAgentMergeMessage } from './meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from './meta/agentSystemNotificationMeta.js';
-import { isAhpChatChannel, isDefaultChatUri, MessageKind, parseChatUri, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionGitState, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
+import { isAhpChatChannel, MessageKind, readSessionGitState, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, type Changeset, type ISessionWithDefaultChat, type URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -94,28 +94,10 @@ const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.lab
 const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
 
 /**
- * Returns the description shown next to the `Branch Changes` catalogue
- * entry. Prefers `${branchName} → ${baseBranchName}` when both values
- * are known (typical worktree-isolation case). If `baseBranchName` is
- * unknown, falls back to `${branchName} → ${upstreamBranchName}` when an
- * upstream is available. Finally falls back to `branchName` alone.
- * Returns `undefined` only when no branch name is known at all, so
- * callers can omit the description entirely.
+ * Describes Branch Changes using the explicitly resolved base rather than inferring it from Git state.
  */
-export function formatBranchChangesetDescription(gitState: ISessionGitState): string | undefined {
-	const { baseBranchName, branchName, upstreamBranchName } = gitState;
-
-	// Use branch name
-	if (baseBranchName && branchName) {
-		return `${branchName} → ${baseBranchName}`;
-	}
-
-	// Use upstream branch name
-	if (upstreamBranchName && branchName) {
-		return `${branchName} → ${upstreamBranchName}`;
-	}
-
-	return branchName;
+export function formatBranchChangesetDescription(branchName: string | undefined, baseBranchName: string | undefined): string | undefined {
+	return branchName && baseBranchName ? `${branchName} → ${baseBranchName}` : branchName;
 }
 
 /** Marker injected into a changeset URI's path. */
@@ -137,9 +119,10 @@ export const enum ChangesetKind {
  *
  * A chat that advertises its own Session Changes entry keeps it, scoping
  * Session Changes to that chat. Otherwise the session's cumulative Session
- * Changes entry is projected into the chat catalogue.
+ * Changes entry is projected into the chat catalogue. `defaultChatUri` is the
+ * session's advertised default chat (`SessionState.defaultChat`).
  */
-export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri?: URI): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri: URI | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
 	if (sessionChangesets === undefined) {
 		return chatChangesets?.map(changeset => ({ changeset, owner: 'chat' as const }));
 	}
@@ -153,7 +136,7 @@ export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: read
 		// Older hosts compute per-turn changes from session-keyed checkpoints, so
 		// peer chats share the session's Turn and Compare entries; its Branch and
 		// Uncommitted entries describe the session folder only.
-		const isDefaultChat = defaultChatUri === undefined ? isDefaultChatUri(chatUri) : chatUri === defaultChatUri;
+		const isDefaultChat = chatUri === defaultChatUri;
 		const changesets = isDefaultChat
 			? sessionChangesets
 			: sessionChangesets.filter(changeset => changeset.changeKind === ChangesetKind.Session || changeset.changeKind === ChangesetKind.Turn || changeset.changeKind === ChangesetKind.Compare);
@@ -420,15 +403,16 @@ export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; origin
  * When chats share the folder, `resolveAgentMergeOwner` picks the one chat
  * whose transcript the repairs run in.
  * `branchChangesetOwnerUri` lets matching chat catalogues share one repository-level Branch Changes resource.
+ * `isDefaultChat` is whether `ownerUri` is its session's recorded default chat.
+ * `branchChangesetBaseBranch` is resolved by the host using the same precedence as the branch diff.
  */
-export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined): Changeset[] {
+export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boolean, state?: ISessionWithDefaultChat, branchChangesetOwnerUri: URI = ownerUri, resolveAgentMergeOwner?: (folderKey: string, recordedChat: URI | undefined) => URI | undefined, branchChangesetBaseBranch?: string): Changeset[] {
 	// Session that failed to create
 	if (!state || state.lifecycle === SessionLifecycle.Failed) {
 		return [];
 	}
 
-	const chat = parseChatUri(ownerUri);
-	if (!chat) {
+	if (!isAhpChatChannel(ownerUri.toString())) {
 		if (state.lifecycle === SessionLifecycle.Creating || readSessionWorkspaceless(state._meta)) {
 			return [];
 		}
@@ -456,7 +440,6 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 		}];
 	}
 
-	const isDefaultChat = isDefaultChatUri(ownerUri);
 	const gitState = readSessionGitState(state._meta);
 	const agentMergeChangeset = shouldAdvertiseAgentMergeChangeset(ownerUri, state, isDefaultChat, resolveAgentMergeOwner)
 		? [{
@@ -489,9 +472,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 	return [
 		{
 			label: branchChangesetLabel(),
-			description: gitState
-				? formatBranchChangesetDescription(gitState)
-				: undefined,
+			description: formatBranchChangesetDescription(gitState.branchName, branchChangesetBaseBranch),
 			uriTemplate: buildBranchChangesetUri(branchChangesetOwnerUri),
 			changeKind: ChangesetKind.Branch,
 			capabilities: { review: {} }

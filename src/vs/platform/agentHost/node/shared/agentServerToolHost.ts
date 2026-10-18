@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/objects.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
@@ -225,15 +226,21 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		];
 	}
 
+	/** Publishes server-tool definitions only when the session's advertised catalogue changes. */
 	advertise(sessionOrChatUri: URI): void {
 		const sessionUri = isAhpChatChannel(sessionOrChatUri) ? this._stateManager.getChatOwner(sessionOrChatUri) : sessionOrChatUri;
+		const state = sessionUri ? this._stateManager.getSessionState(sessionUri) : undefined;
 		// Provider materialization can precede restore; AgentService advertises again once the session is registered.
-		if (!sessionUri || !this._stateManager.getSessionState(sessionUri)) {
+		if (!sessionUri || !state) {
+			return;
+		}
+		const tools = this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri));
+		if (equals(state.serverTools, tools)) {
 			return;
 		}
 		this._stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionServerToolsChanged,
-			tools: this._toProtocolDefinitions(this.getDefinitionsForSession(sessionUri)),
+			tools,
 		});
 	}
 

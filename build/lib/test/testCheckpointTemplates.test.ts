@@ -190,25 +190,25 @@ suite('Product test checkpoint templates', () => {
 	test('every test task is registered, independently published and gated', async t => {
 		const windowsExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
-			'integration-electron', 'integration-browser-firefox', 'integration-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-firefox', 'integration-remote',
 			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const linuxExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium',
-			'integration-electron', 'integration-browser-chromium', 'integration-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-remote',
 			'smoke-electron', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const darwinExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-webkit',
-			'integration-electron', 'integration-browser-webkit', 'integration-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-webkit', 'integration-remote',
 			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
 		const allExpected = [
 			'unit-electron', 'unit-node', 'unit-browser-chromium', 'unit-browser-webkit',
-			'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
+			'integration-agent-host-e2e', 'integration-electron', 'integration-browser-chromium', 'integration-browser-firefox', 'integration-browser-webkit', 'integration-remote',
 			'smoke-electron', 'smoke-agents-pac-proxy', 'smoke-agents-kerberos-pac-proxy', 'smoke-browser-chromium', 'smoke-remote',
 			'copilot-extension', 'copilot-completions-core', 'copilot-sanity',
 		];
@@ -382,7 +382,7 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('Windows x64 CI gives unit tests and Electron smoke tests 70 minutes', () => {
+	test('Windows x64 CI gives every job 70 minutes', () => {
 		const ci = readTemplate('win32/product-build-win32-ci.yml');
 		const job = records(ci).find(record => record.job === 'Windows${{ parameters.VSCODE_JOB_NAME }}');
 		assert.ok(job);
@@ -391,11 +391,8 @@ suite('Product test checkpoint templates', () => {
 			branches: Object.fromEntries(Object.entries(job).filter(([key]) => key.startsWith('${{ '))),
 			cancelTimeoutInMinutes: job.cancelTimeoutInMinutes,
 		}, {
-			timeout: undefined,
-			branches: {
-				'${{ if or(eq(parameters.VSCODE_JOB_NAME, \'Unit\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-electron\')) }}': { timeoutInMinutes: 70 },
-				'${{ else }}': { timeoutInMinutes: 50 },
-			},
+			timeout: 70,
+			branches: {},
 			cancelTimeoutInMinutes: 10,
 		});
 	});
@@ -655,8 +652,7 @@ suite('Product test checkpoint templates', () => {
 		const wsl = smoke.flatMap(step => (step['${{ if eq(parameters.VSCODE_ARCH, \'x64\') }}'] ?? []) as ScriptStep[]);
 		const gated = 'and(succeeded(), ne(variables[\'TEST_CHECKPOINT_SMOKE_ELECTRON_HIT\'], \'true\'))';
 		assert.deepStrictEqual(wsl.map(step => ({ displayName: step.displayName, condition: step.condition })), [
-			{ displayName: 'Set WSL kernel cache day', condition: gated },
-			{ displayName: 'Restore WSL kernel installer cache', condition: gated },
+			{ displayName: 'Restore WSL installer cache', condition: gated },
 			{ displayName: 'Prepare WSL Dev Container smoke tests', condition: gated },
 			{ displayName: 'Clean up WSL Dev Container smoke tests', condition: 'and(always(), ne(variables[\'WSL_SMOKE_ROOT\'], \'\'))' },
 		]);

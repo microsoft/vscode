@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ListTasksResponse, TaskListOptions } from './tasks.js';
-import type { PaginatedResponse, User } from './missionControl.js';
+import { ApiPaginationOptions, ApiQueryOptions, ApiRequestOptions } from '../client/request.js';
 import { JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
+import type { PaginatedResponse, User } from './missionControl.js';
+import type { ListTasksResponse, TaskListOptions } from './tasks.js';
 
 /** Whether an automation belongs to its creator or to the repository. */
 export type AutomationOwnership = 'user' | 'repository';
@@ -67,7 +68,7 @@ export interface AutomationToolDefinition {
 	readonly scope?: 'read' | 'write';
 }
 
-/** A server-defined presentation group of available automation tools. */
+/** A named group of available automation tools. */
 export interface AutomationToolGroup {
 	/** The group identifier; group membership and ordering are server-controlled. */
 	readonly id: string;
@@ -231,7 +232,7 @@ export interface AutomationDetail extends AutomationSummary {
 	readonly usage_limits?: readonly AutomationUsageLimit[];
 }
 
-/** Editable configuration fields shared by automation creation and updates. */
+/** Editable automation settings. */
 interface AutomationConfiguration {
 	/** The name of the automation. */
 	readonly name?: string;
@@ -281,12 +282,12 @@ export interface CreateAutomationRequest extends AutomationConfiguration {
 
 /** The request body for editing an automation; omitted fields are unchanged and explicit nulls are rejected. */
 export interface EditAutomationRequest extends AutomationConfiguration {
-	/** The detail snapshot's current revision ID for optional atomic stale-edit protection. */
+	/** Expected current revision ID; a mismatch rejects the update. */
 	readonly expected_revision_id?: string;
 }
 
 /** Query parameters for one page of repository automation summaries. */
-export interface ListAutomationsOptions extends PageOptions {
+export type ListAutomationsOptions = ApiPaginationOptions<PageOptions & {
 	/** Filter by disabled state, or omit to include both states. */
 	readonly disabled?: boolean;
 	/** Filter by trigger event type. */
@@ -301,13 +302,13 @@ export interface ListAutomationsOptions extends PageOptions {
 	readonly tag_id?: string;
 	/** Request tag membership metadata in each returned summary. */
 	readonly include_tags?: boolean;
-}
+}>;
 
 /** Query parameters for a repository-scoped automation detail read. */
-export interface GetAutomationOptions {
+export type GetAutomationOptions = ApiQueryOptions<{
 	/** Request tag membership metadata in the detail response. */
 	readonly include_tags?: boolean;
-}
+}>;
 
 /** A page of repository automation summaries with the complete filtered result count. */
 export interface ListRepoAutomationsResponse {
@@ -341,7 +342,7 @@ export interface CreateAutomationTaskResponse {
 	readonly conclusion?: string;
 }
 
-/** Automation REST operations and caller-scoped configuration catalogs without hidden hydration. */
+/** Operations for managing automations and their runs, and discovering available tools and triggers. */
 export interface IAutomationsClient {
 
 	/** GET /agents/repos/{owner}/{repo}/automations/v2: list one page of readable automation summaries. */
@@ -351,23 +352,23 @@ export interface IAutomationsClient {
 	get(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: GetAutomationOptions): Promise<AutomationDetail>;
 
 	/** POST /agents/repos/{owner}/{repo}/automations: create an automation. */
-	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal): Promise<AutomationDetail>;
+	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail>;
 
 	/** PATCH /agents/repos/{owner}/{repo}/automations/{automation_id}: update only the supplied fields. */
-	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, signal: AbortSignal): Promise<AutomationDetail>;
+	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail>;
 
 	/** DELETE /agents/repos/{owner}/{repo}/automations/{automation_id}: delete an automation. */
-	delete(repository: RepositoryRef, automationId: string, signal: AbortSignal): Promise<void>;
+	delete(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
 
 	/** POST /agents/repos/{owner}/{repo}/automations/{automation_id}/tasks: request a run and return its HTTP 202 acknowledgement. */
-	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, signal: AbortSignal): Promise<CreateAutomationTaskResponse>;
+	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<CreateAutomationTaskResponse>;
 
 	/** GET /agents/automations/{automation_id}/tasks: list one page of tasks triggered by an automation. */
 	listRuns(automationId: string, signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>>;
 
 	/** GET /agents/automations/tools: list the authenticated caller's tool groups without pagination. */
-	listTools(signal: AbortSignal): Promise<readonly AutomationToolGroup[]>;
+	listTools(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationToolGroup[]>;
 
 	/** GET /agents/automations/triggers: list the authenticated caller's trigger definitions without pagination. */
-	listTriggers(signal: AbortSignal): Promise<readonly AutomationTriggerDefinition[]>;
+	listTriggers(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationTriggerDefinition[]>;
 }

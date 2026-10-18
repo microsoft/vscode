@@ -20,6 +20,7 @@ import {
 	type ICloudSandboxConnectionRequest,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxRefreshStopReason } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -64,6 +65,8 @@ export class CloudSandboxCredentialRefreshState {
 	stopped = false;
 	permanentFailure = false;
 	permanentFailureStatus: number | undefined;
+	requestFailures = 0;
+	requestFailureStartedAt: number | undefined;
 }
 
 /**
@@ -121,6 +124,10 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		const previousToken = this._creds.token;
 		let waited = false;
 		while (!this._refreshInFlight) {
+			if (!this._refreshState.stopped && this._refreshState.requestFailureStartedAt !== undefined
+				&& Date.now() - this._refreshState.requestFailureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
+				this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted');
+			}
 			if (this._refreshState.stopped) {
 				throw new Error('Sandbox credential refresh is stopped.');
 			}
@@ -200,9 +207,18 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 				return false;
 			}
 			this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${this._address}; retrying`, err);
-			const delayMs = err instanceof CloudSandboxRequestError && err.retryAfterSeconds !== undefined
-				? Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, err.retryAfterSeconds * 1000)
-				: MIN_CREDENTIAL_REFRESH_DELAY_MS;
+			let delayMs = MIN_CREDENTIAL_REFRESH_DELAY_MS;
+			if (err instanceof CloudSandboxRequestError) {
+				this._refreshState.requestFailureStartedAt ??= Date.now();
+				const failures = ++this._refreshState.requestFailures;
+				delayMs = Math.max(delayMs, missionControlRetryDelay(err.code, err.retryAfterSeconds, failures));
+				if (failures > missionControlMaxRetries(err.code)
+					|| Date.now() + delayMs - this._refreshState.requestFailureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
+					this._refreshState.unhealthyCycles++;
+					this._stop('consecutiveFailures', 'Mission Control request retry budget exhausted', err);
+					return false;
+				}
+			}
 			this._recordFailure(delayMs, 'consecutiveFailures', 'credential refresh kept failing');
 			return false;
 		}
@@ -217,6 +233,8 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		}
 
 		if (result.kind === 'waking') {
+			this._refreshState.requestFailures = 0;
+			this._refreshState.requestFailureStartedAt = undefined;
 			this._recordFailure(result.waking.retryAfterSeconds * 1000, 'environmentWaking', 'environment kept reporting waking');
 			return false;
 		}
@@ -237,6 +255,8 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${this._address}`);
 		this._refreshState.unhealthyCycles = 0;
 		this._refreshState.nextRetryAt = undefined;
+		this._refreshState.requestFailures = 0;
+		this._refreshState.requestFailureStartedAt = undefined;
 		return true;
 	}
 }

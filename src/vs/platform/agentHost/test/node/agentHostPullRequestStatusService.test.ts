@@ -17,7 +17,7 @@ import type { IPullRequestResources } from '../../../github/common/pullRequestRe
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { buildChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -25,15 +25,23 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
 
 const REPOSITORY = 'file:///repo';
 
-function summary(resource: string): SessionSummary {
+function summary(resource: string): SessionSummary & { readonly defaultChat: string } {
 	const now = new Date().toISOString();
-	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY] };
+	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY], defaultChat: buildDefaultChatUri(resource) };
 }
 
 function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; readonly headSha?: string }): PullRequestSnapshot {
@@ -61,7 +69,6 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 		},
 		topLevelComments: { status: 'missing', complete: false },
 		submittedReviews: { status: 'missing', complete: false },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'missing', complete: false },
 		checks: { status: 'missing', complete: false },
 		mergeability: {
@@ -81,7 +88,6 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 				queueRequirementKnown: true,
 			},
 		},
-		participants: { status: 'missing', complete: false },
 	} as PullRequestSnapshot;
 }
 
@@ -175,7 +181,6 @@ class TestCredentials implements IGitHubCredentials {
 		return { account, token: 'token', generation: 1, signal };
 	}
 
-	async resolveCredential(): Promise<GitHubCredential> { throw new Error('not implemented'); }
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
@@ -236,8 +241,13 @@ class TestChangesetSubscriptions implements IAgentHostChangesetSubscriptionServi
 suite('AgentHostPullRequestStatusService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
-		const logService = new NullLogService();
+	function createHarness(getSource?: () => IAgentHostCredentialSource, authentication?: IAgentHostAuthenticationService) {
+		const statusLogs: string[] = [];
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string) { statusLogs.push(message); }
+			override error(message: string) { errors.push(message); }
+		}();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const subscriptions = disposables.add(new TestChangesetSubscriptions());
 		const credentials = disposables.add(new TestCredentials());
@@ -245,10 +255,44 @@ suite('AgentHostPullRequestStatusService', () => {
 		const gitHubStates: ISessionGitHubState[] = [];
 		const publishedStateKeys: string[] = [];
 		const chatGitStates = new Map<string, ISessionGitState>();
-		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
+		const legacyService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly credentials = credentials;
 			override readonly pullRequests = resources;
 		}(), Event.signal(Event.filter(credentials.onDidInvalidate, event => event.reason === 'account' || event.reason === 'endpoint')));
+		const observedTokens: string[] = [];
+		const gitHubService = authentication ? disposables.add(new class extends AgentHostGitHubService {
+			override acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string) {
+				return legacyService.acquireRepositoryClient(signal, source, session);
+			}
+		}({ fetch: async () => { throw new Error('Unexpected GitHub network request'); } }, authentication, createTestGitHubEndpointService(), logService, NullTelemetryService)) : getSource ? new class extends mock<IAgentHostGitHubService>() {
+			override readonly onDidChangeRepositoryClient = legacyService.onDidChangeRepositoryClient;
+			override getAgentMergeCredentialBinding(chat: string) { return legacyService.getAgentMergeCredentialBinding(chat); }
+			override getAgentMergeCredentialSource(chat: string) { return legacyService.getAgentMergeCredentialSource(chat); }
+			override bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined) {
+				legacyService.bindAgentMergeCredentialSource(session, chat, source);
+			}
+			override captureSessionCredentialSource(_session: string, source?: IAgentHostCredentialSource) {
+				return captureCredentialSource(source ?? getSource(), [GITHUB_REPO_PROTECTED_RESOURCE]);
+			}
+			override acquireRepositoryClient(_signal: AbortSignal, source?: IAgentHostCredentialSource) {
+				return new ImmortalReference(new class extends mock<IGitHubClient>() {
+					override readonly pullRequests = resources;
+					override readonly credentials = new class extends mock<IGitHubCredentials>() {
+						override readonly onDidInvalidate = credentials.onDidInvalidate;
+						override async getCredential(signal: AbortSignal) {
+							signal.throwIfAborted();
+							const result = await credentials.getCredential();
+							const scoped = source?.getCredential({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported });
+							if (!scoped) {
+								throw new GitHubRequestError('Captured source is unavailable', 'authentication');
+							}
+							observedTokens.push(scoped.token);
+							return { ...result, token: scoped.token };
+						}
+					}();
+				}());
+			}
+		}() : legacyService;
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
@@ -282,15 +326,77 @@ suite('AgentHostPullRequestStatusService', () => {
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
-		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session };
+		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session, observedTokens, statusLogs, errors };
 	}
+
+	test('logs unavailable real background sponsorship without creating a legacy watcher', async () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		const session = 'copilot:/pr-status';
+		authentication.restoreSessionCredentialPrincipal(session, { apiOrigin: 'https://api.github.com', userId: '101' });
+		const h = createHarness(undefined, authentication);
+		h.subscriptions.addSubscription(session, `${session}/changes`);
+		await pump();
+		assert.deepStrictEqual({ statusLogged: h.statusLogs.some(message => message.includes('Sync skipped: sponsor authentication required')), errors: h.errors, subscriptions: h.resources.liveSubscriptions }, {
+			statusLogged: true, errors: [], subscriptions: 0,
+		});
+	});
+
+	test('error logs unexpected real background capture failures', async () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		const session = 'copilot:/pr-status';
+		authentication.bindSessionCredentials(session, {
+			principal: { apiOrigin: 'https://api.github.com', userId: '101' },
+			getCredential: () => { throw new Error('Credential invariant failed'); },
+		});
+		const h = createHarness(undefined, authentication);
+		h.subscriptions.addSubscription(session, `${session}/changes`);
+		await pump();
+		assert.deepStrictEqual({ statusLogs: h.statusLogs, errorLogged: h.errors.some(message => message.includes('Sync failed:')), subscriptions: h.resources.liveSubscriptions }, {
+			statusLogs: [], errorLogged: true, subscriptions: 0,
+		});
+	});
+
+	test('a scheduled background sync retains its captured sponsor across connection rotation and session rebinding', async () => {
+		let token = 'source-a';
+		let current: IAgentHostCredentialSource = {
+			getCredential: request => ({ resource: request.resource, token, revision: 1, expiresAt: undefined }),
+		};
+		const { stateManager, subscriptions, credentials, resources, chatGitStates, session, observedTokens } = createHarness(() => current);
+		const otherFolder = 'file:///other';
+		const peer = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
+		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
+			owner: 'octo', repo: 'tools', pullRequestUrls: ['https://github.com/octo/tools/pull/9'], pullRequestBranchName: 'tools-feature',
+		}));
+		chatGitStates.set(peer, { branchName: 'tools-feature' });
+		await pump();
+		credentials.pending = new DeferredPromise<void>();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		token = 'rotated-source-a';
+		current = { getCredential: request => ({ resource: request.resource, token: 'source-b', revision: 1, expiresAt: undefined }) };
+		credentials.pending.complete();
+		credentials.pending = undefined;
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+		assert.deepStrictEqual({ observedTokens, liveSubscriptions: resources.liveSubscriptions }, {
+			observedTokens: ['source-a', 'source-a'], liveSubscriptions: 2,
+		});
+	});
+
+	test('an unavailable isolated background sponsor does not create a legacy watcher', async () => {
+		const { subscriptions, resources, session, observedTokens } = createHarness(() => ({ getCredential: () => undefined }));
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await pump();
+		assert.deepStrictEqual({ observedTokens, liveSubscriptions: resources.liveSubscriptions }, { observedTokens: [], liveSubscriptions: 0 });
+	});
 
 	test('watches and reports the pull request of each folder a chat works in', async () => {
 		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
 		const otherFolder = 'file:///other';
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const peer = buildChatUri(session, 'peer');
-		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer), { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -325,7 +431,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
 		const firstPeer = buildChatUri(session, 'first-peer');
 		const secondPeer = buildChatUri(session, 'second-peer');
-		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer), { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, firstPeer, creationTimeChatStorageResource(session, firstPeer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
 			pullRequestUrls: [otherPullRequestUrl],
 			pullRequestBranchName: 'tools-feature',
@@ -338,7 +444,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		}
 		publishedStateKeys.length = 0;
 
-		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer), { workingDirectories: [otherFolder] });
+		stateManager.addChat(session, secondPeer, creationTimeChatStorageResource(session, secondPeer, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		chatGitStates.set(secondPeer, { branchName: 'tools-feature' });
 		stateManager.removeChat(session, firstPeer);
 		await pump();

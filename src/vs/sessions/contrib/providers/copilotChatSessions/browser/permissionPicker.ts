@@ -15,7 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxToggleState } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
+import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, preserveAgentHostSandboxToggleSelection } from '../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -88,6 +88,8 @@ export interface IPermissionPickerDelegate {
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxApplyFailed?: IObservable<boolean>;
+	readonly sandboxSelectionRejected?: IObservable<boolean>;
 	readonly sandboxDevContainer?: IObservable<boolean>;
 	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
@@ -256,6 +258,8 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
+			this._delegate.sandboxApplyFailed?.read(reader);
+			this._delegate.sandboxSelectionRejected?.read(reader);
 			this._delegate.sandboxDevContainer?.read(reader);
 			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._delegate.sandboxToggleSettingId?.read(reader);
@@ -454,11 +458,14 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
+			const preserveSandboxSelection = this._delegate.sandboxApplyFailed?.read(reader) === true
+				|| this._delegate.sandboxSelectionRejected?.read(reader) === true;
 			this._delegate.sandboxDevContainer?.read(reader);
 			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			const standaloneToggle = this._getSandboxStandaloneToggle();
+			preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle, preserveSandboxSelection);
 			if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 				return;
 			}
@@ -563,7 +570,7 @@ export class PermissionPicker extends Disposable {
 
 	private _isSandboxingEnabled(): boolean {
 		return this._delegate.sandboxDevContainerSupported?.get() !== false
-			&& (getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false);
+			&& (getAgentHostSandboxCollapsedState(this._readSandboxToggleState()) ?? false);
 	}
 
 	private _readSandboxToggleState() {
@@ -572,6 +579,8 @@ export class PermissionPicker extends Disposable {
 			provider: this._delegate.getSandboxToggleProvider?.(),
 			sessionEnabled: this._delegate.sandboxEnabled?.get(),
 			confirmedEnabled: this._delegate.sandboxConfirmedEnabled?.get(),
+			applyFailed: this._delegate.sandboxApplyFailed?.get(),
+			rejectedSelection: this._delegate.sandboxSelectionRejected?.get(),
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: this._delegate.managedSandboxEnforced?.get() === true,
 			allowsBypass: (this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).get(),

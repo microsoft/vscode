@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from '../../../base/common/errors.js';
+import { captureCredentialSource, isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -11,7 +12,8 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -28,6 +30,7 @@ const COPILOT_VENDOR = 'copilot';
 /** The session, and optionally the chat, whose selected main agent model a utility request serves. */
 export interface IAgentHostUtilityModelContext {
 	readonly session: ProtocolURI;
+	readonly credentialSource?: IAgentHostCredentialSource;
 	/** Defaults to the session's default chat. */
 	readonly chat?: ProtocolURI;
 	/**
@@ -110,6 +113,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) { }
 
 	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
@@ -122,8 +126,8 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
 		return this._byokUtilityModelsSupported
-			? this._resolveByokRoute(context) ?? this._resolveCopilotRoute()
-			: this._resolveCopilotRoute();
+			? this._resolveByokRoute(context) ?? this._resolveCopilotRoute(context)
+			: this._resolveCopilotRoute(context);
 	}
 
 	/** Resolves a BYOK route, or `undefined` to use the Copilot default. */
@@ -160,9 +164,30 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		return undefined;
 	}
 
-	private _resolveCopilotRoute(): UtilityModelRoute {
+	private _resolveCopilotRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
+		try {
+			return this._captureCopilotRoute(context);
+		} catch (error) {
+			return this._throwUnavailableAuthentication(error);
+		}
+	}
+
+	private _throwUnavailableAuthentication(error: unknown): never {
+		if (isAuthRequiredError(error)) {
+			this._logService.debug('[AgentHostUtilityModelService] Copilot utility model unavailable: sponsor authentication required');
+			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired);
+		}
+		throw error;
+	}
+
+	private _captureCopilotRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
 		const resource = this._gitHubEndpointService.getCopilotResource();
-		const githubToken = this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource(context.chat ?? context.session);
+		const captured = source ? captureCredentialSource({
+			principal: source.principal,
+			getCredential: request => source.getCredential({ ...request, session: context.session }),
+		}, [{ ...resource, required: false }]) : undefined;
+		const githubToken = this._authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported, session: context.session }, captured);
 		if (!githubToken) {
 			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired);
 		}
@@ -215,13 +240,16 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		if (!agent) {
 			return undefined;
 		}
-		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : buildDefaultChatUri(context.session);
-		const state = this._stateManager.getChatState(chat) ?? (isDefaultChatUri(chat) ? this._stateManager.getSessionState(context.session) : undefined);
+		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._chatOwnership.getDefaultChat(context.session);
+		if (chat === undefined) {
+			return undefined;
+		}
+		const state = this._stateManager.getChatState(chat) ?? (this._chatOwnership.isDefaultChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
 		// Prefer the model of the turn being served: the provider applies a turn's
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model
 			?? state?.activeTurn?.message.model
-			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat)))
+			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, this._authenticationService, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat), this._sessionStateStore.peek(URI.parse(context.session))))
 			?? state?.turns.at(-1)?.message.model;
 		if (!selection) {
 			return undefined;
