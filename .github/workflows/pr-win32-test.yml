@@ -207,8 +207,13 @@ jobs:
           }
           if (Test-Path .build/logs/ah-probe.log) {
             $probe = Get-Content .build/logs/ah-probe.log
-            Write-Host "===== ah-probe: $(($probe | Select-String 'SUMMARY').Count) executions, $(($probe | Select-String 'failed=true').Count) failed, $(($probe | Select-String 'SQLERROR').Count) SQL errors, $(($probe | Select-String 'staleHostSessionDbCalls=[1-9]').Count) with stale-host session.db calls ====="
-            $probe | Select-String 'SQLERROR|failed=true' | Select-Object -First 60 | ForEach-Object { Write-Host $_.Line }
+            Write-Host "===== ah-probe: $(($probe | Select-String -CaseSensitive 'SUMMARY').Count) executions, $(($probe | Select-String -CaseSensitive 'failed=true').Count) failed, $(($probe | Select-String -CaseSensitive '\[ah-probe\] SQLERROR').Count) SQL errors, $(($probe | Select-String -CaseSensitive 'staleHostSessionDbCalls=[1-9]').Count) with stale-host session.db calls ====="
+            $probe | Select-String -CaseSensitive '\[ah-probe\] SQLERROR|failed=true|staleHostSessionDbCalls=[1-9]' | ForEach-Object { Write-Host $_.Line }
+            $inTrace = $false
+            foreach ($line in $probe) {
+              if ($line -clike '[[]ah-probe[]] TRACE*') { $inTrace = $true } elseif ($line -clike '[[]ah-probe[]]*') { $inTrace = $false }
+              if ($inTrace) { Write-Host "TRACE| $line" }
+            }
           }
           Write-Host "===== Session storage identity flush-out: $($failed.Count)/$attempts attempts failed: $($failed -join ', ') ====="
           if ($failed.Count -gt 0) { exit 1 }
