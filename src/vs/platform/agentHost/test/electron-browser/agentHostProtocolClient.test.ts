@@ -25,6 +25,7 @@ import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMetho
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
+import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -1234,6 +1235,157 @@ suite('AgentHostProtocolClient', () => {
 			stateResource: chat,
 			dispatchChannel: chat,
 		});
+	});
+
+	suite('sandbox certificate transport', () => {
+		test('rotation uses its own capability and forwards the exact chat and scope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sandboxCertificate.rotate': true });
+			const rotating = client.rotateSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/rotateSandboxCertificate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await rotating;
+			assert.deepStrictEqual({
+				supported: client.sandboxCertificateRotationSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+		});
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer rotation support from installation when rotation capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.rotate': capability });
+				await assert.rejects(client.rotateSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRotationSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/rotateSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
+		test('removal uses its own capability and forwards the exact chat and scope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sandboxCertificate.remove': true });
+			const removing = client.removeSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/removeSandboxCertificate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await removing;
+			assert.deepStrictEqual({
+				supported: client.sandboxCertificateRemovalSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+		});
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer removal support from installation when removal capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.remove': capability });
+				await assert.rejects(client.removeSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRemovalSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/removeSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
+		test('installation requires explicit capability and sends only the chat identity and runtime scope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true });
+			assert.strictEqual(client.sandboxCertificateInstallationSupported.get(), true);
+			const installing = client.installSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/installSandboxCertificate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await installing;
+			assert.deepStrictEqual(request.params, { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' });
+		});
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not send installation requests for capability ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': capability });
+				assert.strictEqual(client.sandboxCertificateInstallationSupported.get(), false);
+				await assert.rejects(client.installSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/installSandboxCertificate'), false);
+			});
+		}
+
+		const session = 'session-store://tenant/sessions/certificate?generation%3D2';
+		const chat = 'conversation://tenant/history/certificate?revision%3D3#entry';
+		const peer = 'conversation://tenant/independent-peer';
+		const certificate: IAgentSandboxCertificateStatus = {
+			scopeId: 'remote-runtime', state: 'notInstalled', canInstall: true, requiresRotation: false,
+		};
+
+		async function subscribe(meta?: Record<string, unknown>) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const ref = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(session), 'certificate-test'));
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+			assert.ok(request);
+			const state: SessionState = {
+				...createSessionState({
+					resource: session, provider: 'third-party', title: 'Certificate transport', status: SessionStatus.Idle,
+					createdAt: '2026-10-15T00:00:00.000Z', modifiedAt: '2026-10-15T00:00:00.000Z', _meta: meta,
+				}),
+				defaultChat: chat,
+				chats: [chat, peer].map(resource => ({ resource, title: 'Chat', status: SessionStatus.Idle, modifiedAt: '2026-10-15T00:00:00.000Z' })),
+			};
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot: { resource: session, fromSeq: 0, state } } });
+			await flushMicrotasks();
+			const read = () => {
+				const current = ref.object.value;
+				assert.ok(current && !(current instanceof Error));
+				return {
+					subscription: request.params,
+					chat: current.defaultChat,
+					certificate: readAgentSandboxCertificate(current, chat),
+					peer: readAgentSandboxCertificate(current, peer),
+					unrelated: current._meta?.unrelated,
+				};
+			};
+			return { transport, ref, read };
+		}
+
+		test('hydrates opaque host identities and pushes status changes without polling', async () => {
+			const peerStatus: IAgentSandboxCertificateStatus = { ...certificate, state: 'error', canInstall: false, detail: 'Peer check failed' };
+			const initialMeta = withAgentSandboxCertificate(withAgentSandboxCertificate({ unrelated: 'preserved' }, chat, certificate), peer, peerStatus);
+			const { transport, ref, read } = await subscribe(initialMeta);
+			const initial = read();
+			const requestsBefore = transport.sentMessages.length;
+			const updates: ReturnType<typeof read>[] = [];
+			disposables.add(ref.object.onDidChange(() => updates.push(read())));
+			const installed: IAgentSandboxCertificateStatus = { ...certificate, state: 'installed' };
+			const updatedMeta = withAgentSandboxCertificate(initialMeta, chat, installed);
+			for (const [index, meta] of [updatedMeta, withAgentSandboxCertificate(updatedMeta, chat, undefined)].entries()) {
+				const envelope: ActionEnvelope = {
+					channel: session, serverSeq: index + 1, origin: undefined, action: { type: ActionType.SessionMetaChanged, _meta: meta },
+				};
+				transport.fireMessage({ jsonrpc: '2.0', method: 'action', params: envelope });
+				await flushMicrotasks();
+			}
+			const expected = { subscription: { channel: session }, chat, peer: peerStatus, unrelated: 'preserved' };
+			assert.deepStrictEqual({ initial, updates, extraRequests: transport.sentMessages.length - requestsBefore }, {
+				initial: { ...expected, certificate },
+				updates: [{ ...expected, certificate: installed }, { ...expected, certificate: undefined }],
+				extraRequests: 0,
+			});
+		});
+
+		for (const [name, meta] of [
+			['absent', undefined],
+			['malformed', { 'vscode.sandboxCertificate': { version: 1, chats: { [chat]: { ...certificate, canInstall: 'yes' } } } }],
+			['future', { 'vscode.sandboxCertificate': { version: 2, chats: { [chat]: certificate } } }],
+		] as const) {
+			test(`treats ${name} optional metadata as unavailable without failing the subscription`, async () => {
+				const { read } = await subscribe(meta);
+				assert.deepStrictEqual(read(), { subscription: { channel: session }, chat, certificate: undefined, peer: undefined, unrelated: undefined });
+			});
+		}
 	});
 
 	test('chat read-state actions require AHP 0.9', () => {
@@ -6694,6 +6846,53 @@ suite('AgentHostProtocolClient', () => {
 				]);
 			});
 		});
+
+		for (const recovery of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+			test(`sandbox certificate status is refreshed by ${recovery} reconnect recovery`, async function () {
+				this.timeout(10_000);
+				return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+					const { client, transports } = createFactoryClient();
+					await completeHandshake(transports[0], client.connect());
+					const resource = 'session-store://tenant/certificate-reconnect';
+					const chat = 'conversation://tenant/certificate-reconnect';
+					const initial: IAgentSandboxCertificateStatus = {
+						scopeId: 'remote-runtime', state: 'notInstalled', canInstall: true, requiresRotation: false,
+					};
+					const state = createSessionState({
+						resource, provider: 'third-party', title: 'Certificate', status: SessionStatus.Idle,
+						createdAt: '2026-10-15T00:00:00.000Z', modifiedAt: '2026-10-15T00:00:00.000Z',
+						_meta: withAgentSandboxCertificate(undefined, chat, initial),
+					});
+					const ref = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(resource), 'certificate-reconnect'));
+					const request = await waitForRequest(transports[0], 'subscribe');
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot: { resource, state, fromSeq: 1 } } });
+					await flushMicrotasks();
+					const before = ref.object.value;
+					assert.ok(before && !(before instanceof Error));
+					const beforeStatus = readAgentSandboxCertificate(before, chat);
+
+					transports[0].fireClose();
+					await waitForReconnecting(client);
+					const replacement = await waitForTransport(transports, 1);
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequest(replacement, 'reconnect');
+					const installed: IAgentSandboxCertificateStatus = { ...initial, state: 'installed' };
+					const meta = withAgentSandboxCertificate(undefined, chat, installed);
+					const envelope: ActionEnvelope = { channel: resource, serverSeq: 2, origin: undefined, action: { type: ActionType.SessionMetaChanged, _meta: meta } };
+					replacement.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: recovery === ReconnectResultType.Replay
+							? { type: recovery, actions: [envelope], missing: [] }
+							: { type: recovery, snapshots: [{ resource, fromSeq: 2, state: { ...state, _meta: meta } }] },
+					});
+					await flushMicrotasks();
+					const after = ref.object.value;
+					assert.ok(after && !(after instanceof Error));
+					assert.deepStrictEqual([beforeStatus, readAgentSandboxCertificate(after, chat)], [initial, installed]);
+					client.dispose();
+				});
+			});
+		}
 
 		test('snapshot reconnect result reseats the root state', async function () {
 			this.timeout(10_000);

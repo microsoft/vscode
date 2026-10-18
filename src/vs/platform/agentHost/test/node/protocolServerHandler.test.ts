@@ -18,6 +18,7 @@ import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessi
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
@@ -235,6 +236,9 @@ class MockAgentService implements IAgentService {
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
+	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
+	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
+	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
@@ -2634,6 +2638,48 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(resp.result, null);
 	});
 
+	for (const operation of ['install', 'rotate', 'remove'] as const) {
+		test(`sandbox certificate ${operation} validates requests and forwards opaque chat identities`, async () => {
+			const calls: { chat: string; scopeId: string }[] = [];
+			agentService[`${operation}SandboxCertificate`] = async (chat, scopeId) => { calls.push({ chat, scopeId }); };
+			const transport = connectClient('certificate-installer');
+			const response = findResponse(transport.sent, 1);
+			assert.ok(response && hasKey(response, { result: true }));
+			const advertised = (response.result as InitializeResult)._meta?.[`vscode.sandboxCertificate.${operation}`];
+			const chat = 'conversation://tenant/a%2Fb?revision%3D2#entry';
+			const completed = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, `vscode/${operation}SandboxCertificate`, { chat, scopeId: 'runtime' }));
+			assert.ok(hasKey(await completed, { result: true }));
+			for (const [index, params] of [{ chat, scopeId: '' }, { chat: 5, scopeId: 'runtime' }, { chat: '', scopeId: 'runtime' }].entries()) {
+				const invalid = waitForResponse(transport, index + 3);
+				transport.simulateMessage(request(index + 3, `vscode/${operation}SandboxCertificate`, params));
+				assert.ok(hasKey(await invalid, { error: true }));
+			}
+			assert.deepStrictEqual({ advertised, calls }, { advertised: true, calls: [{ chat, scopeId: 'runtime' }] });
+		});
+
+		test(`sandbox certificate ${operation} is unavailable without host-control access`, async () => {
+			const calls: string[] = [];
+			agentService[`${operation}SandboxCertificate`] = async () => { calls.push(operation); };
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, localServer, { allowExtensionMethods: false },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const transport = new MockProtocolTransport();
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'certificate-client' }));
+			const initialize = findResponse(transport.sent, 1);
+			assert.ok(initialize && hasKey(initialize, { result: true }));
+			const rejected = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, `vscode/${operation}SandboxCertificate`, { chat: defaultChatUri, scopeId: 'runtime' }));
+			assert.ok(hasKey(await rejected, { error: true }));
+			assert.deepStrictEqual({ capability: (initialize.result as InitializeResult)._meta?.[`vscode.sandboxCertificate.${operation}`], calls }, { capability: undefined, calls: [] });
+		});
+	}
+
 	test('subscribe request returns snapshot', async () => {
 		stateManager.createSession(makeSessionSummary());
 
@@ -2647,6 +2693,71 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(resp, 'should have sent response');
 		const result = (resp as unknown as { result: { snapshot: IStateSnapshot } }).result;
 		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
+	});
+
+	test('sandbox certificate metadata reaches initial snapshots, subscribed clients and late subscribers', async () => {
+		const certificate: IAgentSandboxCertificateStatus = {
+			scopeId: 'shared-host-runtime', state: 'notInstalled', canInstall: true, requiresRotation: false,
+		};
+		const peerChat = buildChatUri(sessionUri, 'certificate-peer');
+		const initialMeta = withAgentSandboxCertificate(
+			withAgentSandboxCertificate({ unrelated: 'preserved', 'vscode.sandboxDiagnostics': ['Missing dependency'] }, defaultChatUri, certificate),
+			peerChat, { ...certificate, state: 'error', canInstall: false, detail: 'Status unavailable' },
+		);
+		stateManager.createSession({ ...makeSessionSummary(), _meta: initialMeta });
+		const otherSession = 'copilot:/certificate-other-session';
+		const otherChat = buildDefaultChatUri(otherSession);
+		stateManager.createSession({ ...makeSessionSummary(otherSession), _meta: withAgentSandboxCertificate(undefined, otherChat, certificate) });
+		const first = connectClient('certificate-first', [sessionUri]);
+		const second = connectClient('certificate-second', [sessionUri]);
+		const unrelated = connectClient('certificate-other-session', [otherSession]);
+		const response = findResponse(first.sent, 1);
+		assert.ok(response && hasKey(response, { result: true }));
+		const initialized = response.result as InitializeResult;
+		const initialSnapshot = initialized.snapshots.find(snapshot => snapshot.resource === sessionUri);
+		assert.ok(initialSnapshot);
+		first.sent.length = 0;
+		second.sent.length = 0;
+		unrelated.sent.length = 0;
+
+		const installed = { ...certificate, state: 'installed' as const };
+		const updatedMeta = withAgentSandboxCertificate(initialMeta, defaultChatUri, installed);
+		stateManager.setSessionMeta(sessionUri, updatedMeta);
+		const updates = [first, second].flatMap(transport => findNotifications(transport.sent, 'action').map(notification => {
+			const envelope = notification.params as ActionEnvelope;
+			assert.ok(envelope.action.type === ActionType.SessionMetaChanged);
+			return { channel: envelope.channel, meta: envelope.action._meta };
+		}));
+
+		const late = connectClient('certificate-late');
+		const subscribed = waitForResponse(late, 2);
+		late.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		const lateResponse = await subscribed;
+		assert.ok(hasKey(lateResponse, { result: true }));
+		const lateResult = lateResponse.result as SubscribeResult;
+		assert.ok(lateResult.snapshot);
+		const clearedMeta = withAgentSandboxCertificate(updatedMeta, defaultChatUri, undefined);
+		stateManager.setSessionMeta(sessionUri, clearedMeta);
+		const cleared = findNotifications(first.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
+		assert.ok(cleared?.action.type === ActionType.SessionMetaChanged);
+
+		assert.deepStrictEqual({
+			initial: readAgentSandboxCertificate(initialSnapshot.state as SessionState, defaultChatUri),
+			updates,
+			unsubscribedActions: findNotifications(unrelated.sent, 'action').length,
+			late: readAgentSandboxCertificate(lateResult.snapshot.state as SessionState, defaultChatUri),
+			cleared: readAgentSandboxCertificate(cleared.action, defaultChatUri),
+			peer: readAgentSandboxCertificate(cleared.action, peerChat),
+			dependencies: cleared.action._meta?.['vscode.sandboxDiagnostics'],
+		}, {
+			initial: certificate,
+			updates: [{ channel: sessionUri, meta: updatedMeta }, { channel: sessionUri, meta: updatedMeta }],
+			unsubscribedActions: 0,
+			late: installed,
+			cleared: undefined,
+			peer: { ...certificate, state: 'error', canInstall: false, detail: 'Status unavailable' },
+			dependencies: ['Missing dependency'],
+		});
 	});
 
 	test('disconnect cancels a pending subscribe request without replying on the ended transport', async () => {
@@ -3042,7 +3153,7 @@ suite('ProtocolServerHandler', () => {
 					const workspace = join(path, 'workspace');
 					const outside = join(path, 'outside');
 					await Promise.all([mkdir(workspace), mkdir(outside)]);
-					await symlink(outside, join(workspace, 'escape'), 'dir');
+					await symlink(outside, join(workspace, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
 					const relay = disposables.add(new MockProtocolServer());
 					const scopedHandler = disposables.add(new ProtocolServerHandler(
 						agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: readOnly => readOnly ? [workspace] : [] },

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createChatUriError } from '../common/agentHostChatMinting.js';
+import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
+import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
@@ -1011,8 +1013,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...transport.relayHandshakeMeta,
 					} : {
 						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true),
+						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateInstallationCapability]: true } : {}),
+						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateRotationCapability]: true } : {}),
+						...(this._config.allowExtensionMethods !== false && this._agentService.removeSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
+							? { [sandboxCertificateRemovalCapability]: true } : {}),
 						...transport.relayHandshakeMeta,
-					}), ...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
+					}),
+					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory)
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
@@ -3278,6 +3287,33 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		switch (method) {
+			case InstallSandboxCertificateExtensionMethod:
+			case RotateSandboxCertificateExtensionMethod:
+			case RemoveSandboxCertificateExtensionMethod: {
+				const operation = method === InstallSandboxCertificateExtensionMethod
+					? 'installSandboxCertificate'
+					: method === RotateSandboxCertificateExtensionMethod
+						? 'rotateSandboxCertificate'
+						: 'removeSandboxCertificate';
+				if (!this._agentService[operation] || client.transport.relayClientId !== undefined || client.transport.relayPassive) {
+					return undefined;
+				}
+				const validated = sandboxCertificateParamsValidator.validate(params);
+				if (validated.error) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+				}
+				const { chat, scopeId } = validated.content;
+				let resource: URI;
+				try {
+					resource = URI.parse(chat, true);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI'));
+				}
+				if (!resource.scheme || !scopeId.trim()) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat and scopeId must be non-empty'));
+				}
+				return this._agentService[operation]!(chat, scopeId);
+			}
 			case 'shutdown':
 				return this._agentService.shutdown();
 			case 'getNetworkDiagnosticsInfo':
