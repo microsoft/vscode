@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { emptyPosition, IMatch, matchesFuzzy } from '../../common/filters.js';
+import { emptyMatches, IMatch } from '../../common/filters.js';
 import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from '../../common/iconLabels.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
@@ -22,10 +22,11 @@ function filterOk(filter: IIconFilter, word: string, target: IParsedLabelWithIco
 }
 
 suite('Icon Labels', () => {
-	test('offsetting an empty match does not change the shared empty position', () => {
-		assert.deepStrictEqual(matchesFuzzyIconAware('', parseLabelWithIcons('$(zap) Hello')), [{ start: 7, end: 7 }]);
-		assert.strictEqual(matchesFuzzyIconAware('', parseLabelWithIcons('Hello'))![0], emptyPosition);
-		assert.deepStrictEqual(matchesFuzzy('', 'World'), [{ start: 0, end: 0 }]);
+	test('empty queries share matches without applying icon or whitespace offsets', () => {
+		for (const label of ['', 'Hello', ' Hello', '$(zap)', '$(zap) ', '$(zap) Hello', '$(zap) $(zap) Hello']) {
+			assert.strictEqual(matchesFuzzyIconAware('', parseLabelWithIcons(label)), emptyMatches);
+		}
+		assert.deepStrictEqual(emptyMatches, [{ start: 0, end: 0 }]);
 	});
 
 	test('Can get proper aria labels', () => {

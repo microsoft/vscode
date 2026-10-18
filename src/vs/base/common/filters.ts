@@ -19,8 +19,9 @@ export interface IMatch {
 	end: number;
 }
 
-/** The shared, immutable match position for an empty query. */
-export const emptyPosition: Readonly<IMatch> = Object.freeze({ start: 0, end: 0 });
+/** Shared matches for an empty query. Neither the array nor its position may be mutated. */
+export const emptyMatches: IMatch[] = [Object.freeze({ start: 0, end: 0 })];
+Object.freeze(emptyMatches);
 
 // Combined filters
 
@@ -70,7 +71,7 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
 	if (word.length === 0) {
-		return [emptyPosition];
+		return emptyMatches;
 	}
 
 	if (word.length > wordToMatchAgainst.length) {
@@ -87,7 +88,7 @@ export function matchesContiguousSubString(word: string, wordToMatchAgainst: str
 
 export function matchesBaseContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
 	if (word.length === 0) {
-		return [emptyPosition];
+		return emptyMatches;
 	}
 
 	if (word.length > wordToMatchAgainst.length) {
@@ -472,7 +473,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 		return null; // return early for invalid input
 	}
 	if (word.length === 0) {
-		return [emptyPosition];
+		return emptyMatches;
 	}
 
 	// Form RegExp for wildcard matches
