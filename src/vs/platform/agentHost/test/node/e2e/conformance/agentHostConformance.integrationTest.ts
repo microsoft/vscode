@@ -54,3 +54,10 @@ const REFERENCE_CONFIG: IAgentHostE2EProviderConfig = {
 };
 
 defineAgentHostConformanceTests(REFERENCE_CONFIG);
+
+// TEMPORARY (do not merge): proves that an Agent Host E2E test failure fails CI.
+suite('INJECTED FAILURE (do not merge) — Agent Host E2E', () => {
+	test('an Agent Host E2E test failure fails the step', () => {
+		throw new Error('Injected Agent Host E2E failure');
+	});
+});
