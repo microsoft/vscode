@@ -1865,6 +1865,17 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 		{ name: 'older turn pages', actions: [{ type: ActionType.ChatTurnsLoaded, turns: [], turnsNextCursor: 'older' }] },
 		{ name: 'a recorded title', actions: [{ type: ActionType.SessionTitleChanged, title: 'My conversation' }] },
 		{ name: 'another chat', actions: [{ type: ActionType.SessionChatAdded, summary: { resource: 'ahp-chat:/another', title: 'Another chat', status: SessionStatus.Idle, modifiedAt: new Date(startTime).toISOString() } }] },
+		...['added', 'updated'].flatMap(source => [
+			{ status: SessionStatus.InProgress, title: 'New task' },
+			{ status: SessionStatus.InputNeeded, title: 'New task' },
+			{ status: SessionStatus.Error, title: 'New task' },
+			{ status: SessionStatus.Idle, title: 'My conversation' },
+		].map(({ status, title }) => ({
+			name: `a ${source} chat summary with status ${status} and title ${title}`,
+			actions: [source === 'added'
+				? { type: ActionType.SessionChatAdded, summary: { resource: 'ahp-chat:/opaque-empty', title, status, modifiedAt: new Date(startTime).toISOString() } }
+				: { type: ActionType.SessionChatUpdated, chat: 'ahp-chat:/opaque-empty', changes: { title, status } }] satisfies readonly StateAction[],
+		}))),
 	] satisfies readonly { name: string; actions: readonly StateAction[] }[]) {
 		test(`preserves a placeholder with ${name}`, async () => {
 			const { service } = createService(store, {
@@ -1958,6 +1969,60 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 			historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
 		}, { sessions: ['empty'], historyReads: 2 });
 	});
+
+	test('live invalidation during the first history verification prevents committing stale empty-history proof', async () => {
+		const response = new DeferredPromise<IRequestContext>();
+		const started = new DeferredPromise<void>();
+		let requests = 0;
+		const { service } = createService(store, {
+			tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: async url => {
+				if (!url.pathname.endsWith('/events')) {
+					return undefined;
+				}
+				if (++requests === 1) {
+					await started.complete();
+					return response.p;
+				}
+				return historyResponse('empty', [turnStarted, turnComplete]);
+			},
+		});
+		const pending = service.listSessions(CancellationToken.None);
+		await started.p;
+		service.invalidateSessionHistory('empty');
+		await response.complete(historyResponse('empty'));
+		const stale = await pending;
+		const current = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			stale: stale.kind,
+			current: current.kind === 'failed' ? current : current.sessions.map(session => session.taskId),
+			requests,
+		}, { stale: 'failed', current: ['empty'], requests: 2 });
+	});
+
+	for (const kind of ['session-only', 'terminal-only', 'catalogue-only']) {
+		test(`retains ${kind} history without an observed default chat`, async () => {
+			const { service } = createService(store, {
+				tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+				onRequest: url => {
+					if (!url.pathname.endsWith('/events')) {
+						return undefined;
+					}
+					const events = kind === 'catalogue-only' ? historyEvents('empty').slice(0, 3) : historyEvents('empty').slice(0, 1);
+					if (kind === 'terminal-only') {
+						events[0].payload.data.channel = 'terminal:/opaque';
+						events[0].payload.data.action = { type: ActionType.TerminalData, data: 'output' };
+					}
+					return jsonResponse({ events, total: events.length });
+				},
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.taskId), ['empty']);
+		});
+	}
 
 	test('retries missing history instead of remembering it as evidence of a conversation', async () => {
 		let requests = 0;

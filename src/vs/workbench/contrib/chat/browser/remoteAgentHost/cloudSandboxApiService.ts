@@ -753,10 +753,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	invalidateSessionHistory(taskId: string, preserveCached = false): void {
 		this._historyCache.invalidate(taskId, false, preserveCached);
+		this._discoveryGeneration++;
 		const cached = this._discoveredTasks.get(taskId);
 		if (cached?.emptySessionSince !== undefined) {
 			this._discoveredTasks.set(taskId, { ...cached, hasEmptyHistory: undefined, needsRefresh: true });
-			this._discoveryGeneration++;
 		}
 	}
 
@@ -1288,9 +1288,11 @@ function isEmptySessionHistory(history: IReplayedTaskHistory | undefined, sessio
 	if (session.session !== AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, sessionId).toString()) {
 		return undefined;
 	}
-	if (session.chats.size !== 1 || session.state.chats.length > 1
+	if (!session.hasRecordedDefaultChat || session.chats.size !== 1 || session.state.chats.length > 1
 		|| (session.state.status & (SessionStatus.InProgress | SessionStatus.Error))
-		|| session.state.chats.some(chat => chat.changes?.files)
+		|| session.state.chats.some(chat => chat.changes?.files
+			|| (chat.status & (SessionStatus.InProgress | SessionStatus.Error))
+			|| (chat.title && chat.title !== 'New task' && chat.title !== 'New Task'))
 		|| (session.state.title && session.state.title !== 'New task' && session.state.title !== 'New Task')) {
 		return false;
 	}
