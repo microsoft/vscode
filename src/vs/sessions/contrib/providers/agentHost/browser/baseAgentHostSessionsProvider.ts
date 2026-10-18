@@ -4368,6 +4368,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _activeClientSyncCancellation = this._register(new MutableDisposable<ActiveClientSyncCancellationTokenSource>());
 	private _activeSessionScopeSessionType: string | undefined;
 	private _activeSessionScopeRoots: readonly URI[] | undefined;
+	private readonly _lastPublishedActiveClients = new Map<string, { readonly connection: IAgentConnection; readonly activeClient: SessionActiveClient }>();
 
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
@@ -4828,12 +4829,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const sessionType = this.resourceSchemeForProvider(cached.agentProvider);
+		const scopeRoots = cached.isQuickChat.get() ? [] : cached.workingDirectories;
 		let scope = this._activeSessionScope.value;
-		if (!scope || this._activeSessionScopeSessionType !== sessionType || !this._activeClientService.areScopeRootsEqual(this._activeSessionScopeRoots, cached.workingDirectories)) {
-			scope = this._activeClientService.acquireScope(sessionType, cached.workingDirectories);
+		if (!scope || this._activeSessionScopeSessionType !== sessionType || !this._activeClientService.areScopeRootsEqual(this._activeSessionScopeRoots, scopeRoots)) {
+			scope = this._activeClientService.acquireScope(sessionType, scopeRoots);
 			this._activeSessionScope.value = scope;
 			this._activeSessionScopeSessionType = sessionType;
-			this._activeSessionScopeRoots = [...cached.workingDirectories];
+			this._activeSessionScopeRoots = [...scopeRoots];
 		}
 
 		void this._dispatchActiveClientWhenResolved(cancellation.token, activeSession.sessionId, rawId, cached, connection, scope);
@@ -4862,12 +4864,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const activeClient = scope.activeClient(connection.clientId).get();
-		const existing = this._lastSessionStates.get(cached.sessionId)?.activeClients.find(client => client.clientId === activeClient.clientId);
+		const channel = cached.backendUri.toString();
+		const subscriptionState = connection.getSubscriptionUnmanaged(StateComponents.Session, cached.backendUri)?.verifiedValue;
+		const existing = subscriptionState?.activeClients.find(client => client.clientId === activeClient.clientId);
 		if (equals(existing, activeClient)) {
+			this._lastPublishedActiveClients.delete(channel);
+			return;
+		}
+		const lastPublished = this._lastPublishedActiveClients.get(channel);
+		if (lastPublished?.connection === connection && equals(lastPublished.activeClient, activeClient)) {
 			return;
 		}
 
-		connection.dispatch(cached.backendUri.toString(), {
+		this._lastPublishedActiveClients.set(channel, { connection, activeClient });
+		connection.dispatch(channel, {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,
 		});
@@ -8247,7 +8257,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (agentMergeSettingsChanged) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
 		}
-
 	}
 
 	/**
@@ -8837,6 +8846,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * (remote), passing a store that bounds the listeners' lifetime.
 	 */
 	protected _attachConnectionListeners(connection: IAgentConnection, store: DisposableStore): void {
+		this._lastPublishedActiveClients.clear();
 		// Chat config subscriptions belong to the previous connection.
 		this._chatConfigIdleTimers.clearAndDisposeAll();
 		this._chatConfigSubscriptions.clearAndDisposeAll();
@@ -8866,6 +8876,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// here. This does not roll back the dispatcher's own optimistic write:
 			// the echo carries the value it already set.
 			if (e.rejectionReason) {
+				if (e.action.type === ActionType.SessionActiveClientSet && e.action.activeClient.clientId === connection.clientId) {
+					const lastPublished = this._lastPublishedActiveClients.get(e.channel);
+					if (lastPublished?.connection === connection && equals(lastPublished.activeClient, e.action.activeClient)) {
+						this._lastPublishedActiveClients.delete(e.channel);
+					}
+				}
 				return;
 			}
 			if (e.action.type === ActionType.ChatTurnComplete && isChatAction(e.action)) {
@@ -8881,6 +8897,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
 			} else if (e.action.type === ActionType.SessionMetaChanged && isSessionAction(e.action)) {
 				this._handleSessionMetaChanged(e.channel, e.action._meta);
+			} else if (e.action.type === ActionType.SessionActiveClientRemoved && e.action.clientId === connection.clientId) {
+				this._lastPublishedActiveClients.delete(e.channel);
+				const activeSession = this._sessionsService.activeSession.get();
+				const rawId = activeSession?.providerId === this.id ? this._sessionKeyFromChatId(activeSession.sessionId) : undefined;
+				if (rawId && this._sessionCache.get(rawId)?.backendUri.toString() === e.channel) {
+					this._syncActiveClient();
+				}
 			}
 		}));
 	}
@@ -8954,6 +8977,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!stateOwner) {
 			return undefined;
 		}
+		this._lastPublishedActiveClients.delete(stateOwner.backendUri.toString());
 		if (cached) {
 			this._sessionCache.delete(rawId);
 			this._backendSessionsChanged.trigger(undefined);
