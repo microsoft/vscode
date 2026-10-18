@@ -20,7 +20,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -43,7 +42,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHA
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
@@ -53,7 +52,6 @@ import { computePullRequestIcon } from '../../../../workbench/common/chatPullReq
 import { ISessionChangesStatsCache, readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
@@ -89,7 +87,7 @@ function getPullRequestAttention(icon: ThemeIcon, status: IResolvedSessionPullRe
 }
 
 function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService, onDidOpenReference?: () => void) {
-	const repository = URI.parse(`https://github.com/${owner}/${repo}`);
+	const repository = reference.with({ path: `/${owner}/${repo}`, query: null, fragment: null });
 	return {
 		repositoryHref: repository.toString(true),
 		referenceHref: reference.toString(true),
@@ -265,7 +263,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader))) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader), session)) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -280,13 +278,13 @@ function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefin
 	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
 }
 
-/**
- * The changeset represented by the Changes pill. A nested chat reports its own
- * Session Changes; the main chat reports Branch Changes for a worktree and
- * Session Changes otherwise.
- */
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean): string {
-	return !isNested && workspace?.folders[0]?.gitRepository?.workTreeUri
+function isCloudSandboxSession(session: IActiveSession | undefined): boolean {
+	return session?.environment === 'cloud' && isAgentHostProviderId(session.providerId);
+}
+
+/** Cloud sandboxes and nested chats show Session Changes; other main chats keep their workspace-based selection. */
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean, session: IActiveSession | undefined): string {
+	return !isNested && !isCloudSandboxSession(session) && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -405,7 +403,6 @@ export class SessionChatInputToolbar extends Disposable {
 	constructor(
 		compact: ChatPillsCompactMode,
 		focusFallback: (() => void) | undefined,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -448,7 +445,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
-		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls, gitHubReferences));
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._chat, this._browsers.urls, gitHubReferences));
 		this._artifactSections = derived(this, reader => {
 			const debugData = this._debugData.read(reader);
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
@@ -463,19 +460,7 @@ export class SessionChatInputToolbar extends Disposable {
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
 		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
-		const agentMergeConfiguration = derived(this, reader => {
-			const session = this._session.read(reader);
-			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
-		});
-		const agentMergeApplies = (ref: IGitHubPullRequestRef, reader: IReader) => {
-			const session = this._session.read(reader);
-			const workspace = this._chat.read(reader)?.workspace?.read(reader) ?? session?.workspace.read(reader);
-			return workspace?.folders.some(folder => {
-				const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
-				return gitHubInfo?.owner.toLowerCase() === ref.owner.toLowerCase() && gitHubInfo.repo.toLowerCase() === ref.repo.toLowerCase();
-			}) === true;
-		};
-		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService, agentMergeApplies));
+		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, gitHubService));
 		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {
 			const artifactsById = new Map((session.artifacts?.read(reader) ?? []).map(artifact => [artifact.id, artifact]));
 			return {
@@ -520,7 +505,7 @@ export class SessionChatInputToolbar extends Disposable {
 			for (const ref of issueRefs.read(reader)) {
 				const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
 				const model = reference.object;
-				model.refresh();
+				model.refresh({ priority: 'visible' });
 				const shouldPoll = derived(this, pollReader => model.issue.read(pollReader)?.state !== GitHubIssueState.Closed);
 				reader.store.add(autorun(pollReader => {
 					if (shouldPoll.read(pollReader)) {
@@ -546,7 +531,7 @@ export class SessionChatInputToolbar extends Disposable {
 		});
 		const changesLabel = derived(this, reader => {
 			const session = this._session.read(reader);
-			if (isNestedChat(session, this._chat.read(reader), reader)) {
+			if (isNestedChat(session, this._chat.read(reader), reader) || isCloudSandboxSession(session)) {
 				return localize('sessionChatPills.sessionChanges', "Session Changes");
 			}
 			const workspace = session?.workspace.read(reader);
@@ -570,7 +555,7 @@ export class SessionChatInputToolbar extends Disposable {
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined)),
+							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
 						}
 					});
 				},

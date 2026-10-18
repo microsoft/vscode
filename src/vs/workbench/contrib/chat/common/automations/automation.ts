@@ -9,9 +9,10 @@ import type { JsonPrimitive } from '../../../../../platform/agentHost/common/sta
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
- * `daily`/`weekly` fire at the configured local-time hour/minute (and day-of-week).
+ * `daily`/`weekly` fire at the configured hour/minute (and day-of-week);
+ * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute.
  */
-export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekly' | 'custom';
+export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom';
 
 /**
  * Describes the cadence at which an automation should fire.

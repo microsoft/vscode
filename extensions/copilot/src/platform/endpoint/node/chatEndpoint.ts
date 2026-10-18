@@ -210,7 +210,10 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly minThinkingBudget?: number;
 	public readonly maxThinkingBudget?: number;
 	public readonly supportsReasoningEffort?: string[];
-	public readonly supportsToolSearch?: boolean;
+	private readonly _supportsToolSearch: boolean | undefined;
+	public get supportsToolSearch(): boolean | undefined {
+		return this._supportsToolSearch;
+	}
 	public readonly supportsContextEditing?: boolean;
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
@@ -271,7 +274,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
+		this._supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
 		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;

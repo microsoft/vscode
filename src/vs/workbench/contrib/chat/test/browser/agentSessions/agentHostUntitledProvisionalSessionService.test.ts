@@ -18,7 +18,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -91,7 +92,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		} as unknown as IAgentSubscription<RootState>;
 	})();
 
-	/** Simulates the host re-advertising after a `multiRootEnabled` change. */
+	/** Simulates the host advertising updated capabilities. */
 	fireRootStateChange(): void {
 		this._onRootStateChange.fire({ agents: this.rootStateAgents } as unknown as RootState);
 	}
@@ -258,6 +259,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	let acquiredScopeRoots: string[][];
+	let configurationService: TestConfigurationService;
+	let legacyApprovalRestricted: boolean;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -273,6 +276,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
 		acquiredScopeRoots = [];
+		legacyApprovalRestricted = false;
 		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
@@ -293,7 +297,16 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IChatService, new class extends MockChatService {
 			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
 		}());
-		insta.stub(IConfigurationService, new TestConfigurationService());
+		configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const inspected = super.inspect<T>(key);
+				if (key === ChatConfiguration.DefaultConfiguration && inspected.value === undefined) {
+					return { ...inspected, value: { approvals: 'manual' } as T, defaultValue: { approvals: 'manual' } as T };
+				}
+				return key === ChatConfiguration.GlobalAutoApprove && legacyApprovalRestricted ? { ...inspected, policyValue: false as T } : inspected;
+			}
+		}();
+		insta.stub(IConfigurationService, configurationService);
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
@@ -339,6 +352,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 	function seedImportedConversation(resource: URI): void {
 		importStore.set(resource, {
+			title: 'Original imported conversation',
 			turns: [{
 				id: 'imported-turn',
 				message: { text: 'Imported message', origin: { kind: MessageKind.User } },
@@ -346,6 +360,39 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				usage: undefined,
 				state: TurnState.Complete,
 			}],
+		});
+	}
+
+	for (const hostPolicy of [false, true]) {
+		test(`prewarming preserves configured approval until host discovery (hostPolicy=${hostPolicy})`, async () => {
+			legacyApprovalRestricted = true;
+			await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'allowAll' });
+			agentHost.resolveQueue.push({
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] },
+						...(hostPolicy ? { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } : {}),
+					}
+				},
+				values: { autoApprove: 'default', availableApprovalModes: ['default', 'autoApprove'] },
+			});
+			await provisional.getOrCreate(URI.parse('agent-host-copilotcli:/untitled-policy'), 'copilotcli', undefined);
+			assert.deepStrictEqual({
+				discovery: agentHost.resolveCalls.map(call => call.config),
+				created: agentHost.createCalls.map(call => call.config),
+			}, { discovery: [undefined], created: [{ isolation: 'folder', autoApprove: hostPolicy ? 'autoApprove' : 'default' }] });
+		});
+	}
+
+	for (const explicit of [false, true]) {
+		test(`a non-Copilot provider receives only explicit approval seeds (explicit=${explicit})`, async () => {
+			if (explicit) {
+				await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'manual' });
+			}
+			await provisional.getOrCreate(URI.parse('agent-host-other:/untitled-default'), 'other', undefined);
+			assert.deepStrictEqual(agentHost.createCalls.map(call => call.config), [
+				{ isolation: 'folder', ...(explicit ? { autoApprove: 'default' } : {}) },
+			]);
 		});
 	}
 
@@ -705,12 +752,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			rebound: rebound?.toString(),
 			createCount: agentHost.createCalls.length,
 			importedTurns: agentHost.createCalls.at(-1)?.importConversation?.turns.map(turn => turn.id),
+			importedTitle: agentHost.createCalls.at(-1)?.importConversation?.title,
 			disposed: agentHost.disposed.map(uri => uri.toString()),
 			remainingImport: importStore.take(real),
 		}, {
 			rebound: URI.from({ scheme: 'copilot', path: real.path }).toString(),
 			createCount: 2,
 			importedTurns: ['imported-turn'],
+			importedTitle: 'Original imported conversation',
 			disposed: [backend.toString()],
 			remainingImport: undefined,
 		});
@@ -1078,9 +1127,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const ui = untitledChatUri('multi-root-enabled-at-runtime');
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
-		// The hidden `multiRootEnabled` setting is toggled on: the host
-		// re-advertises `multipleWorkingDirectories`, so `rootState` changes
-		// without a window reload.
+		// The host advertises multipleWorkingDirectories without a window reload.
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
 		agentHost.fireRootStateChange();
 		await provisional.waitForPending(ui);

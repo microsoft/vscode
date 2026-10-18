@@ -7,10 +7,10 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { IRequestScheduler } from './scheduler.js';
 import { getGitHubRequestFeature, GitHubRequestFeature } from './githubRequestMetadata.js';
 import { GitHubTelemetrySource } from './githubTypes.js';
-import { RequestContext, IRequestTiming, RequestOutcome } from './types.js';
+import { IRequestScheduler } from './scheduler.js';
+import { IRequestTiming, RequestContext, RequestOutcome } from './types.js';
 
 type Caller = GitHubRequestFeature;
 type Rejection = 'engine' | 'account' | 'caller' | 'waiter';
@@ -158,17 +158,21 @@ export class GitHubRequestTelemetry extends Disposable {
 		if (!this._record()) {
 			return undefined;
 		}
+
 		this._counters.requests++;
 		const generation = this._generation;
 		let completed = false;
+
 		return outcome => {
 			if (completed) {
 				return;
 			}
+
 			completed = true;
 			if (!this._record(generation)) {
 				return;
 			}
+
 			switch (outcome) {
 				case 'success': this._counters.succeeded++; break;
 				case 'cancelled': this._counters.cancelled++; break;
@@ -240,12 +244,14 @@ export class GitHubRequestTelemetry extends Disposable {
 		if (!this._record()) {
 			return undefined;
 		}
+
 		const metadata = {
 			caller: getGitHubRequestFeature(context.caller),
 			kind: context.kind === 'rest' || context.kind === 'graphql' || context.kind === 'download' ? context.kind : 'other',
 			priority: classifyPriority(context.priority),
 			resource: context.resource === 'core' || context.resource === 'search' || context.resource === 'graphql' ? context.resource : 'other',
 		} as const;
+
 		const generation = this._generation;
 		const queuedAt = this._scheduler.now();
 		let lastUpdated = queuedAt;
@@ -254,11 +260,13 @@ export class GitHubRequestTelemetry extends Disposable {
 		let startedAt: number | undefined;
 		let priority = metadata.priority;
 		let completed = false;
+
 		const update = () => {
 			const now = this._scheduler.now();
 			cooldownMs += Math.max(0, Math.min(now, cooldownUntil) - lastUpdated);
 			lastUpdated = now;
 		};
+
 		return {
 			updateCooldown: delay => {
 				update();
@@ -275,20 +283,26 @@ export class GitHubRequestTelemetry extends Disposable {
 				if (completed) {
 					return;
 				}
+
 				completed = true;
 				if (startedAt === undefined) {
 					update();
 				}
+
 				if (!this._record(generation)) {
 					return;
 				}
+
 				const now = this._scheduler.now();
 				const sample: TimingSample = {
-					...metadata, priority, outcome: classifyOutcome(outcome),
+					...metadata,
+					priority,
+					outcome: classifyOutcome(outcome),
 					queueMs: Math.max(0, (startedAt ?? now) - queuedAt - cooldownMs),
 					cooldownMs,
 					executionMs: startedAt === undefined ? 0 : Math.max(0, now - startedAt),
 				};
+
 				const population = ++this._samplePopulation;
 				const index = population <= GitHubRequestTelemetry.maximumSamples ? population - 1 : this._scheduler.jitter(population - 1);
 				if (index < GitHubRequestTelemetry.maximumSamples) {
@@ -317,7 +331,9 @@ export class GitHubRequestTelemetry extends Disposable {
 					break;
 				}
 				this._telemetryService.publicLog2<TimingEvent, TimingClassification>('githubRequestTiming', {
-					...sample, source: this._source, samplePopulation: summary.admittedCompleted,
+					...sample,
+					source: this._source,
+					samplePopulation: summary.admittedCompleted,
 				});
 			}
 		} catch {
@@ -365,8 +381,13 @@ export class GitHubRequestTelemetry extends Disposable {
 
 function classifyPriority(priority: string): TimingSample['priority'] {
 	switch (priority) {
-		case 'mutationReconciliation': case 'mutation': case 'interactive': case 'mergeGate':
-		case 'visible': case 'background': case 'enrichment':
+		case 'mutationReconciliation':
+		case 'mutation':
+		case 'interactive':
+		case 'mergeGate':
+		case 'visible':
+		case 'background':
+		case 'enrichment':
 			return priority;
 		default: return 'other';
 	}
@@ -374,9 +395,20 @@ function classifyPriority(priority: string): TimingSample['priority'] {
 
 function classifyOutcome(outcome: string): RequestOutcome {
 	switch (outcome) {
-		case 'success': case 'cancelled': case 'authentication': case 'authorization': case 'notFound':
-		case 'validation': case 'schema': case 'rateLimit': case 'network': case 'server':
-		case 'overloaded': case 'timeout': case 'responseTooLarge': case 'malformedResponse':
+		case 'success':
+		case 'cancelled':
+		case 'authentication':
+		case 'authorization':
+		case 'notFound':
+		case 'validation':
+		case 'schema':
+		case 'rateLimit':
+		case 'network':
+		case 'server':
+		case 'overloaded':
+		case 'timeout':
+		case 'responseTooLarge':
+		case 'malformedResponse':
 			return outcome;
 		default: return 'other';
 	}
@@ -384,10 +416,35 @@ function classifyOutcome(outcome: string): RequestOutcome {
 
 function emptyCounters(): RequestCounters {
 	return {
-		requests: 0, succeeded: 0, cancelled: 0, timedOut: 0, overloaded: 0, responseTooLarge: 0,
-		authenticationFailures: 0, authorizationFailures: 0, rateLimitFailures: 0, networkFailures: 0, serverFailures: 0, otherFailures: 0,
-		wireAttempts: 0, retries: 0, coalesced: 0, etagRevalidations: 0, notModified: 0,
-		http2xx: 0, http3xx: 0, http4xx: 0, http5xx: 0, httpOther: 0, rateLimitedResponses: 0, graphqlErrorResponses: 0,
-		engineRejected: 0, accountRejected: 0, callerRejected: 0, waiterRejected: 0, activeHighWater: 0, pendingHighWater: 0,
+		requests: 0,
+		succeeded: 0,
+		cancelled: 0,
+		timedOut: 0,
+		overloaded: 0,
+		responseTooLarge: 0,
+		authenticationFailures: 0,
+		authorizationFailures: 0,
+		rateLimitFailures: 0,
+		networkFailures: 0,
+		serverFailures: 0,
+		otherFailures: 0,
+		wireAttempts: 0,
+		retries: 0,
+		coalesced: 0,
+		etagRevalidations: 0,
+		notModified: 0,
+		http2xx: 0,
+		http3xx: 0,
+		http4xx: 0,
+		http5xx: 0,
+		httpOther: 0,
+		rateLimitedResponses: 0,
+		graphqlErrorResponses: 0,
+		engineRejected: 0,
+		accountRejected: 0,
+		callerRejected: 0,
+		waiterRejected: 0,
+		activeHighWater: 0,
+		pendingHighWater: 0,
 	};
 }

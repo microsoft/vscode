@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -12,8 +13,10 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, isImageGenerationEnabledByDefault } from '../../../../../platform/agentHost/common/copilotCliConfig.js';
 import '../../browser/agentSessionsConfiguration.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredAgentSessionsSettings = [
@@ -32,6 +35,27 @@ const persistentProgressSetting = chatProgressConfigurationProperties[ChatConfig
 suite('Chat configuration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('image generation defaults on in Insiders and off in Stable and development', () => {
+		assert.deepStrictEqual(['stable', 'insider', undefined].map(isImageGenerationEnabledByDefault), [false, true, false]);
+	});
+
+	test('the Sunburst setting description includes input/output rates and account availability', () => {
+		const description = copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGeneration].protocol.description;
+		assert.ok(description, 'The Sunburst setting must have a price description');
+		assert.deepStrictEqual({
+			availability: description.includes('when available to your account'),
+			unit: description.includes('AI credits per 1 million tokens'),
+			textRates: description.includes('**Text tokens:** 500 input / 0 output'),
+			imageRates: description.includes('**Image tokens:** 800 input / 3,000 output'),
+			additional: description.includes('in addition to the conversation model'),
+			variableRates: description.includes('Rates may change'),
+			notPerImage: description.includes('not per-image prices'),
+		}, {
+			availability: true, unit: true, textRates: true, imageRates: true,
+			additional: true, variableRates: true, notPerImage: true,
+		});
+	});
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
@@ -91,13 +115,23 @@ suite('Chat configuration', () => {
 		}, {
 			marketplace: {
 				type: 'boolean',
-				tags: ['experimental'],
-				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				tags: ['experimental', 'advanced'],
+				description: 'Shows Browse instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
 				default: false,
 				experiment: { mode: 'auto' },
 			},
 			publicFeed: true,
 		});
+	});
+
+	test('strict marketplace policy disables the GitHub Feed', () => {
+		assert.deepStrictEqual([
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: true, harnessProvidesMarketplaceSearch: true },
+			{ strictPolicyActive: false, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictPolicyActive, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new class extends mock<IPluginMarketplaceService>() {
+			override isStrictMarketplacePolicyActive() { return strictPolicyActive; }
+		}(), harnessProvidesMarketplaceSearch)), [true, false, false]);
 	});
 
 	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {

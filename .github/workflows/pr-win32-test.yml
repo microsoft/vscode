@@ -22,13 +22,22 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      smoke_shard_index:
+        description: 1-based index of the Electron smoke test shard to run
+        type: number
+        default: 1
+      smoke_shard_total:
+        description: Number of shards the Electron smoke tests are split into
+        type: number
+        default: 1
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
+    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -38,31 +47,20 @@ jobs:
         with:
           lfs: true
 
-      - name: Set WSL kernel cache day
-        id: wsl-kernel-cache-day
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        shell: pwsh
-        run: '"date=$((Get-Date).ToUniversalTime().ToString("yyyyMMdd"))" >> $env:GITHUB_OUTPUT'
-
-      - name: Restore WSL kernel installer cache
-        id: wsl-kernel-cache
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-        with:
-          path: .build/wsl-kernel-cache
-          key: wsl-kernel-win32-x64-${{ steps.wsl-kernel-cache-day.outputs.date }}
-          restore-keys: |
-            wsl-kernel-win32-x64-
+      # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
+      # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
+      - name: Restore WSL installer
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
+        uses: ./.github/actions/restore-wsl-installer
 
       - name: Prepare WSL Dev Container smoke tests
         id: wsl-dev-container
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
         timeout-minutes: 15
         shell: pwsh
         run: .\test\smoke\wslDevContainer.ps1
         env:
-          WSL_KERNEL_CACHE_PATH: ${{ github.workspace }}\.build\wsl-kernel-cache\wsl_update_x64.msi
-          WSL_KERNEL_CACHE_RESULT: ${{ steps.wsl-kernel-cache.outputs.cache-hit }}
+          WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
 
       - name: Detect Agent Host E2E changes
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
@@ -232,13 +230,27 @@ jobs:
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
-      - name: 🧪 Run integration tests (Electron)
+      - name: 🧪 Run Agent Host E2E tests (Electron)
+        id: agent-host-e2e
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
         timeout-minutes: 30
         shell: pwsh
-        run: .\scripts\test-integration.bat --tfs "Integration Tests"
+        run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests"
         env:
           VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # Runs even when Agent Host E2E failed, so that one does not hide the other.
+      - name: 🧪 Run integration tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: .\scripts\test-integration.bat --tfs "Integration Tests"
+        env:
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
@@ -283,9 +295,10 @@ jobs:
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing
+        run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
+          # Set in every shard so all shards register the WSL suite and compute the same split
           VSCODE_SMOKE_TEST_WSL_REQUIRED: '1'
           VSCODE_SMOKE_TEST_WSL_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           VSCODE_SMOKE_TEST_WSL_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}

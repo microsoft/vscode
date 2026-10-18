@@ -945,6 +945,61 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('renders an optional information icon after the standalone toggle label', () => {
+		const label = 'Sandboxing in Dev Container';
+		const title = 'This relaxes the outer container isolation.';
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action(label),
+				hover: { content: title },
+				standaloneToggle: { label, title, checked: true, showInfoIcon: true, onChange: () => { } },
+			}],
+			listOptions: { showFilter: false },
+		});
+		const labelElement = widget.domNode.querySelector('.title');
+		const icon = labelElement?.querySelector('.codicon-info');
+		assert.ok(icon);
+		assert.deepStrictEqual({
+			label: labelElement?.firstChild?.textContent,
+			iconAfterLabel: labelElement?.lastChild === icon,
+			hiddenFromScreenReaders: icon.getAttribute('aria-hidden'),
+			switchDescription: widget.domNode.querySelector('.monaco-switch')?.getAttribute('aria-label'),
+		}, { label, iconAfterLabel: true, hiddenFromScreenReaders: 'true', switchDescription: title });
+
+		widget.updateItems([{
+			...action('Sandboxing for terminal'),
+			standaloneToggle: { label: 'Sandboxing for terminal', checked: true, onChange: () => { } },
+		}]);
+		assert.strictEqual(widget.domNode.querySelector('.action-list-item-toggle-info'), null);
+	});
+
+	for (const fontSize of [13, 16, 18]) {
+		test(`centers the toggle information icon beside its label at ${fontSize}px`, () => {
+			const label = 'Sandboxing in Dev Container';
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action(label),
+					standaloneToggle: { label, checked: true, showInfoIcon: true, onChange: () => { } },
+				}],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.classList.add('action-widget');
+			widget.domNode.style.setProperty('--vscode-fontSize-body1', `${fontSize}px`);
+			widget.domNode.style.font = `${fontSize}px/20px "Segoe UI", sans-serif`;
+			widget.layout(400, 200);
+			const labelElement = widget.domNode.querySelector('.title');
+			const icon = labelElement?.querySelector('.codicon-info');
+			assert.ok(labelElement?.firstChild);
+			assert.ok(icon);
+			const textRange = document.createRange();
+			textRange.selectNodeContents(labelElement.firstChild);
+			const textBounds = textRange.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			const offset = iconBounds.top + iconBounds.height / 2 - textBounds.top - textBounds.height / 2;
+			assert.ok(Math.abs(offset) <= 1, `Information icon is vertically offset by ${offset}px at ${fontSize}px`);
+		});
+	}
+
 	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {
@@ -1859,6 +1914,38 @@ suite('ActionListWidget', () => {
 				panelLabel: 'auto',
 			},
 		);
+	});
+
+	test('a submenu beneath hover content is still advertised by its chevron and popup state', () => {
+		const child = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('menu'), hover: { content: 'About this item' }, submenuActions: [child] }, { ...action('hover'), hover: { content: 'About this item' } }],
+			listOptions: { showFilter: false },
+		});
+		const rows = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')).filter(row => !row.closest('.action-list-submenu-panel'));
+		const state = () => rows().map(row => ({
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		}));
+
+		const initial = state();
+		rows()[0].querySelector<HTMLElement>('.action-list-submenu-indicator.has-submenu')?.click();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+
+		assert.deepStrictEqual({
+			initial,
+			opened: state()[0].expanded,
+			panel: {
+				hover: panel?.querySelector('.action-list-submenu-hover-header')?.textContent,
+				actions: Array.from(panel?.querySelectorAll('.monaco-list-row.action .title') ?? [], title => title.textContent),
+			},
+		}, {
+			// A row with only hover content has no menu to advertise.
+			initial: [{ chevron: true, haspopup: 'menu', expanded: 'false' }, { chevron: false, haspopup: null, expanded: null }],
+			opened: 'true',
+			panel: { hover: 'About this item', actions: ['Child'] },
+		});
 	});
 
 	test('the submenu gutter follows the items the list currently holds', () => {

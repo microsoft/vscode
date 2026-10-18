@@ -30,6 +30,8 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
+import { IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
@@ -42,10 +44,10 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../../canvases/common/sessionCanvas.js';
+import { REVEAL_CANVAS_COMMAND_ID } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
-import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
+import { createIssueHover } from '../../../github/browser/issueHover.js';
 import { GitHubCIOverallStatus, GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, type IGitHubIssue, type IGitHubPullRequest } from '../../../github/common/types.js';
 import type { IResolvedSessionPullRequest } from '../../../github/browser/pullRequestIconStatus.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -59,6 +61,10 @@ suite('SessionChatInputToolbar', () => {
 
 	function createServices() {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({
+			chatModels: constObservable([]),
+		}));
+		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 		}));
@@ -238,6 +244,57 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('uses Session Changes in cloud sandboxes without changing other worktree sessions', () => {
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionFolder>({
+				gitRepository: upcastPartial<ISessionGitRepository>({ workTreeUri: URI.file('/worktree') }),
+			})],
+		}));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			workspace,
+			changesets: constObservable([
+				upcastPartial<ISessionChangeset>({
+					id: BRANCH_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(false),
+					changes: constObservable([]),
+				}),
+				upcastPartial<ISessionChangeset>({
+					id: SESSION_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(true),
+					changes: constObservable([{
+						modifiedUri: URI.file('/chat-change.ts'),
+						insertions: 3,
+						deletions: 0,
+					}]),
+				}),
+			]),
+			changes: constObservable([]),
+		});
+		const scenarios = [
+			{ environment: 'cloud', providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}cloudsandbox__environment` },
+			{ environment: 'cloud', providerId: 'copilot-cloud' },
+			{ environment: 'local', providerId: LOCAL_AGENT_HOST_PROVIDER_ID },
+			{ environment: 'remote', providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}ssh__host` },
+			{ environment: 'remote', providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}tunnel__host` },
+		];
+		const stats = scenarios.map(identity => {
+			const session = upcastPartial<IActiveSession>({
+				...identity,
+				mainChat: constObservable(chat),
+			});
+			return derived(reader => computeSessionInputPillStats(session, chat, reader)).get();
+		});
+
+		assert.deepStrictEqual(stats, [
+			{ files: 1, insertions: 3, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+			{ files: 0, insertions: 0, deletions: 0 },
+		]);
+	});
+
 	test('uses cached session stats while chat changes are unresolved', () => {
 		const chat = upcastPartial<IChat>({
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
@@ -338,6 +395,99 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
+	for (const activation of ['click', 'Enter', 'Space'] as const) {
+		test(`shows, labels and opens Session Changes in a cloud sandbox worktree with ${activation}`, () => {
+			const { instantiationService } = createServices();
+			const root = URI.parse('https://github.com/owner/repo');
+			const workingDirectory = URI.file('/workspaces/repo');
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root,
+					name: 'repo',
+					description: undefined,
+					workingDirectory,
+					gitRepository: {
+						uri: root,
+						workTreeUri: workingDirectory,
+						branchName: 'main',
+						baseBranchName: 'main',
+						gitHubInfo: constObservable(undefined),
+					},
+				}],
+			}));
+			const changes = observableValue('sessionChanges', [{
+				modifiedUri: URI.file('/workspaces/repo/changed.ts'),
+				insertions: 3,
+				deletions: 0,
+			}]);
+			const chat = upcastPartial<IChat>({
+				resource: URI.parse('chat:main'),
+				workspace,
+				changesets: constObservable([
+					upcastPartial<ISessionChangeset>({
+						id: BRANCH_CHANGES_CHANGESET_ID,
+						isDefault: constObservable(false),
+						changes: constObservable([]),
+					}),
+					upcastPartial<ISessionChangeset>({
+						id: SESSION_CHANGES_CHANGESET_ID,
+						isDefault: constObservable(true),
+						changes,
+					}),
+				]),
+				changes,
+			});
+			const session = upcastPartial<IActiveSession>({
+				environment: 'cloud',
+				providerId: `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}cloudsandbox__environment`,
+				loading: constObservable(false),
+				sessionId: 'sandbox:session',
+				capabilities: constObservable({ supportsMultipleChats: false }),
+				resource: URI.parse('session:1'),
+				chats: constObservable([chat]),
+				mainChat: constObservable(chat),
+				workspace,
+			});
+			const opened: (string | undefined)[] = [];
+			instantiationService.stub(ISessionsService, 'setActive', () => { });
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+				revealEditorPartExplicitly: () => { },
+			}));
+			instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+				openChangesEditor: async (_resource, options) => {
+					const selection = options?.changesetSelection;
+					opened.push(selection?.kind === 'id' ? selection.id : undefined);
+					return undefined;
+				},
+			}));
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			toolbar.setSession(session, chat);
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+			assert.ok(pill);
+			const label = pill.getAttribute('aria-label');
+			if (activation === 'click') {
+				pill.click();
+			} else {
+				pill.dispatchEvent(new KeyboardEvent('keydown', {
+					key: activation === 'Enter' ? 'Enter' : ' ',
+					keyCode: activation === 'Enter' ? 13 : 32,
+					bubbles: true,
+				}));
+			}
+			changes.set([], undefined);
+
+			assert.deepStrictEqual({
+				label,
+				opened,
+				hasPillAfterClearing: !!toolbar.element.querySelector('.chat-changes-pill-button'),
+			}, {
+				label: 'Session Changes: 1 File, +3, -0',
+				opened: [SESSION_CHANGES_CHANGESET_ID],
+				hasPillAfterClearing: false,
+			});
+		});
+	}
+
 	test('labels and opens Session Changes from a nested chat pill while the main chat keeps Branch Changes', () => {
 		const { instantiationService } = createServices();
 		const root = URI.file('/repo');
@@ -416,7 +566,7 @@ suite('SessionChatInputToolbar', () => {
 		const clipboardService = upcastPartial<IClipboardService>({});
 		const openerService = upcastPartial<IOpenerService>({});
 		const sessionsService = upcastPartial<ISessionsService>({});
-		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, copy() { } };
+		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, async downloadImage() { }, copy() { } };
 		const rowPresentation = (entry: IChatPillEntry) => ({
 			label: entry.label, badge: entry.badge, leading: entry.badgeBeforeLabel,
 			pillLabel: entry.pillLabel, className: entry.className,
@@ -1022,7 +1172,7 @@ suite('SessionChatInputToolbar', () => {
 
 	test('reveals a bounded title when keyboard focus reaches its reference link', () => {
 		const title = `${'Long issue title '.repeat(8)}ending`;
-		const hover = createIssueHoverElement({
+		const hover = createIssueHover({
 			owner: 'microsoft',
 			repo: 'vscode',
 			number: 42,
@@ -1040,7 +1190,7 @@ suite('SessionChatInputToolbar', () => {
 				closedAt: undefined,
 			},
 			density: 'compact',
-		});
+		}).element;
 		const titleContent = hover.querySelector('.sessions-issue-hover-title-content');
 		const reference = hover.querySelector<HTMLAnchorElement>('.sessions-issue-hover-reference');
 		const bounded = titleContent?.textContent;
@@ -1207,7 +1357,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('shows a canvas title or count and reveals the selected canvas', async () => {
+	test('shows a canvas title or count, reveals the selected canvas, and closes a canvas from its row', async () => {
 		const { instantiationService } = createServices();
 		const configurationService = instantiationService.get(IConfigurationService);
 		assert.ok(configurationService instanceof TestConfigurationService);
@@ -1215,19 +1365,26 @@ suite('SessionChatInputToolbar', () => {
 		const commandCalls: { readonly id: string; readonly reference: unknown }[] = [];
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
 			executeCommand: async (id, reference) => {
-				if (id === REVEAL_SESSION_CANVAS_COMMAND_ID) {
+				if (id === REVEAL_CANVAS_COMMAND_ID) {
 					commandCalls.push({ id, reference });
 				}
 				return undefined;
 			},
 		}));
-		let entries: { label: string | undefined; select(): void }[] = [];
+		const closeCalls: { readonly session: string; readonly chat: string; readonly canvas: string }[] = [];
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			closeCanvas: async (session, chat, canvas) => {
+				closeCalls.push({ session: session.sessionId, chat: chat.resource.toString(), canvas: canvas.resource.toString() });
+			},
+		}));
+		let entries: { label: string | undefined; toolbarActions: readonly IAction[]; select(): void }[] = [];
 		let hideDropdown: (() => void) | undefined;
 		instantiationService.stub(IActionWidgetService, {
 			isVisible: false,
 			show: (_id, _preview, items, delegate) => {
 				entries = items.map(item => ({
 					label: item.label,
+					toolbarActions: item.toolbarActions ?? [],
 					select: () => {
 						if (item.item) {
 							delegate.onSelect(item.item);
@@ -1277,23 +1434,27 @@ suite('SessionChatInputToolbar', () => {
 			return {
 				label: pill?.querySelector('.chat-pill-label')?.textContent,
 				ariaLabel: pill?.getAttribute('aria-label'),
+				closeLabel: toolbar.element.querySelector('.chat-pill-promoted-action')?.getAttribute('aria-label'),
 			};
 		};
 		const single = presentation();
 		toolbar.getChatPetPlatformElements()[0]?.click();
+		toolbar.element.querySelector<HTMLElement>('.chat-pill-promoted-action')?.click();
 		canvases.set([preview, dashboard], undefined);
 		const multiple = presentation();
 		toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
 		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
 		assert.ok(dashboardEntry);
 		dashboardEntry.select();
+		const closeActionLabels = entries.flatMap(entry => entry.toolbarActions.map(action => action.label));
+		await dashboardEntry.toolbarActions[0]?.run();
 
-		assert.deepStrictEqual({ single, multiple, commandCalls }, {
-			single: { label: 'Preview', ariaLabel: 'Open canvas Preview' },
-			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases' },
+		assert.deepStrictEqual({ single, multiple, commandCalls, closeActionLabels, closeCalls }, {
+			single: { label: 'Preview', ariaLabel: 'Open canvas Preview', closeLabel: 'Close Canvas Preview' },
+			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases', closeLabel: undefined },
 			commandCalls: [
 				{
-					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					id: REVEAL_CANVAS_COMMAND_ID,
 					reference: {
 						providerId: session.providerId,
 						session: session.resource,
@@ -1302,7 +1463,7 @@ suite('SessionChatInputToolbar', () => {
 					},
 				},
 				{
-					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					id: REVEAL_CANVAS_COMMAND_ID,
 					reference: {
 						providerId: session.providerId,
 						session: session.resource,
@@ -1310,6 +1471,11 @@ suite('SessionChatInputToolbar', () => {
 						canvas: dashboard.resource,
 					},
 				},
+			],
+			closeActionLabels: ['Close Canvas Preview', 'Close Canvas Dashboard'],
+			closeCalls: [
+				{ session: session.sessionId, chat: chat.resource.toString(), canvas: preview.resource.toString() },
+				{ session: session.sessionId, chat: chat.resource.toString(), canvas: dashboard.resource.toString() },
 			],
 		});
 	});
@@ -1991,7 +2157,7 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	test('pull request artifact removal reacts to capabilities, targets the owning session, and reports errors without hiding data', async () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const { instantiationService } = createServices();
 		const ref: IGitHubPullRequestRef = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-artifact' };
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
 			id: 'pr-artifact', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true, link: ref.uri,
@@ -2012,18 +2178,8 @@ suite('SessionChatInputToolbar', () => {
 				}],
 			})),
 		});
-		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
-			onDidChangeBrowserViews: Event.None, getKnownBrowserViews: () => new Map(),
-		}));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
 			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
-		}));
-		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
-		instantiationService.stub(ISessionChatPillVisibilityService, store.add(instantiationService.createInstance(SessionChatPillVisibility)));
-		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
-			visibleSessions: constObservable([]), activeSession: constObservable(undefined),
 		}));
 		const calls: { owningSession: boolean; artifactId: string }[] = [];
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -2079,7 +2235,7 @@ suite('SessionChatInputToolbar', () => {
 	});
 
 	test('keeps derived changes and browser pills out of session record removal', async () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		const { instantiationService } = createServices();
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
 			id: 'durable-artifact', kind: SessionArtifactKind.File, label: 'Plan', isArtifact: true, uri: URI.file('/repo/plan.md'),
 		}]);
@@ -2116,13 +2272,6 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
 			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
-		}));
-		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
-		instantiationService.stub(ISessionChatPillVisibilityService, store.add(instantiationService.createInstance(SessionChatPillVisibility)));
-		instantiationService.stub(ISessionChangesStatsCache, upcastPartial<ISessionChangesStatsCache>({ get: () => undefined }));
-		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
-			visibleSessions: constObservable([]), activeSession: constObservable(undefined),
 		}));
 		const removeCalls: string[] = [];
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({

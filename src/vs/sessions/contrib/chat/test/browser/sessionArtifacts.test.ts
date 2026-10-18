@@ -5,18 +5,21 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -24,8 +27,15 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { NullSharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
+import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatResponseModelChangeReason, ChatResponseResource, IChatChangeEvent, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
+import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
@@ -42,6 +52,7 @@ suite('Session Artifacts', () => {
 		openExternal() { },
 		openResource() { },
 		openImages() { },
+		async downloadImage() { },
 		copy() { },
 	};
 
@@ -58,6 +69,15 @@ suite('Session Artifacts', () => {
 		const loading = observableValue('loading', false);
 		const removed: string[] = [];
 		const errors: string[] = [];
+		const chatResource = URI.parse('chat-session://test/images');
+		const chat = observableValue<IChat | undefined>('chat', upcastPartial<IChat>({ resource: chatResource }));
+		const chatModels = observableValue<Iterable<IChatModel>>('chatModels', []);
+		const openedImages: { resource: URI; options: IChatImageCarouselOptions | undefined }[] = [];
+		const openedResources: URI[] = [];
+		const downloadedResources: URI[] = [];
+		const savedImages: { resource: URI; data: string }[] = [];
+		let cancelDownload = false;
+		let downloadError: Error | undefined;
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
 		let removalError: Error | undefined;
 		const gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', info);
@@ -78,6 +98,7 @@ suite('Session Artifacts', () => {
 		});
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'provider:session';
+			override readonly resource = chatResource;
 			override readonly artifacts = artifacts;
 			override readonly loading = loading;
 			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
@@ -87,10 +108,10 @@ suite('Session Artifacts', () => {
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
+			chat,
 			constObservable(new Set<string>()),
 			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
 			new class extends mock<IClipboardService>() { }(),
-			new class extends mock<ICommandService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
 				override readonly onDidChangeFormatters = Event.None;
@@ -100,7 +121,7 @@ suite('Session Artifacts', () => {
 				override error(error: string): void { errors.push(error); }
 			}(),
 			new class extends mock<IOpenerService>() {
-				override async open(): Promise<boolean> { return true; }
+				override async open(resource: URI): Promise<boolean> { openedResources.push(resource); return true; }
 			}(),
 			new class extends mock<ISessionsManagementService>() {
 				override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
@@ -122,8 +143,55 @@ suite('Session Artifacts', () => {
 					telemetryEvents.push({ name: eventName, data });
 				}
 			}(),
+			upcastPartial<IChatService>({ chatModels }),
+			upcastPartial<IChatImageCarouselService>({
+				openCarouselAtResource: async (resource, _data, options) => { openedImages.push({ resource, options }); },
+			}),
+			upcastPartial<IFileService>({
+				readFile: async resource => {
+					downloadedResources.push(resource);
+					if (downloadError) {
+						throw downloadError;
+					}
+					return upcastPartial<IFileContent>({ value: VSBuffer.fromString('original image bytes') });
+				},
+				writeFile: async (resource, content) => {
+					assert.ok(content instanceof VSBuffer);
+					savedImages.push({ resource, data: content.toString() });
+					return upcastPartial<IFileStatWithMetadata>({ resource });
+				},
+			}),
+			upcastPartial<IFileDialogService>({
+				defaultFilePath: async () => URI.file('/downloads'),
+				showSaveDialog: async options => cancelDownload ? undefined : options.defaultUri,
+			}),
+			new NullSharedWebContentExtractorService(),
 		));
-		return { presentation, session, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
+		return {
+			presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, downloadedResources, savedImages,
+			setRemovalError: (error: Error | undefined) => { removalError = error; },
+			setCancelDownload: () => { cancelDownload = true; },
+			setDownloadError: (error: Error) => { downloadError = error; },
+		};
+	}
+
+	function createImageModel(resource: URI, toolCallId = 'image-call') {
+		const invocation = new ChatToolInvocation({
+			invocationMessage: 'Generating images',
+			toolSpecificData: { kind: 'input', rawInput: 'Draw two images', imageGeneration: {} },
+		}, { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, toolCallId, undefined, {});
+		const content: IChatProgressResponseContent[] = [invocation];
+		const response = upcastPartial<IChatResponseModel>({
+			response: upcastPartial<IResponse>({ value: content }),
+			onDidChange: Event.None,
+		});
+		const requests = [upcastPartial<IChatRequestModel>({ response })];
+		const model = upcastPartial<IChatModel>({
+			sessionResource: resource,
+			onDidChange: Event.None,
+			getRequests: () => requests,
+		});
+		return { model, content, invocation, requests };
 	}
 
 	function visibleEntries(presentation: SessionArtifacts, reader?: IReader) {
@@ -131,6 +199,307 @@ suite('Session Artifacts', () => {
 			artifacts: presentation.sections.read(reader).flatMap(section => section.entries.map(entry => entry.id)),
 			references: presentation.referenceSections.read(reader).flatMap(section => section.entries.map(entry => entry.id)),
 		};
+	}
+
+	test('adds generated images to the artifacts pill as the tool completes and opens the originating conversation', async () => {
+		const { presentation, chat, chatModels, openedImages } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model, invocation } = createImageModel(resource);
+		chatModels.set([model], undefined);
+		let entries: readonly IChatPillEntry[] = [];
+		disposables.add(autorun(reader => { entries = presentation.sections.read(reader).flatMap(section => section.entries); }));
+		const before = entries.length;
+		const imageUri = URI.parse('vscode-agent-host://remote/generated-images/result?version=1');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: 'Draw an image',
+				output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }],
+			},
+		});
+		entries[0].open();
+
+		assert.deepStrictEqual({
+			before,
+			images: entries.map(entry => ({ resource: entry.resource, removable: !!entry.promotedAction })),
+			references: presentation.referenceSections.get(),
+			opened: openedImages.map(opened => ({
+				resource: opened.resource,
+				sessionResource: opened.options?.sessionResource,
+				additionalImages: opened.options?.additionalImages?.map(image => ({ uri: image.uri, mimeType: image.mimeType })),
+			})),
+		}, {
+			before: 0,
+			images: [{ resource: imageUri, removable: false }],
+			references: [],
+			opened: [{ resource: imageUri, sessionResource: resource, additionalImages: [{ uri: imageUri, mimeType: 'image/png' }] }],
+		});
+	});
+
+	test('restores embedded images, deduplicates recorded artifacts, and follows the displayed chat', async () => {
+		const { presentation, chat, chatModels, artifacts } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model, content, invocation } = createImageModel(resource);
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'embed', value: 'AQID', mimeType: 'image/png' }] },
+		});
+		content.splice(0, 1, invocation.toJSON());
+		chatModels.set([model], undefined);
+		const restored = presentation.sections.get().flatMap(section => section.entries);
+		const recordedUri = ChatResponseResource.createUri(resource, 'image-call', 0, 'saved-name.png');
+		artifacts.set([{ id: 'recorded', kind: SessionArtifactKind.File, label: 'Recorded Image', uri: recordedUri, isArtifact: true }], undefined);
+		const deduplicated = presentation.sections.get().flatMap(section => section.entries);
+		artifacts.set([], undefined);
+		chat.set(upcastPartial<IChat>({ resource: URI.parse('chat-session://test/another-chat') }), undefined);
+		const otherChat = presentation.sections.get();
+		chat.set(upcastPartial<IChat>({ resource }), undefined);
+
+		assert.deepStrictEqual({
+			restored: restored.map(entry => entry.resource?.path),
+			deduplicated: deduplicated.map(entry => ({ id: entry.id, removable: !!entry.promotedAction })),
+			otherChat,
+			returned: presentation.sections.get().flatMap(section => section.entries.map(entry => entry.id)),
+		}, {
+			restored: ['/tool/image-call/0/generated-image-9ece88a621bd.png'],
+			deduplicated: [{ id: 'recorded', removable: true }],
+			otherChat: [],
+			returned: restored.map(entry => entry.id),
+		});
+	});
+
+	test('coalesces a synchronous burst of model and response changes into one transcript scan and still follows live changes', async () => {
+		const { presentation, chat, chatModels } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model: baseModel, content, invocation } = createImageModel(resource);
+		const modelChanged = disposables.add(new Emitter<IChatChangeEvent>());
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		let scans = 0;
+		const response = upcastPartial<IChatResponseModel>({
+			response: upcastPartial<IResponse>({ value: content }),
+			onDidChange: responseChanged.event,
+		});
+		const requests = [upcastPartial<IChatRequestModel>({ response })];
+		const model = upcastPartial<IChatModel>({
+			sessionResource: baseModel.sessionResource,
+			onDidChange: modelChanged.event,
+			getRequests: () => { scans++; return requests; },
+		});
+		chatModels.set([model], undefined);
+		let entries: readonly IChatPillEntry[] = [];
+		disposables.add(autorun(reader => { entries = presentation.sections.read(reader).flatMap(section => section.entries); }));
+
+		const scansBeforeBurst = scans;
+		for (let i = 0; i < 50; i++) {
+			modelChanged.fire({ kind: 'setHidden' });
+			responseChanged.fire({ reason: 'other' });
+		}
+		const scansDuringBurst = scans - scansBeforeBurst;
+		await timeout(10);
+		const scansForBurst = scans - scansBeforeBurst;
+
+		const imageUri = URI.parse('vscode-agent-host://remote/generated-images/live?version=1');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }] },
+		});
+		responseChanged.fire({ reason: 'other' });
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			scansDuringBurst,
+			scansAfterBurstAtMostTwo: scansForBurst <= 2,
+			liveImages: entries.map(entry => entry.resource),
+		}, {
+			scansDuringBurst: 0,
+			scansAfterBurstAtMostTwo: true,
+			liveImages: [imageUri],
+		});
+	});
+
+	for (const restored of [false, true]) {
+		test(`shows newest response groups first without reversing generated image outputs (${restored ? 'restored' : 'live'})`, async () => {
+			const { presentation, chat, chatModels, openedImages } = createPresentation([]);
+			const resource = chat.get()!.resource;
+			const older = createImageModel(resource, 'older');
+			const newer = createImageModel(resource, 'newer');
+			for (const generation of [older, newer]) {
+				await generation.invocation.didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: {
+						input: 'Draw two images',
+						output: [
+							{ type: 'embed', value: 'AQID', mimeType: 'image/png' },
+							{ type: 'embed', value: 'BAUG', mimeType: 'image/png' },
+						],
+					},
+				});
+				if (restored) {
+					generation.content.splice(0, 1, generation.invocation.toJSON());
+				}
+			}
+			older.requests.push(...newer.requests);
+			const chronologicalRequests = older.requests.slice();
+			chatModels.set([older.model], undefined);
+			const entries = presentation.sections.get()[0].entries;
+			entries[0].open();
+
+			assert.deepStrictEqual({
+				images: entries.map(entry => entry.resource?.path),
+				requestOrderPreserved: older.requests.every((request, index) => request === chronologicalRequests[index]),
+				opened: openedImages.map(image => ({
+					path: image.resource.path,
+					collection: image.options?.additionalImages?.map(image => image.uri.path),
+				})),
+			}, {
+				images: [
+					'/tool/newer/0/generated-image-c82ff7ca77f5.png',
+					'/tool/newer/1/generated-image-9db2dff89263.png',
+					'/tool/older/0/generated-image-d61868c3de35.png',
+					'/tool/older/1/generated-image-6840071a8bab.png',
+				],
+				requestOrderPreserved: true,
+				opened: [{
+					path: '/tool/newer/0/generated-image-c82ff7ca77f5.png',
+					collection: [
+						'/tool/newer/0/generated-image-c82ff7ca77f5.png',
+						'/tool/newer/1/generated-image-9db2dff89263.png',
+						'/tool/older/0/generated-image-d61868c3de35.png',
+						'/tool/older/1/generated-image-6840071a8bab.png',
+					],
+				}],
+			});
+		});
+	}
+
+	test('opens generated images normally when the chat carousel is disabled', async () => {
+		const { presentation, chat, chatModels, configurationService, openedImages, openedResources } = createPresentation([]);
+		await configurationService.setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, false);
+		const { model, invocation } = createImageModel(chat.get()!.resource);
+		const uri = URI.file('/generated/image.png');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'ref', uri, mimeType: 'image/png' }] },
+		});
+		chatModels.set([model], undefined);
+		presentation.sections.get()[0].entries[0].open();
+
+		assert.deepStrictEqual({ openedImages, openedResources }, { openedImages: [], openedResources: [uri] });
+	});
+
+	test('groups multiple generated images separately while preserving recorded duplicates and carousel navigation', async () => {
+		const photo = URI.file('/images/inspiration.jpg');
+		const video = URI.file('/images/demo.mp4');
+		const generated = URI.parse('generated-images:/session/result');
+		const { presentation, chat, chatModels, openedImages } = createPresentation([
+			{ id: 'photo', kind: SessionArtifactKind.File, label: 'Inspiration', uri: photo, isArtifact: true },
+			{ id: 'video', kind: SessionArtifactKind.File, label: 'Demo', uri: video, isArtifact: true },
+			{ id: 'recorded-image', kind: SessionArtifactKind.File, label: 'Generated Image', uri: generated, isArtifact: true },
+		]);
+		const resource = chat.get()!.resource;
+		const { model, invocation } = createImageModel(resource);
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: '',
+				output: [
+					{ type: 'ref', uri: generated, mimeType: 'image/jpeg' },
+					{ type: 'embed', value: 'AQID', mimeType: 'image/jpeg' },
+				],
+			},
+		});
+		chatModels.set([model], undefined);
+		const embedded = ChatResponseResource.createUri(resource, 'image-call', 1, 'generated-image-35078300129c.jpg');
+		const sections = presentation.sections.get();
+		sections[0].entries[1].open();
+		sections[1].entries[0].open();
+
+		assert.deepStrictEqual({
+			sections: sections.map(section => ({
+				title: section.title,
+				entries: section.entries.map(entry => ({ uri: entry.resource, removable: !!entry.promotedAction })),
+			})),
+			opened: openedImages.map(image => ({
+				uri: image.resource,
+				collection: image.options?.additionalImages?.map(image => image.uri),
+			})),
+		}, {
+			sections: [
+				{ title: 'Generated Images', entries: [{ uri: generated, removable: true }, { uri: embedded, removable: false }] },
+				{ title: 'Images', entries: [{ uri: photo, removable: true }] },
+				{ title: 'Files', entries: [{ uri: video, removable: true }] },
+			],
+			opened: [
+				{ uri: embedded, collection: [photo, generated, embedded] },
+				{ uri: photo, collection: [photo, generated, embedded] },
+			],
+		});
+	});
+
+	test('offers image downloads for artifacts and references even with the carousel disabled', async () => {
+		const downloaded: { uri: URI; name: string }[] = [];
+		const artifacts: ISessionArtifact[] = [
+			{ id: 'image', kind: SessionArtifactKind.File, label: 'Image', uri: URI.file('/image.png'), isArtifact: true },
+			{ id: 'reference', kind: SessionArtifactKind.File, label: 'Reference', uri: URI.file('/reference.jpg'), isArtifact: false },
+			{ id: 'file', kind: SessionArtifactKind.File, label: 'File', uri: URI.file('/readme.md'), isArtifact: true },
+		];
+		const entries = buildSessionArtifactSections(artifacts, {
+			...actions,
+			downloadImage: async (uri, name) => { downloaded.push({ uri, name }); },
+		}, labelService, false, new Set()).flatMap(section => section.entries);
+		for (const entry of entries) {
+			await entry.toolbarActions?.find(action => action.label === 'Download Image')?.run();
+		}
+
+		assert.deepStrictEqual({
+			actions: entries.map(entry => [entry.id, entry.toolbarActions?.map(action => action.label)]),
+			downloaded,
+		}, {
+			actions: [['image', ['Download Image', 'Copy Path']], ['reference', ['Download Image', 'Copy Path']], ['file', ['Copy Path']]],
+			downloaded: [{ uri: artifacts[0].uri, name: 'image.png' }, { uri: artifacts[1].uri, name: 'reference.jpg' }],
+		});
+	});
+
+	for (const outcome of ['saved', 'cancelled', 'failed'] as const) {
+		(isWeb ? test.skip : test)(`downloads a generated image without opening or removing it (${outcome})`, async () => {
+			const harness = createPresentation([]);
+			const imageModel = createImageModel(harness.chat.get()!.resource);
+			const imageUri = URI.parse('vscode-agent-host://remote/generated.png');
+			await imageModel.invocation.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '', output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }] },
+			});
+			harness.chatModels.set([imageModel.model], undefined);
+			if (outcome === 'cancelled') {
+				harness.setCancelDownload();
+			} else if (outcome === 'failed') {
+				harness.setDownloadError(new Error('Image unavailable'));
+			}
+			const entry = harness.presentation.sections.get()[0].entries[0];
+
+			await entry.toolbarActions!.find(action => action.label === 'Download Image')!.run();
+
+			assert.deepStrictEqual({
+				reads: harness.downloadedResources,
+				saved: harness.savedImages,
+				opened: harness.openedImages,
+				removed: harness.removed,
+				errors: harness.errors,
+			}, {
+				reads: outcome === 'cancelled' ? [] : [imageUri],
+				saved: outcome === 'saved' ? [{ resource: URI.file(`/downloads/${entry.label}`), data: 'original image bytes' }] : [],
+				opened: [],
+				removed: [],
+				errors: outcome === 'failed' ? [`Failed to download ${entry.label}: Image unavailable`] : [],
+			});
+		});
 	}
 
 	test('reads files as paths and leaves every other location whole', () => {
@@ -174,9 +543,9 @@ suite('Session Artifacts', () => {
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
-			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact content-sized', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
 		]);
 	});
 
@@ -536,6 +905,22 @@ suite('Session Artifacts', () => {
 				resource.toString(true),
 			],
 		});
+	});
+
+	test('sizes cached commit fallbacks by whether rich details can resolve', () => {
+		const cache = disposables.add(new ChatPillHoverCache());
+		const entries = buildSessionArtifactSections([
+			{ id: 'github', kind: SessionArtifactKind.Commit, label: 'GitHub commit', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/abc123') },
+			{ id: 'other', kind: SessionArtifactKind.Commit, label: 'Other commit', isArtifact: false, link: URI.parse('https://example.com/commit/abc123') },
+		], actions, labelService, true, new Set(), undefined, undefined, undefined, cache).flatMap(section => section.entries);
+
+		assert.deepStrictEqual(entries.map(entry => {
+			const content = typeof entry.hover?.content === 'function' ? entry.hover.content() : undefined;
+			return { id: entry.id, text: content?.textContent, contentSized: content?.classList.contains('content-sized') };
+		}), [
+			{ id: 'github', text: 'https://github.com/microsoft/vscode/commit/abc123', contentSized: false },
+			{ id: 'other', text: 'https://example.com/commit/abc123', contentSized: true },
+		]);
 	});
 
 	test('renders rich GitHub commit metadata with copy hash inside the hover', () => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -47,14 +47,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['devTunnel', 'githubEnvironment'],
 			enumDescriptions: [
-				localize('remoteConnections.devTunnel', "Allow remote connections through a Dev Tunnel."),
-				localize('remoteConnections.githubEnvironment', "Register the native Agent Host as a GitHub environment through Azure Web PubSub. Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Native session actions are mirrored for catalog/history storage; conversation content is not end-to-end encrypted."),
+				localize('remoteConnections.devTunnel', "Allow remote connections through a secure Dev Tunnel from VS Code or a browser."),
+				localize('remoteConnections.githubEnvironment', "Register this machine as a GitHub environment for remote agent access (preview). Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted."),
 			],
-			description: localize('remoteConnections', "Choose the backend used by Allow Remote Connections. Selecting a backend does not enable sharing. Changing the backend turns sharing off."),
+			description: localize('remoteConnections', "Choose the connection method used by Allow Remote Connections. In VS Code Insiders and Code - OSS, the dropdown next to the button updates this setting. Selecting a method does not enable sharing. Changing the method turns sharing off."),
 			default: 'devTunnel',
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
-			tags: ['experimental', 'advanced'],
+			tags: ['preview', 'advanced'],
 		},
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
@@ -71,6 +71,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
+		},
+		[CloudSandboxAutoConnectOnOpenSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.cloudSandbox.autoConnectOnOpen', "Automatically connect to or wake a cloud sandbox environment in the background when opening or restoring its chat in the Agents Window. When disabled, connecting waits until you start composing or explicitly connect."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
 		},
 	},
 });

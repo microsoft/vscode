@@ -895,6 +895,37 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(secondItem.getAttribute('role'), 'option');
 			assert.strictEqual(secondItem.getAttribute('aria-selected'), 'false', 'Unselected item should have aria-selected=false');
 		});
+
+		test('auto focus can leave every single-select option unselected', async () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					]
+				}
+			]);
+			createWidget(carousel, undefined, mainWindow.document.body, undefined, { shouldAutoSelectFirstOption: false });
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+
+			const list = widget.domNode.querySelector('.chat-question-list');
+			const options = [...widget.domNode.querySelectorAll('.chat-question-list-item')];
+
+			assert.deepStrictEqual({
+				focusedList: mainWindow.document.activeElement === list,
+				activeDescendant: list?.getAttribute('aria-activedescendant'),
+				selectedOptions: options.filter(option => option.classList.contains('selected')).length,
+				ariaSelected: options.map(option => option.getAttribute('aria-selected')),
+			}, {
+				focusedList: true,
+				activeDescendant: null,
+				selectedOptions: 0,
+				ariaSelected: ['false', 'false'],
+			});
+		});
 	});
 
 	suite('Single Select Keyboard Navigation', () => {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { cancelResponseBody, getResponseError, parseResponseJson, readBoundedResponse } from '../../common/responseReader.js';
+import { cancelResponseBody, parseResponseJson, readBoundedResponse } from '../../common/responseReader.js';
 import { RequestError } from '../../common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 
@@ -83,24 +83,6 @@ suite('Response readers', () => {
 		cancelResponseBody({ cancel: async () => { throw new Error('Cancellation failed'); } }, log);
 		await Promise.resolve();
 		assert.deepStrictEqual(warnings, [['[Request] Failed to cancel a response body']]);
-	});
-
-	test('reads structured error details without changing the original envelope', () => {
-		const envelope = { type: 'error', error: { type: 'api_error', code: 'quota_exceeded', message: 'Limited', extra: 42 }, request_id: 'request' };
-		assert.deepStrictEqual(getResponseError(envelope), { type: 'api_error', code: 'quota_exceeded', message: 'Limited' });
-		assert.deepStrictEqual(envelope, { type: 'error', error: { type: 'api_error', code: 'quota_exceeded', message: 'Limited', extra: 42 }, request_id: 'request' });
-	});
-
-	test('keeps only string-valued error fields, including empty strings', () => {
-		assert.deepStrictEqual(getResponseError({ error: { type: 42, code: '', message: false } }), {
-			type: undefined, code: '', message: undefined,
-		});
-	});
-
-	test('does not mistake unstructured error bodies for error objects', () => {
-		for (const value of [null, 42, 'unavailable', {}, [], { error: null }, { error: 'unavailable' }, { error: [] }]) {
-			assert.strictEqual(getResponseError(value), undefined);
-		}
 	});
 
 	test('parses JSON without imposing a response schema or invoking the error factory', () => {

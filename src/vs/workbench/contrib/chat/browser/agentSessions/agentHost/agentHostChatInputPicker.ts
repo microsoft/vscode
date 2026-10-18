@@ -9,7 +9,6 @@ import { Gesture, EventType as TouchEventType } from '../../../../../../base/bro
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Delayer } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -19,25 +18,24 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
-import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxToggleState } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
+import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, preserveAgentHostSandboxToggleSelection } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, validateSessionConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isChatConfigProperty, getSessionConfigPresentationKey, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, validateChatPickerConfigWrite, writeSessionApprovalLevel } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { readSessionSandboxState } from '../../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigSchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { StateComponents, type ChatState, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -51,18 +49,19 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
-import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
+import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -82,6 +81,7 @@ interface IConfigPickerItem {
 	readonly label: string;
 	readonly description?: string;
 	readonly checked?: boolean;
+	readonly disabled?: boolean;
 }
 
 interface IConfigPickerTarget {
@@ -142,11 +142,11 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string): IActionListItem<IConfigPickerItem>[] {
-	const pickerItems = property === SessionConfigKey.Branch
+	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
 		: items;
 	const actionItems: IActionListItem<IConfigPickerItem>[] = pickerItems.map(item => {
-		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
+		const disabled = item.disabled === true || (property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted));
 		const hover = getConfigPickerItemHover(property, item, disabled);
 		return {
 			kind: ActionListItemKind.Action,
@@ -342,9 +342,12 @@ export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>
 	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.PullRequestUrl,
 	SessionConfigKey.ShellInitScripts,
+	SessionConfigKey.SensitiveEditLocations,
 	SessionConfigKey.SandboxEnabled,
 	ClaudeSessionConfigKey.PermissionMode,
 	CodexSessionConfigKey.PermissionsPreset,
+	// TODO: Consolidate timeout configuration UI with other clients.
+	'inputRequestTimeout',
 ]);
 
 /**
@@ -407,13 +410,18 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _pickerVisible = false;
 	private _generic = false;
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialResolveCts = this._registerInitialResolveCts();
+	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostChatInputPicker] Failed to resolve initial session configuration', error)));
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _splitTrigger = this._register(new MutableDisposable<IModePickerTrigger>());
 	private readonly _pickerDisposables = this._register(new DisposableStore());
 	private readonly _sandboxConfigChanged = observableSignal(this);
 	private readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
-	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & { readonly sub: IAgentSubscription<SessionState> }>());
+	private readonly _subRef = this._register(new MutableDisposable<IDisposable & IConfigPickerTarget & {
+		readonly sub: IAgentSubscription<SessionState>;
+		/** The backend chat this picker's chat is, with its state, once the session's catalog lists it. */
+		/** The picker's backend chat, and the subscribed chats whose own values apply to it, innermost first. */
+		readonly getChat: () => { readonly resource: string; readonly chain: ReadonlyMap<string, IAgentSubscription<ChatState>> } | undefined;
+	}>());
 	private _sessionGeneration = 0;
 
 	constructor(
@@ -439,10 +447,37 @@ export class AgentHostChatInputPicker extends Disposable {
 	) {
 		super();
 
+		this._register(toDisposable(() => {
+			this._container = undefined;
+			this._trigger = undefined;
+			this._splitTrigger.clear();
+			this._cancelInitialResolve();
+		}));
 		this._register(this._widget.onDidChangeViewModel(() => {
 			this._reattach();
 		}));
+		this._register(this._agentHostService.onAgentHostExit(() => {
+			this._initialResolved = undefined;
+			this._cancelInitialResolve();
+		}));
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			const sessionResource = this._widget.viewModel?.sessionResource;
+			if (sessionResource && isUntitledChatSession(sessionResource) && getLocalAgentHostSessionProvider(sessionResource)) {
+				const resolution = resolveAgentHostChatSession(sessionResource, this._provisional.get(sessionResource), this._connectionsService);
+				if (resolution && this._initialConfig.isPending(sessionResource, resolution)) {
+					return;
+				}
+				this._initialResolved = undefined;
+				this._cancelInitialResolve();
+				this._reattach();
+			}
+		}));
 		this._register(this._connectionsService.onDidChangeSessionResolution(() => {
+			const sessionResource = this._widget.viewModel?.sessionResource;
+			const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, this._provisional.get(sessionResource), this._connectionsService) : undefined;
+			if (sessionResource && resolution && this._initialConfig.isCurrent(sessionResource, resolution)) {
+				return;
+			}
 			if (!this._subRef.value || !this._isCurrentTarget(this._subRef.value)) {
 				this._initialResolved = undefined;
 				this._cancelInitialResolve();
@@ -456,6 +491,10 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (affectsAgentHostProviderPreference(e, true)) {
+				this._reattach();
+				return;
+			}
 			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
 				this._hidePicker();
 				this._renderChip();
@@ -488,17 +527,6 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._register(toDisposable(() => this._hidePicker()));
 	}
 
-	private _registerInitialResolveCts(): MutableDisposable<CancellationTokenSource> {
-		const cts = new MutableDisposable<CancellationTokenSource>();
-		this._register(toDisposable(() => {
-			this._container = undefined;
-			this._trigger = undefined;
-			this._splitTrigger.clear();
-			this._cancelInitialResolve();
-		}));
-		return this._register(cts);
-	}
-
 	render(container: HTMLElement, generic = false): void {
 		this._generic = generic;
 		this._container = container;
@@ -515,10 +543,11 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._hidePicker();
 		this._sessionGeneration++;
 		const sessionResource = this._widget.viewModel?.sessionResource;
+		const localProvider = sessionResource ? getLocalAgentHostSessionProvider(sessionResource) : undefined;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, provisionalBackend, this._connectionsService) : undefined;
 
-		if (!sessionResource || !resolution) {
+		if (!sessionResource || !resolution || (localProvider && isLocalAgentHostProviderDisabledByPolicy(localProvider, this._configurationService))) {
 			this._subRef.clear();
 			this._initialResolved = undefined;
 			this._cancelInitialResolve();
@@ -527,11 +556,11 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
-		if (localBackend && isUntitledChatSession(sessionResource) && !provisionalBackend) {
+		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
-				void this._refreshInitialResolved(sessionResource, localBackend);
+				void this._refreshInitialResolved(sessionResource, localProvider, resolution);
 			}
 			// Eagerly create a provisional backend session so even users
 			// who never touch a chip still get their picker defaults
@@ -546,7 +575,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			// `onDidChange` and we re-attach into the subscription path.
 			void this._provisional.getOrCreate(
 				sessionResource,
-				localBackend.scheme,
+				localProvider,
 				this._readWorkingDirectory(),
 			);
 			this._renderChip();
@@ -557,7 +586,43 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
+		// The own values of the chat and, for a subagent, of the chats that spawned it apply over its
+		// session's, so follow those chats' states too.
+		const chatRef = new MutableDisposable<IDisposable>();
+		let chat: { readonly resource: string; readonly chain: ReadonlyMap<string, IAgentSubscription<ChatState>> } | undefined;
+		const syncChat = () => {
+			const state = sub.value;
+			const resource = state && !(state instanceof Error) ? getAgentHostBackendChat(sessionResource, state) : undefined;
+			const chain = state && !(state instanceof Error) ? getAgentHostChatConfigChain(state, resource) : [];
+			if (chat !== undefined && resource === chat.resource && equals(chain, [...chat.chain.keys()])) {
+				return;
+			}
+			chatRef.clear();
+			chat = undefined;
+			if (resource !== undefined) {
+				const store = new DisposableStore();
+				const subscriptions = new Map<string, IAgentSubscription<ChatState>>();
+				for (const member of chain) {
+					const chatSubscription = store.add(resolution.connection.getSubscription(StateComponents.Chat, URI.parse(member), 'AgentHostChatInputPicker.chat'));
+					store.add(chatSubscription.object.onDidChange(() => {
+						this._renderChip();
+						this._sandboxConfigChanged.trigger(undefined);
+					}));
+					subscriptions.set(member, chatSubscription.object);
+				}
+				chat = { resource, chain: subscriptions };
+				chatRef.value = store;
+			}
+		};
+		syncChat();
+		let availableApprovalModes = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 		const listener = sub.onDidChange(() => {
+			syncChat();
+			const available = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
+			if (!equals(availableApprovalModes, available)) {
+				availableApprovalModes = available;
+				this._hidePicker();
+			}
 			this._renderChip();
 			this._sandboxConfigChanged.trigger(undefined);
 		});
@@ -565,38 +630,23 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._subRef.value = {
 			...resolution,
 			sub,
+			getChat: () => chat && { resource: chat.resource, chain: chat.chain },
 			sessionResource,
 			generation: this._sessionGeneration,
-			dispose: () => { creationListener.dispose(); listener.dispose(); ref.dispose(); },
+			dispose: () => { creationListener.dispose(); listener.dispose(); chatRef.dispose(); ref.dispose(); },
 		};
 		this._renderChip();
 	}
 
 	private _cancelInitialResolve(): void {
-		// CancellationTokenSource.dispose() does not cancel by default, so we
-		// must explicitly cancel before clearing/replacing to ensure any
-		// in-flight resolveSessionConfig call cannot still write back into
-		// `_initialResolved` after the session has moved on.
-		this._initialResolveCts.value?.cancel();
-		this._initialResolveCts.clear();
+		this._initialConfig.clear();
 	}
 
-	private async _refreshInitialResolved(sessionResource: URI, backendSession: URI): Promise<void> {
-		this._initialResolveCts.value?.cancel();
-		const cts = new CancellationTokenSource();
-		this._initialResolveCts.value = cts;
-		try {
-			const result = await this._connectionsService.ambientConnection.resolveSessionConfig({
-				provider: backendSession.scheme,
-				workingDirectory: this._readWorkingDirectory(),
-			});
-			if (cts.token.isCancellationRequested || this._widget.viewModel?.sessionResource?.toString() !== sessionResource.toString()) {
-				return;
-			}
+	private async _refreshInitialResolved(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution): Promise<void> {
+		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory());
+		if (result && result === this._initialConfig.value && isEqual(this._widget.viewModel?.sessionResource, sessionResource) && this._initialConfig.isCurrent(sessionResource, resolution)) {
 			this._initialResolved = { sessionResource, result };
 			this._renderChip();
-		} catch {
-			// Best-effort.
 		}
 	}
 
@@ -606,7 +656,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const ctx = this._readContext();
 		if (ctx && this._trigger && this._splitTrigger.value && this._container.contains(this._trigger) && this._getModePickerPermissions()) {
-			this._renderTrigger(this._trigger, ctx.schema, ctx.value, false);
+			this._renderTrigger(this._trigger, ctx.schema, ctx.value, false, this._isChatConfigResolving(ctx));
 			return;
 		}
 		this._trigger = undefined;
@@ -657,12 +707,32 @@ export class AgentHostChatInputPicker extends Disposable {
 				? trigger.ariaLabel ?? ''
 				: ctx.approvalHover ?? getConfigPickerTriggerHover(this._generic ? '' : this._property, ctx.schema, ctx.value, isReadOnly, this._isSandboxed())
 		})));
-		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
+		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly, this._isChatConfigResolving(ctx));
 	}
 
-	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean): void {
+	/**
+	 * Whether the picker's chat may set its property for itself but the chat's
+	 * own values are not known yet: its value is still the session's, so the
+	 * picker shows as resolving and cannot be opened or written.
+	 */
+	private _isChatConfigResolving(context: Pick<IConfigPickerContext, 'key' | 'configSchema'>): boolean {
+		const target = this._subRef.value;
+		if (!target || !isChatConfigProperty(context.configSchema, context.key)) {
+			return false;
+		}
+		const chat = target.getChat();
+		return !chat || [...chat.chain.values()].some(subscription => subscription.value === undefined);
+	}
+
+	private _renderTrigger(trigger: HTMLElement, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, resolving: boolean): void {
 		const previous = this._splitTrigger.value;
 		this._splitTrigger.clear();
+		trigger.parentElement?.classList.toggle('resolving', resolving);
+		if (resolving) {
+			trigger.setAttribute('aria-busy', 'true');
+		} else {
+			trigger.removeAttribute('aria-busy');
+		}
 
 		const icon = getConfigIcon(this._generic ? '' : this._property, value);
 		this._container?.classList.toggle('agent-host-chat-input-picker-has-icon', !!icon);
@@ -708,7 +778,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const isStartedSession = !!sessionResource && !isUntitledChatSession(sessionResource);
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
-		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
+		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly, this._isChatConfigResolving(ctx));
 	}
 
 	private _isSandboxed(): boolean {
@@ -753,7 +823,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _canEdit(context: IConfigPickerContext): boolean {
-		return isSessionConfigWritable(context.propertySchema, isUntitledChatSession(context.sessionResource));
+		return isSessionConfigWritable(context.propertySchema, isUntitledChatSession(context.sessionResource)) && !this._isChatConfigResolving(context);
 	}
 
 	private _bindContext(property: string, configSchema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): Pick<IConfigPickerContext, 'key' | 'configSchema' | 'values' | 'propertySchema' | 'schema' | 'value' | 'approvalHover'> | undefined {
@@ -768,14 +838,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			return undefined;
 		}
 		if (property === SessionConfigKey.AutoApprove && approval) {
-			const configValues = getAvailableSessionApprovalValues(approval, configSchema, values);
+			const configValues = (propertySchema.enum ?? []).filter((value): value is string => typeof value === 'string');
 			const levels = configValues.flatMap(value => {
 				const level = readSessionApprovalLevel(approval, value);
 				return level ? [level] : [];
 			});
 			const requested = values[key] ?? propertySchema.default;
 			const effective = getEffectiveSessionApprovalValue(approval, configSchema, values);
-			const value = readSessionApprovalLevel(approval, effective) ?? effective;
+			const available = getAvailableSessionApprovalValues(approval, configSchema, values);
+			const value = typeof effective === 'string' && available.includes(effective) ? readSessionApprovalLevel(approval, effective) ?? effective : ChatPermissionLevel.Default;
 			const indexes = configValues.map(value => propertySchema.enum?.indexOf(value) ?? -1);
 			const schema: SessionConfigPropertySchema = {
 				...propertySchema,
@@ -815,9 +886,11 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schemaSource) {
 				return undefined;
 			}
+			const hostValues = this._readChatConfig(state)?.values;
 			const values = { ...this._readCurrentValues() };
 			for (const key of Object.keys(schemaSource.properties)) {
-				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource), state.config?.values[key], overlay?.values[key], schemaSource.properties[key].default);
+				const hostOwnedAvailability = key === 'availableApprovalModes' && schemaSource.properties[key].readOnly;
+				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, hostValues?.[key], overlay?.values[key], schemaSource.properties[key].default);
 			}
 			const bound = this._bindContext(property, schemaSource, values);
 			return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;
@@ -840,8 +913,14 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	private async _getActionItems(property: string, schema: SessionConfigPropertySchema, value: unknown, branchItems?: readonly IConfigPickerItem[]): Promise<IActionListItem<IConfigPickerItem>[]> {
 		const items = branchItems ?? await this._getItems(schema, undefined, property);
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
-		const actionItems = toActionItems(this._generic ? '' : property, items, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
+		const context = this._readContext(property);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, context?.configSchema);
+		const approval = property === SessionConfigKey.AutoApprove && context ? getSessionApprovalProperty(context.configSchema) : undefined;
+		const available = approval && context ? getAvailableSessionApprovalValues(approval, context.configSchema, context.values) : undefined;
+		const choices = approval && available ? items.map(item => ({
+			...item, disabled: !available.some(value => readSessionApprovalLevel(approval, value) === item.value),
+		})) : items;
+		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {
 			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
@@ -926,11 +1005,11 @@ export class AgentHostChatInputPicker extends Disposable {
 						return [];
 					}
 					if (branches) {
-						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle(), query);
+						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, refreshed.configSchema), this._getSandboxStandaloneToggle(), query);
 					}
 					return this._filterDelayer.trigger(async () => {
 						const items = await this._getItems(refreshed.schema, query);
-						return toActionItems(this._generic ? '' : this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+						return toActionItems(this._generic ? '' : this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, refreshed.configSchema), this._getSandboxStandaloneToggle());
 					});
 				}
 				: undefined,
@@ -984,6 +1063,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
 				this._sandboxConfigChanged.read(reader);
 				const standaloneToggle = this._getSandboxStandaloneToggle(permissions ? SessionConfigKey.AutoApprove : this._property);
+				const sandboxState = this._readSandboxToggleState();
+				preserveAgentHostSandboxToggleSelection(previousToggle, standaloneToggle,
+					sandboxState.applyFailed === true || sandboxState.rejectedSelection === true);
 				if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 					return;
 				}
@@ -1021,7 +1103,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		return getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false;
+		return getAgentHostSandboxCollapsedState(this._readSandboxToggleState()) ?? false;
 	}
 
 	private _readSandboxToggleState() {
@@ -1030,12 +1112,16 @@ export class AgentHostChatInputPicker extends Disposable {
 		const settingId = this._getSandboxSettingId();
 		const state = this._subRef.value?.sub.value;
 		const policy = readSessionSandboxPolicy(state instanceof Error ? undefined : state);
+		const chatSandbox = state && !(state instanceof Error) ? readAgentHostChatSandboxState(state, this._subRef.value?.getChat()?.resource) : undefined;
+		const confirmedEnabled = chatSandbox?.enabled;
 		const useLocalPolicy = !policy && !isWeb && !this._environmentService.remoteAuthority
 			&& context?.connection === this._agentHostService;
 		return {
 			provider: context?.provider,
-			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
-			confirmedEnabled: readSessionSandboxState(state instanceof Error ? undefined : state)?.enabled,
+			sessionEnabled: value === AgentSandboxEnabledValue.On ? true : value === AgentSandboxEnabledValue.Off ? false : confirmedEnabled,
+			confirmedEnabled,
+			applyFailed: chatSandbox?.error !== undefined,
+			rejectedSelection: chatSandbox?.rejectedSelection === true,
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: policy ? policy.enabled && !policy.failClosed : useLocalPolicy && this._agentHostEnablementService.managedSandboxEnforced.get(),
 			allowsBypass: policy ? policy.allowBypass === true : useLocalPolicy && this._agentHostEnablementService.managedSandboxAllowsBypass.get(),
@@ -1121,11 +1207,18 @@ export class AgentHostChatInputPicker extends Disposable {
 		const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
+			const hostValues = this._readChatConfig(state)?.values;
 			return sessionResource && isUntitledChatSession(sessionResource)
-				? { ...(state.config?.values ?? {}), ...(overlay?.values ?? {}) }
-				: { ...(overlay?.values ?? {}), ...(state.config?.values ?? {}) };
+				? { ...(hostValues ?? {}), ...(overlay?.values ?? {}) }
+				: { ...(overlay?.values ?? {}), ...(hostValues ?? {}) };
 		}
 		return overlay?.values ?? this._initialResolved?.result.values;
+	}
+
+	/** The effective config of this picker's chat: its session's, with the chat's own values applied. */
+	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
+		const chat = this._subRef.value?.getChat();
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value);
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */
@@ -1161,14 +1254,17 @@ export class AgentHostChatInputPicker extends Disposable {
 		const workingDirectory = this._readWorkingDirectory();
 		const approval = property === SessionConfigKey.AutoApprove ? getSessionApprovalProperty(ctx.configSchema) : undefined;
 		const approvalValue = approval?.key === SessionConfigKey.AutoApprove
-			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService))
+			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService, ctx.configSchema))
 			: value;
 		const normalizedValue = ctx.schema.type === 'boolean'
 			? value === 'true'
 			: this._generic ? value
 				: approval ? writeSessionApprovalLevel(approval, approvalValue)
-					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService));
-		validateSessionConfigWrite(ctx.configSchema, ctx.values, ctx.key, normalizedValue, isUntitledChatSession(sessionResource));
+					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService, ctx.configSchema));
+		validateChatPickerConfigWrite(ctx.configSchema, ctx.values, ctx.key, normalizedValue, isUntitledChatSession(sessionResource));
+		if (property === SessionConfigKey.AutoApprove && !this._generic && isChatPermissionLevel(value)) {
+			await disableGlobalAutoApproveForPermissionSelection(this._configurationService, value);
+		}
 		const partial = { [ctx.key]: normalizedValue };
 		const nextConfig = filterSessionConfigValues(ctx.configSchema, { ...this._readCurrentValues(), ...partial });
 
@@ -1192,10 +1288,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		connection.dispatch(backendSession.toString(), {
-			type: ActionType.SessionConfigChanged,
-			config: partial,
-		});
+		const state = this._subRef.value?.sub.value;
+		dispatchAgentHostConfigChange(connection, backendSession, this._subRef.value?.getChat()?.resource, state && !(state instanceof Error) ? state : undefined, partial);
 		if (this._isCurrentTarget(context)) {
 			await this._provisional.refreshResolvedConfig(
 				sessionResource,

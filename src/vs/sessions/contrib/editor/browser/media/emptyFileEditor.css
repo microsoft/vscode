@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .empty-file-editor {
+	position: relative;
 	height: 100%;
 	display: flex;
 	align-items: center;
@@ -13,18 +14,46 @@
 }
 
 .empty-file-editor-content {
+	position: absolute;
+	top: 40%;
+	transform: translateY(-50%);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	text-align: center;
 	gap: var(--vscode-spacing-size160);
-	padding: 20px;
-	max-width: 280px;
+	padding: var(--vscode-spacing-size200);
+	width: min(440px, calc(100% - var(--vscode-spacing-size400)));
+}
+
+.empty-file-editor-search {
+	position: relative;
+	z-index: 1;
+	width: 100%;
+	height: var(--vscode-spacing-size400);
+}
+
+.empty-file-editor-search-input {
+	position: relative;
+	width: 100%;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size60) var(--vscode-spacing-size40);
+}
+
+.empty-file-editor-search-input .monaco-inputbox {
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .empty-file-editor-actions {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-top: 2px;
+	gap: var(--vscode-spacing-size60);
+	margin-top: var(--vscode-spacing-size20);
+}
+
+.empty-file-editor-actions .new-session-button-icon {
+	flex-shrink: 0;
+	margin-right: var(--vscode-spacing-size20);
+	font-size: var(--vscode-codiconFontSize-compact);
 }

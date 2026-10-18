@@ -23,7 +23,7 @@ import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventT
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionView } from './sessionView.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun } from '../../../base/common/observable.js';
+import { autorun, derived, observableSignal } from '../../../base/common/observable.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Color } from '../../../base/common/color.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
@@ -33,13 +33,15 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { URI } from '../../../base/common/uri.js';
 
 interface IGridSlot {
 	readonly id: string;
@@ -80,6 +82,11 @@ export class SessionsPart extends Part {
 
 	/** Stable model slots in depth-first grid order, including the empty composer. */
 	private readonly _slots: IGridSlot[] = [];
+	private readonly _slotsChanged = observableSignal(this);
+	readonly shownChatCount = derived(this, reader => {
+		this._slotsChanged.read(reader);
+		return this._slots.reduce((count, slot) => count + slot.view.shownChatCount.read(reader), 0);
+	});
 
 	private readonly _onDidFocusSession = this._register(new Emitter<string | undefined>());
 	/** Fired when a session view in the grid receives keyboard focus. */
@@ -171,6 +178,7 @@ export class SessionsPart extends Part {
 		this._gridWidget.style({ separatorBorder: this._gridSeparatorBorder });
 		this._gridWidget.reconcile([{ id: placeholder.id, view: placeholder.view }], placeholder.id);
 		this._slots.push(placeholder);
+		this._slotsChanged.trigger(undefined);
 		contentArea.appendChild(this._gridWidget.element);
 
 		// Propagate the grid's maximized-view state to each session view so the
@@ -199,13 +207,13 @@ export class SessionsPart extends Part {
 		this.telemetryService.publicLog2<CodiconConfettiActivationEvent, CodiconConfettiActivationClassification>('vscodeAgents.codiconBackground/confetti', {});
 	}
 
-	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined {
+	private _findTargetView(child: HTMLElement): { readonly sessionId: string; readonly gridSlotId: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined {
 		for (const slot of this._slots) {
 			if (slot.boundSessionId === undefined) {
 				continue;
 			}
 			if (isAncestor(child, slot.view.element)) {
-				return { sessionId: slot.boundSessionId, element: slot.view.element };
+				return { sessionId: slot.boundSessionId, gridSlotId: slot.id, chatResource: slot.session?.scopedChatResource, element: slot.view.element };
 			}
 		}
 		return undefined;
@@ -231,10 +239,12 @@ export class SessionsPart extends Part {
 			return slot;
 		});
 		this._slots.splice(0, this._slots.length, ...next);
+		this._slotsChanged.trigger(undefined);
 
 		// Mark the active session's element for styling/focus indication.
 		const activeId = active?.sessionId;
-		const activeSlot = this._slots.find(slot => slot.boundSessionId === activeId)
+		const activeSlot = this._slots.find(slot => slot.session === active)
+			?? this._slots.find(slot => slot.boundSessionId === activeId)
 			?? (this._slots.length === 1 ? this._slots[0] : undefined);
 		for (const slot of this._slots) {
 			const isActive = slot === activeSlot;
@@ -296,7 +306,7 @@ export class SessionsPart extends Part {
 		if (!this._gridWidget) {
 			return undefined;
 		}
-		const slot = this._slots.find(s => s.boundSessionId === sessionId);
+		const slot = this._findSessionSlot(sessionId);
 		if (!slot) {
 			return undefined;
 		}
@@ -310,8 +320,14 @@ export class SessionsPart extends Part {
 
 	getGridLayout(): ISerializedGrid | undefined { return this._gridWidget?.serialize(); }
 
+	getSessionAtPosition(index: number): IActiveSession | null | undefined {
+		const id = this._gridWidget?.order.at(index);
+		const slot = this._slots.find(slot => slot.id === id);
+		return slot ? slot.session ?? null : undefined;
+	}
+
 	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined {
-		const slot = this._slots.find(slot => slot.boundSessionId === sessionId);
+		const slot = this._findSessionSlot(sessionId);
 		const neighbor = slot && this._gridWidget?.neighbor(slot.id, direction);
 		const target = this._slots.find(slot => slot.id === neighbor);
 		return target ? target.session ?? null : undefined;
@@ -330,7 +346,7 @@ export class SessionsPart extends Part {
 	}
 
 	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void {
-		const slot = this._slots.find(slot => slot.boundSessionId === sessionId);
+		const slot = this._findSessionSlot(sessionId);
 		const size = slot && this._gridWidget?.getSize(slot.id);
 		if (slot && size) {
 			this._onDidInteractWithGrid.fire();
@@ -346,7 +362,12 @@ export class SessionsPart extends Part {
 	 * `undefined` if no matching slot exists in the grid.
 	 */
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
-		return this._slots.find(s => s.boundSessionId === sessionId)?.view;
+		return this._findSessionSlot(sessionId)?.view;
+	}
+
+	private _findSessionSlot(sessionId: string | undefined): IGridSlot | undefined {
+		return this._slots.find(slot => slot.boundSessionId === sessionId && slot.view.element.classList.contains('is-active'))
+			?? this._slots.find(slot => slot.boundSessionId === sessionId && !slot.session?.scopedChatResource);
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
@@ -358,8 +379,8 @@ export class SessionsPart extends Part {
 	 * the placeholder view when `sessionId` is `undefined`), first revealing it in
 	 * the grid when it is only partially visible. No-op if no matching slot exists.
 	 */
-	focusSession(sessionId: string | undefined): void {
-		const slot = this._slots.find(s => s.boundSessionId === sessionId);
+	focusSession(sessionId: string | undefined, chatResource?: URI): void {
+		const slot = this._slots.find(s => s.boundSessionId === sessionId && s.session?.scopedChatResource?.toString() === chatResource?.toString());
 		if (!slot) {
 			return;
 		}
@@ -417,7 +438,7 @@ export class SessionsPart extends Part {
 		// Pointer-down also activates non-focusable chrome and the empty new-session slot.
 		const fireFocus = () => {
 			this._restoreSessionOnActivation(slot);
-			this._onDidFocusSession.fire(slot.boundSessionId);
+			this._onDidFocusSession.fire(slot.session?.scopedChatResource ? slot.id : slot.boundSessionId);
 		};
 		disposables.add(addDisposableListener(view.element, EventType.FOCUS_IN, fireFocus, true));
 		disposables.add(addDisposableGenericMouseDownListener(view.element, fireFocus, true));
@@ -433,7 +454,8 @@ export class SessionsPart extends Part {
 	}
 
 	private get _gridSeparatorBorder(): Color {
-		return this.theme.getColor(contrastBorder) || this.theme.getColor(agentsPanelBorder)?.transparent(0.5) || Color.transparent;
+		const contrast = this.theme.getColor(contrastBorder);
+		return contrast && !contrast.isTransparent() ? contrast : this.theme.getColor(agentsPanelBorder)?.transparent(0.5) || Color.transparent;
 	}
 
 	override updateStyles(): void {
@@ -479,20 +501,24 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
+		const phoneLayout = isPhoneLayout(this.layoutService);
+		const compactLayout = this.layoutService.isModernUICompact();
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
 			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
-			isPhoneLayout(this.layoutService),
-			this.layoutService.isModernUICompact()
+			phoneLayout,
+			compactLayout,
+			getSessionsPartCardMarginRight(this.layoutService.mainContainer)
 		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
 		// Layout the internal grid widget within the content area.
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, isPhoneLayout(this.layoutService));
+		const gridGap = phoneLayout || compactLayout ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, phoneLayout, gridGap);
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);

@@ -6,9 +6,10 @@
 import * as assert from 'assert';
 import 'mocha';
 import { ErrorCode, type InterfaceHandlers, type JsonRpcMessage } from '@vscode/hubrpc';
-import { markdownEditorHost, markdownEditorRenderer } from '../preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
 import { RecoveringTaskQueue } from '../preview/recoveringTaskQueue';
+import { clipboardMediaChunkSize, readClipboardMediaContents } from '../preview/markdownEditorMediaTransfer';
 
 suite('Markdown editor RPC', () => {
 	const disposables: { dispose(): void }[] = [];
@@ -34,7 +35,8 @@ suite('Markdown editor RPC', () => {
 			openLink: () => { },
 			setReadonly: () => { },
 			editorFocusChanged: () => { },
-			richLinkTargets: () => { },
+			selectionChanged: () => { },
+			richLinkSubscriptions: () => { },
 			resolveCodeBlockEditor: () => ({}),
 			createCodeBlockEditorHostTransport: () => { },
 			codeBlockEditorHostTransportMessage: () => { },
@@ -55,6 +57,8 @@ suite('Markdown editor RPC', () => {
 		});
 		host.get(markdownEditorRenderer);
 		renderer.register(markdownEditorRenderer, {
+			readClipboardMedia: () => ({ base64: 'AQ==' }),
+			configurationChanged: () => { },
 			diagnosticsChanged: () => { },
 			update: () => { },
 			codeBlockEditorProviders: () => { },
@@ -63,6 +67,9 @@ suite('Markdown editor RPC', () => {
 			comments: () => { },
 			revealComment: () => { },
 			revealLinkTarget: () => { },
+			captureNavigationState: () => ({ editEpoch: 0, revision: 0, scrollTop: 0 }),
+			revealRange: () => { },
+			restoreNavigationState: () => { },
 			command: () => { },
 			highlightThemeChanged: () => { },
 			richLinkPresentations: () => { },
@@ -72,23 +79,54 @@ suite('Markdown editor RPC', () => {
 		return { host, renderer, hostInbox, rendererInbox, errors };
 	}
 
+	test('resolves lazy media chunks while the paste request is awaiting its result', async () => {
+		const bytes = Buffer.alloc(clipboardMediaChunkSize + 3, 71);
+		const image = { id: 'video', name: 'clip.mp4', mime: 'video/mp4', size: bytes.length };
+		const chunks: Parameters<MarkdownEditorRenderer['readClipboardMedia']>[0][] = [];
+		const { host, renderer, hostInbox, errors } = pair({
+			pasteImages: async request => {
+				assert.deepStrictEqual(request.images, [image]);
+				const contents = await readClipboardMediaContents(request.images[0], request => remote.readClipboardMedia(request), () => { });
+				assert.deepStrictEqual(contents, Uint8Array.from(bytes));
+				return { offset: 4, editEpoch: 1 };
+			},
+		}, {
+			readClipboardMedia: request => {
+				chunks.push(request);
+				return { base64: bytes.subarray(request.offset, request.offset + request.length).toString('base64') };
+			},
+		});
+		const remote = host.get(markdownEditorRenderer);
+		const request = { start: 0, endExclusive: 0, editEpoch: 0, images: [image] };
+		assert.deepStrictEqual(await renderer.get(markdownEditorHost).pasteImages(request), { offset: 4, editEpoch: 1 });
+		assert.deepStrictEqual(hostInbox.messages[0], {
+			channel: 'markdownEditor', messageSecret: 'secret',
+			message: { jsonrpc: '2.0', id: 1, method: 'markdown.editor.host::pasteImages', params: request },
+		});
+		assert.deepStrictEqual({ chunks, errors }, { chunks: [
+			{ id: 'video', offset: 0, length: clipboardMediaChunkSize },
+			{ id: 'video', offset: clipboardMediaChunkSize, length: 3 },
+		], errors: [] });
+	});
+
 	test('sends presentation notifications without request IDs or acknowledgement messages', async () => {
 		const seen: unknown[] = [];
 		const { host, renderer, hostInbox, rendererInbox, errors } = pair({
-			richLinkTargets: params => { seen.push(params); },
+			richLinkSubscriptions: params => { seen.push(params); },
 			codeBlockEditorDiagnostic: params => { seen.push(params); },
 		}, {
 			comments: params => { seen.push(params); },
 			highlightThemeChanged: params => { seen.push(params); },
 		});
-		renderer.get(markdownEditorHost).richLinkTargets({ hrefs: ['target'] });
+		const subscriptions = { subscribe: [{ subscriptionId: 'first', href: 'target' }], unsubscribe: [] };
+		renderer.get(markdownEditorHost).richLinkSubscriptions(subscriptions);
 		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
 		host.get(markdownEditorRenderer).comments({ comments: [], acceptsComments: true });
 		host.get(markdownEditorRenderer).highlightThemeChanged({});
 		await new Promise<void>(resolve => setImmediate(resolve));
-		assert.deepStrictEqual(seen, [{ hrefs: ['target'] }, { message: 'test' }, { comments: [], acceptsComments: true }, {}]);
+		assert.deepStrictEqual(seen, [subscriptions, { message: 'test' }, { comments: [], acceptsComments: true }, {}]);
 		assert.deepStrictEqual([...hostInbox.messages, ...rendererInbox.messages], [
-			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkTargets', params: { hrefs: ['target'] } } },
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkSubscriptions', params: subscriptions } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::codeBlockEditorDiagnostic', params: { message: 'test' } } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::comments', params: { comments: [], acceptsComments: true } } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::highlightThemeChanged', params: {} } },
@@ -100,18 +138,33 @@ suite('Markdown editor RPC', () => {
 		let targets = 0;
 		const failure = new Error('Notification handler failed');
 		const { renderer, hostInbox, rendererInbox, errors } = pair({
-			richLinkTargets: () => { targets++; },
+			richLinkSubscriptions: () => { targets++; },
 			codeBlockEditorDiagnostic: () => { throw failure; },
 		});
-		const message = { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkTargets', params: { hrefs: ['target'] } };
+		const message = { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkSubscriptions', params: { subscribe: [{ subscriptionId: 'first', href: 'target' }], unsubscribe: [] } };
 		hostInbox.deliver({ channel: 'markdownEditor', messageSecret: 'old-secret', message });
-		await renderer.channel.sendNotification(message.method, { hrefs: [42] });
+		await renderer.channel.sendNotification(message.method, { subscribe: [{ subscriptionId: 'first', href: 42 }], unsubscribe: [] });
 		assert.strictEqual(targets, 0);
-		renderer.get(markdownEditorHost).richLinkTargets({ hrefs: ['valid'] });
+		renderer.get(markdownEditorHost).richLinkSubscriptions({ subscribe: [{ subscriptionId: 'first', href: 'valid' }], unsubscribe: [] });
 		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
 		assert.strictEqual(targets, 1);
 		assert.deepStrictEqual(errors, [{ operation: 'Handle notification markdown.editor.host::codeBlockEditorDiagnostic', error: failure }]);
 		assert.deepStrictEqual(rendererInbox.messages, [], 'even failed notifications have no response');
+	});
+
+	test('updates highlight configuration without reloading or acknowledging the renderer', async () => {
+		const seen: boolean[] = [];
+		const { host, rendererInbox, hostInbox, errors } = pair({}, {
+			configurationChanged: ({ highlightActiveBlock }) => { seen.push(highlightActiveBlock); },
+		});
+		const renderer = host.get(markdownEditorRenderer);
+		renderer.configurationChanged({ highlightActiveBlock: false });
+		renderer.configurationChanged({ highlightActiveBlock: true });
+		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: 'false' });
+		assert.deepStrictEqual(seen, [false, true]);
+		assert.strictEqual(rendererInbox.messages.length, 3);
+		assert.deepStrictEqual(hostInbox.messages, []);
+		assert.deepStrictEqual(errors, []);
 	});
 
 	test('reports notification delivery failures and sends after close without unhandled rejections', async () => {

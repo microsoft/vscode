@@ -7,7 +7,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IEditorSerializer } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
-import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
+import { CanvasInput, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 interface ISerializedCanvasPresentation {
 	readonly version: 1;
@@ -16,9 +16,9 @@ interface ISerializedCanvasPresentation {
 
 /** Resolves the service after editor-part construction, avoiding a service cycle during serializer startup. */
 class CanvasInputRestorer {
-	constructor(@ISessionCanvasService private readonly canvasService: ISessionCanvasService) { }
+	constructor(@ICanvasService private readonly canvasService: ICanvasService) { }
 
-	restore(serializationId: string): SessionCanvasInput | undefined {
+	restore(serializationId: string): CanvasInput | undefined {
 		return this.canvasService.restoreCanvasInput(serializationId);
 	}
 }
@@ -31,8 +31,8 @@ class CanvasInputRestorer {
 export class SessionCanvasSerializer implements IEditorSerializer {
 	constructor(@ILogService private readonly logService: ILogService) { }
 
-	canSerialize(input: EditorInput): input is SessionCanvasInput {
-		return input instanceof SessionCanvasInput && !input.isDisposed() && input.serializationId !== undefined;
+	canSerialize(input: EditorInput): input is CanvasInput {
+		return input instanceof CanvasInput && !input.isDisposed() && input.serializationId !== undefined;
 	}
 
 	serialize(input: EditorInput): string | undefined {
@@ -50,7 +50,7 @@ export class SessionCanvasSerializer implements IEditorSerializer {
 		return JSON.stringify(data);
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditor: string): SessionCanvasInput | undefined {
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string): CanvasInput | undefined {
 		let serializationId: string;
 		try {
 			const data = JSON.parse(serializedEditor) as Partial<ISerializedCanvasPresentation> | null;

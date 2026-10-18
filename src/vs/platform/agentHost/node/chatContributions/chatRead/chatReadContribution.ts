@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel } from '../../../common/state/sessionState.js';
 import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
 /** Persists accepted chat read-state changes. */
@@ -31,7 +31,7 @@ export class ChatReadContribution extends Disposable implements IAgentHostChatCo
 			|| !isAhpChatChannel(dispatched.channel)) {
 			return;
 		}
-		const sessionResource = parseRequiredSessionUriFromChatUri(dispatched.channel);
+		const sessionResource = dispatched.session;
 		const session = URI.parse(sessionResource);
 		const chat = URI.parse(dispatched.channel);
 		void this._peerChatPersistenceService.setRead(session, chat, dispatched.action.isRead).catch(error => {

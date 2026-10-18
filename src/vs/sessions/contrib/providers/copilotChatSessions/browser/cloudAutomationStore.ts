@@ -19,17 +19,17 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationTrigger, CreateAutomationRequest, EditAutomationRequest } from '../../../../../platform/github/common/missionControl/automations.js';
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
-import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
@@ -38,7 +38,12 @@ import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomatio
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {
 	private readonly store = observableValue<GitHubCloudAutomationStore | undefined>(this, undefined);
 	private readonly refreshError = observableValue<string | undefined>(this, undefined);
+	private readonly accountInitialized = observableValue(this, false);
+	private readonly accountInitialization: Promise<void>;
 	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+	private readonly pendingRefreshes = observableValue(this, 0);
+	readonly isRefreshing = derived(this, reader =>
+		this.pendingRefreshes.read(reader) > 0);
 	private historyRefresh: Promise<void> | undefined;
 	private discoveryAttempts = 0;
 	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
@@ -47,8 +52,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}, 15_000));
 	readonly enabled: IObservable<boolean>;
 	readonly catalogueState = derived<AutomationCatalogueState>(this, reader =>
-		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader) ?? 'unavailable');
+		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader)
+			?? (this.enabled.read(reader) && !this.accountInitialized.read(reader) ? 'loading' : 'unavailable'));
 	readonly unavailableReason = this.refreshError;
+	readonly unavailableMessage = localize('cloudAutomations.unavailableMessage', "GitHub Cloud automations are unavailable.");
 	readonly canCreateAutomation = derived(this, reader =>
 		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	readonly automations = derived(this, reader => (this.store.read(reader)?.entries.read(reader) ?? []).map(entry => this.toAutomation(entry)));
@@ -68,6 +75,12 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 	) {
 		super();
+		this.accountInitialization = (async () => {
+			await defaultAccountService.getDefaultAccount();
+			if (!this._store.isDisposed) {
+				this.accountInitialized.set(true, undefined);
+			}
+		})();
 		this.configuration = {
 			sessionTypes: [sessionTypeId],
 			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
@@ -98,8 +111,18 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			this.discoveryAttempts = 0;
 			this.historyRefresh = undefined;
 			const account = defaultAccountService.currentDefaultAccount;
+			if (!account) {
+				this.accountInitialized.read(reader);
+			}
 			let store: GitHubCloudAutomationStore | undefined;
-			if (this.enabled.read(reader) && account && !account.enterprise) {
+			const enabled = this.enabled.read(reader);
+			this.logService.trace('[CloudAutomations] Store availability', {
+				providerId: this.providerId,
+				enabled,
+				hasDefaultAccount: !!account,
+				enterprise: account?.enterprise,
+			});
+			if (enabled && account && !account.enterprise) {
 				store = reader.store.add(instantiationService.createInstance(GitHubCloudAutomationStore, resolveRepositoryUri));
 			}
 			transaction(tx => {
@@ -115,7 +138,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 					await this.refresh();
 				})().catch(error => {
 					if (!isCancellationError(error)) {
-						this.logService.warn('[CloudAutomations] Initial refresh failed', error);
+						this.logService.warn(`[CloudAutomations] Initial refresh failed (catalogueState=${this.catalogueState.read(undefined)}, historyState=${this.historyState.read(undefined)})`, error);
 					}
 				});
 			}
@@ -162,38 +185,54 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 	}
 
-	async refresh(): Promise<void> {
-		const store = this.requireStore();
+	async refresh(options?: IAutomationRefreshOptions): Promise<void> {
+		this.pendingRefreshes.set(this.pendingRefreshes.get() + 1, undefined);
 		try {
-			await store.refresh();
+			await this.refreshCatalogueAndHistory(options);
+		} finally {
+			this.pendingRefreshes.set(this.pendingRefreshes.get() - 1, undefined);
+		}
+	}
+
+	private async refreshCatalogueAndHistory(options?: IAutomationRefreshOptions): Promise<void> {
+		await this.accountInitialization;
+		const store = this.requireStore();
+		this.logService.trace('[CloudAutomations] Definition refresh started');
+		try {
+			await store.refresh(options);
 			if (this.store.get() === store) {
 				this.refreshError.set(undefined, undefined);
+				this.logService.trace('[CloudAutomations] Definition refresh completed', { definitionCount: store.entries.get().length });
 			}
 		} catch (error) {
 			if (this.store.get() === store && !isCancellationError(error)) {
 				this.refreshError.set(error instanceof Error ? error.message : localize('cloudAutomations.refreshFailed', "Cloud automations could not be refreshed."), undefined);
+				this.logService.trace('[CloudAutomations] Definition refresh failed', error);
 			}
 			throw error;
 		}
 		this.assertCurrentStore(store);
-		await this.refreshHistory();
+		await this.refreshHistory(options);
 	}
 
-	private refreshHistory(): Promise<void> {
+	private refreshHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		if (this.historyRefresh) {
 			return this.historyRefresh;
 		}
 		const store = this.requireStore();
 		this.historyScheduler.cancel();
 		this.historyState.set('loading', undefined);
+		this.logService.trace('[CloudAutomations] History refresh started');
 		this.historyRefresh = (async () => {
 			try {
-				await store.refreshHistory();
+				await store.refreshHistory(options);
 				this.assertCurrentStore(store);
 				this.historyState.set('ready', undefined);
+				this.logService.trace('[CloudAutomations] History refresh completed', { runCount: store.history.get().length });
 			} catch (error) {
 				if (this.store.get() === store && !isCancellationError(error)) {
 					this.historyState.set('error', undefined);
+					this.logService.trace('[CloudAutomations] History refresh failed', error);
 				}
 				throw error;
 			} finally {
@@ -209,7 +248,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private refreshHistoryInBackground(): void {
-		void this.refreshHistory().catch(error => {
+		void this.refreshHistory({ background: true }).catch(error => {
 			if (!isCancellationError(error)) {
 				this.logService.warn('[CloudAutomations] History refresh failed', error);
 			}
@@ -218,6 +257,14 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
 		return this.automations.get().find(automation => automation.id === id);
+	}
+
+	observeLocalRequest(resource: URI): void {
+		if (!this.store.get() || !this.enabled.get() || resource.scheme !== AgentSessionProviders.Cloud) {
+			return;
+		}
+		this.discoveryAttempts = 4;
+		this.refreshHistoryInBackground();
 	}
 
 	runsFor(id: string): IObservable<readonly IAutomationRun[]> {
@@ -230,15 +277,15 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canRunAutomation(id: string): boolean {
-		return this.canCreateAutomation.get() && this.getAutomation(id) !== undefined;
+		return this.canCreateAutomation.get() && this.getAutomation(id)?.enabled === true;
 	}
 
 	canUpdateAutomation(id: string): boolean {
-		return this.canRunAutomation(id) && !this.getAutomation(id)?.readOnlyReason;
+		return this.canDeleteAutomation(id) && !this.getAutomation(id)?.readOnlyReason;
 	}
 
 	canDeleteAutomation(id: string): boolean {
-		return this.canRunAutomation(id);
+		return this.canCreateAutomation.get() && this.getAutomation(id) !== undefined;
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
@@ -285,12 +332,22 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		await this.requireWritableStore().delete(this.requireEntry(id), guard);
 	}
 
-	async runAutomation(id: string, token: CancellationToken = CancellationToken.None): Promise<{ readonly kind: 'accepted' }> {
+	async runAutomation(id: string, token: CancellationToken = CancellationToken.None): Promise<IAutomationRunRequestResult> {
 		const store = this.requireWritableStore();
+		const activeRun = this.getActiveRunFor(id);
+		if (activeRun) {
+			return { kind: 'alreadyRunning', run: activeRun };
+		}
+		const guard = () => {
+			if (!this.canRunAutomation(id)) {
+				throw new AutomationUnavailableError(localize('cloudAutomations.runUnavailable', "Only enabled cloud automations can run. Refresh automations before trying again."));
+			}
+		};
+		guard();
 		try {
-			await store.run(this.requireEntry(id), token);
+			await store.run(this.requireEntry(id), token, guard);
 		} catch (error) {
-			if ((error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') && this.store.get() === store) {
+			if (error instanceof AutomationMutationUncertainError && this.store.get() === store) {
 				this.discoveryAttempts = 4;
 				this.refreshHistoryInBackground();
 			}
@@ -303,7 +360,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canStopRun(run: IAutomationRun): boolean {
-		return this.canRunAutomation(run.automationId) && this.runs.get().some(current => current.id === run.id && (current.status === 'pending' || current.status === 'running'));
+		return this.canDeleteAutomation(run.automationId) && this.runs.get().some(current => current.id === run.id && (current.status === 'pending' || current.status === 'running'));
 	}
 
 	async stopRun(run: IAutomationRun): Promise<void> {
@@ -415,8 +472,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			startedAt: task.created_at, updatedAt: task.updated_at,
 			...(status === 'completed' || status === 'failed' ? { completedAt: task.updated_at } : {}),
 			...(status === 'failed' ? { errorMessage: task.status || task.state } : {}),
+			...(task.state === 'cancelled' || (task.state as string) === 'canceled' ? { statusDescription: localize('cloudAutomations.cancelled', "Cancelled") } : {}),
 			...(task.state === 'waiting_for_user' ? { needsInput: true, statusDescription: localize('cloudAutomations.needsInput', "Needs input on GitHub") } : {}),
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${entry.repository.owner}/${entry.repository.name}/tasks/${task.id}` }),
+			sessionResource: URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${task.id}` }),
 		};
 	}
 }
@@ -492,7 +551,7 @@ export function cloudAutomationTriggers(schedule: IAutomationSchedule): Readonly
 		return { interval: { types: ['hourly'] } };
 	}
 	const minute = schedule.scheduleMinute;
-	if (schedule.timeZone !== 'UTC' || schedule.interval === 'custom' || !Number.isInteger(schedule.scheduleHour) || schedule.scheduleHour < 0 || schedule.scheduleHour > 23
+	if (schedule.timeZone !== 'UTC' || (schedule.interval !== 'daily' && schedule.interval !== 'weekly') || !Number.isInteger(schedule.scheduleHour) || schedule.scheduleHour < 0 || schedule.scheduleHour > 23
 		|| (minute !== 0 && minute !== 15 && minute !== 30 && minute !== 45) || !Number.isInteger(schedule.scheduleDay) || schedule.scheduleDay < 0 || schedule.scheduleDay > 6) {
 		throw new Error(localize('cloudAutomations.invalidSchedule', "Choose a daily or weekly UTC schedule with minutes 00, 15, 30, or 45."));
 	}
@@ -504,8 +563,8 @@ function cloudTaskStatus(task: Task): IAutomationRun['status'] | undefined {
 	switch (state) {
 		case 'queued': return 'pending';
 		case 'in_progress': case 'running': case 'waiting_for_user': return 'running';
-		case 'completed': case 'idle': return 'completed';
-		case 'failed': case 'timed_out': case 'cancelled': case 'canceled': case 'error': return 'failed';
+		case 'completed': case 'idle': case 'cancelled': case 'canceled': return 'completed';
+		case 'failed': case 'timed_out': case 'error': return 'failed';
 		default: return undefined;
 	}
 }

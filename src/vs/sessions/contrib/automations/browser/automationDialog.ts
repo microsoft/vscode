@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
+import { Switch } from '../../../../base/browser/ui/toggle/switch.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -16,10 +20,11 @@ import { IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, disposableObservableValue, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
@@ -43,9 +48,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { selectBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
-import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
+import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -54,6 +61,7 @@ import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/c
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -61,6 +69,7 @@ import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/a
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -78,10 +87,17 @@ import { Menus } from '../../../browser/menus.js';
 
 const $ = DOM.$;
 
+const automationNameInputBoxStyles = getInputBoxStyle({
+	inputBackground: settingsTextInputBackground,
+	inputForeground: settingsTextInputForeground,
+	inputBorder: settingsTextInputBorder,
+});
+
 const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[] = [
 	{ value: 'manual', label: localize('automation.interval.manual', "Manual") },
 	{ value: 'hourly', label: localize('automation.interval.hourly', "Hourly") },
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
+	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
 ];
 
@@ -224,6 +240,7 @@ export interface IFormState {
 	timezoneOffset?: number;
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
+	targetPending?: { readonly message: string };
 }
 
 export interface IValidationState {
@@ -259,13 +276,14 @@ interface IRenderFormHandle {
 	readonly getCustomizationIds: () => readonly string[] | undefined;
 	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
+	/** Returns the reason Create is blocked because cloud automations are unavailable, with the id of the element showing it. */
+	readonly getSaveBlockedReason: (message: string | undefined) => { readonly message: string; readonly elementId: string } | undefined;
 	readonly showScheduleValidationError: (message: string | undefined) => void;
 	readonly showSaveError: (message: string | undefined) => void;
 	readonly focusSaveError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelPromptSuggestion: () => boolean;
-	readonly providerDescription: IObservable<string | undefined>;
 }
 
 export type AutomationSessionDraftTarget =
@@ -284,6 +302,7 @@ export type AutomationSessionConfigurationCapture =
 
 const AUTOMATION_CONFIGURATION_CAPTURE_TIMEOUT_MS = 5_000;
 const AUTOMATION_CONFIGURATION_RETARGET_CAPTURE_TIMEOUT_MS = 1_000;
+const CLOUD_CONNECT_TIMEOUT_MS = 15_000;
 
 export class AutomationSessionDraftSynchronizer extends Disposable {
 	readonly availability = observableValue<'idle' | 'pending' | 'available' | 'unavailable'>(this, 'idle');
@@ -1064,7 +1083,7 @@ export function renderForm(
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
 	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
 	const nameInput = disposables.add(new InputBox(nameInputContainer, contextViewService, {
-		inputBoxStyles: defaultInputBoxStyles,
+		inputBoxStyles: automationNameInputBoxStyles,
 		placeholder: localize('automation.form.namePlaceholder', "e.g. Morning standup notes"),
 		ariaLabel: localize('automation.form.name', "Name"),
 	}));
@@ -1073,6 +1092,25 @@ export function renderForm(
 		state.name = value;
 		revalidate();
 	}));
+
+	const cloudRow = DOM.append(formContent, $('.automation-cloud-row'));
+	const cloudCopy = DOM.append(cloudRow, $('.automation-cloud-copy'));
+	const cloudLabel = DOM.append(cloudCopy, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the cloud")));
+	// Editing locks the run target, so the switch is only described when it can be changed.
+	const cloudDescription = isEdit ? undefined : DOM.append(cloudCopy, $('span.automation-cloud-description', { id: 'automation-cloud-description' }, localize('automation.form.runInCloudDescription', "Run even when your computer is off, triggered by events or on a schedule.")));
+	const cloudSwitch = disposables.add(new Switch({ ariaLabel: cloudLabel.textContent! }));
+	cloudSwitch.domNode.setAttribute('aria-labelledby', 'automation-cloud-label');
+	if (cloudDescription) {
+		cloudSwitch.domNode.setAttribute('aria-describedby', cloudDescription.id);
+	}
+	// The dialog cancels key-up events, which suppresses a native button's Space activation.
+	disposables.add(DOM.addDisposableListener(cloudSwitch.domNode, DOM.EventType.KEY_DOWN, e => {
+		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
+			DOM.EventHelper.stop(e, true);
+			cloudSwitch.domNode.click();
+		}
+	}));
+	DOM.append(cloudRow, cloudSwitch.domNode);
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
@@ -1084,7 +1122,8 @@ export function renderForm(
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
-	const intervalOptions: ISelectOptionItem[] = INTERVALS.map(item => ({ text: item.label }));
+	let intervals = INTERVALS;
+	const intervalOptions: ISelectOptionItem[] = intervals.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
 	const intervalSelect = disposables.add(new SelectBox(
 		intervalOptions,
@@ -1136,57 +1175,92 @@ export function renderForm(
 	DOM.hide(scheduleError);
 
 	const applyIntervalVisibility = () => {
-		const showTime = state.interval === 'daily' || state.interval === 'weekly';
+		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
 	};
+	const updateIntervalOptions = (cloud: boolean) => {
+		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
+		const unsupportedInterval = !intervals.some(item => item.value === state.interval);
+		if (unsupportedInterval) {
+			intervals = [{ value: state.interval, label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
+		}
+		intervalSelect.setOptions(intervals.map(item => ({
+			text: item.label,
+			isDisabled: unsupportedInterval && item.value === state.interval,
+		})), Math.max(0, intervals.findIndex(item => item.value === state.interval)));
+		applyIntervalVisibility();
+	};
 	applyIntervalVisibility();
 	disposables.add(intervalSelect.onDidSelect(e => {
-		state.interval = INTERVALS[e.index].value;
-		applyIntervalVisibility();
+		state.interval = intervals[e.index].value;
+		updateIntervalOptions(getProviderConfiguration(state.providerId) !== undefined);
 		revalidate();
 	}));
 
-	// The picker is authoritative for the session type
+	// The execution mode constrains the harness before workspace selection.
 	const initialProviderConfiguration = getProviderConfiguration(state.providerId);
-	const selectedProvider = observableValue(form, state.providerId);
-	// New automations keep an enabled cloud provider reachable before its catalogue is ready, so repository
-	// picking can request access; saving stays gated on allowedProviders.
-	const cloudProvider = derived(reader => allowedProviders.read(reader).find(id => getProviderConfiguration(id) !== undefined)
+	const runInCloud = observableValue(form, initialProviderConfiguration !== undefined);
+	// New automations keep an enabled cloud provider reachable before its catalogue is ready, so the switch can
+	// offer to connect; saving stays gated on allowedProviders.
+	const findCloudProvider = (reader: IReader | undefined) => allowedProviders.read(reader).find(id => getProviderConfiguration(id) !== undefined)
 		?? (isEdit ? undefined : sessionsManagementService.getAllProviderSessionTypes()
-			.find(type => getProviderConfiguration(type.providerId)?.sessionTypes.includes(type.sessionType.id))?.providerId));
-	const availableCloudConfiguration = derived(reader => getProviderConfiguration(cloudProvider.read(reader)));
-	const cloudConfiguration = derived(reader => {
+			.find(type => getProviderConfiguration(type.providerId)?.sessionTypes.includes(type.sessionType.id))?.providerId);
+	// Cloud stays selected if it becomes unavailable while the dialog is open; it never falls back to a local provider.
+	const openCloudProvider = isEdit ? (initialProviderConfiguration ? state.providerId : undefined) : findCloudProvider(undefined);
+	const cloudProvider = derived(reader => findCloudProvider(reader) ?? (runInCloud.read(reader) ? openCloudProvider : undefined));
+	const cloudCreatable = () => allowedProviders.get().some(id => getProviderConfiguration(id) !== undefined);
+	const cloudUnavailableMessage = () => isEdit
+		? localize('automation.form.cloudUnavailableEdit', "Cloud automations are unavailable. Try again in a few moments.")
+		: configurationService.getValue<boolean>(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING) !== true
+			? localize('automation.form.cloudDisabled', "Cloud automations are disabled. To create this automation, enable the {0} setting or turn off Run in the cloud.", CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING)
+			: localize('automation.form.cloudUnavailableRetry', "Cloud automations are unavailable. Try again in a few moments, or turn off Run in the cloud.");
+	// Provider configurations are not observable; the allowed providers change whenever the cloud gate does.
+	const availableCloudConfiguration = derived(reader => {
 		allowedProviders.read(reader);
-		return getProviderConfiguration(selectedProvider.read(reader));
+		return getProviderConfiguration(cloudProvider.read(reader));
 	});
-	const runInCloud = derived(reader => cloudConfiguration.read(reader) !== undefined);
+	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
+	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
+	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
+	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
+	setAutomationControlVisible(cloudRow, showCloudSwitch);
+	cloudSwitch.disabled = isEdit;
+	disposables.add(autorun(reader => {
+		cloudSwitch.checked = runInCloud.read(reader);
+	}));
 	const sessionConfigurationErrorMessage = observableValue<string | undefined>(form, undefined);
 	let switchingTarget = false;
-	let localTarget = { ...state };
+	let connectingCloud = false;
+	// A cloud draft (for example a duplicated cloud automation) has no local target to restore.
+	let localTarget = initialProviderConfiguration ? { ...state, folderUri: undefined, providerId: undefined, sessionTypeId: undefined } : { ...state };
 	const isolationModel = new AutomationIsolationModel(state);
 	const workspaceControlsVisible = derived(reader => !runInCloud.read(reader) && !isolationModel.isQuickChatObs.read(reader) && isolationModel.folderUriObs.read(reader)?.scheme !== GITHUB_REMOTE_FILE_SCHEME && isolationModel.folderUriObs.read(reader) !== undefined);
 	const sessionTypesChanged = observableSignalFromEvent(form, sessionsManagementService.onDidChangeSessionTypes);
 	const sessionTypes = derived(reader => {
 		sessionTypesChanged.read(reader);
+		if (runInCloud.read(reader)) {
+			return sessionsManagementService.getAllProviderSessionTypes().filter(type => type.providerId === cloudProvider.read(reader));
+		}
 		const folder = isolationModel.folderUriObs.read(reader);
 		const quickChat = isolationModel.isQuickChatObs.read(reader);
 		return quickChat ? sessionsManagementService.getQuickChatSessionTypes() : folder ? sessionsManagementService.getSessionTypesForFolder(folder) : [];
 	});
-	// New automations hide a provider whose workspace target is a known public repository.
 	const pickerProviders = derived(reader => {
-		const folder = isolationModel.folderUriObs.read(reader);
 		const allowed = allowedProviders.read(reader);
 		const cloud = cloudProvider.read(reader);
 		return [...allowed, ...(cloud && !allowed.includes(cloud) ? [cloud] : [])]
-			.filter(id => isEdit || !getProviderConfiguration(id)?.getWorkspaceTarget(folder).read(reader).isPublicRepository);
+			.filter(id => runInCloud.read(reader)
+				? id === cloud
+				: !getProviderConfiguration(id));
 	});
 	const sessionTypePicker = disposables.add(instantiationService.createInstance(MobileSessionTypePicker, constObservable<ISession | undefined>(undefined), {
 		persistSelection: false,
 		preserveUnavailableSelection: true,
 		telemetrySource: 'AutomationSessionTypePicker',
 		allowedProviders: pickerProviders,
+		providerId: derived(reader => runInCloud.read(reader) ? cloudProvider.read(reader) : undefined),
 		prepareSessionTypeSelection: () => workspacePicker.onWillSelectWorkspace(),
 	}));
 	sessionTypePicker.setQuickChatSource(isolationModel.isQuickChatObs);
@@ -1207,27 +1281,14 @@ export function renderForm(
 		if (switchingTarget) {
 			return;
 		}
-		let pick = sessionTypePicker.selectedPick;
-		if (!isEdit && pick && getProviderConfiguration(pick.providerId)?.getWorkspaceTarget(state.folderUri).get().isPublicRepository) {
-			const localTypes = sessionTypes.get().filter(type => pickerProviders.get().includes(type.providerId) && !getProviderConfiguration(type.providerId));
-			const fallback = localTypes.find(type => type.sessionType.id === SessionType.CopilotCLI)
-				?? localTypes.find(type => type.providerId === localTarget.providerId && type.sessionType.id === localTarget.sessionTypeId)
-				?? localTypes[0];
-			if (fallback) {
-				sessionTypePicker.setFolderSource(isolationModel.folderUriObs, {
-					initialPick: { providerId: fallback.providerId, sessionTypeId: fallback.sessionType.id },
-				});
-				pick = sessionTypePicker.selectedPick;
-			}
-		}
+		const pick = sessionTypePicker.selectedPick;
 		state.providerId = pick?.providerId;
 		state.sessionTypeId = pick?.sessionTypeId;
-		const wasCloud = selectedProvider.get() !== undefined && getProviderConfiguration(selectedProvider.get()) !== undefined;
-		selectedProvider.set(state.providerId, undefined);
 		const configuration = cloudConfiguration.get();
 		const target = configuration?.getWorkspaceTarget(state.folderUri).get();
 		state.resolvedFolderUri = target?.workspace;
-		state.targetDisabledReason = target?.disabledReason;
+		state.targetPending = target?.pending ? { message: target.disabledReason ?? localize('automation.form.checkingTarget', "Checking target availability...") } : undefined;
+		state.targetDisabledReason = target?.pending ? undefined : target?.disabledReason;
 		state.timeZone = configuration?.timeZone;
 		if (runInCloud.get()) {
 			state.isolationMode = undefined;
@@ -1235,11 +1296,14 @@ export function renderForm(
 			if (configuration && isEdit && initialTarget?.kind === 'workspace' && target?.workspace && !isEqual(initialTarget.folderUri, target.workspace)) {
 				state.targetDisabledReason = configuration.targetChangeDisabledReason;
 			}
-		} else if (wasCloud && isEqual(state.folderUri, localTarget.folderUri)) {
-			state.isolationMode = localTarget.isolationMode;
-			if (localTarget.branch) {
-				isolationModel.selectBranch(localTarget.branch);
+			if (!cloudCreatable()) {
+				state.targetPending = undefined;
+				state.targetDisabledReason = cloudUnavailableMessage();
 			}
+		}
+		if (connectingCloud) {
+			state.targetDisabledReason = undefined;
+			state.targetPending = { message: localize('automation.form.connectingCloud', "Connecting to cloud automations...") };
 		}
 		onDidChangeSessionTarget.fire();
 	};
@@ -1265,6 +1329,7 @@ export function renderForm(
 	workspacePicker.setTargetModel(isolationModel);
 	workspacePicker.setLayoutService(layoutService);
 	workspacePicker.setCloudConfiguration(availableCloudConfiguration);
+	workspacePicker.setCloudMode(runInCloud);
 	if (isEdit && initialProviderConfiguration) {
 		workspacePicker.setDisabledReason(initialProviderConfiguration.targetChangeDisabledReason);
 	}
@@ -1294,14 +1359,30 @@ export function renderForm(
 		}
 		return initialSessionConfiguration;
 	};
+	let lastDraftTargetDiagnostic: string | undefined;
 	const updateAutomationSessionTarget = () => {
-		if (switchingTarget) {
+		// While connecting, the local draft must survive until the switch captures its configuration.
+		if (switchingTarget || connectingCloud) {
 			return;
 		}
 		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
-		if (!pick || state.targetDisabledReason || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
+		const diagnostic = JSON.stringify({
+			providerId: pick?.providerId,
+			sessionType: pick?.sessionTypeId,
+			cloud: runInCloud.get(),
+			quickChat: isQuickChat,
+			hasWorkspace: !!folderUri,
+			targetDisabled: !!state.targetDisabledReason,
+			targetPending: !!state.targetPending,
+			providerAllowed: pick?.providerId !== undefined && allowedProviders.get().includes(pick.providerId),
+		});
+		if (diagnostic !== lastDraftTargetDiagnostic) {
+			lastDraftTargetDiagnostic = diagnostic;
+			logService.trace('[AutomationDialog] Session draft target', diagnostic);
+		}
+		if (!pick || state.targetDisabledReason || state.targetPending || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
 		}
@@ -1357,9 +1438,12 @@ export function renderForm(
 			localTarget = { ...state, branch: isolationModel.persistedBranch };
 		}
 		switchingTarget = true;
+		// Making the form inert drops focus from whichever control started the capture.
+		const focused = DOM.getActiveElement();
 		formContent.toggleAttribute('inert', true);
 		formContent.setAttribute('aria-busy', 'true');
-		state.targetDisabledReason = localize('automation.form.switchingTarget', "Saving the current session configuration...");
+		state.targetDisabledReason = undefined;
+		state.targetPending = { message: localize('automation.form.switchingTarget', "Saving the current session configuration...") };
 		revalidate();
 		try {
 			const capture = await automationSessionDraftSynchronizer.getSessionConfiguration(targetSwitchCancellation);
@@ -1378,33 +1462,36 @@ export function renderForm(
 			if (!disposables.isDisposed) {
 				formContent.toggleAttribute('inert', false);
 				formContent.setAttribute('aria-busy', 'false');
+				if (DOM.isHTMLElement(focused) && formContent.contains(focused) && !DOM.isActiveElement(focused)) {
+					focused.focus();
+				}
 				syncStateFromPicker();
 				updateAutomationSessionTarget();
 				revalidate();
 			}
 		}
 	};
-	const applyWorkspaceTarget = (uri: URI | undefined) => {
+	const applyWorkspaceTarget = (uri: URI | undefined, restoreLocalTarget = false) => {
 		if (switchingTarget) {
 			return;
 		}
 		switchingTarget = true;
 		transaction(() => {
-			const wasCloud = runInCloud.get();
 			const currentPick = sessionTypePicker.selectedPick;
-			isolationModel.setQuickChat(!uri, uri);
+			isolationModel.setQuickChat(!uri && !runInCloud.get(), uri);
 			const types = sessionTypes.get().filter(type => pickerProviders.get().includes(type.providerId));
 			const preferred = workspacePicker.isSelectingRepository
 				? types.find(type => getProviderConfiguration(type.providerId)?.sessionTypes.includes(type.sessionType.id))
 				: types.find(type => type.providerId === currentPick?.providerId && type.sessionType.id === currentPick.sessionTypeId)
 				?? types.find(type => type.providerId === localTarget.providerId && type.sessionType.id === localTarget.sessionTypeId);
-			const first = preferred ?? types[0];
+			const first = preferred
+				?? (restoreLocalTarget ? types.find(type => type.sessionType.id === SessionType.CopilotCLI) : undefined)
+				?? types[0];
 			const pick = first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 			sessionTypePicker.setFolderSource(isolationModel.folderUriObs, { initialPick: pick });
 			state.providerId = pick?.providerId;
 			state.sessionTypeId = pick?.sessionTypeId;
-			selectedProvider.set(state.providerId, undefined);
-			if (!runInCloud.get() && wasCloud && isEqual(uri, localTarget.folderUri)) {
+			if (restoreLocalTarget && isEqual(uri, localTarget.folderUri)) {
 				state.isolationMode = localTarget.isolationMode;
 				if (localTarget.branch) {
 					isolationModel.selectBranch(localTarget.branch);
@@ -1416,7 +1503,97 @@ export function renderForm(
 		updateAutomationSessionTarget();
 		revalidate();
 	};
-	disposables.add(workspacePicker.onDidSelectWorkspace(applyWorkspaceTarget));
+	disposables.add(workspacePicker.onDidSelectWorkspace(uri => applyWorkspaceTarget(uri)));
+	// As in the workspace picker, a checkout that no provider can run Cloud from is selected through its repository.
+	const cloudFolderFor = (folder: URI, repository: URI | undefined) => repository && folder.scheme !== GITHUB_REMOTE_FILE_SCHEME
+		&& !sessionsManagementService.getSessionTypesForFolder(folder).some(type => availableCloudConfiguration.get()?.sessionTypes.includes(type.sessionType.id))
+		? repository
+		: folder;
+	const setRunInCloud = (checked: boolean) => {
+		// A folder whose repository access is still being checked stays selected; validation blocks Create until it resolves.
+		const current = checked ? state.folderUri : undefined;
+		const target = current ? availableCloudConfiguration.get()?.getWorkspaceTarget(current).get() : undefined;
+		const folder = checked
+			? current && (target?.workspace || target?.pending) ? cloudFolderFor(current, target?.workspace) : undefined
+			: localTarget.folderUri;
+		switchingTarget = true;
+		runInCloud.set(checked, undefined);
+		if (folder) {
+			workspacePicker.setSelectedWorkspace(folder, { fireEvent: false, persist: false });
+		} else {
+			workspacePicker.clearSelection({ persist: false });
+		}
+		switchingTarget = false;
+		applyWorkspaceTarget(folder, !checked);
+	};
+	// Repository access that resolves after switching replaces such a checkout too. Editing never changes the saved target.
+	disposables.add(autorun(reader => {
+		const folder = isolationModel.folderUriObs.read(reader);
+		const target = !isEdit && folder ? cloudConfiguration.read(reader)?.getWorkspaceTarget(folder).read(reader) : undefined;
+		if (!folder || !target || target.pending || switchingTarget) {
+			return;
+		}
+		const cloudFolder = cloudFolderFor(folder, target.workspace);
+		if (!isEqual(cloudFolder, folder)) {
+			workspacePicker.setSelectedWorkspace(cloudFolder, { fireEvent: false, persist: false });
+			applyWorkspaceTarget(cloudFolder);
+		}
+	}));
+	const connectFailureHover = disposables.add(new MutableDisposable());
+	const connectCloud = async (): Promise<boolean> => {
+		if (cloudCreatable()) {
+			return true;
+		}
+		// Disabling the switch while connecting drops its focus, so return focus once it is usable again.
+		const hadFocus = DOM.isActiveElement(cloudSwitch.domNode);
+		cloudSwitch.disabled = true;
+		cloudRow.setAttribute('aria-busy', 'true');
+		connectingCloud = true;
+		syncStateFromPicker();
+		revalidate();
+		try {
+			const refresh = customizations?.service.refresh?.() ?? Promise.resolve();
+			await raceTimeout(refresh.catch(error => logService.warn('[AutomationDialog] Cloud automations could not connect', error)), CLOUD_CONNECT_TIMEOUT_MS);
+		} finally {
+			connectingCloud = false;
+			if (!disposables.isDisposed) {
+				cloudSwitch.disabled = isEdit;
+				cloudRow.removeAttribute('aria-busy');
+				if (hadFocus) {
+					cloudSwitch.domNode.focus();
+				}
+				syncStateFromPicker();
+				updateAutomationSessionTarget();
+				revalidate();
+			}
+		}
+		return !disposables.isDisposed && cloudCreatable();
+	};
+	const showConnectFailure = () => {
+		const message = localize('automation.form.runInCloudUnavailable', "Unable to load cloud automations. Please try again in a few moments.");
+		status(message);
+		connectFailureHover.value = customizations?.hoverService.showInstantHover({
+			content: message,
+			target: cloudSwitch.domNode,
+			position: { hoverPosition: HoverPosition.BELOW },
+			appearance: { showPointer: true },
+		});
+	};
+	disposables.add(cloudSwitch.onChange(async checked => {
+		connectFailureHover.clear();
+		if (checked && !await connectCloud()) {
+			if (!disposables.isDisposed) {
+				cloudSwitch.checked = runInCloud.get();
+				showConnectFailure();
+			}
+			return;
+		}
+		if (!await workspacePicker.onWillSelectWorkspace() || (checked && !availableCloudConfiguration.get())) {
+			cloudSwitch.checked = runInCloud.get();
+			return;
+		}
+		setRunInCloud(checked);
+	}));
 	disposables.add(autorun(reader => {
 		if (isolationModel.isQuickChatObs.read(reader)) {
 			applyWorkspaceTarget(undefined);
@@ -1435,6 +1612,13 @@ export function renderForm(
 		'aria-atomic': 'true',
 	}));
 	DOM.hide(targetError);
+	const targetProgress = DOM.append(targetRow, $('span.automation-target-progress', {
+		id: 'automation-target-progress',
+		role: 'status',
+		'aria-live': 'polite',
+		'aria-atomic': 'true',
+	}));
+	DOM.hide(targetProgress);
 	if (isEdit && initialProviderConfiguration) {
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
 	}
@@ -1632,12 +1816,10 @@ export function renderForm(
 
 	const providerDetails = DOM.append(promptSection, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
-	DOM.append(providerDetails, $('p', { id: 'automation-tools-description' }, localize('automation.toolsDescription', "Select which tools the agent can use. Built-in tools are always available.")));
 	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools'));
-	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true }));
+	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true, buttonSecondaryBorder: asCssVariable(selectBorder) }));
 	toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 	toolsButton.element.setAttribute('aria-haspopup', 'dialog');
-	toolsButton.element.setAttribute('aria-describedby', 'automation-tools-description');
 	const toolsNotReported = DOM.append(toolsContainer, $('p', undefined, localize('automation.toolsNotReported', "GitHub did not report the saved tool selection. Unchanged permissions will be preserved. Select tools to replace it explicitly.")));
 	const toolsStatus = DOM.append(providerDetails, $('.automation-provider-tools-status', { role: 'status', 'aria-live': 'polite' }));
 	const toolsStatusText = DOM.append(toolsStatus, $('span'));
@@ -1660,8 +1842,14 @@ export function renderForm(
 		toolsButton.enabled = ready && !!quickInputService;
 		const ids = new Set([...catalogToolIds(toolCatalog), ...selectedTools ?? []]);
 		if (ready && selectedTools) {
+			toolsButton.label = ids.size === new Set(selectedTools).size
+				? localize('automation.allToolsAllowed', "All tools allowed")
+				: selectedTools.length === 1
+					? localize('automation.oneToolAllowed', "1 tool allowed")
+					: localize('automation.toolsAllowedCount', "{0} tools allowed", selectedTools.length);
 			toolsButton.element.setAttribute('aria-description', localize('automation.toolsSelectedCount', "{0} of {1} tools selected", selectedTools.length, ids.size));
 		} else {
+			toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 			toolsButton.element.removeAttribute('aria-description');
 		}
 		setAutomationControlVisible(toolsNotReported, selectedTools === undefined && !selectAllCatalogTools);
@@ -1689,7 +1877,7 @@ export function renderForm(
 		for (const group of toolCatalog.groups) {
 			const children = group.tools.filter(tool => !shown.has(tool.id)).map(toItem);
 			if (children.length) {
-				items.push({ label: group.label, children });
+				items.push({ label: group.label, children, collapsed: true });
 			}
 		}
 		const unknown = (selectedTools ?? []).filter(id => !shown.has(id));
@@ -1697,6 +1885,7 @@ export function renderForm(
 			items.push({
 				label: localize('automation.savedToolsNotInCatalog', "Other Saved Tools"),
 				children: unknown.map(id => toItem({ id, label: id })),
+				collapsed: true,
 			});
 		}
 		const picker = store.add(quickInputService.createQuickTree<IQuickTreeItem>());
@@ -1705,11 +1894,11 @@ export function renderForm(
 		picker.matchOnDescription = true;
 		picker.sortByLabel = false;
 		picker.setItemTree(items);
-		store.add(picker.onDidAccept(() => {
-			selectedTools = picker.checkedLeafItems.flatMap(item => item.id ? [item.id] : []);
+		store.add(picker.onDidChangeCheckedLeafItems(items => {
+			selectedTools = items.flatMap(item => item.id ? [item.id] : []);
 			updateToolsControls();
-			picker.hide();
 		}));
+		store.add(picker.onDidAccept(() => picker.hide()));
 		store.add(picker.onDidHide(() => {
 			if (disposing) {
 				return;
@@ -1722,6 +1911,7 @@ export function renderForm(
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		toolsPicker.clear();
+		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerDetails, configuration !== undefined);
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
@@ -1826,7 +2016,6 @@ export function renderForm(
 			};
 		},
 		getBranch: () => isolationModel.persistedBranch,
-		providerDescription: derived(reader => cloudConfiguration.read(reader)?.description),
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
 			setAutomationControlVisible(scheduleError, message !== undefined);
@@ -1834,21 +2023,37 @@ export function renderForm(
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
 		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
-			const text = message ?? '';
-			if (targetError.textContent === text) {
-				return;
+			if (!isEdit && runInCloud.get() && !state.folderUri && message !== cloudUnavailableMessage()) {
+				message = undefined;
 			}
+			const text = message ?? '';
+			const pending = state.targetPending;
+			setAutomationControlVisible(targetProgress, !!pending && message === undefined);
+			const progressText = pending?.message ?? '';
+			if (targetProgress.textContent !== progressText) {
+				targetProgress.textContent = progressText;
+			}
+			targetContainer.setAttribute('aria-busy', String(!!pending));
 			if (message !== undefined) {
 				DOM.show(targetError);
 				targetContainer.setAttribute('aria-describedby', targetError.id);
 				targetContainer.setAttribute('aria-invalid', 'true');
 			} else {
 				DOM.hide(targetError);
-				targetContainer.removeAttribute('aria-describedby');
+				if (pending) {
+					targetContainer.setAttribute('aria-describedby', targetProgress.id);
+				} else {
+					targetContainer.removeAttribute('aria-describedby');
+				}
 				targetContainer.removeAttribute('aria-invalid');
 			}
-			targetError.textContent = text;
+			if (targetError.textContent !== text) {
+				targetError.textContent = text;
+			}
 		},
+		getSaveBlockedReason: message => !isEdit && message === cloudUnavailableMessage()
+			? { message, elementId: targetError.id }
+			: undefined,
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
@@ -2123,6 +2328,8 @@ export function updateSaveButtonState(
 		: undefined;
 	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
 		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
+	} else if (state.targetPending) {
+		validation.sessionTypeError = undefined;
 	} else if (state.targetDisabledReason !== undefined) {
 		validation.sessionTypeError = state.targetDisabledReason;
 	} else if (!providerAvailable) {
@@ -2146,12 +2353,16 @@ export function updateSaveButtonState(
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-		? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-		: undefined;
+	validation.scheduleError = !INTERVALS.some(item => item.value === state.interval)
+		? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
+		: utcSchedule && state.interval === 'weekdays'
+			? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+			: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+				? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+				: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
-		saveButton.enabled = valid;
+		saveButton.enabled = valid && !state.targetPending;
 	}
 	form.classList.toggle('automation-form-invalid', !valid);
 }
@@ -2160,14 +2371,46 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	private readonly targetModelWatch = this._register(new MutableDisposable<IDisposable>());
 	private readonly eligibilityWatch = this._register(new MutableDisposable<IDisposable>());
 	private cloudConfiguration: IObservable<IAutomationProviderConfiguration | undefined> = constObservable(undefined);
+	private cloudMode: IObservable<boolean> | undefined;
+	private persistSelection = true;
 	private targetModel: AutomationIsolationModel | undefined;
 	private readonly repositorySelection = this._register(new MutableDisposable<DisposableStore>());
+	private readonly cloudModeWatch = this._register(new MutableDisposable<IDisposable>());
 	private selectionGeneration = 0;
 	private selectingRepository = false;
 	protected disabledReason: string | undefined;
 	get isSelectingRepository(): boolean { return this.selectingRepository; }
 	onSelectionError: (error: Error) => void = onUnexpectedError;
 	onWillSelectWorkspace: () => Promise<boolean> = async () => true;
+
+	setCloudMode(mode: IObservable<boolean>): void {
+		this.cloudMode = mode;
+		// A repository selection still pending from the previous execution mode must not apply after a switch.
+		let previous = mode.get();
+		this.cloudModeWatch.value = autorun(reader => {
+			const current = mode.read(reader);
+			if (current !== previous) {
+				previous = current;
+				this.selectionGeneration++;
+				this.repositorySelection.clear();
+			}
+		});
+		this.setCloudConfiguration(this.cloudConfiguration);
+	}
+
+	/** Dialog-only transitions pass `persist: false` so clearing the selection keeps the shared workspace preference. */
+	override clearSelection(options?: { readonly persist?: boolean }): void {
+		this.persistSelection = options?.persist ?? true;
+		try {
+			super.clearSelection();
+		} finally {
+			this.persistSelection = true;
+		}
+	}
+
+	protected override _shouldPersistSelection(): boolean {
+		return this.persistSelection && super._shouldPersistSelection();
+	}
 
 	setDisabledReason(reason: string | undefined): void {
 		this.disabledReason = reason;
@@ -2182,10 +2425,12 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		this.cloudConfiguration = configuration;
 		this.eligibilityWatch.value = autorun(reader => {
 			const value = configuration.read(reader);
-			for (const item of super._buildItems()) {
-				if (item.item?.folderUri?.scheme === GITHUB_REMOTE_FILE_SCHEME) {
-					value?.getWorkspaceTarget(item.item.folderUri).read(reader);
-				}
+			const cloud = this.cloudMode?.read(reader);
+			// Watch every recent folder, not just current candidates, so a repository appears once Git detection finishes.
+			for (const { workspace } of cloud ? super._getRecentWorkspaces() : []) {
+				const folder = workspace.folders[0]?.root ?? workspace.uri;
+				value?.getWorkspaceTarget(folder).read(reader);
+				this.isGitWorkspace(folder, reader);
 			}
 			if (this.actionWidgetService.isVisible && this._triggerElement?.getAttribute('aria-expanded') === 'true') {
 				this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
@@ -2203,10 +2448,10 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	protected async waitForWorkspaceTargets(token: CancellationToken): Promise<boolean> {
 		const configuration = this.cloudConfiguration.get();
-		if (!configuration) {
+		if (!configuration || !this.cloudMode?.get()) {
 			return true;
 		}
-		await Promise.all(super._buildItems().flatMap(item => item.item?.folderUri?.scheme === GITHUB_REMOTE_FILE_SCHEME
+		await Promise.all(super._buildItems().flatMap(item => item.item?.folderUri && this.isGitWorkspace(item.item.folderUri)
 			? [waitForState(configuration.getWorkspaceTarget(item.item.folderUri), target => !target.pending, undefined, token)]
 			: []));
 		return !token.isCancellationRequested && configuration === this.cloudConfiguration.get();
@@ -2224,40 +2469,86 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
-	protected override _shouldPersistSelection(): boolean {
-		return false;
+	private isGitWorkspace(folder: URI, reader?: IReader): boolean {
+		if (folder.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			return true;
+		}
+		return this.sessionsProvidersService.getProviders().some(provider =>
+			provider.resolveWorkspace(folder)?.folders.some(folder => {
+				const repository = folder.gitRepository;
+				repository?.resolveRepository?.();
+				return repository !== undefined && repository.isRepository?.read(reader) === true;
+			}) === true);
+	}
+
+	/** Cloud mode lists Git-backed workspaces and any workspace whose cloud target is already known. */
+	private isCloudCandidate(folder: URI): boolean {
+		const target = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get();
+		return this.isGitWorkspace(folder) || !!target?.workspace || !!target?.isPublicRepository;
+	}
+
+	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
+	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
+		const recents = super._getRecentWorkspaces();
+		return this.cloudMode?.get() ? recents.filter(({ workspace }) => this.isCloudCandidate(workspace.folders[0]?.root ?? workspace.uri)) : recents;
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const configuration = this.cloudConfiguration.get();
-		const items = super._buildItems().map(item => {
-			if (item.item?.folderUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-				return item;
-			}
-			const reason = configuration
-				? configuration.getWorkspaceTarget(item.item.folderUri).get().disabledReason
-				: localize('automation.form.cloudUnavailable', "Cloud automations are unavailable.");
-			return {
-				...item,
-				submenuActions: undefined,
-				group: { title: '', icon: Codicon.repo },
-				...(reason === undefined ? {} : {
-					disabled: true,
-					description: reason,
-					ariaDescription: reason,
-					tooltip: reason,
-					hover: { content: reason },
-				}),
-			};
-		});
-		if (configuration) {
-			items.unshift({
-				kind: ActionListItemKind.Action,
-				label: localize('automation.form.workInGitHub', "Work in GitHub"),
-				group: { title: '', icon: Codicon.github },
-				item: { id: 'automation.workInGitHub' },
+		if (this.cloudMode?.get()) {
+			const repositories = super._buildItems().flatMap(item => {
+				const folder = item.item?.folderUri;
+				const target = folder && configuration?.getWorkspaceTarget(folder).get();
+				if (!folder || !this.isCloudCandidate(folder)) {
+					return [];
+				}
+				const reason = target?.pending
+					? localize('automation.form.checkingRepository', "Checking repository access...")
+					: target?.isPublicRepository
+						? localize('automation.form.publicRepository', "Cloud automations require a private GitHub repository. This repository is public.")
+						: target?.disabledReason
+						?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
+						?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+				const location = typeof item.description === 'string' && item.description ? item.description : undefined;
+				// The location is not shown inline, but it distinguishes repositories with the same name.
+				const details = reason && location
+					? localize('automation.form.repositoryReasonDetails', "{0} — {1}", location, reason)
+					: reason ?? location;
+				const name = location ? localize('automation.form.repositoryAriaLabel', "{0}, {1}", item.label ?? '', location) : item.label ?? '';
+				const ariaLabel = reason
+					? localize('automation.form.disabledRepositoryAriaLabel', "{0}, unavailable. {1}", name, reason)
+					: location ? name : item.item?.ariaLabel;
+				return [{
+					...item,
+					item: { ...item.item, ariaLabel },
+					submenuActions: undefined,
+					onRemove: undefined,
+					toolbarActions: undefined,
+					iconClasses: undefined,
+					disabled: reason !== undefined,
+					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
+					ariaDescription: details,
+					tooltip: details,
+					hover: details ? { content: details } : undefined,
+					className: 'automation-cloud-repository',
+					group: { title: '', icon: Codicon.repo },
+				}];
 			});
+			const items: IActionListItem<IWorkspacePickerItem>[] = repositories.length ? repositories : [{
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.noGitRepositories', "No known Git repositories"),
+				disabled: true,
+				item: { id: 'automation.noGitRepositories' },
+			}];
+			items.push({ kind: ActionListItemKind.Separator, label: '' }, {
+				kind: ActionListItemKind.Action,
+				label: localize('automation.form.addRepository', "Add repository"),
+				group: { title: '', icon: Codicon.github },
+				item: { id: 'automation.addRepository' },
+			});
+			return items;
 		}
+		const items = super._buildItems().filter(item => item.item?.folderUri?.scheme !== GITHUB_REMOTE_FILE_SCHEME);
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
 			kind: ActionListItemKind.Action,
 			label: this._getNoWorkspaceLabel(),
@@ -2284,7 +2575,17 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const token = cancelOnDispose(resources);
 		try {
 			const configuration = this.cloudConfiguration.get();
-			if (item.id === 'automation.workInGitHub') {
+			if (this.cloudMode?.get() && item.folderUri) {
+				const target = configuration?.getWorkspaceTarget(item.folderUri).get();
+				if (!target?.workspace || target.pending || target.disabledReason || target.isPublicRepository) {
+					throw new Error(target?.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
+				}
+				// A checkout that no provider can run Cloud from is selected through its repository instead.
+				if (item.folderUri.scheme !== GITHUB_REMOTE_FILE_SCHEME && !this.offersCloud(item.folderUri, configuration)) {
+					item = { folderUri: target.workspace };
+				}
+			}
+			if (item.id === 'automation.addRepository') {
 				if (!configuration) {
 					throw new Error(localize('automation.form.cloudUnavailable', "Cloud automations are unavailable."));
 				}
@@ -2343,6 +2644,18 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return !this.targetModel?.isQuickChat && super._isSelectedFolder(folderUri);
 	}
 
+	/**
+	 * The mobile sheet shows descriptions as text and has no hover, so repository rows carry their location and reason
+	 * instead of the info icon. Add repository comes first because the sheet focuses its first row, which may be disabled.
+	 */
+	protected _buildMobileItems(): IActionListItem<IWorkspacePickerItem>[] {
+		const items = this._buildItems().map(item => item.className === 'automation-cloud-repository' && item.ariaDescription
+			? { ...item, description: item.ariaDescription }
+			: item);
+		const addRepository = items.findIndex(item => item.item?.id === 'automation.addRepository');
+		return addRepository < 0 ? items : [items[addRepository], ...items.filter((item, index) => index !== addRepository && item.kind !== ActionListItemKind.Separator)];
+	}
+
 	/** A matching checkout is only usable when a provider can still run the cloud session type from it. */
 	private offersCloud(folderUri: URI, configuration: IAutomationProviderConfiguration | undefined): boolean {
 		return !!configuration && this.sessionsProvidersService.getProviders().some(provider => provider.resolveWorkspace(folderUri)
@@ -2355,12 +2668,16 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const noWorkspace = this.targetModel?.isQuickChat === true;
 		const label = noWorkspace
 			? this._getNoWorkspaceLabel()
-			: workspace?.label ?? localize('automation.form.selectWorkspace', "Select workspace");
+			: workspace?.label ?? (this.cloudMode?.get()
+				? localize('automation.form.selectRepository', "Select a repository")
+				: localize('automation.form.selectWorkspace', "Select workspace"));
 		const icon = noWorkspace ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 
 		trigger.setAttribute('aria-label', workspace || noWorkspace
 			? localize('automation.form.workspacePicker.selectedAriaLabel', "Automation target, {0}", label)
-			: localize('automation.form.workspacePicker.pickAriaLabel', "Pick a workspace for this automation"));
+			: this.cloudMode?.get()
+				? localize('automation.form.workspacePicker.pickRepositoryAriaLabel', "Pick a repository for this automation")
+				: localize('automation.form.workspacePicker.pickAriaLabel', "Pick a workspace for this automation"));
 		const disabled = this.disabledReason !== undefined;
 		trigger.setAttribute('aria-disabled', String(disabled));
 		trigger.tabIndex = disabled ? -1 : 0;
@@ -2430,7 +2747,7 @@ export class MobileAutomationsWorkspacePicker extends AutomationsWorkspacePicker
 		}
 		trigger.removeAttribute('aria-busy');
 		await showMobileWorkspacePickerSheet(
-			layoutService, trigger, this._buildItems(),
+			layoutService, trigger, this._buildMobileItems(),
 			item => { void this._dispatchPickerItem(item); }, this._getAllBrowseActions(),
 		);
 	}

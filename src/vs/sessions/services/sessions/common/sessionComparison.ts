@@ -112,6 +112,7 @@ export interface ISessionComparisonVerdict {
 export const SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH = 1000;
 export const SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS = 32;
 export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
+export const SESSION_COMPARISON_MIN_ATTEMPTS = 2;
 export const SESSION_COMPARISON_MAX_ATTEMPTS = 10;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
 
@@ -204,13 +205,18 @@ export function getSessionComparisonHarnessDisplayLabel(harness: ISessionCompari
 	const harnessLabel = harness.modelLabel
 		? localize('sessionComparison.harnessAndModel', "{0} · {1}", harness.label, harness.modelLabel)
 		: harness.label;
-	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
-	const configurationLabel = typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
-		? getReasoningEffortLabel(reasoningEffort)
-		: harness.modelConfigurationLabel;
+	const configurationLabel = getSessionComparisonHarnessConfigurationLabel(harness);
 	return configurationLabel
 		? localize('sessionComparison.harnessModelAndConfiguration', "{0} · {1}", harnessLabel, configurationLabel)
 		: harnessLabel;
+}
+
+/** The reasoning effort or other model configuration of a harness, such as "High". */
+export function getSessionComparisonHarnessConfigurationLabel(harness: ISessionComparisonHarness): string | undefined {
+	const reasoningEffort = harness.modelConfiguration?.[ReasoningEffortConfigKey];
+	return typeof reasoningEffort === 'string' && isReasoningEffortLevel(reasoningEffort)
+		? getReasoningEffortLabel(reasoningEffort)
+		: harness.modelConfigurationLabel;
 }
 
 export function getSessionComparisonParticipantsInDisplayOrder(participants: readonly ISessionComparisonParticipant[]): readonly ISessionComparisonParticipant[] {
