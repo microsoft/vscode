@@ -112,9 +112,8 @@ class LanguageFeatureCommandStores extends DisposableMap<number, DisposableStore
 	}
 
 	/**
-	 * Stops accepting provider results without disposing their command stores.
-	 * Existing results may still execute commands after provider unregistration, so
-	 * their stores can only be disposed once those results are released.
+	 * Stops accepting new provider results without disposing existing result stores.
+	 * Their commands and in-flight resolves remain usable until those results are released.
 	 */
 	retire(): void {
 		this._isRetired = true;
@@ -187,7 +186,7 @@ class CodeLensAdapter {
 			resolvedLens = lens;
 		}
 
-		if (token.isCancellationRequested || this.commandStores.isRetired) {
+		if (token.isCancellationRequested) {
 			return undefined;
 		}
 		const disposables = symbol.cacheId && this.commandStores.get(symbol.cacheId[0]);
@@ -580,7 +579,7 @@ class CodeActionAdapter {
 
 
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
-		if (this.commandStores.isRetired) {
+		if (!this.commandStores.has(sessionId)) {
 			return {};
 		}
 
@@ -1251,7 +1250,7 @@ class CompletionsAdapter {
 
 		const resolvedItem = await this._provider.resolveCompletionItem(item, token);
 
-		if (!resolvedItem || this.commandStores.isRetired) {
+		if (!resolvedItem || !this.commandStores.has(id[0])) {
 			return undefined;
 		}
 
@@ -1713,7 +1712,7 @@ class InlayHintsAdapter {
 			return undefined;
 		}
 		const hint = await this._provider.resolveInlayHint(item, token);
-		if (!hint || this.commandStores.isRetired) {
+		if (!hint || !this.commandStores.has(id[0])) {
 			return undefined;
 		}
 		if (!this._isValidInlayHint(hint)) {
