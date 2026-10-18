@@ -3793,6 +3793,7 @@ suite('CopilotAgent', () => {
 		const repository = join(tempRoot, 'repository');
 		const worktree = join(tempRoot, 'repository.worktrees', 'session');
 		const escapedWorktree = join(tempRoot, 'repository.worktrees', 'escaped');
+		const swappedWorktree = join(tempRoot, 'repository.worktrees', 'swapped');
 		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
 		const modulePath = join(extensionDirectory, 'extension.mjs');
 		const untrustedExtensionDirectory = join(untrustedWorkspace, 'preview');
@@ -3800,13 +3801,17 @@ suite('CopilotAgent', () => {
 		const escapedModulePath = join(escapedExtensionDirectory, 'extension.mjs');
 		const worktreeExtensionDirectory = join(worktree, '.github', 'extensions', 'preview');
 		const worktreeModulePath = join(worktreeExtensionDirectory, 'extension.mjs');
+		const swappedWorktreeExtensionDirectory = join(swappedWorktree, '.github', 'extensions', 'preview');
+		const swappedWorktreeModulePath = join(swappedWorktreeExtensionDirectory, 'extension.mjs');
 		await fs.mkdir(extensionDirectory, { recursive: true });
 		await fs.mkdir(untrustedExtensionDirectory, { recursive: true });
 		await fs.mkdir(repository, { recursive: true });
 		await fs.mkdir(worktreeExtensionDirectory, { recursive: true });
+		await fs.mkdir(swappedWorktreeExtensionDirectory, { recursive: true });
 		await fs.writeFile(modulePath, '');
 		await fs.writeFile(join(untrustedExtensionDirectory, 'extension.mjs'), '');
 		await fs.writeFile(worktreeModulePath, '');
+		await fs.writeFile(swappedWorktreeModulePath, '');
 		await fs.symlink(workspace, trustedAlias, process.platform === 'win32' ? 'junction' : 'dir');
 		await fs.symlink(untrustedExtensionDirectory, escapedExtensionDirectory, process.platform === 'win32' ? 'junction' : 'dir');
 		await fs.symlink(workspace, escapedWorktree, process.platform === 'win32' ? 'junction' : 'dir');
@@ -3868,6 +3873,12 @@ suite('CopilotAgent', () => {
 			const inheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(worktree), URI.file(repository));
 			const invalidInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(untrustedWorkspace), URI.file(repository));
 			const escapedInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(escapedWorktree), URI.file(repository));
+			const swappedInheritedTrust = await internals._resolveExtensionLaunchInheritedTrust(URI.file(swappedWorktree), URI.file(repository));
+			await fs.rm(swappedWorktree, { recursive: true, force: true });
+			await fs.symlink(workspace, swappedWorktree, process.platform === 'win32' ? 'junction' : 'dir');
+			const swappedAdmission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(swappedWorktree)], swappedInheritedTrust));
+			const swappedAfterValidation = await internals._resolveExtensionLaunch(swappedWorktreeModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			swappedAdmission.dispose();
 			const canonicalWorktree = URI.file(await fs.realpath(worktree));
 			const canonicalRepository = URI.file(await fs.realpath(repository));
 			const worktreeAdmission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(worktree)], inheritedTrust));
@@ -3890,6 +3901,7 @@ suite('CopilotAgent', () => {
 				inheritedTrust: inheritedTrust.map(item => ({ directory: item.directory.toString(), trustedFrom: item.trustedFrom.toString() })),
 				invalidInheritedTrust,
 				escapedInheritedTrust,
+				swappedAfterValidation: !!swappedAfterValidation.launch,
 				inheritedWorktree: !!inheritedWorktree.launch,
 				inheritedWorktreeAfterRevocation: !!inheritedWorktreeAfterRevocation.launch,
 			}, {
@@ -3904,6 +3916,7 @@ suite('CopilotAgent', () => {
 				inheritedTrust: [{ directory: canonicalWorktree.toString(), trustedFrom: canonicalRepository.toString() }],
 				invalidInheritedTrust: [],
 				escapedInheritedTrust: [],
+				swappedAfterValidation: false,
 				inheritedWorktree: true,
 				inheritedWorktreeAfterRevocation: false,
 			});
@@ -23948,8 +23961,10 @@ suite('CopilotAgent', () => {
 		 * `sessionId` echoes the launch plan, which is what `createChat` records
 		 * as the chat's backing.
 		 */
-		function stubBackingSession(agent: CopilotAgent): void {
+		function stubBackingSession(agent: CopilotAgent): CopilotSessionLaunchPlan[] {
+			const launchPlans: CopilotSessionLaunchPlan[] = [];
 			(agent as unknown as ConvInternals)._createAgentSession = (launchPlan, _dir, _ac, identity) => {
+				launchPlans.push(launchPlan);
 				const sessionUri = identity?.owner.get() ?? AgentSession.uri('copilotcli', launchPlan.sessionId);
 				const chatChannelUri = identity?.chatChannelUri ?? defaultChatUri(sessionUri);
 				return {
@@ -23970,6 +23985,7 @@ suite('CopilotAgent', () => {
 					dispose(): void { launchPlan.shellManager?.dispose(); },
 				} as unknown as CopilotAgentSession;
 			};
+			return launchPlans;
 		}
 
 		test('one createChat entry serves both a deferred first backing and an eager additional backing', async () => {
@@ -24018,6 +24034,42 @@ suite('CopilotAgent', () => {
 					},
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('eager peer creation inherits extension trust without a live parent runtime', async () => {
+			const tempRoot = await fs.mkdtemp(`${os.tmpdir()}/peer-worktree-extension-`);
+			const repository = URI.file(join(tempRoot, 'repository'));
+			const worktree = URI.file(join(tempRoot, 'repository.worktrees', 'session'));
+			await fs.mkdir(repository.fsPath, { recursive: true });
+			await fs.mkdir(worktree.fsPath, { recursive: true });
+			const agent = createTestAgent(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: {
+					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [repository.toString()] },
+				},
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'cold-peer-worktree');
+				const peer = URI.parse(buildChatUri(session, 'peer-a'));
+				const launchPlans = stubBackingSession(agent);
+
+				await agent.chats.createChat(peer, exactChatContext(session, peer), {
+					workingDirectories: [worktree],
+					project: { uri: repository, displayName: 'repository' },
+				});
+
+				assert.deepStrictEqual(launchPlans.map(plan => plan.extensionLaunchInheritedTrust?.map(item => ({
+					directory: item.directory.toString(),
+					trustedFrom: item.trustedFrom.toString(),
+				}))), [[{
+					directory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
+					trustedFrom: URI.file(await fs.realpath(repository.fsPath)).toString(),
+				}]]);
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});

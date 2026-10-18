@@ -2163,7 +2163,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				const directory = await this._realpath(inherited.directory.fsPath);
 				const trustedFrom = await this._realpath(inherited.trustedFrom.fsPath);
-				if (roots.includes(directory)) {
+				if (roots.includes(directory) && isWorktreeUnderRepository(URI.file(directory), URI.file(trustedFrom))) {
 					inheritedRoots.push([directory, trustedFrom]);
 					const trustedRoots = this._extensionLaunchInheritedTrustRoots.get(directory) ?? new Map<string, number>();
 					trustedRoots.set(trustedFrom, (trustedRoots.get(trustedFrom) ?? 0) + 1);
@@ -7180,6 +7180,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sourceMetadata = inheritsFromOtherSession ? await this._readSessionMetadata(sessionMetadataScope(forkSourceScope!)) : undefined;
 			const model = options.model ?? sourceMetadata?.model;
 			const agent = options.agent ?? sourceMetadata?.agent;
+			const launchProject = options.project ?? sourceMetadata?.project;
 			const client = await this._ensureClientForChat(chat);
 			const chatSdkId = generateUuid();
 			// Chat backings share the owning session's ActiveClient so that
@@ -7204,6 +7205,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const storageScope = context.resource;
 			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
 			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, launchProject?.uri);
 
 			// Forking: mint the new chat's backing by forking the source chat's
 			// SDK conversation at the requested turn (copying its database into
@@ -7228,6 +7230,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					extensionSdkPath: this._extensionSdkPathByClient.get(client),
 					sessionId: sdkSessionId,
 					workingDirectory,
+					extensionLaunchInheritedTrust,
 					resolvedAgentName: undefined,
 					snapshot,
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, snapshot),
@@ -7246,6 +7249,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					extensionSdkPath: this._extensionSdkPathByClient.get(client),
 					sessionId: chatSdkId,
 					workingDirectory,
+					extensionLaunchInheritedTrust,
 					resolvedAgentName: undefined,
 					snapshot,
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, snapshot),
@@ -7263,9 +7267,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The inherited history now lives in a session the agent has no
 			// metadata for, so persist what a later resume needs before the
 			// runtime starts.
-			let project: IAgentSessionProjectInfo | undefined;
+			let project = launchProject;
 			if (inheritsFromOtherSession) {
-				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+				project ??= await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
 				inheritedWorkingDirectories = sourceMetadata?.workingDirectories
 					?? (sourceEntry?.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
 				await this._storeSessionMetadata(sessionMetadataScope(session), model, workingDirectory, inheritedWorkingDirectories, workingDirectory, project);
