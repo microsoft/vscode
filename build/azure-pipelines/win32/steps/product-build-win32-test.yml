@@ -100,6 +100,31 @@ steps:
       Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)-web" -Recurse -Force
     displayName: Copy builds to test directory
 
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-agent-host-e2e') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: integration-agent-host-e2e
+        testStep:
+          powershell: |
+            # Figure out the full absolute path of the product we just built
+            # including the remote server and configure the integration tests
+            # to run with these builds instead of running out of sources.
+            # Agent Host E2E runs each suite through the integration test script,
+            # so it gets the same environment as the integration tests.
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+            $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+            $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+            $AppNameShort = $AppProductJson.nameShort
+            $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+            $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
+            exec { .\scripts\test-agent-host-e2e.bat --build --tfs "Integration Tests" }
+          env:
+            VSCODE_SKIP_PRELAUNCH: '1'
+          displayName: 🧪 Run Agent Host E2E tests (Electron)
+          timeoutInMinutes: 30
+
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:

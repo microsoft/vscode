@@ -71,6 +71,8 @@ suite('Agent Host PR test selection', () => {
 			'test/unit/electron/index.js',
 			'.github/actions/detect-agent-host-e2e-changes/detect.ts',
 			'.github/workflows/pr-win32-test.yml',
+			'scripts/test-agent-host-e2e.sh',
+			'scripts/test-agent-host-e2e.bat',
 			'scripts/test-integration.sh',
 			'scripts/test-integration.bat',
 			'build/agent-sdk/agents/copilot/package.json',
@@ -127,25 +129,56 @@ suite('Agent Host PR test selection', () => {
 		};
 		const environments = ['linux', 'darwin', 'win32'].map(platform => {
 			const workflow = load(readFileSync(path.join(repositoryRoot, `.github/workflows/pr-${platform}-test.yml`), 'utf8')) as {
-				jobs: Record<string, { steps: { name?: string; env?: Record<string, string> }[] }>;
+				jobs: Record<string, { steps: { id?: string; name?: string; if?: string; run?: string; env?: Record<string, string> }[] }>;
 			};
-			const step = Object.values(workflow.jobs).flatMap(job => job.steps).find(step => step.name?.includes('Run integration tests (Electron)'));
-			assert.ok(step?.env);
+			const steps = Object.values(workflow.jobs).flatMap(job => job.steps);
+			const agentHostIndex = steps.findIndex(step => step.name?.includes('Run Agent Host E2E tests (Electron)'));
+			const integrationIndex = steps.findIndex(step => step.name?.includes('Run integration tests (Electron)'));
+			const agentHost = steps[agentHostIndex];
+			const integration = steps[integrationIndex];
+			assert.ok(agentHost?.env && integration?.env);
 			return {
-				profile: step.env.AGENT_HOST_TEST_PROFILE,
-				reason: step.env.AGENT_HOST_TEST_PROFILE_REASON,
-				skip: step.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				agentHostRunsFirst: agentHostIndex < integrationIndex,
+				agentHost: {
+					id: agentHost.id,
+					runsScript: /test-agent-host-e2e\.(sh|bat) /.test(agentHost.run ?? ''),
+					profile: agentHost.env.AGENT_HOST_TEST_PROFILE,
+					reason: agentHost.env.AGENT_HOST_TEST_PROFILE_REASON,
+					skip: agentHost.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				},
+				integration: {
+					condition: integration.if,
+					runsScript: /test-integration\.(sh|bat) /.test(integration.run ?? ''),
+					profile: integration.env.AGENT_HOST_TEST_PROFILE,
+					reason: integration.env.AGENT_HOST_TEST_PROFILE_REASON,
+					skip: integration.env.VSCODE_SKIP_AGENT_HOST_E2E,
+				},
 			};
 		});
+		const profile = '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}';
+		const reason = '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}';
 		assert.deepStrictEqual({
 			actionProfile: action.outputs.profile.value,
 			environments,
 		}, {
 			actionProfile: '${{ steps.detect.outputs.profile }}',
 			environments: Array.from({ length: 3 }, () => ({
-				profile: '${{ steps.agent-host-e2e-changes.outputs.profile || \'full\' }}',
-				reason: '${{ steps.agent-host-e2e-changes.outputs.reason || \'Change detection unavailable\' }}',
-				skip: '${{ steps.agent-host-e2e-changes.outputs.affected == \'false\' && \'1\' || \'0\' }}',
+				agentHostRunsFirst: true,
+				agentHost: {
+					id: 'agent-host-e2e',
+					runsScript: true,
+					profile,
+					reason,
+					skip: '${{ steps.agent-host-e2e-changes.outputs.affected == \'false\' && \'1\' || \'0\' }}',
+				},
+				// Provider integration tests in the serial node.js run also read the profile.
+				integration: {
+					condition: '${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == \'failure\') }}',
+					runsScript: true,
+					profile,
+					reason,
+					skip: undefined,
+				},
 			})),
 		});
 	});
