@@ -24048,9 +24048,11 @@ suite('CopilotAgent', () => {
 			const ownerRepository = URI.file(join(tempRoot, 'owner'));
 			const peerRepository = URI.file(join(tempRoot, 'peer'));
 			const worktree = URI.file(join(tempRoot, 'peer.worktrees', 'session'));
+			const ordinaryFolder = URI.file(join(tempRoot, 'peer.worktrees', 'ordinary'));
 			await fs.mkdir(ownerRepository.fsPath, { recursive: true });
 			await fs.mkdir(peerRepository.fsPath, { recursive: true });
 			await fs.mkdir(worktree.fsPath, { recursive: true });
+			await fs.mkdir(ordinaryFolder.fsPath, { recursive: true });
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, {
 				copilotClient: new TestCopilotClient([]),
@@ -24063,10 +24065,24 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'cold-peer-worktree');
 				const peer = URI.parse(buildChatUri(session, 'peer-a'));
+				const ordinaryPeer = URI.parse(buildChatUri(session, 'peer-ordinary'));
+				const sessionSettings: IAgentChatSessionSettings = {
+					...hostSessionSettings(session)!,
+					additionalWorktrees: [{
+						handle: 'peer-worktree',
+						workingDirectory: worktree.toString(),
+						repositoryRoot: peerRepository.toString(),
+						chat: peer.toString(),
+					}],
+				};
 				const launchPlans = stubBackingSession(agent);
 
-				await agent.chats.createChat(peer, exactChatContext(session, peer), {
+				await agent.chats.createChat(peer, { ...exactChatContext(session, peer), sessionSettings }, {
 					workingDirectories: [worktree],
+					project: { uri: ownerRepository, displayName: 'owner' },
+				});
+				await agent.chats.createChat(ordinaryPeer, { ...exactChatContext(session, ordinaryPeer), sessionSettings }, {
+					workingDirectories: [ordinaryFolder],
 					project: { uri: ownerRepository, displayName: 'owner' },
 					config: { [SessionConfigKey.Isolation]: 'worktree' },
 				});
@@ -24084,7 +24100,7 @@ suite('CopilotAgent', () => {
 					launchPlans: [[{
 						directory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
 						trustedFrom: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
-					}]],
+					}], []],
 					persistedProject: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
 				});
 			} finally {

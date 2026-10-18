@@ -7202,7 +7202,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sourceMetadata = inheritsFromOtherSession ? await this._readSessionMetadata(sessionMetadataScope(forkSourceScope!)) : undefined;
 			const model = options.model ?? sourceMetadata?.model;
 			const agent = options.agent ?? sourceMetadata?.agent;
-			const launchProject = options.project ?? sourceMetadata?.project;
+			const additionalWorktree = context.sessionSettings?.additionalWorktrees.find(worktree => isEqual(URI.parse(worktree.workingDirectory), workingDirectory));
+			const additionalWorktreeRepository = additionalWorktree ? URI.parse(additionalWorktree.repositoryRoot) : undefined;
+			const launchProject = additionalWorktreeRepository
+				? { uri: additionalWorktreeRepository, displayName: resourceBasename(additionalWorktreeRepository) }
+				: options.project ?? sourceMetadata?.project;
 			const client = await this._ensureClientForChat(chat);
 			const chatSdkId = generateUuid();
 			// Chat backings share the owning session's ActiveClient so that
@@ -7227,12 +7231,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const storageScope = context.resource;
 			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
 			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
-			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(
-				workingDirectory,
-				launchProject?.uri,
-				options.config?.[SessionConfigKey.Isolation] === 'worktree'
-				|| this._configurationService.getSessionConfigValues(session.toString())?.[SessionConfigKey.Isolation] === 'worktree',
-			);
+			const extensionLaunchInheritedTrust = await this._resolveExtensionLaunchInheritedTrust(workingDirectory, launchProject?.uri);
 			const effectiveProject = extensionLaunchInheritedTrust[0]
 				? { uri: extensionLaunchInheritedTrust[0].trustedFrom, displayName: resourceBasename(extensionLaunchInheritedTrust[0].trustedFrom) }
 				: launchProject;
