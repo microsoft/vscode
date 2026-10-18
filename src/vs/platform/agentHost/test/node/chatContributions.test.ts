@@ -2022,6 +2022,31 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(queue.admitted.map(admission => admission.message.text), ['Also update the docs', 'First queued', 'Second queued']);
 	});
 
+	test('queue drain runs the first of several late steering messages as the next turn and steers it with the rest', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late-1', 'First late');
+		sendSteering(queue, 'late-2', 'Second late');
+		completeTurn(queue, 'active-turn');
+		// Once the agent is running the new turn, it can take the remaining steering message.
+		queue.setSteeringReady(true);
+		const progress: IDispatchedAction['action'] = {
+			type: ActionType.ChatResponsePart, turnId: queue.stateManager.getActiveTurnId(queue.chat)!,
+			part: { kind: ResponsePartKind.Markdown, id: 'part', content: 'Working' },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, progress);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+
+		assert.deepStrictEqual({
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			steeredIntoIt: queue.pendingMessages.map(message => message?.message.text),
+		}, {
+			nextTurn: ['First late'],
+			steeredIntoIt: ['Second late'],
+		});
+	});
+
 	test('queue drain keeps queued work waiting while the agent still holds steering after its turn ends', () => {
 		const queue = createQueueDrainContributions(disposables);
 		startTurn(queue, 'active-turn');
