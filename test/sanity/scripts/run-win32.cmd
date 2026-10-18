@@ -15,6 +15,11 @@ where wsl >nul 2>nul
 if errorlevel 1 (
     echo WSL is not installed, skipping WSL setup
 ) else (
+    REM Without this, current wsl.exe writes UTF-16 to redirected output, which the Ubuntu checks can't match.
+    set "WSL_UTF8=1"
+
+    if "%ARCH%"=="9" call :install_wsl
+
     echo Checking if Ubuntu is available on WSL
     powershell -NoProfile -Command "if ((wsl -l -q) -contains 'Ubuntu') { exit 0 } else { exit 1 }"
     if errorlevel 1 call :install_ubuntu
@@ -40,6 +45,21 @@ set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=C:\Program Files (x86)\Microsoft\Edge\Ap
 
 echo Running sanity tests
 node "%~dp0..\out\index.js" %*
+
+goto :eof
+
+REM ====================================================================================================================
+
+:install_wsl
+
+REM The agents' Windows Server 2022 image only has the inbox WSL, without a WSL2 kernel. Install the release pinned in
+REM build/checksums/wsl.txt instead, see build/azure-pipelines/common/wsl.psm1.
+if not defined WSL_INSTALLER_CACHE_DIR set "WSL_INSTALLER_CACHE_DIR=%TEMP%\wsl-installer"
+echo Installing the current WSL
+pwsh -NoProfile -ExecutionPolicy Bypass -Command "Import-Module '%SCRIPT_DIR%..\..\..\build\azure-pipelines\common\wsl.psm1'; Install-Wsl -CacheDirectory $env:WSL_INSTALLER_CACHE_DIR"
+if errorlevel 1 (
+    echo ##vso[task.logissue type=warning]Installing the current WSL failed, so the WSL sanity tests may not run.
+)
 
 goto :eof
 

@@ -69,7 +69,7 @@ Platform-specific scripts are provided in the `scripts/` directory to set up the
 
 |Script|Platform|Description|
 |--------|----------|-------------|
-|`run-win32.cmd`|Windows|Runs tests using Edge as the Playwright browser|
+|`run-win32.cmd`|Windows|On x64, installs the WSL release pinned in `build/checksums/wsl.txt` and imports Ubuntu into WSL2, then runs tests using Edge as the Playwright browser|
 |`run-macOS.sh`|macOS|Installs Playwright WebKit and runs tests|
 |`run-ubuntu.sh`|Ubuntu|Sets up X11, Chromium, and Snap daemon, then runs tests|
 |`run-docker.sh`|Linux (Docker)|Builds and runs tests inside a Docker container|

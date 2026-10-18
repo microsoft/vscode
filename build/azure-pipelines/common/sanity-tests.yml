@@ -90,7 +90,7 @@ jobs:
       - checkout: self
         fetchDepth: 1
         fetchTags: false
-        sparseCheckoutDirectories: build/azure-pipelines/config build/azure-pipelines/common test/sanity .nvmrc
+        sparseCheckoutDirectories: build/azure-pipelines/config build/azure-pipelines/common build/checksums test/sanity .nvmrc
         retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
 
@@ -202,6 +202,14 @@ jobs:
           SecretsFilter: "sanity-tests-account,sanity-tests-password"
 
       # Windows
+      # run-win32.cmd installs the WSL release pinned in build/checksums/wsl.txt on x64
+      - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'amd64')) }}:
+        - task: Cache@2
+          inputs:
+            key: '"wsl-installer" | "win32-x64" | build/checksums/wsl.txt'
+            path: $(Build.SourcesDirectory)/.build/wsl-installer
+          displayName: Restore WSL installer cache
+
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
@@ -209,6 +217,7 @@ jobs:
           env:
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
+            WSL_INSTALLER_CACHE_DIR: $(Build.SourcesDirectory)/.build/wsl-installer
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
