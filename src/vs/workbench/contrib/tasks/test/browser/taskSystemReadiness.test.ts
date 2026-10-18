@@ -13,6 +13,7 @@ import * as Platform from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -39,7 +40,16 @@ suite('Task system readiness', function () {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => sinon.restore());
+	let commandsBeforeTest: ReturnType<typeof CommandsRegistry.getCommands>;
+	setup(() => commandsBeforeTest = CommandsRegistry.getCommands());
+	teardown(() => {
+		sinon.restore();
+		const commands = CommandsRegistry.getCommands();
+		assert.strictEqual(commands.size, commandsBeforeTest.size);
+		for (const [id, command] of commandsBeforeTest) {
+			assert.strictEqual(commands.get(id), command, id);
+		}
+	});
 
 	function createTaskService(remoteAuthority: string | undefined) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -49,7 +59,16 @@ suite('Task system readiness', function () {
 		instantiationService.stub(IOutputService, { getChannel: () => undefined });
 		instantiationService.stub(IConfigurationResolverService, { contributeVariable: () => { } });
 		instantiationService.stub(ITerminalService, { whenConnected: Promise.resolve(), instances: [] });
-		const taskService = store.add(instantiationService.createInstance(TestTaskService));
+		const registerCommand = sinon.spy(CommandsRegistry, 'registerCommand');
+		let taskService: TestTaskService;
+		try {
+			taskService = store.add(instantiationService.createInstance(TestTaskService));
+		} finally {
+			for (const call of registerCommand.getCalls()) {
+				store.add(call.returnValue);
+			}
+			registerCommand.restore();
+		}
 		taskService.registerSupportedExecutions(true, true, true);
 		instantiationService.stub(ITaskService, taskService);
 		return { taskService, instantiationService };
