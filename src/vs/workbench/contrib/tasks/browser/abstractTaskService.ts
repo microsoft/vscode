@@ -301,7 +301,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IHostService private readonly _hostService: IHostService
 	) {
 		super();
-		this._whenTaskSystemReady = Event.toPromise(this.onDidChangeTaskSystemInfo);
+		this._whenTaskSystemReady = Event.toPromise(Event.filter(this.onDidChangeTaskSystemInfo, () => this.hasTaskSystemInfo), this._store);
 		this._workspaceTasksPromise = undefined;
 		this._taskSystem = undefined;
 		this._taskSystemListeners = undefined;
