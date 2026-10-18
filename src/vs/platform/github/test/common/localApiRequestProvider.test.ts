@@ -52,6 +52,14 @@ suite('LocalApiRequestProvider', () => {
 		}
 	});
 
+	test('validates the noCache policy without changing its default', () => {
+		const policies = [undefined, false, true];
+		assert.deepStrictEqual(policies.map(noCache => parseRequest({ ...read, options: { noCache } }).options?.noCache), policies);
+		for (const noCache of [null, '', 'true', 0]) {
+			assert.throws(() => parseRequest({ ...read, options: { noCache } }), SchemaError);
+		}
+	});
+
 	function anonymous(fetch: RequestFetch, options?: Partial<GitHubTransportOptions>): LocalApiRequestProvider {
 		const transport = store.add(new GitHubTransport(fetch, undefined, false, undefined, options));
 		return new LocalApiRequestProvider(apiBaseUri, transport);
@@ -75,6 +83,75 @@ suite('LocalApiRequestProvider', () => {
 		})).object;
 		return new LocalApiRequestProvider(target === 'graphql' ? `${apiBaseUri}/graphql` : apiBaseUri, getGitHubClientInternals(client).transport, client.credentials, target);
 	}
+
+	for (const authenticatedRequest of [false, true]) {
+		test(`noCache bypasses stored responses without retaining or replacing them (authenticated=${authenticatedRequest})`, async () => {
+			const validators: (string | null)[] = [];
+			let version = 0;
+			const fetch: RequestFetch = async (_input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 })
+					: Response.json({ value: ++version }, { headers: { etag: `"${version}"` } });
+			};
+			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
+			const values: number[] = [];
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				values.push((await provider.request({ ...read, options: { noCache } }, signal(), parseValue)).data.value);
+			}
+			assert.deepStrictEqual({ values, validators }, {
+				values: [1, 2, 2, 3, 2], validators: [null, null, '"2"', null, '"2"'],
+			});
+		});
+
+		test(`downloads eight typed blobs concurrently through the real queue (authenticated=${authenticatedRequest})`, async () => {
+			const release = new DeferredPromise<void>();
+			let active = 0;
+			let maximumActive = 0;
+			const fetch: RequestFetch = async input => {
+				maximumActive = Math.max(maximumActive, ++active);
+				await release.p;
+				active--;
+				return Response.json({
+					sha: new URL(String(input)).pathname.split('/').pop(),
+					node_id: 'blob',
+					url: String(input),
+					size: 1,
+					encoding: 'base64',
+					content: 'AA==',
+				});
+			};
+			const client = new ContentClient(authenticatedRequest ? authenticated(fetch) : anonymous(fetch));
+			const shas = Array.from({ length: 20 }, (_, index) => index.toString(16).padStart(40, '0'));
+			const requests = shas.map(sha => client.getBlob('o', 'r', sha, signal(), { caller: 'pluginGit.blob' }));
+			await timeout(0);
+			const beforeRelease = active;
+			await release.complete();
+			const blobs = await Promise.all(requests);
+			assert.deepStrictEqual({ beforeRelease, maximumActive, shas: blobs.map(blob => blob.sha) }, {
+				beforeRelease: 8, maximumActive: 8, shas,
+			});
+		});
+	}
+
+	test('noCache requests share only with other noCache requests', async () => {
+		const release = new DeferredPromise<void>();
+		let calls = 0;
+		const provider = anonymous(async () => {
+			calls++;
+			await release.p;
+			return Response.json({ value: 1 }, { headers: { etag: '"shared"' } });
+		});
+		const noCache: ApiRequest = { ...read, options: { noCache: true } };
+		const pending = [noCache, noCache, read].map(request => provider.request(request, signal(), parseValue));
+		await timeout(0);
+		const beforeRelease = calls;
+		await release.complete();
+		const responses = await Promise.all(pending);
+		assert.deepStrictEqual({ beforeRelease, calls, values: responses.map(response => response.data?.value) }, {
+			beforeRelease: 2, calls: 2, values: [1, 1, 1],
+		});
+	});
 
 	for (const scenario of [
 		{ name: 'missing commit', body: '{"message":"No commit found for SHA: missing"}', status: 422, missing: true },

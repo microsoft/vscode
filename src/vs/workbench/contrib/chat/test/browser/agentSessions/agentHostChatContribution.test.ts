@@ -108,7 +108,7 @@ import { AgentHostSessionListContribution } from '../../../browser/agentSessions
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { isResourceEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
@@ -818,6 +818,9 @@ class MockCommandService extends mock<ICommandService>() {
 class MockChatWidgetService extends mock<IChatWidgetService>() {
 	declare readonly _serviceBrand: undefined;
 
+	override readonly onDidChangeFocusedSession = Event.None;
+	override readonly onDidChangeWidgetVisibility = Event.None;
+
 	readonly clearQuestionCarouselCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
 	readonly clearPlanReviewCalls: { sessionResource: URI; responseId: string | undefined; resolveId: string | undefined }[] = [];
 	private readonly _widgets = new Map<string, ReturnType<IChatWidgetService['getWidgetBySessionResource']>>();
@@ -909,7 +912,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
+	instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Free }));
 	instantiationService.stub(IChatAgentService, chatAgentService);
 	instantiationService.stub(IChatWidgetService, chatWidgetService);
 	instantiationService.stub(IFileService, TestFileService);
@@ -12469,7 +12472,7 @@ suite('AgentHostChatContribution', () => {
 
 		for (const catalogHydrated of [false, true]) {
 			test(`opens an opaque subagent URI through the real command and session handler (catalogHydrated=${catalogHydrated})`, async () => {
-				const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables);
+				const { sessionHandler, agentHostService, instantiationService, chatWidgetService } = createContribution(disposables);
 				const sessionUri = AgentSession.uri('copilot', 'opaque-subagent');
 				const defaultChat = 'vendor-chat:/conversations/main';
 				const childChat = URI.parse('vendor-chat:/workers/Waiting?revision=1#result').toString();
@@ -12505,14 +12508,12 @@ suite('AgentHostChatContribution', () => {
 				instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
 					error: error => { errors.push(String(error)); },
 				}));
-				instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
-					openSession: async resource => {
-						const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
-						disposables.add(toDisposable(() => session.dispose()));
-						opened.push(session);
-						return undefined;
-					},
-				}));
+				chatWidgetService.openSession = async resource => {
+					const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+					disposables.add(toDisposable(() => session.dispose()));
+					opened.push(session);
+					return undefined;
+				};
 				const command = CommandsRegistry.getCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID);
 				assert.ok(command);
 				await instantiationService.invokeFunction(accessor => command.handler(accessor, {

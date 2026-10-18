@@ -1159,6 +1159,7 @@ suite('AgentHostSessionTitleController', () => {
 
 	for (const cancelFirst of [false, true]) {
 		test(`concurrent title enrichment uses the engine queue${cancelFirst ? ' and preserves shared reads when one title is cancelled' : ''}`, async () => {
+			const maximumCallerConcurrency = 8;
 			const started = new DeferredPromise<AbortSignal>();
 			const release = new DeferredPromise<void>();
 			const requests: string[] = [];
@@ -1192,8 +1193,8 @@ suite('AgentHostSessionTitleController', () => {
 						if (number === 1) {
 							assert.ok(init?.signal);
 							await started.complete(init.signal);
-							await release.p;
 						}
+						await release.p;
 						return Response.json(createTestGitHubIssue(number, { title: `Issue ${number}`, body: `Body ${number}` }));
 					} finally {
 						activeRequests--;
@@ -1219,8 +1220,8 @@ suite('AgentHostSessionTitleController', () => {
 			try {
 				const wireSignal = await started.p;
 				await waitForCondition(
-					() => reads.reduce((count, read) => count + read.callCount, 0) === 20,
-					'both bounded context batches should be submitted directly to the GitHub client',
+					() => reads.reduce((count, read) => count + read.callCount, 0) === 20 && activeRequests === maximumCallerConcurrency,
+					'both bounded context batches should be submitted and saturate the engine caller lane',
 				);
 				const beforeRelease = [...requests];
 				if (cancelFirst) {
@@ -1241,9 +1242,9 @@ suite('AgentHostSessionTitleController', () => {
 						return [...message.matchAll(/The title of the issue is: Issue (?<number>\d+)/g)].map(match => Number(match.groups?.number));
 					}),
 				}, {
-					beforeRelease: ['/user', '/repos/microsoft/vscode/issues/1'],
+					beforeRelease: ['/user', ...Array.from({ length: maximumCallerConcurrency }, (_, index) => `/repos/microsoft/vscode/issues/${index + 1}`)],
 					requests: ['/user', ...Array.from({ length: 10 }, (_, index) => `/repos/microsoft/vscode/issues/${index + 1}`)],
-					maximumActiveRequests: 1,
+					maximumActiveRequests: maximumCallerConcurrency,
 					wireAborted: false,
 					persistedTitles: sessions.slice(cancelFirst ? 1 : 0).map(session => session.toString()),
 					contexts: Array.from({ length: cancelFirst ? 1 : 2 }, () => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),

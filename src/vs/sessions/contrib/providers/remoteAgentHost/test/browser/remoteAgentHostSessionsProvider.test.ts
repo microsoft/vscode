@@ -5691,6 +5691,39 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		});
 	});
 
+	test('keeps archive handlers for multiple tasks in one environment', async () => {
+		const mutations: string[] = [];
+		const provider = createSandboxProvider({ setArchived: async archived => { mutations.push(`first:${archived}`); } });
+		provider.setTaskArchiveHandler('second-session', async archived => { mutations.push(`second:${archived}`); });
+		provider.seedSessions([metadata, { ...metadata, session: AgentSession.uri('ahp-session', 'second-session') }]);
+		const sessions = provider.getSessions();
+		for (const session of sessions) {
+			await provider.archiveSession(session.sessionId);
+		}
+		await provider.unarchiveSession(sessions[0].sessionId);
+		assert.deepStrictEqual({ mutations, archived: sessions.map(session => session.isArchived.get()), actions: connection.dispatchedActions }, {
+			mutations: ['first:true', 'second:true', 'first:false'], archived: [false, true], actions: [],
+		});
+	});
+
+	test('marks recorded conversations read and unread offline and persists the state', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const provider = createSandboxProvider({ storageService: storage });
+		provider.seedSessions([{ ...metadata, status: ProtocolSessionStatus.Idle }]);
+		const session = provider.getSessions()[0];
+		const states = [session.mainChat.get().isRead.get()];
+		await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+		states.push(session.mainChat.get().isRead.get());
+		await storage.flush();
+		provider.dispose();
+		const restored = createSandboxProvider({ storageService: storage });
+		const restoredSession = restored.getSessions()[0];
+		states.push(restoredSession.mainChat.get().isRead.get());
+		await restored.setChatReadState(restoredSession.sessionId, restoredSession.mainChat.get().resource, false);
+		states.push(restoredSession.mainChat.get().isRead.get());
+		assert.deepStrictEqual({ states, actions: connection.dispatchedActions }, { states: [false, true, true, false], actions: [] });
+	});
+
 	test('retains archive state when Mission Control rejects a mutation', async () => {
 		const provider = createSandboxProvider({ setArchived: async () => { throw new Error('archive rejected'); } });
 		provider.seedSessions([metadata]);
@@ -5780,6 +5813,24 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		await assert.rejects(provider.archiveSession(session.sessionId), /Connect to the environment/);
 		assert.strictEqual(session.isArchived.get(), false);
 	});
+
+	test('routes a live conversation through AHP after discovery removes its task ownership', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const taskArchives: boolean[] = [];
+		const provider = createSandboxProvider({ setArchived: async archived => { taskArchives.push(archived); } });
+		connection.addSession(metadata);
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.removeTaskOwnership('sandbox-session');
+		await provider.archiveSession(session.sessionId);
+		assert.deepStrictEqual({
+			sessions: provider.getSessions(), taskArchives,
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			sessions: [session], taskArchives: [],
+			actions: [{ channel: backendResource.toString(), action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	}));
 
 	test('uses AHP for additional sessions sharing the sandbox', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createSandboxProvider();

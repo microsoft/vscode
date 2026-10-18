@@ -106,7 +106,7 @@ suite('GitHubRequestTelemetry', () => {
 		const { scheduler, sink, telemetry } = setup();
 		const queue = store.add(new RequestQueue(scheduler,
 			request => request.resource === 'search' ? Math.max(0, 50 - scheduler.now()) : 0,
-			undefined, telemetry));
+			{ maximumAccountConcurrency: 1 }, telemetry));
 		const releaseFirst = new DeferredPromise<void>();
 		const releaseSecond = new DeferredPromise<void>();
 		const firstStarted = new DeferredPromise<void>();

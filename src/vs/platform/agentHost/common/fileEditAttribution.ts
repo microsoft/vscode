@@ -5,7 +5,6 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { stringHash } from '../../../base/common/hash.js';
-import type { AutoModeRoutingTier } from './autoModeTiers.js';
 import { IOffsetEdit } from './diffComputeService.js';
 import { ToolResultFileEditContent } from './state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
@@ -68,7 +67,7 @@ export interface IAgentEditAttribution {
 	readonly afterText: string;
 	readonly changes: readonly IOffsetEdit[];
 	readonly modelId: string | undefined;
-	readonly autoTier?: AutoModeRoutingTier;
+	readonly autoTier?: string;
 	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
 	readonly fusionModel?: string;
 	readonly toolName: string;

@@ -270,6 +270,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		if (!client) {
 			this._ensureClientCapacity();
 			client = new AnonymousClientEntry(new GitHubTransport(this._options.fetch, undefined, false, this._logService, {
+				useBrowserRedirects: this._options.useBrowserRedirects,
 				coordination: { queue: this._queue, rateLimits: this._rateLimits },
 				requestMetadata: this._options.clientMetadata ? new GitHubRequestMetadata(this._options.clientMetadata, {
 					onDidChange: Event.None,
@@ -401,6 +402,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			getGraphQlUri: () => context.graphQlUri,
 		};
 		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, logService, {
+			useBrowserRedirects: options.useBrowserRedirects,
 			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, this.endpoint) : undefined,
 			coordination: { queue, rateLimits },
 		}, telemetry));
@@ -466,6 +468,7 @@ class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient
 		const endpoint = new URL(apiBaseUri);
 		this._account = { kind: 'bootstrap', host: endpoint.host, origin: endpoint.origin, accountId: _credential.accountId };
 		this._transport = this._register(new GitHubTransport(options.fetch, undefined, false, logService, {
+			useBrowserRedirects: options.useBrowserRedirects,
 			coordination: { queue, rateLimits },
 			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, {
 				onDidChange: Event.None,

@@ -952,32 +952,32 @@ suite('Sessions - Actions', () => {
 				],
 			},
 		});
+	});
 
-		test('uses chat rename only for chat group headers', () => {
-			const getRenameWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
-				.filter(isIMenuItem)
-				.find(item => item.command.id === commandId)
-				?.when?.serialize();
+	test('uses chat rename only for chat group headers', () => {
+		const getRenameWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === commandId)
+			?.when?.serialize();
 
-			assert.deepStrictEqual({
-				toolbar: {
-					chat: getRenameWhen(Menus.SessionBarToolbar, RENAME_CHAT_COMMAND_ID),
-					session: getRenameWhen(Menus.SessionBarToolbar, 'sessions.sessionHeader.rename'),
-				},
-				contextMenu: {
-					chat: getRenameWhen(Menus.SessionHeaderContext, RENAME_CHAT_COMMAND_ID),
-					session: getRenameWhen(Menus.SessionHeaderContext, 'sessions.sessionHeader.rename'),
-				},
-			}, {
-				toolbar: {
-					chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
-					session: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived && sessionSupportsRename',
-				},
-				contextMenu: {
-					chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat',
-					session: 'sessionProviderId =~ /^(?:copilotcli|claude-agent|codex|copilotcloud|cloudagent|background|copilotcli-remote|agent-host):/ && !sessionHeaderShowsChat',
-				},
-			});
+		assert.deepStrictEqual({
+			toolbar: {
+				chat: getRenameWhen(Menus.SessionBarToolbar, RENAME_CHAT_COMMAND_ID),
+				session: getRenameWhen(Menus.SessionBarToolbar, 'sessions.sessionHeader.rename'),
+			},
+			contextMenu: {
+				chat: getRenameWhen(Menus.SessionHeaderContext, RENAME_CHAT_COMMAND_ID),
+				session: getRenameWhen(Menus.SessionHeaderContext, 'sessions.sessionHeader.rename'),
+			},
+		}, {
+			toolbar: {
+				chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+				session: 'sessionIsCreated && sessionSupportsRename && !sessionHeaderShowsChat && !sessionIsArchived',
+			},
+			contextMenu: {
+				chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat',
+				session: '!sessionHeaderShowsChat && sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+			},
 		});
 	});
 

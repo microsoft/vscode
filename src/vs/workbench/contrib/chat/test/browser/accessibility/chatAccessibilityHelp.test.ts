@@ -67,6 +67,24 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents the optional sandbox certificate notice and keyboard dismissal', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			optional: help.includes('Installation is optional and chatting is not blocked.'),
+			priority: help.includes('Dependency warnings take priority over this notice.'),
+			dismissal: help.includes('Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window.'),
+			installation: help.includes('use Tab to reach the Install link and Enter to activate it.'),
+			manageCommand: help.includes('Sandbox: Manage Trusted CA for the last-focused chat.'),
+			keyboard: help.includes('Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel.'),
+			installCommand: help.includes('choose Install in Manage Trusted CA after dismissing the notice.'),
+			removeCommand: help.includes('Choose Remove in Manage Trusted CA to remove OS trust.'),
+			rotateCommand: help.includes('Choose Rotate in Manage Trusted CA to replace the installed sandbox CA and private key.'),
+			noHost: help.includes('a dialog says No agent host detected.'),
+			restart: help.includes('running tools may need to restart.'),
+			retention: help.includes('The stored certificate authority is kept.'),
+		}, { optional: true, priority: true, dismissal: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
+	});
+
 	test('explains read-only model options separately from overridable defaults', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -116,7 +134,7 @@ suite('Chat Accessibility Help', () => {
 				&& help.includes('Enter on an installed model selects it and starts loading it right away, without asking') && help.includes('Cancel takes back a model change, keeping the loaded model') && !help.includes('asks before loading it'),
 			consent: help.includes('choosing Download, or Set Up for model files already on this device, agrees to exactly what the page shows') && !/winget|Homebrew|\bapt\b|Open Terminal|Update llama\.cpp/.test(help),
 			llamaCpp: help.includes('Downloading doesn\'t need llama.cpp, but loading a model does, and VS Code doesn\'t install it') && help.includes('with Get llama.cpp, which opens directions') && help.includes('chat.copilot.localModel.llamaServerPath') && help.includes('when this device has an NVIDIA GPU that can run one') && !/LLAMACPP_SERVER_PATH|Use This llama\.cpp/.test(help),
-			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.includes('Manage') && !help.includes('Make Active, Start'),
+			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.split('\n').some(line => line.startsWith('A model\'s detail page') && line.includes('Manage')) && !help.includes('Make Active, Start'),
 			thinking: help.includes('an Effort Level choice when the model supports it, which sets its effort level for this chat'),
 			context: help.includes('Changing the context size of a loaded model reloads it right away without asking, once its running responses finish'),
 			activeBadge: help.includes('an Active badge while it is loaded or loading'),
@@ -578,20 +596,20 @@ suite('Chat Accessibility Help', () => {
 			agentView: true,
 			panelChat: false,
 		});
+	});
 
-		test('only documents customization migration entry points in panel chat', () => {
-			const keybindingService = new MockKeybindingService();
-			const expectedText = 'notice above the new-chat input';
+	test('only documents customization migration entry points in panel chat', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'notice above the new-chat input';
 
-			assert.deepStrictEqual({
-				panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
-				quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
-				agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
-			}, {
-				panelChat: true,
-				quickChat: false,
-				agentView: false,
-			});
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+		}, {
+			panelChat: true,
+			quickChat: false,
+			agentView: false,
 		});
 	});
 

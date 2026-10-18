@@ -64,6 +64,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		private readonly _environmentId: string,
 		private readonly _mirror: MissionControlSessionMirror,
 		private readonly _isEnabled: () => boolean,
+		private readonly _registerSession: (session: string) => Promise<void>,
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@ISessionDataService private readonly _sessionData: ISessionDataService,
@@ -142,7 +143,6 @@ export class MissionControlSdkEventSource extends Disposable {
 		}
 		let source = this._sessions.get(session);
 		if (!source) {
-			this._mirror.registerSession(session);
 			source = {
 				session, chat, provider, queue: [], seen: new Set(), bytes: 0, limit: undefined,
 				historyPending: true, draining: undefined, dropped: 0, title: undefined, failed: false, retired: false, dirty: false,
@@ -370,6 +370,10 @@ export class MissionControlSdkEventSource extends Disposable {
 
 	private async _run(source: SourceSession): Promise<void> {
 		source.dirty = false;
+		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
+			return;
+		}
+		await this._registerSession(source.session);
 		if (!this._isEnabled() || this._store.isDisposed || source.retired) {
 			return;
 		}
