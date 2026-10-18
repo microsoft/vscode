@@ -15,7 +15,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -1453,7 +1454,7 @@ suite('CloudSandboxApiService discovery logs', () => {
 				'[CloudSandboxApi] Excluded task {"taskId":"other-compute","reason":"notSandboxCompute"}',
 				'[CloudSandboxApi] Excluded task {"taskId":"unbound","reason":"missingSessionBinding"}',
 			],
-			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":1,"missingSessionBinding":1,"stalledQueuedSession":0,"detailFetchFailed":0,"acceptedWithOtherAgent":1}'],
+			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":1,"missingSessionBinding":1,"stalledQueuedSession":0,"emptySession":0,"detailFetchFailed":0,"acceptedWithOtherAgent":1}'],
 			info: [],
 			exposedPrompt: false,
 		});
@@ -1735,9 +1736,359 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 				'[CloudSandboxApi] Excluded task {"taskId":"stalled","reason":"stalledQueuedSession"}',
 				'[CloudSandboxApi] Excluded task {"taskId":"unresolved","reason":"detailFetchFailed"}',
 			],
-			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":0,"missingSessionBinding":0,"stalledQueuedSession":1,"detailFetchFailed":1,"acceptedWithOtherAgent":0}'],
+			summary: ['[CloudSandboxApi] Discovery filtering {"notSandboxCompute":0,"missingSessionBinding":0,"stalledQueuedSession":1,"emptySession":0,"detailFetchFailed":1,"acceptedWithOtherAgent":0}'],
 		});
 	}));
+});
+
+suite('CloudSandboxApiService abandoned sandbox discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const startTime = Date.UTC(2026, 9, 18, 19);
+	const oneHour = 60 * 60_000;
+	const turnStarted: StateAction = {
+		type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(startTime).toISOString(),
+		message: { text: 'Keep this conversation', origin: { kind: MessageKind.User } },
+	};
+	const turnComplete: StateAction = { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 };
+
+	function emptyTask(id: string, updatedAt = startTime - oneHour) {
+		return {
+			...task(id, 'New task', undefined, `session-${id}`, 'shared-environment'),
+			event_type: 'unknown',
+			state: 'idle',
+			updated_at: new Date(updatedAt).toISOString(),
+			sessions: [{ id: `session-${id}`, environment_id: 'shared-environment', state: 'idle', ahp_resource_uri: `ahp-session:/session-${id}` }],
+		};
+	}
+
+	function historyEvents(id: string, actions: readonly StateAction[] = []) {
+		const session = `ahp-session:/session-${id}`;
+		const chat = `ahp-chat:/opaque-${id}`;
+		const frames: { channel: string; action: StateAction }[] = [
+			{ channel: session, action: { type: ActionType.SessionTitleChanged, title: 'New task' } },
+			{ channel: session, action: { type: ActionType.SessionChatAdded, summary: { resource: chat, title: 'New task', status: SessionStatus.Idle, modifiedAt: new Date(startTime - oneHour).toISOString() } } },
+			{ channel: session, action: { type: ActionType.SessionDefaultChatChanged, defaultChat: chat } },
+			{ channel: chat, action: { type: ActionType.ChatIsReadChanged, isRead: true } },
+			...actions.map(action => ({ channel: action.type.startsWith('session/') ? session : chat, action })),
+		];
+		return frames.map(({ channel, action }, seq) => ({
+			ns: 'ahp', session_id: `session-${id}`, seq, at: new Date(startTime - oneHour).toISOString(),
+			payload: { kind: 'message', data: { channel, serverSeq: seq, action } },
+		}));
+	}
+
+	function historyResponse(id: string, actions?: readonly StateAction[]): IRequestContext {
+		const events = historyEvents(id, actions);
+		return jsonResponse({ events, total: events.length });
+	}
+
+	for (const age of [0, oneHour - 1, oneHour, oneHour + 1]) {
+		test(`verifies task-owned empty conversations only after the grace period (age=${age}ms)`, async () => {
+			const current = emptyTask('empty', startTime - age);
+			const { service, requestedUrls } = createService(store, {
+				tasks: [current], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty') : undefined,
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				sessions: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId),
+				historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
+			}, { sessions: age >= oneHour ? [] : ['empty'], historyReads: age >= oneHour ? 1 : 0 });
+		});
+	}
+
+	test('filters both task-owned placeholders while preserving their shared environment conversation without mutating tasks', async () => {
+		const methods: (string | undefined)[] = [];
+		const { service, requestedUrls } = createService(store, {
+			tasks: [emptyTask('empty-1'), emptyTask('empty-2'), { ...emptyTask('real'), name: 'A real conversation' }],
+			repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: (url, _token, options) => {
+				methods.push(options.type);
+				const id = /\/tasks\/([^/]+)\/events$/.exec(url.pathname)?.[1];
+				return id ? historyResponse(id) : undefined;
+			},
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => [session.taskId, session.environmentId]),
+			historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
+			mutations: methods.filter(method => method !== 'GET'),
+		}, { sessions: [['real', 'shared-environment']], historyReads: 2, mutations: [] });
+	});
+
+	for (const state of ['idle', 'completed', undefined]) {
+		test(`uses recorded history to verify a legacy placeholder with task state ${state}`, async () => {
+			const current = emptyTask('empty');
+			const legacy = { ...current, name: 'New Task', state, sessions: [{ ...current.sessions[0], state }] };
+			const { service } = createService(store, {
+				tasks: [legacy],
+				repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty') : undefined,
+			});
+
+			assert.deepStrictEqual(await service.listSessions(CancellationToken.None), { kind: 'complete', sessions: [] });
+		});
+	}
+
+	test('does not read histories for named, attributed, active, archived, or insufficiently dated tasks', async () => {
+		const base = emptyTask('base');
+		const tasks = [
+			{ ...base, id: 'named', name: 'My task' },
+			{ ...base, id: 'attributed', event_type: 'agent_tasks_api' },
+			{ ...base, id: 'unattributed', event_type: undefined },
+			...['queued', 'in_progress', 'waiting_for_user', 'failed'].map(state => ({ ...base, id: state, sessions: [{ ...base.sessions[0], state }] })),
+			{ ...base, id: 'archived', archived_at: new Date(startTime).toISOString() },
+			{ ...base, id: 'undated', updated_at: undefined },
+			{ ...base, id: 'invalid-date', updated_at: 'invalid' },
+			{ ...base, id: 'multiple-sessions', sessions: [...base.sessions, { ...base.sessions[0], id: 'other-session' }] },
+		];
+		const { service, requestedUrls } = createService(store, {
+			tasks, repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+		});
+
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId).sort(),
+			historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
+		}, { sessions: tasks.map(task => task.id).sort(), historyReads: 0 });
+	});
+
+	for (const { name, actions } of [
+		{ name: 'completed turns', actions: [turnStarted, turnComplete] },
+		{ name: 'an active turn', actions: [turnStarted] },
+		{ name: 'a draft', actions: [{ type: ActionType.ChatDraftChanged, draft: { text: 'Unsent input', origin: { kind: MessageKind.User } } }] },
+		{ name: 'older turn pages', actions: [{ type: ActionType.ChatTurnsLoaded, turns: [], turnsNextCursor: 'older' }] },
+		{ name: 'a recorded title', actions: [{ type: ActionType.SessionTitleChanged, title: 'My conversation' }] },
+		{ name: 'another chat', actions: [{ type: ActionType.SessionChatAdded, summary: { resource: 'ahp-chat:/another', title: 'Another chat', status: SessionStatus.Idle, modifiedAt: new Date(startTime).toISOString() } }] },
+		...['added', 'updated'].flatMap(source => [
+			{ status: SessionStatus.InProgress, title: 'New task' },
+			{ status: SessionStatus.InputNeeded, title: 'New task' },
+			{ status: SessionStatus.Error, title: 'New task' },
+			{ status: SessionStatus.Idle, title: 'My conversation' },
+		].map(({ status, title }) => ({
+			name: `a ${source} chat summary with status ${status} and title ${title}`,
+			actions: [source === 'added'
+				? { type: ActionType.SessionChatAdded, summary: { resource: 'ahp-chat:/opaque-empty', title, status, modifiedAt: new Date(startTime).toISOString() } }
+				: { type: ActionType.SessionChatUpdated, chat: 'ahp-chat:/opaque-empty', changes: { title, status } }] satisfies readonly StateAction[],
+		}))),
+	] satisfies readonly { name: string; actions: readonly StateAction[] }[]) {
+		test(`preserves a placeholder with ${name}`, async () => {
+			const { service } = createService(store, {
+				tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty', actions) : undefined,
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.taskId), ['empty']);
+		});
+	}
+
+	for (const kind of ['absent', 'different session', 'multiple sessions', 'truncated', 'failed', 'malformed']) {
+		test(`retains a task when history evidence is ${kind}`, async () => {
+			const { service } = createService(store, {
+				tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+				onRequest: url => {
+					if (!url.pathname.endsWith('/events')) {
+						return undefined;
+					}
+					if (kind === 'failed' || kind === 'malformed') {
+						return jsonResponse({}, kind === 'failed' ? 503 : 200);
+					}
+					const events: object[] = kind === 'absent' ? [] : historyEvents(kind === 'different session' ? 'other' : 'empty');
+					if (kind === 'multiple sessions') {
+						events.push(...historyEvents('other'));
+					} else if (kind === 'truncated') {
+						events.push({
+							ns: 'ahp', session_id: 'session-empty', seq: events.length, at: new Date(startTime).toISOString(),
+							payload: { kind: 'chunk', group_id: 'partial', seq: 0, total: 2, bytes: 'e30=' },
+						});
+					}
+					return jsonResponse({ events, total: events.length });
+				},
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual({
+				kind: result.kind,
+				sessions: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId),
+				removed: result.kind === 'partial' ? result.removedTaskIds : [],
+			}, { kind: kind === 'failed' || kind === 'malformed' ? 'partial' : 'complete', sessions: ['empty'], removed: [] });
+		});
+	}
+
+	test('rechecks aging candidates outside the incremental window, reuses proof, and restores tasks after activity', async () => {
+		const current = emptyTask('empty', startTime - oneHour + 1_000);
+		let now = startTime;
+		let actions: readonly StateAction[] = [];
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current], repositories: new Map(), discoveryDate: () => new Date(now).toUTCString(),
+			onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty', actions) : undefined,
+		});
+		await service.listSessions(CancellationToken.None);
+		now += 1_000;
+		const hidden = await service.listSessions(CancellationToken.None, { incremental: true });
+		const cached = await service.listSessions(CancellationToken.None, { incremental: true });
+		current.updated_at = new Date(startTime).toISOString();
+		now += oneHour;
+		actions = [turnStarted, turnComplete];
+		const recovered = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			hidden, cached,
+			recovered: recovered.kind === 'failed' ? recovered : recovered.sessions.map(session => session.taskId),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/empty')).length,
+			historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
+		}, {
+			hidden: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] },
+			cached: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] },
+			recovered: ['empty'], detailReads: 2, historyReads: 2,
+		});
+	});
+
+	test('live history invalidation discards empty-history proof even without a task timestamp update', async () => {
+		let actions: readonly StateAction[] = [];
+		const { service, requestedUrls } = createService(store, {
+			tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: url => url.pathname.endsWith('/events') ? historyResponse('empty', actions) : undefined,
+		});
+		await service.listSessions(CancellationToken.None);
+		actions = [turnStarted, turnComplete];
+		service.invalidateSessionHistory('empty');
+
+		const result = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId),
+			historyReads: requestedUrls.filter(url => url.endsWith('/events')).length,
+		}, { sessions: ['empty'], historyReads: 2 });
+	});
+
+	test('live invalidation during the first history verification prevents committing stale empty-history proof', async () => {
+		const response = new DeferredPromise<IRequestContext>();
+		const started = new DeferredPromise<void>();
+		let requests = 0;
+		const { service } = createService(store, {
+			tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: async url => {
+				if (!url.pathname.endsWith('/events')) {
+					return undefined;
+				}
+				if (++requests === 1) {
+					await started.complete();
+					return response.p;
+				}
+				return historyResponse('empty', [turnStarted, turnComplete]);
+			},
+		});
+		const pending = service.listSessions(CancellationToken.None);
+		await started.p;
+		service.invalidateSessionHistory('empty');
+		await response.complete(historyResponse('empty'));
+		const stale = await pending;
+		const current = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			stale: stale.kind,
+			current: current.kind === 'failed' ? current : current.sessions.map(session => session.taskId),
+			requests,
+		}, { stale: 'failed', current: ['empty'], requests: 2 });
+	});
+
+	for (const kind of ['session-only', 'terminal-only', 'catalogue-only']) {
+		test(`retains ${kind} history without an observed default chat`, async () => {
+			const { service } = createService(store, {
+				tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+				onRequest: url => {
+					if (!url.pathname.endsWith('/events')) {
+						return undefined;
+					}
+					const events = kind === 'catalogue-only' ? historyEvents('empty').slice(0, 3) : historyEvents('empty').slice(0, 1);
+					if (kind === 'terminal-only') {
+						events[0].payload.data.channel = 'terminal:/opaque';
+						events[0].payload.data.action = { type: ActionType.TerminalData, data: 'output' };
+					}
+					return jsonResponse({ events, total: events.length });
+				},
+			});
+
+			const result = await service.listSessions(CancellationToken.None);
+
+			assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.taskId), ['empty']);
+		});
+	}
+
+	test('retries missing history instead of remembering it as evidence of a conversation', async () => {
+		let requests = 0;
+		const { service } = createService(store, {
+			tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: url => url.pathname.endsWith('/events')
+				? ++requests === 1 ? jsonResponse({ events: [], total: 0 }) : historyResponse('empty')
+				: undefined,
+		});
+		const initial = await service.listSessions(CancellationToken.None);
+		const retried = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			initial: initial.kind === 'failed' ? initial : initial.sessions.map(session => session.taskId),
+			retried, requests,
+		}, {
+			initial: ['empty'], retried: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] }, requests: 2,
+		});
+	});
+
+	test('does not remove unobserved cached placeholders during a partial scan', async () => {
+		let partial = false;
+		const { service } = createService(store, {
+			tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: url => {
+				if (url.pathname.endsWith('/events')) {
+					return historyResponse('empty');
+				}
+				if (partial && url.pathname === '/agents/tasks') {
+					return url.searchParams.get('with_repo') === 'true'
+						? jsonResponse({ tasks: [task('other', 'Other', 123, 'other-session', 'other-environment')] })
+						: jsonResponse({}, 503);
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		partial = true;
+
+		const result = await service.listSessions(CancellationToken.None, { incremental: true });
+
+		assert.deepStrictEqual({
+			kind: result.kind,
+			removed: result.kind === 'partial' ? result.removedTaskIds : result,
+		}, { kind: 'partial', removed: [] });
+	});
+
+	test('propagates cancellation while verifying history without committing discovery', async () => {
+		let cancelHistory = true;
+		const { service } = createService(store, {
+			tasks: [emptyTask('empty')], repositories: new Map(), discoveryDate: () => new Date(startTime).toUTCString(),
+			onRequest: url => {
+				if (!url.pathname.endsWith('/events')) {
+					return undefined;
+				}
+				if (cancelHistory) {
+					throw new CancellationError();
+				}
+				return historyResponse('empty');
+			},
+		});
+		await assert.rejects(service.listSessions(CancellationToken.None), isCancellationError);
+		cancelHistory = false;
+
+		assert.deepStrictEqual(await service.listSessions(CancellationToken.None, { incremental: true }), { kind: 'complete', sessions: [] });
+	});
 });
 
 suite('CloudSandboxApiService incremental discovery', () => {
