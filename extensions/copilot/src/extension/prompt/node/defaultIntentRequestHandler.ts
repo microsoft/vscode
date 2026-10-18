@@ -237,7 +237,7 @@ export class DefaultIntentRequestHandler {
 		}
 	}
 
-	private makeResponseStreamParticipants(intentInvocation: IIntentInvocation): ResponseStreamParticipant[] {
+	private makeResponseStreamParticipants(intentInvocation: IIntentInvocation, store: DisposableStore): ResponseStreamParticipant[] {
 		const participants: ResponseStreamParticipant[] = [];
 
 		// 1. Tracking of code blocks. Currently used in stests. todo@connor4312:
@@ -276,7 +276,7 @@ export class DefaultIntentRequestHandler {
 		// 4. Linkify the stream unless told otherwise, or if this is a subagent request
 		if (!intentInvocation.linkification?.disable && !this.request.subAgentInvocationId) {
 			participants.push(stream => {
-				const linkStream = this._instantiationService.createInstance(ResponseStreamWithLinkification, { requestId: this.turn.id, references: this.turn.references }, stream, intentInvocation.linkification?.additionaLinkifiers ?? [], this.token);
+				const linkStream = store.add(this._instantiationService.createInstance(ResponseStreamWithLinkification, { requestId: this.turn.id, references: this.turn.references }, stream, intentInvocation.linkification?.additionaLinkifiers ?? [], this.token));
 				return ChatResponseStreamImpl.spy(linkStream, p => p, () => {
 					this._loop.telemetry.markAddedLinks(linkStream.totalAddedLinkCount);
 				});
@@ -336,7 +336,7 @@ export class DefaultIntentRequestHandler {
 				request: this.request,
 				enableVoiceProgress: this.intent.id === Intent.Agent,
 				documentContext: this.documentContext,
-				streamParticipants: this.makeResponseStreamParticipants(intentInvocation),
+				streamParticipants: this.makeResponseStreamParticipants(intentInvocation, store),
 				temperature: this.handlerOptions.temperature ?? this.options.temperature,
 				location: this.location,
 				overrideRequestLocation: this.handlerOptions.overrideRequestLocation,
