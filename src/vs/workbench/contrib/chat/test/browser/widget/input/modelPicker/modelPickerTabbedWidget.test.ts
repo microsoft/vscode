@@ -442,7 +442,7 @@ suite('TabbedModelPicker', () => {
 		}, { tiers: ['Fusion Standard', 'Fusion High'], max: 0 });
 	});
 
-	test('inline Fusion announces a managed tier as managed and an unavailable one with its reason', async () => {
+	test('inline Fusion announces each tier of a managed schema as managed by the agent host', async () => {
 		const managed = createFusionModel();
 		const tier = managed.metadata.configurationSchema!.properties!.tier!;
 		const readOnly: ILanguageModelChatMetadataAndIdentifier = { ...managed, metadata: { ...managed.metadata, configurationSchema: { properties: { tier: { ...tier, readOnly: true } } } } };
