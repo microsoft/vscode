@@ -24051,8 +24051,10 @@ suite('CopilotAgent', () => {
 			await fs.mkdir(ownerRepository.fsPath, { recursive: true });
 			await fs.mkdir(peerRepository.fsPath, { recursive: true });
 			await fs.mkdir(worktree.fsPath, { recursive: true });
+			const sessionDataService = disposables.add(new TestSessionDataService());
 			const agent = createTestAgent(disposables, {
 				copilotClient: new TestCopilotClient([]),
+				sessionDataService,
 				rootConfig: {
 					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [ownerRepository.toString(), peerRepository.toString()] },
 				},
@@ -24068,14 +24070,23 @@ suite('CopilotAgent', () => {
 					project: { uri: ownerRepository, displayName: 'owner' },
 					config: { [SessionConfigKey.Isolation]: 'worktree' },
 				});
+				const peerDb = sessionDataService.openDatabase(peer);
+				const persistedProject = await peerDb.object.getMetadata('copilot.project.uri');
+				peerDb.dispose();
 
-				assert.deepStrictEqual(launchPlans.map(plan => plan.extensionLaunchInheritedTrust?.map(item => ({
-					directory: item.directory.toString(),
-					trustedFrom: item.trustedFrom.toString(),
-				}))), [[{
-					directory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
-					trustedFrom: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
-				}]]);
+				assert.deepStrictEqual({
+					launchPlans: launchPlans.map(plan => plan.extensionLaunchInheritedTrust?.map(item => ({
+						directory: item.directory.toString(),
+						trustedFrom: item.trustedFrom.toString(),
+					}))),
+					persistedProject,
+				}, {
+					launchPlans: [[{
+						directory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
+						trustedFrom: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
+					}]],
+					persistedProject: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
+				});
 			} finally {
 				await fs.rm(tempRoot, { recursive: true, force: true });
 				await disposeAgent(agent);

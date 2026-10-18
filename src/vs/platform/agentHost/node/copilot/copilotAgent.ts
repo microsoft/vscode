@@ -7306,6 +7306,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (agent !== undefined) {
 					await this._storeSessionAgentMetadata(session, agent);
 				}
+			} else if (project) {
+				await this._storeSessionProjectResolution({ storage: storageScope, owner: session }, project);
 			}
 
 			let agentSession: CopilotAgentSession | undefined;
