@@ -355,7 +355,10 @@ suite('TabbedModelPicker', () => {
 	/** The rendered inline Fusion rows, scrolled into view: the list otherwise reveals the selected model and virtualizes the rows above it. */
 	async function inlineFusionRows(popup: HTMLElement) {
 		const scrollable = popup.querySelector<HTMLElement>('.monaco-list .monaco-scrollable-element');
-		scrollable?.dispatchEvent(new WheelEvent('wheel', { deltaY: 10000, bubbles: true }));
+		const wheel = new WheelEvent('wheel', { deltaY: -10000, bubbles: true });
+		// Engines fill the legacy wheelDeltaY of synthetic events differently, and the list reads it first.
+		Object.defineProperty(wheel, 'wheelDeltaY', { value: 1200000 });
+		scrollable?.dispatchEvent(wheel);
 		await new Promise(resolve => dom.getWindow(popup).requestAnimationFrame(resolve));
 		return Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier'));
 	}
