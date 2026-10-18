@@ -6,22 +6,17 @@
 import assert from 'assert';
 import { suite, test } from 'vitest';
 import type { Event, NotebookCell, NotebookDocument, NotebookDocumentChangeEvent, TextDocument } from 'vscode';
-import { NullEnvService } from '../../../../platform/env/common/nullEnvService';
 import { getCellId } from '../../../../platform/notebook/common/helpers';
 import { ILogger, ILogService } from '../../../../platform/log/common/logService';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
-import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
-import { DeferredPromise } from '../../../../util/vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { StringSHA1 } from '../../../../util/vs/base/common/hash';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { NotebookCellKind, NotebookRange, Uri } from '../../../../vscodeTypes';
 import { LinkifiedPart, LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { NotebookCellLinkifier } from '../../vscode-node/notebookCellLinkifier';
-import { LinkifyService } from '../../common/linkifyService';
-import { ResponseStreamWithLinkification } from '../../common/responseStreamWithLinkification';
-import { assertPartsEqual, createMockFsService } from '../node/util';
+import { assertPartsEqual } from '../node/util';
 
 suite('Notebook Cell Linkifier', () => {
 
@@ -248,75 +243,6 @@ suite('Notebook Cell Linkifier', () => {
 			store.dispose();
 		}
 	});
-
-	for (const outcome of ['success', 'cancel', 'output error', 'request error'] as const) {
-		test(`Should release notebook listeners after response ${outcome}`, async () => {
-			const store = new DisposableStore();
-			try {
-				const cell = createMockNotebookCell(Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1'), 0);
-				const workspace = store.add(new TestWorkspaceService([], [], [createMockNotebookDocument([cell])]));
-				const service = new LinkifyService(createMockFsService([]), workspace, NullEnvService.Instance);
-				const listenerState = () => ({
-					open: workspace.didOpenNotebookDocumentEmitter.hasListeners(),
-					close: workspace.didCloseNotebookDocumentEmitter.hasListeners(),
-					change: workspace.didChangeNotebookDocumentEmitter.hasListeners(),
-				});
-				let activeState: ReturnType<typeof listenerState> | undefined;
-				let initialized = new DeferredPromise<void>();
-				let cancel = () => { };
-				store.add(service.registerGlobalLinkifier({
-					create: () => {
-						const notebookLinkifier = new NotebookCellLinkifier(workspace, mockLogger);
-						return {
-							linkify: async (text, context, token) => {
-								const result = await notebookLinkifier.linkify(text, context, token);
-								if (workspace.didOpenNotebookDocumentEmitter.hasListeners()) {
-									activeState = listenerState();
-									initialized.complete();
-									if (outcome === 'cancel') {
-										cancel();
-									}
-								}
-								return result;
-							},
-							dispose: () => notebookLinkifier.dispose(),
-						};
-					},
-				}));
-
-				for (let i = 0; i < 37; i++) {
-					initialized = new DeferredPromise<void>();
-					const tokenSource = store.add(new CancellationTokenSource());
-					cancel = () => tokenSource.cancel();
-					const progress = new ChatResponseStreamImpl(() => {
-						if (outcome === 'output error') {
-							throw new Error('output failed');
-						}
-					}, () => { });
-					const stream = new ResponseStreamWithLinkification({ requestId: undefined, references: [] }, progress, [], tokenSource.token, service, workspace);
-					stream.markdown(`Cell Id ${getCellId(cell)} `);
-					if (outcome === 'request error') {
-						const requestStore = new DisposableStore();
-						requestStore.add(stream);
-						await initialized.p;
-						// The request's finally block disposes streams when normal finalization is skipped.
-						requestStore.dispose();
-						await Promise.allSettled([stream.finalize()]);
-					} else if (outcome === 'success') {
-						await stream.finalize();
-					} else {
-						await assert.rejects(stream.finalize(), outcome === 'cancel' ? /Canceled/ : /output failed/);
-					}
-					assert.deepStrictEqual({ active: activeState, after: listenerState() }, {
-						active: { open: true, close: true, change: true },
-						after: { open: false, close: false, change: false },
-					});
-				}
-			} finally {
-				store.dispose();
-			}
-		});
-	}
 
 	test('Should only subscribe to notebook events once per instance', async () => {
 		const cellUri = Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1');

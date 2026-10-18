@@ -6,7 +6,6 @@ import type { ChatQuestion, ChatResponseClearToPreviousToolInvocationReason, Cha
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { FinalizableChatResponseStream } from '../../../util/common/chatResponseStreamImpl';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ChatHookType, ChatResponseAnchorPart, ChatResponseCommandButtonPart, ChatResponseConfirmationPart, ChatResponseFileTreePart, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatToolInvocationPart, MarkdownString } from '../../../vscodeTypes';
 import { LinkifiedText, LinkifySymbolAnchor } from './linkifiedText';
 import { IContributedLinkifierFactory, ILinkifier, ILinkifyService, LinkifierContext } from './linkifyService';
@@ -14,7 +13,7 @@ import { IContributedLinkifierFactory, ILinkifier, ILinkifyService, LinkifierCon
 /**
  * Proxy of {@linkcode ChatResponseStream} that linkifies paths and symbols in emitted Markdown.
  */
-export class ResponseStreamWithLinkification extends Disposable implements FinalizableChatResponseStream {
+export class ResponseStreamWithLinkification implements FinalizableChatResponseStream {
 
 	private readonly _linkifier: ILinkifier;
 	private readonly _progress: ChatResponseStream;
@@ -28,8 +27,7 @@ export class ResponseStreamWithLinkification extends Disposable implements Final
 		@ILinkifyService linkifyService: ILinkifyService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 	) {
-		super();
-		this._linkifier = this._register(linkifyService.createLinkifier(context, additionalLinkifiers));
+		this._linkifier = linkifyService.createLinkifier(context, additionalLinkifiers);
 		this._progress = progress;
 		this._token = token;
 	}
@@ -237,11 +235,7 @@ export class ResponseStreamWithLinkification extends Disposable implements Final
 	}
 
 	async finalize() {
-		try {
-			await this.enqueue(() => this.doFinalize(), false);
-		} finally {
-			this.dispose();
-		}
+		await this.enqueue(() => this.doFinalize(), false);
 	}
 
 	private async doFinalize() {
