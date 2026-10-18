@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Rewrites `--folder-uri <uri>` / `--file-uri <uri>` pairs into a single
- * `--flag=value` token so the URI is not a standalone argv entry. Used on
- * Windows to avoid Chromium filtering URL-like tokens before main.js runs.
- * See https://github.com/microsoft/vscode/issues/209072.
+ * Rewrites `--folder-uri <uri>` / `--file-uri <uri>` / `--trust-folder <uri>`
+ * pairs into a single `--flag=value` token so the URI is not a standalone argv
+ * entry. Used on Windows to avoid Chromium filtering URL-like tokens before
+ * main.js runs. See https://github.com/microsoft/vscode/issues/209072.
  */
 export function combineUriFlags(args: string[]): string[] {
 	const result: string[] = [];
@@ -17,7 +17,7 @@ export function combineUriFlags(args: string[]): string[] {
 			result.push(...args.slice(i));
 			break;
 		}
-		if ((arg === '--folder-uri' || arg === '--file-uri') && i + 1 < args.length && !args[i + 1].startsWith('-')) {
+		if ((arg === '--folder-uri' || arg === '--file-uri' || arg === '--trust-folder') && i + 1 < args.length && !args[i + 1].startsWith('-')) {
 			result.push(`${arg}=${args[i + 1]}`);
 			i++; // skip the value, it's now part of the flag
 		} else {
