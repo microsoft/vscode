@@ -139,6 +139,8 @@ export interface GitHubTransportOptions {
 	readonly requestTimeout: number;
 	readonly maximumResponseBytes: number;
 	readonly maximumSharedWaiters: number;
+	/** Opts browser fetch into native following after an opaque repository redirect. */
+	readonly useBrowserRedirects?: boolean;
 	readonly queue?: Partial<RequestQueueOptions>;
 	readonly requestMetadata?: GitHubRequestMetadata;
 	readonly coordination?: {
@@ -866,15 +868,35 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		const initialUrl = request.url;
 		let url = request.followRedirects === false ? initialUrl : this._redirects.get(initialUrl) ?? initialUrl;
 		const initialOrigin = new URL(url).origin;
+		const readResponse = async (response: Response) => {
+			const discardBody = response.ok && request.responseBody === 'none'
+				|| request.followRedirects !== false && [301, 302, 307, 308].includes(response.status)
+				|| response.type === 'opaqueredirect';
+			if (discardBody && response.body) {
+				cancelResponseBody(response.body, this._logService);
+			}
+			return { response, body: discardBody ? '' : await this._readResponse(account, response, init.signal, request.rateLimitResource ?? getGitHubRestResource(response.url || url)) };
+		};
 		for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
-			const result = await this._fetchWithRetry(account, request.rateLimitResource ?? getGitHubRestResource(url), url, init, (request.method === 'GET' || request.method === 'HEAD') && request.retry !== false, request.caller, onDispatch, async response => {
-				const discardBody = response.ok && request.responseBody === 'none'
-					|| request.followRedirects !== false && [301, 302, 307, 308].includes(response.status);
-				if (discardBody && response.body) {
-					cancelResponseBody(response.body, this._logService);
+			const result = await this._fetchWithRetry(account, request.rateLimitResource ?? getGitHubRestResource(url), url, init, (request.method === 'GET' || request.method === 'HEAD') && request.retry !== false, request.caller, onDispatch, readResponse);
+			if (result.response.type === 'opaqueredirect' && this._options.useBrowserRedirects && isRepositoryRead(request)) {
+				const headers: Record<string, string> = {};
+				for (const name of ['Accept', 'Authorization', 'X-GitHub-Api-Version']) {
+					if (init.headers[name] !== undefined) {
+						headers[name] = init.headers[name];
+					}
 				}
-				return { response, body: discardBody ? '' : await this._readResponse(account, response, init.signal, request.rateLimitResource ?? getGitHubRestResource(response.url || url)) };
-			});
+				const followed = await this._fetchWithRetry(account, request.rateLimitResource ?? getGitHubRestResource(url), url, {
+					...init, headers, redirect: 'follow', credentials: 'omit', referrerPolicy: 'no-referrer',
+				}, request.retry !== false, request.caller, onDispatch, readResponse, response => {
+					if (!response.url) {
+						throw new GitHubRequestError('GitHub browser redirect did not expose a final URL', 'malformedResponse');
+					}
+					this._validateRestRedirect(account, new URL(response.url), initialOrigin, anonymousApiBasePath, response.status);
+				});
+				this._redirects.set(initialUrl, followed.response.url);
+				return followed;
+			}
 			const { response } = result;
 			if (request.followRedirects === false || ![301, 302, 307, 308].includes(response.status)) {
 				if (url !== initialUrl) {
@@ -888,18 +910,22 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			url = new URL(location, url).href;
 			const target = new URL(url);
-			if (target.origin !== initialOrigin || ((account.kind === 'anonymous' || account.kind === 'bootstrap') && (target.username || target.password))) {
-				throw new GitHubRequestError('GitHub redirect changed origin', 'authorization', response.status);
-			}
-			if ((account.kind === 'anonymous' || account.kind === 'bootstrap') && (!anonymousApiBasePath || !target.pathname.startsWith(anonymousApiBasePath))) {
-				throw new GitHubRequestError('GitHub read redirect escaped its API endpoint', 'authorization', response.status);
-			}
+			this._validateRestRedirect(account, target, initialOrigin, anonymousApiBasePath, response.status);
 			this._logService?.trace(`[GitHubTransport] Following REST redirect to ${formatRequestUrl(url)}`);
 		}
 		throw new GitHubRequestError('GitHub API request exceeded the redirect limit', 'unknown');
 	}
 
-	private async _fetchWithRetry<T>(account: RequestAccount, resource: string, url: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void, readResponse: (response: Response) => Promise<T>): Promise<T> {
+	private _validateRestRedirect(account: RequestAccount, target: URL, initialOrigin: string, anonymousApiBasePath: string | undefined, statusCode: number): void {
+		if (target.origin !== initialOrigin || ((account.kind === 'anonymous' || account.kind === 'bootstrap') && (target.username || target.password))) {
+			throw new GitHubRequestError('GitHub redirect changed origin', 'authorization', statusCode);
+		}
+		if ((account.kind === 'anonymous' || account.kind === 'bootstrap') && (!anonymousApiBasePath || !target.pathname.startsWith(anonymousApiBasePath))) {
+			throw new GitHubRequestError('GitHub read redirect escaped its API endpoint', 'authorization', statusCode);
+		}
+	}
+
+	private async _fetchWithRetry<T>(account: RequestAccount, resource: string, url: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void, readResponse: (response: Response) => Promise<T>, validateResponse?: (response: Response) => void): Promise<T> {
 		let failure: unknown;
 		for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
 			init.signal.throwIfAborted();
@@ -908,7 +934,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				throw account.kind === 'bootstrap' ? new GitHubRequestRateLimitError(cooldown)
 					: new GitHubRequestError('GitHub request is rate limited', 'rateLimit');
 			}
-			const headers = { ...init.headers, ...this._options.requestMetadata?.getHeaders(url, caller, attempt > 0) };
+			// Browser-native redirects can forward custom headers to another origin.
+			const headers = { ...init.headers, ...(init.redirect === 'follow' ? undefined : this._options.requestMetadata?.getHeaders(url, caller, attempt > 0)) };
 			try {
 				onDispatch();
 				this._telemetry?.recordWireAttempt(attempt > 0, init.headers['If-None-Match'] !== undefined);
@@ -919,6 +946,14 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						cancelResponseBody(response.body, this._logService);
 					}
 					throw init.signal.reason;
+				}
+				try {
+					validateResponse?.(response);
+				} catch (error) {
+					if (response.body) {
+						cancelResponseBody(response.body, this._logService);
+					}
+					throw error;
 				}
 				this._updateRateLimits(account, response, resource);
 				if (retry && attempt === 0 && response.status >= 500 && this._rateLimits.getRequestDelay(account, resource) === 0) {
@@ -1098,6 +1133,12 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		return shared.waiters.wait(signal, deadline, this._scheduler, () => new GitHubRequestTimeoutError());
 	}
 
+}
+
+function isRepositoryRead(request: GitHubRestTextRequest): boolean {
+	return (request.method === 'GET' || request.method === 'HEAD') && request.bodyText === undefined && request.followRedirects !== false
+		&& request.onDidDispatch === undefined && request.rateLimitResource !== 'agents'
+		&& /^\/(?:api\/v3\/)?(?:repos\/[^/]+\/[^/]+|repositories\/[0-9]+)(?:\/|$)/.test(new URL(request.url).pathname);
 }
 
 function isGraphQLRead(query: string): boolean {

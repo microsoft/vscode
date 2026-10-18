@@ -76,6 +76,37 @@ suite('LocalApiRequestProvider', () => {
 		return new LocalApiRequestProvider(target === 'graphql' ? `${apiBaseUri}/graphql` : apiBaseUri, getGitHubClientInternals(client).transport, client.credentials, target);
 	}
 
+	for (const authenticatedRequest of [false, true]) {
+		test(`downloads eight typed blobs concurrently through the real queue (authenticated=${authenticatedRequest})`, async () => {
+			const release = new DeferredPromise<void>();
+			let active = 0;
+			let maximumActive = 0;
+			const fetch: RequestFetch = async input => {
+				maximumActive = Math.max(maximumActive, ++active);
+				await release.p;
+				active--;
+				return Response.json({
+					sha: new URL(String(input)).pathname.split('/').pop(),
+					node_id: 'blob',
+					url: String(input),
+					size: 1,
+					encoding: 'base64',
+					content: 'AA==',
+				});
+			};
+			const client = new ContentClient(authenticatedRequest ? authenticated(fetch) : anonymous(fetch));
+			const shas = Array.from({ length: 20 }, (_, index) => index.toString(16).padStart(40, '0'));
+			const requests = shas.map(sha => client.getBlob('o', 'r', sha, signal(), { caller: 'pluginGit.blob' }));
+			await timeout(0);
+			const beforeRelease = active;
+			await release.complete();
+			const blobs = await Promise.all(requests);
+			assert.deepStrictEqual({ beforeRelease, maximumActive, shas: blobs.map(blob => blob.sha) }, {
+				beforeRelease: 8, maximumActive: 8, shas,
+			});
+		});
+	}
+
 	for (const scenario of [
 		{ name: 'missing commit', body: '{"message":"No commit found for SHA: missing"}', status: 422, missing: true },
 		{ name: 'different validation failure', body: '{"message":"Validation Failed"}', status: 422, missing: false },
