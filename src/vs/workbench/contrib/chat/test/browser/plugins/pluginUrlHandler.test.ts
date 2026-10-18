@@ -45,6 +45,7 @@ suite('PluginUrlHandler', () => {
 	function createHandler(options: {
 		activeResource?: URI;
 		existingSession?: boolean;
+		existingMarketplaceSource?: string;
 		archivedSession?: boolean;
 		provisional?: URI;
 		confirmations?: boolean[];
@@ -60,7 +61,7 @@ suite('PluginUrlHandler', () => {
 		createFailed?: boolean;
 		isSessionsWindow?: boolean;
 		backendFailed?: boolean;
-		failure?: 'add' | 'query' | 'install';
+		failure?: 'list' | 'add' | 'query' | 'install';
 		cancelled?: boolean;
 	} = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -77,7 +78,16 @@ suite('PluginUrlHandler', () => {
 
 		const managementProvider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
-			list: async () => [],
+			list: async () => {
+				fail('list');
+				return options.existingMarketplaceSource ? [{
+					name: 'catalog',
+					source: options.existingMarketplaceSource,
+					isDefault: false,
+					managed: false,
+					available: true,
+				}] : [];
+			},
 			add: async (session, source) => {
 				calls.push(`add:${session}:${source}`);
 				fail('add');
@@ -227,6 +237,47 @@ suite('PluginUrlHandler', () => {
 		assert.deepStrictEqual(fixture.errors, []);
 	});
 
+	for (const existingMarketplaceSource of ['acme/plugins', 'https://github.com/ACME/plugins.git', 'GitHub: acme/plugins', 'URL: https://github.com/ACME/plugins.git']) {
+		test(`reuses the registered marketplace and opens customizations in the Agents window: ${existingMarketplaceSource}`, async () => {
+			const fixture = createHandler({ existingMarketplaceSource, isSessionsWindow: true });
+			await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+			assert.deepStrictEqual({
+				calls: fixture.calls,
+				commands: fixture.commands,
+				errors: fixture.errors,
+			}, {
+				calls: [`query:${sessionResource}:catalog:`, `install:${sessionResource}:catalog/my-plugin`],
+				commands: [{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, sessionResource, searchQuery: 'my-plugin' }],
+				}],
+				errors: [],
+			});
+		});
+	}
+
+	test('opens customizations for an already registered add-only marketplace', async () => {
+		const fixture = createHandler({ existingMarketplaceSource: 'GitHub: acme/plugins', isSessionsWindow: true });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, {
+			calls: [],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ showDiscover: true, sessionResource, searchQuery: '' }],
+			}],
+			errors: [],
+		});
+	});
+
+	test('does not reuse a registered marketplace at a different revision', async () => {
+		const fixture = createHandler({ existingMarketplaceSource: 'GitHub: acme/plugins#other' });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [`add:${sessionResource}:acme/plugins`],
+			errors: [],
+		});
+	});
+
 	test('does not mutate anything while consent is pending', async () => {
 		const confirmation = new DeferredPromise<boolean>();
 		const fixture = createHandler({ confirmation: confirmation.p });
@@ -365,7 +416,7 @@ suite('PluginUrlHandler', () => {
 		});
 	});
 
-	for (const failure of ['add', 'query', 'install'] as const) {
+	for (const failure of ['list', 'add', 'query', 'install'] as const) {
 		test(`surfaces ${failure} failures without a legacy fallback`, async () => {
 			const fixture = createHandler({ failure });
 			await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));

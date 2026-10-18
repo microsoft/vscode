@@ -27,7 +27,7 @@ import { IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_
 import { ChatConfiguration } from '../common/constants.js';
 import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
 import { isUntitledChatSession } from '../common/model/chatUri.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference } from '../common/plugins/marketplaceReference.js';
+import { MarketplaceReferenceKind, parseMarketplaceReference, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -113,7 +113,9 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 				throw new Error(localize('pluginLinkHarnessUnavailable', "The selected Copilot Agent Host session does not support marketplace management or plugin installation."));
 			}
 
-			const marketplace = await managementProvider.add(session.backendResource, ref.rawValue);
+			const marketplaces = await managementProvider.list(session.backendResource);
+			const existingMarketplace = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
+			const marketplace = existingMarketplace ?? await managementProvider.add(session.backendResource, ref.rawValue);
 			if (pluginName && installProvider) {
 				let cursor: string | undefined;
 				const seenCursors = new Set<string>();
