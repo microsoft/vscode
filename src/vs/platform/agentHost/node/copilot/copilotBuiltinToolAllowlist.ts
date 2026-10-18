@@ -18,6 +18,10 @@ import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.
  * shipping it. `copilotBuiltinToolAllowlist.integrationTest.ts` fails when this
  * list and the runtime's registered built-ins disagree (see section 9 of
  * `AGENTS.md`).
+ *
+ * Adding a name here is an adoption decision for the tool budget owners, whom
+ * `.github/CODENOTIFY` notifies. When that test reports a new runtime built-in, the
+ * default fix is to add it to `KNOWN_LEFT_OFF` in the test, not to adopt it here.
  */
 export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	// Shell. The runtime registers one family per platform and shell.

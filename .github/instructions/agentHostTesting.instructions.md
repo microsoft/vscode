@@ -34,6 +34,8 @@ Host-specific parsers and writers live under `common/meta/vscode` and `common/me
 
 Tools the model can see are input tokens on every request. New tools are deferred by default, and the eager set is a reviewed budget pinned by tests. Prompt text and reminders have fixed homes based on how they affect the prompt cache. Follow §9 of `src/vs/platform/agentHost/AGENTS.md` when adding a tool, bumping the Copilot SDK, or adding text that reaches the model.
 
+When `copilotBuiltinToolAllowlist.integrationTest.ts` reports a new runtime built-in, add it to `KNOWN_LEFT_OFF` in that test with a reason. Never add a tool to `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` or to a reviewed eager list just to make a test pass; adopting a tool is a decision for the tool budget owners that `.github/CODENOTIFY` lists for those files.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.

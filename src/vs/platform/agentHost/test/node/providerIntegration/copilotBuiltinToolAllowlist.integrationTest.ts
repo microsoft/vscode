@@ -25,14 +25,20 @@ const MODELS = ['claude-sonnet-4.5', 'gpt-5.3-codex'] as const;
 const MODES = ['interactive', 'plan', 'autopilot'] as const;
 
 /**
- * Built-ins the runtime registers in this session that the host deliberately
- * leaves off. Each one is also excluded in `CopilotSessionLauncher`.
+ * Built-ins the runtime registers that the host leaves off, with the reason.
+ *
+ * This is the default home for a built-in that a new runtime introduces: add it
+ * here (for example `new_tool: 'new in SDK x.y.z, not reviewed'`) and the test
+ * passes while the tool stays off for every session. Adopting a tool into
+ * `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` instead puts its definition in front of
+ * the model on every request, so it is a decision for the tool budget owners,
+ * whom `.github/CODENOTIFY` notifies. Never adopt a tool just to make this test pass.
  */
-const KNOWN_LEFT_OFF: readonly string[] = [
-	'dynamic_workflows_manage',
-	'run_dynamic_workflow',
-	'semantic_code_search',
-];
+const KNOWN_LEFT_OFF: Readonly<Record<string, string>> = {
+	dynamic_workflows_manage: 'dynamic workflows are excluded by CopilotSessionLauncher until Agent Host support is validated',
+	run_dynamic_workflow: 'dynamic workflows are excluded by CopilotSessionLauncher until Agent Host support is validated',
+	semantic_code_search: 'replaced by the semantic_search client tool; excluded by CopilotSessionLauncher',
+};
 
 /**
  * Allow-listed built-ins this session cannot register, with the reason. Feature-
@@ -55,6 +61,35 @@ const NOT_EXERCISED: Readonly<Record<string, string>> = {
 	open_canvas: 'canvases setting',
 	invoke_canvas_action: 'canvases setting',
 };
+
+/**
+ * Builds the failure message: which names disagree and the default fix for each.
+ * Agents asked to make this test pass follow it, so it must steer toward
+ * leaving tools off rather than adopting them.
+ */
+function describeDrift(registeredButNotAllowListed: readonly string[], allowListedButNotRegistered: readonly string[], filteredMismatches: readonly string[]): string {
+	const lines = ['The bundled runtime\'s built-in tools and COPILOT_ENABLED_BUILTIN_TOOL_NAMES disagree (see section 9 of src/vs/platform/agentHost/AGENTS.md).'];
+	const unreviewed = registeredButNotAllowListed.filter(name => !Object.hasOwn(KNOWN_LEFT_OFF, name));
+	if (unreviewed.length) {
+		lines.push(`New runtime built-ins: ${unreviewed.join(', ')}. Default fix: add each to KNOWN_LEFT_OFF in this file with a reason such as 'new in SDK x.y.z, not reviewed'. That keeps it off for every session. Do not add it to COPILOT_ENABLED_BUILTIN_TOOL_NAMES to make this test pass; adopting a tool is a decision for the tool budget owners listed for copilotBuiltinToolAllowlist.ts in .github/CODENOTIFY.`);
+	}
+	const staleLeftOff = Object.keys(KNOWN_LEFT_OFF).filter(name => !registeredButNotAllowListed.includes(name));
+	if (staleLeftOff.length) {
+		lines.push(`No longer registered by the runtime: ${staleLeftOff.join(', ')}. Remove them from KNOWN_LEFT_OFF.`);
+	}
+	const missing = allowListedButNotRegistered.filter(name => !Object.hasOwn(NOT_EXERCISED, name));
+	if (missing.length) {
+		lines.push(`Allow-listed but no longer registered: ${missing.join(', ')}. Default fix: remove them from COPILOT_ENABLED_BUILTIN_TOOL_NAMES, and treat any replacement name as a new runtime built-in (KNOWN_LEFT_OFF). If one was renamed, the allow-list owners decide whether to adopt the new name.`);
+	}
+	const staleNotExercised = Object.keys(NOT_EXERCISED).filter(name => !allowListedButNotRegistered.includes(name));
+	if (staleNotExercised.length) {
+		lines.push(`Listed in NOT_EXERCISED but now registered here, or no longer allow-listed: ${staleNotExercised.join(', ')}. Remove them from NOT_EXERCISED.`);
+	}
+	if (filteredMismatches.length) {
+		lines.push(`The default availableTools filter no longer keeps exactly the allow-listed built-ins, so the SDK's tool filter semantics may have changed: ${filteredMismatches.join('; ')}.`);
+	}
+	return lines.join('\n');
+}
 
 /**
  * Guards `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` against drift in either direction.
@@ -184,14 +219,16 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			}
 		}
 
+		const registeredButNotAllowListed = [...registered].filter(name => !allowListed.has(name)).sort();
+		const allowListedButNotRegistered = [...allowListed].filter(name => !registered.has(name)).sort();
 		assert.deepStrictEqual({
-			registeredButNotAllowListed: [...registered].filter(name => !allowListed.has(name)).sort(),
-			allowListedButNotRegistered: [...allowListed].filter(name => !registered.has(name)).sort(),
+			registeredButNotAllowListed,
+			allowListedButNotRegistered,
 			filteredMismatches,
 		}, {
-			registeredButNotAllowListed: [...KNOWN_LEFT_OFF].sort(),
+			registeredButNotAllowListed: Object.keys(KNOWN_LEFT_OFF).sort(),
 			allowListedButNotRegistered: Object.keys(NOT_EXERCISED).sort(),
 			filteredMismatches: [],
-		}, 'The runtime\'s built-in tools and COPILOT_ENABLED_BUILTIN_TOOL_NAMES disagree. A new runtime built-in must be adopted into the allow-list or added to KNOWN_LEFT_OFF; a renamed or removed one must be updated in the allow-list. See section 9 of src/vs/platform/agentHost/AGENTS.md.');
+		}, describeDrift(registeredButNotAllowListed, allowListedButNotRegistered, filteredMismatches));
 	});
 });

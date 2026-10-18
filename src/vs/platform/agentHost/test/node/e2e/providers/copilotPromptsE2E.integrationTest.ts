@@ -201,7 +201,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			assert.deepStrictEqual(
 				request.tools?.map(tool => tool.name ?? tool.type),
 				expectedModelFacingToolNames(model),
-				'The model-facing tool set changed. A new tool costs tokens on every request: defer it, leave it out of the built-in allow-list, or add it to the reviewed list in this file (see src/vs/platform/agentHost/AGENTS.md §9).',
+				'The model-facing tool set changed. A new tool costs tokens on every request. Default fix: defer it, or leave it out of the built-in allow-list (add a new runtime built-in to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). Adding it to the reviewed list in this file is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
 			);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
