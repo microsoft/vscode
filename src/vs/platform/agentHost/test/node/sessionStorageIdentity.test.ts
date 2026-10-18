@@ -1359,67 +1359,169 @@ suite('Session storage identity compatibility', () => {
 			assert.deepStrictEqual({ afterCreate: afterCreate.length, afterDelete }, { afterCreate: 2, afterDelete: afterCreate });
 		});
 
-		test('restoring a compatibility session registers its subagent chat in memory with its origin, without a catalog admission', async () => {
-			const db = await database();
-			const fileService = files();
-			const warnings: string[] = [];
-			const logService = new class extends NullLogService {
-				override warn(message: string): void { warnings.push(message); }
-			}();
-			const createService = (target: CompatibleAgentHostDatabase) => store.add(createTestAgentService(
-				logService, fileService, new SessionDataService(URI.file(directory), fileService, logService, undefined, target.identity), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, target,
-			));
-			const creating = createService(db);
-			registerTestAgentProvider(creating, store.add(new MockAgent('copilotcli')));
-			const created = await creating.createSession({ legacyChatUris: false, provider: 'copilotcli' });
-			await db.close();
+		for (let reproDelay = 0; reproDelay <= 400; reproDelay += 20) {
+			test(`restoring a compatibility session registers its subagent chat in memory with its origin, without a catalog admission gap=${reproDelay}`, async () => {
+				const probeFs = await import('fs');
+				const probeLog = join(process.cwd(), '.build', 'logs', 'ah-probe.log');
+				probeFs.mkdirSync(join(process.cwd(), '.build', 'logs'), { recursive: true });
+				const probeWrite = (text: string) => probeFs.appendFileSync(probeLog, text + '\n');
+				type ProbeState = { ids: WeakMap<object, number>; next: number; phase: number; t0: number; gap: number; buffer: string[]; errors: number };
+				const probeGlobal = globalThis as unknown as { __ahProbe?: ProbeState };
+				if (!probeGlobal.__ahProbe) {
+					const state: ProbeState = { ids: new WeakMap(), next: 1, phase: 1, t0: Date.now(), gap: 0, buffer: [], errors: 0 };
+					probeGlobal.__ahProbe = state;
+					const sqlite3 = (await import('@vscode/sqlite3')).default as unknown as { Database: { prototype: Record<string, (...args: unknown[]) => unknown> } };
+					for (const method of ['run', 'get', 'all', 'exec', 'close']) {
+						const original = sqlite3.Database.prototype[method];
+						sqlite3.Database.prototype[method] = function (this: { filename?: string }, ...args: unknown[]) {
+							let id = state.ids.get(this);
+							if (id === undefined) {
+								id = state.next++;
+								state.ids.set(this, id);
+							}
+							const index = args.findIndex(arg => typeof arg === 'function');
+							if (index >= 0) {
+								const callback = args[index] as (this: unknown, error: Error | null, ...rest: unknown[]) => void;
+								const file = String(this.filename ?? '?').replace(/^.*ah-storage-compat-[^/\\]+[/\\]/, '').replace(/agentSessionData[/\\][^/\\]+[/\\]/, '');
+								const sql = method === 'close' ? 'CLOSE' : String(args[0]).replace(/\s+/g, ' ').slice(0, 60);
+								state.buffer.push(`${Date.now() - state.t0}\tP${state.phase}\tconn${id}\t${file}\tstart\t${sql}`);
+								args[index] = function (this: unknown, error: Error | null, ...rest: unknown[]) {
+									state.buffer.push(`${Date.now() - state.t0}\tP${state.phase}\tconn${id}\t${file}\t${error ? 'ERROR ' + error.message : 'end'}\t${sql}`);
+									if (error) {
+										state.errors++;
+										probeWrite(`[ah-probe] SQLERROR gap=${state.gap} phase=P${state.phase} t=${Date.now() - state.t0}ms conn${id} ${file} ${error.message} :: ${sql}`);
+									}
+									return callback.call(this, error, ...rest);
+								};
+							}
+							return original.apply(this, args);
+						};
+					}
+				}
+				const probe = probeGlobal.__ahProbe;
+				probe.t0 = Date.now();
+				probe.gap = reproDelay;
+				probe.phase = 1;
+				probe.buffer = [];
+				probe.errors = 0;
+				let probeFailed = true;
 
-			const second = await database();
-			const restarted = createService(second);
-			const agent = store.add(new MockAgent('copilotcli'));
-			const toolCallId = 'historical-task';
-			agent.sessionMessages = [
-				{ type: 'message', session: created, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
-				{ type: 'message', session: created, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId, name: 'task' }] },
-				{ type: 'tool_start', session: created, toolCallId, toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
-				{ type: 'subagent_started', session: created, toolCallId, agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
-				{ type: 'tool_complete', session: created, toolCallId, result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
-			];
-			const originalDefault = getTestAgentStateManager(creating).getSessionState(created.toString())!.defaultChat!;
-			await agent.chats.createChat(URI.parse(originalDefault), created);
-			registerTestAgentProvider(restarted, agent);
-			await restarted.restoreSession(created);
-			await timeout(50);
+				const probeDatas: SessionDataService[] = [];
+				const probeInspect = (service: unknown, data: SessionDataService | undefined): string => {
+					type Db = { _pendingWrites?: Set<unknown>; raw?: Db };
+					const live = data ? [...(data as unknown as { _databases: { liveDatabases: Set<Db> } })._databases.liveDatabases] : [];
+					const pending = live.reduce((sum, db) => sum + ((db._pendingWrites ?? db.raw?._pendingWrites)?.size ?? 0), 0);
+					const records = (service as { _sessionStateStore?: { _records?: Map<string, { scheduler: { isScheduled(): boolean } }> } })._sessionStateStore?._records;
+					const scheduled = records ? [...records.values()].filter(record => record.scheduler.isScheduled()).length : -1;
+					return `liveSessionDbs=${live.length} pendingSessionDbWrites=${pending} scheduledMirrorFlushes=${scheduled}`;
+				};
+				const probeTransitions: string[] = [];
+				let probeHosts = 0;
+				const probeStale: string[] = [];
+				const probeCalls = new Map<string, number>();
+				const probeData = (data: SessionDataService): SessionDataService => {
+					const host = ++probeHosts;
+					probeDatas.push(data);
+					const wrap = <R extends { object: object; dispose(): void } | undefined>(reference: R): R => {
+						if (!reference) {
+							return reference;
+						}
+						const object = new Proxy(reference.object, {
+							get(target, property, receiver) {
+								const value = Reflect.get(target, property, receiver);
+								if (typeof value !== 'function') {
+									return value;
+								}
+								return (...args: unknown[]) => {
+									probeCalls.set(`h${host}P${probe.phase}`, (probeCalls.get(`h${host}P${probe.phase}`) ?? 0) + 1);
+									if (probe.phase > host) {
+										probeStale.push(`host${host}.${String(property)}@P${probe.phase}+${Date.now() - probe.t0}ms`);
+									}
+									return (value as (...a: unknown[]) => unknown).apply(target, args);
+								};
+							},
+						});
+						return { object, dispose: () => reference.dispose() } as R;
+					};
+					const open = data.openDatabase.bind(data);
+					const tryOpen = data.tryOpenDatabase.bind(data);
+					data.openDatabase = session => wrap(open(session));
+					data.tryOpenDatabase = async session => wrap(await tryOpen(session));
+					return data;
+				};
+				try {
 
-			const state = getTestAgentStateManager(restarted).getSessionState(created.toString());
-			const parentChat = state?.defaultChat;
-			const subagent = state?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
-			const resolvedChat = subagent && await getTestAgentStateManager(restarted).resolveChatState(subagent.resource);
-			const subagentResource = subagent?.resource;
-			await second.close();
+					const db = await database();
+					const fileService = files();
+					const warnings: string[] = [];
+					const logService = new class extends NullLogService {
+						override warn(message: string): void { warnings.push(message); }
+					}();
+					const createService = (target: CompatibleAgentHostDatabase) => store.add(createTestAgentService(
+						logService, fileService, probeData(new SessionDataService(URI.file(directory), fileService, logService, undefined, target.identity)), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+						undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, target,
+					));
+					const creating = createService(db);
+					registerTestAgentProvider(creating, store.add(new MockAgent('copilotcli')));
+					const created = await creating.createSession({ legacyChatUris: false, provider: 'copilotcli' });
+					// Each restart must stop the previous host first, as a real restart does: its coalesced session.db mirror
+					// writes would otherwise fire on its own connection during the next host's restore (`SQLITE_BUSY` on Windows).
+					await creating.shutdown(); await timeout(reproDelay);
 
-			const third = await database();
-			const again = createService(third);
-			const freshAgent = store.add(new MockAgent('copilotcli'));
-			freshAgent.sessionMessages = agent.sessionMessages;
-			await freshAgent.chats.createChat(URI.parse(originalDefault), created);
-			registerTestAgentProvider(again, freshAgent);
-			await again.restoreSession(created);
-			await timeout(50);
-			const secondRestore = getTestAgentStateManager(again).getSessionState(created.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource);
-			assert.deepStrictEqual({ resolved: resolvedChat !== undefined, secondRestore }, { resolved: true, secondRestore: [subagentResource] });
-			assert.deepStrictEqual({
-				origin: subagent?.origin,
-				opaque: subagent?.resource.startsWith('ahp-chat:/') && !subagent.resource.startsWith('ahp-chat://'),
-				recorded: subagent !== undefined && second.identity.hasChat(subagent.resource),
-				warnings: warnings.filter(message => message.includes('admission') || message.includes('private chats')),
-			}, {
-				origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId },
-				opaque: true,
-				recorded: true,
-				warnings: [],
+					probeTransitions.push(`P2: prevHost ${probeInspect(creating, probeDatas[0])}`); probe.phase = 2; const second = await database();
+					const restarted = createService(second);
+					const agent = store.add(new MockAgent('copilotcli'));
+					const toolCallId = 'historical-task';
+					agent.sessionMessages = [
+						{ type: 'message', session: created, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+						{ type: 'message', session: created, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId, name: 'task' }] },
+						{ type: 'tool_start', session: created, toolCallId, toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+						{ type: 'subagent_started', session: created, toolCallId, agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+						{ type: 'tool_complete', session: created, toolCallId, result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+					];
+					const originalDefault = getTestAgentStateManager(creating).getSessionState(created.toString())!.defaultChat!;
+					await agent.chats.createChat(URI.parse(originalDefault), created);
+					registerTestAgentProvider(restarted, agent);
+					await restarted.restoreSession(created);
+					await timeout(50);
+
+					const state = getTestAgentStateManager(restarted).getSessionState(created.toString());
+					const parentChat = state?.defaultChat;
+					const subagent = state?.chats.find(chat => chat.origin?.kind === ChatOriginKind.Tool);
+					const resolvedChat = subagent && await getTestAgentStateManager(restarted).resolveChatState(subagent.resource);
+					const subagentResource = subagent?.resource;
+					await restarted.shutdown(); await timeout(reproDelay);
+
+					probeTransitions.push(`P3: prevHost ${probeInspect(restarted, probeDatas[1])}`); probe.phase = 3; const third = await database();
+					const again = createService(third);
+					const freshAgent = store.add(new MockAgent('copilotcli'));
+					freshAgent.sessionMessages = agent.sessionMessages;
+					await freshAgent.chats.createChat(URI.parse(originalDefault), created);
+					registerTestAgentProvider(again, freshAgent);
+					await again.restoreSession(created);
+					await timeout(50);
+					const secondRestore = getTestAgentStateManager(again).getSessionState(created.toString())?.chats.filter(chat => chat.origin?.kind === ChatOriginKind.Tool).map(chat => chat.resource);
+					await again.shutdown();
+					assert.deepStrictEqual({ resolved: resolvedChat !== undefined, secondRestore }, { resolved: true, secondRestore: [subagentResource] });
+					assert.deepStrictEqual({
+						origin: subagent?.origin,
+						opaque: subagent?.resource.startsWith('ahp-chat:/') && !subagent.resource.startsWith('ahp-chat://'),
+						recorded: subagent !== undefined && second.identity.hasChat(subagent.resource),
+						warnings: warnings.filter(message => message.includes('admission') || message.includes('private chats')),
+					}, {
+						origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId },
+						opaque: true,
+						recorded: true,
+						warnings: [],
+					});
+					probeFailed = false;
+				} finally {
+					probeWrite(`[ah-probe] SUMMARY gap=${reproDelay} failed=${probeFailed} sqlErrors=${probe.errors} staleHostSessionDbCalls=${probeStale.length} [${probeTransitions.join(' | ')}] calls=${[...probeCalls].map(([k, v]) => k + ':' + v).join(',')} ${probeStale.slice(0, 12).join(' ')}`);
+					if (probeFailed || probe.errors > 0) {
+						probeWrite(`[ah-probe] TRACE gap=${reproDelay}\n` + probe.buffer.join('\n'));
+					}
+				}
 			});
-		});
+		}
 	});
 });
