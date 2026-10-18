@@ -62,7 +62,7 @@ import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, read
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -3772,6 +3772,57 @@ suite('CopilotAgent', () => {
 				projectLaunchDenied: true,
 			});
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('requires workspace trust to launch project extensions', async () => {
+		const workspace = await fs.mkdtemp(`${os.tmpdir()}/copilot-project-extension-`);
+		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
+		const modulePath = join(extensionDirectory, 'extension.mjs');
+		await fs.mkdir(extensionDirectory, { recursive: true });
+		await fs.writeFile(modulePath, '');
+		const { agent, configurationService } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([]),
+		});
+		const internals = agent as unknown as {
+			_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
+			_resolveExtensionLaunch(modulePath: string, source: 'project', extensionBootstrapPath: string): Promise<{ readonly launch?: unknown }>;
+		};
+
+		try {
+			const admission = disposables.add(await internals._acquireExtensionLaunchAdmission([URI.file(workspace)]));
+			const missingTrustConfig = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			});
+			const untrusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+			});
+			const trusted = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] },
+			});
+			const trustDisabled = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			admission.dispose();
+			const noAdmission = await internals._resolveExtensionLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+
+			assert.deepStrictEqual({
+				missingTrustConfig: !!missingTrustConfig.launch,
+				untrusted: !!untrusted.launch,
+				trusted: !!trusted.launch,
+				trustDisabled: !!trustDisabled.launch,
+				noAdmission: !!noAdmission.launch,
+			}, {
+				missingTrustConfig: false,
+				untrusted: false,
+				trusted: true,
+				trustDisabled: true,
+				noAdmission: false,
+			});
+		} finally {
+			await fs.rm(workspace, { recursive: true, force: true });
 			await disposeAgent(agent);
 		}
 	});
