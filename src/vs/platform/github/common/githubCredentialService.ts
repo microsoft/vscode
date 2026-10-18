@@ -271,6 +271,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		try {
 			response = await this._transport.rest<IGitHubUserResponse>(bootstrapAccount, token, {
 				caller: 'github.credentials',
+				domain: 'credentials',
 				method: 'GET',
 				url: `${apiBaseUri}/user`,
 				etag: false,

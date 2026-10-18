@@ -199,6 +199,11 @@ export function deduplicateMarketplaceReferences(primary: readonly IMarketplaceR
 	return [...byCanonicalId.values()];
 }
 
+export function parseProviderMarketplaceReference(source: string): IMarketplaceReference | undefined {
+	const labeledSource = /^(?:GitHub|URL):\s+(?<source>.+)$/.exec(source)?.groups?.source;
+	return parseMarketplaceReference(labeledSource ?? source);
+}
+
 export function parseMarketplaceReference(value: string): IMarketplaceReference | undefined {
 	const rawValue = value.trim();
 	if (!rawValue) {

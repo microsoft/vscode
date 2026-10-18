@@ -29,7 +29,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
-import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
+import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { EDIT_ATTRIBUTION_RESOURCE_SCHEME, IAgentEditAttributionService } from '../common/fileEditAttribution.js';
 import { MCP_RESOURCE_SCHEME, TOOL_RESULT_RESOURCE_SCHEME } from '../common/mcpResourceUri.js';
@@ -46,7 +46,7 @@ import { AHP_CANVAS_SCHEME } from '../common/canvasUri.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
@@ -157,7 +157,7 @@ import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IAgentHostPeerChatPersistenceService, IPersistedPeerChat, type IOlderBuildEditsImport } from './agentHostPeerChatStore.js';
 import { chatCatalogAwaitsReprojection, migrateChatCatalogV2 } from './agentHostChatCatalogMigration.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
-import { IAgentHostTurnService } from './agentHostTurnService.js';
+import { IAgentHostTurnService, type IDeferredAgentHostTurn } from './agentHostTurnService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -2979,7 +2979,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let result: AgentHostCatalogSyncResult;
 		try {
 			// The request is built from this session's catalog alone.
-			await this._peerChatStore.whenSessionsIdle([session]);
+			await this._peerChatStore.whenIdle(session);
 			result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				await ownedWrite;
 				const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
@@ -6166,17 +6166,17 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.addMcpServerConfiguration(name, config);
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
 		const reservations = new DisposableStore();
 		try {
-			await this._createChatWithReservations(session, chat, options, reservations, credentials);
+			await this._createChatWithReservations(session, chat, options, reservations, credentials, initialMessageContext);
 		} finally {
 			reservations.dispose();
 		}
 	}
 
 	/** Creates a chat, reserving its folders in `reservations` from their validation until it is published. */
-	private async _createChatWithReservations(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, reservations: DisposableStore, credentials?: IAgentHostCredentialSource): Promise<void> {
+	private async _createChatWithReservations(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, reservations: DisposableStore, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
 		const sessionKey = session.toString();
 		const initiallyArchived = isSessionStatusArchived(this._stateManager.getSessionSummary(sessionKey)?.status);
 		credentials = await this._resolveExecutionCredentials(sessionKey, credentials);
@@ -6200,10 +6200,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`[AgentService] createChat: no provider for session ${sessionKey}`);
 		}
-		if (!this._supportsChats(provider)) {
-			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
-		}
-		this._orchestratorDatabase.recordChatStorageIdentity(sessionKey, chat.toString(), { kind: 'peer' });
 		// When forking, resolve the source chat's turns up to the fork point and
 		// mint fresh turn IDs for the new chat. The agent uses the mapping to
 		// remap per-turn data in the forked chat; the seeded turns make
@@ -6211,8 +6207,34 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
 		let forkedSourceTitle: string | undefined;
-		const { sideChat, ...providerOptions } = options ?? {};
-		let createOptions: IAgentCreateChatOptions | undefined = providerOptions;
+		let persistForkedLocalTurnsAfterDuplicateCheck: (() => void) | undefined;
+		const { sideChat, title: requestedTitle, initialMessage, ...providerOptions } = options ?? {};
+		if (initialMessage && !initialMessageContext) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'An initial chat message requires trusted submitting-client context.');
+		}
+		if (initialMessage && initialMessage.origin?.kind !== MessageKind.User) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'An initial chat message must have user origin.');
+		}
+		const initialFork = initialMessage !== undefined && providerOptions.fork !== undefined;
+		if (chat.toString() === defaultChat && initialMessage && initialMessageContext) {
+			if (initialFork) {
+				await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+					this._throwIfInitialForkTargetExists(sessionKey, chat, defaultChat);
+				});
+			}
+			await this._acceptInitialMessage(sessionKey, chat, initialMessage, initialMessageContext, credentials);
+			return;
+		}
+		if (!this._supportsChats(provider)) {
+			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
+		}
+		this._orchestratorDatabase.recordChatStorageIdentity(sessionKey, chat.toString(), { kind: 'peer' });
+		const explicitTitle = requestedTitle?.trim() || undefined;
+		const normalizedProviderOptions: IAgentCreateChatOptions = {
+			...providerOptions,
+			...(explicitTitle !== undefined ? { title: explicitTitle } : {}),
+		};
+		let createOptions: IAgentCreateChatOptions | undefined = normalizedProviderOptions;
 		// Persist exhaustive provenance for peer chats. Fresh user-created chats
 		// leave this undefined and default to `ChatOriginKind.User`.
 		let peerChatOrigin: ChatOrigin | undefined;
@@ -6220,7 +6242,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const resolvedSideChat = await this._resolveSideChatOrigin(session, sideChat);
 			peerChatOrigin = resolvedSideChat.origin;
 			createOptions = {
-				...providerOptions,
+				...normalizedProviderOptions,
 				...(resolvedSideChat.shouldFork
 					? {
 						fork: {
@@ -6285,8 +6307,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 				// Carry forked host-injected local turns (`/rename`, `!command`)
 				// into the new chat so they survive reload and anchor future
-				// fork/truncate.
-				this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns, turnIdMapping);
+				// fork/truncate. A composed fork first reserves its target in the
+				// serialized catalog path, so a rejected repeat cannot rewrite an
+				// existing target's local-turn metadata.
+				const persistForkedLocalTurns = () => this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns!, turnIdMapping);
+				if (initialFork) {
+					persistForkedLocalTurnsAfterDuplicateCheck = persistForkedLocalTurns;
+				} else {
+					persistForkedLocalTurns();
+				}
 
 				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
 				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sourceSessionKey)?.title;
@@ -6310,9 +6339,10 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
-		// The seed makes a new chat's own config values visible to the provider while it creates the chat.
-		const configSeed = this._configurationService.seedChatConfig(chat.toString(), this._initialChatConfig(sessionKey, chat.toString(), peerChatOrigin));
 		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+			if (initialFork) {
+				this._throwIfInitialForkTargetExists(sessionKey, chat, defaultChat);
+			}
 			if (!initiallyArchived && isSessionStatusArchived(this._stateManager.getSessionSummary(sessionKey)?.status)) {
 				throw new Error(localize('agentHost.sessionArchivedWhilePreparingChat', "The session was archived while preparing the new chat. Unarchive it before trying again."));
 			}
@@ -6320,106 +6350,116 @@ export class AgentService extends Disposable implements IAgentService {
 				|| this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0] !== initialPrimaryDirectory) {
 				throw new Error('The session workspace changed while preparing the new chat. Try creating the chat again.');
 			}
-			// Create the backing chat before publishing `session/chatAdded` so
-			// subscribers only see a chat that can already receive messages.
-			const createResult = await this._createChat(provider, chat, session, createOptions, credentials);
-			const providerData = createResult?.providerData;
-			const title = forkedTitle ?? options?.title;
-			const sessionState = this._stateManager.getSessionState(sessionKey);
-			if (!sessionState) {
-				await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
-				throw new Error(`[AgentService] createChat: session state disappeared for ${sessionKey}`);
-			}
-			const existingCatalogChats = this._catalogChatsFromState(sessionState, defaultChat).map(existing => (
-				existing.kind === 'default' && !existing.title && sessionState.title
-					? { ...existing, title: sessionState.title }
-					: existing
-			));
-			const newCatalogChat = {
-				uri: chat.toString(),
-				kind: 'peer' as const,
-				...(title !== undefined ? { title } : {}),
-				...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
-				...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
-			};
-			const existingIndex = existingCatalogChats.findIndex(existing => existing.uri === newCatalogChat.uri);
-			const catalogChats = existingIndex < 0
-				? [...existingCatalogChats, newCatalogChat]
-				: existingCatalogChats.map((existing, index) => index === existingIndex
-					? { ...existing, ...newCatalogChat, kind: existing.kind }
-					: existing);
-			this._catalogSyncSuppressedSessions.add(sessionKey);
+			// The seed makes a new chat's own config values visible to the provider while it creates the chat.
+			const configSeed = this._configurationService.seedChatConfig(chat.toString(), this._initialChatConfig(sessionKey, chat.toString(), peerChatOrigin));
 			try {
-				await this._peerChatStore.upsert(
-					session,
-					chat,
-					providerData,
-					peerChatOrigin,
-					createResult?.inheritedTurnId,
-					createOptions?.workingDirectories?.map(directory => directory.toString()),
-				);
-				if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
-					await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? sessionState.workingDirectories ?? []);
+				persistForkedLocalTurnsAfterDuplicateCheck?.();
+				// Create the backing chat before publishing `session/chatAdded` so
+				// subscribers only see a chat that can already receive messages.
+				const createResult = await this._createChat(provider, chat, session, createOptions, credentials);
+				const providerData = createResult?.providerData;
+				const title = explicitTitle ?? forkedTitle;
+				const selectedTitleSource = explicitTitle !== undefined
+					? AGENT_HOST_TITLE_SOURCE_USER
+					: forkedTitle !== undefined ? AGENT_HOST_TITLE_SOURCE_AUTO : undefined;
+				const sessionState = this._stateManager.getSessionState(sessionKey);
+				if (!sessionState) {
+					await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
+					throw new Error(`[AgentService] createChat: session state disappeared for ${sessionKey}`);
 				}
-				if (title !== undefined) {
-					await this._peerChatStore.persistMetadata(session, chat, {
-						[SESSION_CUSTOM_TITLE_KEY]: title,
-						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
-					});
-				}
-				await this._persistOrderedListVisibleSessionState(session, title === undefined ? {} : {
-					[customChatTitleMetadataKey(chat.toString())]: title,
-					[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
-				}, catalogChats);
-				// A fork or side chat's copied values are persisted before it is announced; a failure fails the creation.
-				const initialConfig = configSeed.values;
-				if (Object.keys(initialConfig).length > 0) {
-					await this._sessionStateStore.chatRows.setChatConfig(session, chat, initialConfig);
-				}
-				this._stateManager.addChat(sessionKey, chat.toString(), creationTimeChatStorageResource(sessionKey, chat.toString(), this._defaultChat(sessionKey)), {
-					...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
-					...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
-					...(providerData !== undefined ? { providerData } : {}),
+				const existingCatalogChats = this._catalogChatsFromState(sessionState, defaultChat).map(existing => (
+					existing.kind === 'default' && !existing.title && sessionState.title
+						? { ...existing, title: sessionState.title }
+						: existing
+				));
+				const newCatalogChat = {
+					uri: chat.toString(),
+					kind: 'peer' as const,
+					...(title !== undefined ? { title } : {}),
 					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
-					...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 					...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
-					...(Object.keys(initialConfig).length > 0 ? { config: { values: initialConfig } } : {}),
-				});
-				// The registered chat owns its values from here on.
-				configSeed.dispose();
-				this._consumePreparedChatWorkingDirectories(session, createOptions?.workingDirectories?.map(directory => directory.toString()) ?? []);
-				this._publishWorkingDirectoryIdentities(sessionKey);
-			} catch (error) {
-				const rollbackErrors: Error[] = [];
-				if (existingIndex < 0) {
-					// Captured before the rollback unregisters the chat: the storage its data was written to.
-					const storage = URI.parse(this._chatStorageResource(session, chat));
-					try {
-						await this._peerChatStore.remove(session, chat);
-					} catch (rollbackError) {
-						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+				};
+				const existingIndex = existingCatalogChats.findIndex(existing => existing.uri === newCatalogChat.uri);
+				const catalogChats = existingIndex < 0
+					? [...existingCatalogChats, newCatalogChat]
+					: existingCatalogChats.map((existing, index) => index === existingIndex
+						? { ...existing, ...newCatalogChat, kind: existing.kind }
+						: existing);
+				this._catalogSyncSuppressedSessions.add(sessionKey);
+				try {
+					await this._peerChatStore.upsert(
+						session,
+						chat,
+						providerData,
+						peerChatOrigin,
+						createResult?.inheritedTurnId,
+						createOptions?.workingDirectories?.map(directory => directory.toString()),
+					);
+					if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
+						await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? sessionState.workingDirectories ?? []);
 					}
-					try {
-						await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
-					} catch (rollbackError) {
-						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+					if (title !== undefined) {
+						await this._peerChatStore.persistMetadata(session, chat, {
+							[SESSION_CUSTOM_TITLE_KEY]: title,
+							[SESSION_CUSTOM_TITLE_SOURCE_KEY]: selectedTitleSource ?? AGENT_HOST_TITLE_SOURCE_AUTO,
+						});
 					}
-					try {
-						await this._sessionDataService.deleteSessionData(storage);
-					} catch (rollbackError) {
-						rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+					await this._persistOrderedListVisibleSessionState(session, title === undefined ? {} : {
+						[customChatTitleMetadataKey(chat.toString())]: title,
+						[customChatTitleSourceMetadataKey(chat.toString())]: selectedTitleSource ?? AGENT_HOST_TITLE_SOURCE_AUTO,
+					}, catalogChats);
+					// A fork or side chat's copied values are persisted before it is announced; a failure fails the creation.
+					const initialConfig = configSeed.values;
+					if (Object.keys(initialConfig).length > 0) {
+						await this._sessionStateStore.chatRows.setChatConfig(session, chat, initialConfig);
 					}
+					this._stateManager.addChat(sessionKey, chat.toString(), creationTimeChatStorageResource(sessionKey, chat.toString(), this._defaultChat(sessionKey)), {
+						...(title !== undefined ? { title } : {}),
+						...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
+						...(providerData !== undefined ? { providerData } : {}),
+						...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
+						...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
+						...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
+						...(Object.keys(initialConfig).length > 0 ? { config: { values: initialConfig } } : {}),
+					});
+					// The registered chat owns its values from here on.
+					configSeed.dispose();
+					this._consumePreparedChatWorkingDirectories(session, createOptions?.workingDirectories?.map(directory => directory.toString()) ?? []);
+					this._publishWorkingDirectoryIdentities(sessionKey);
+				} catch (error) {
+					const rollbackErrors: Error[] = [];
+					if (existingIndex < 0) {
+						// Captured before the rollback unregisters the chat: the storage its data was written to.
+						const storage = URI.parse(this._chatStorageResource(session, chat));
+						try {
+							await this._peerChatStore.remove(session, chat);
+						} catch (rollbackError) {
+							rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+						}
+						try {
+							await provider.chats.disposeChat(chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
+						} catch (rollbackError) {
+							rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+						}
+						try {
+							await this._sessionDataService.deleteSessionData(storage);
+						} catch (rollbackError) {
+							rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
+						}
+					}
+					if (rollbackErrors.length > 0) {
+						throw new AggregateError([error, ...rollbackErrors], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
+					}
+					throw error;
+				} finally {
+					this._catalogSyncSuppressedSessions.delete(sessionKey);
+					this._flushDeferredCatalogMetadataOverrides(session);
 				}
-				if (rollbackErrors.length > 0) {
-					throw new AggregateError([error, ...rollbackErrors], `Failed to persist and roll back chat ${chat.toString()}: ${toErrorMessage(error)}`);
-				}
-				throw error;
+				return createResult;
 			} finally {
-				this._catalogSyncSuppressedSessions.delete(sessionKey);
-				this._flushDeferredCatalogMetadataOverrides(session);
+				configSeed.dispose();
 			}
-			return createResult;
-		}).finally(() => configSeed.dispose());
+		});
 		this._sessionResidency.touch(session);
 		void this._sessionResidency.reconcile();
 
@@ -6431,14 +6471,59 @@ export class AgentService extends Disposable implements IAgentService {
 		if (createResult?.backingSession) {
 			await this._markChatBacking(createResult.backingSession, session, chat);
 		}
-
-		// Refine the forked chat's placeholder `Forked: …` title into one
-		// derived from the inherited chat. Forks seed pre-existing
-		// turns, so the normal first-message/first-turn title generation never
-		// fires for them — this is the fork-time equivalent.
-		if (forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
-			this._sideEffects.generateForkedTitle(sessionKey, chat.toString(), forkedTurns, forkedTitle, forkedSourceTitle);
+		// A prompt-bearing fork must establish its one strategy-owned title path
+		// before the first new turn is admitted. Explicit titles remain user-owned.
+		if (explicitTitle === undefined && forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
+			this._sideEffects.generateForkedTitle(
+				sessionKey,
+				chat.toString(),
+				forkedTurns,
+				forkedTitle,
+				forkedSourceTitle,
+				initialMessage?.text,
+			);
 		}
+		if (initialMessage && initialMessageContext) {
+			await this._acceptInitialMessage(sessionKey, chat, initialMessage, initialMessageContext, credentials);
+		}
+
+	}
+
+	private _throwIfInitialForkTargetExists(session: string, chat: URI, defaultChat: string): void {
+		const state = this._stateManager.getSessionState(session);
+		if (chat.toString() === defaultChat || (state !== undefined && this._catalogChatsFromState(state, defaultChat).some(candidate => candidate.uri === chat.toString()))) {
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Chat already exists: ${chat.toString()}`);
+		}
+	}
+
+	private async _acceptInitialMessage(session: string, chat: URI, message: Message, context: IAgentCreateChatInitialMessageContext, credentials?: IAgentHostCredentialSource): Promise<void> {
+		const action: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: generateUuid(),
+			startedAt: new Date().toISOString(),
+			message,
+		};
+		let rewritten: ChatTurnStartedAction;
+		try {
+			rewritten = await this._rewriteUserMessageAttachments(session, chat.toString(), action, context.clientId, true);
+		} catch (error) {
+			let turn: IDeferredAgentHostTurn;
+			try {
+				turn = this._turnService.beginDeferredTurnMessage(chat, message, credentials);
+			} catch {
+				throw error;
+			}
+			if (!this._turnService.failDeferredTurnMessage(chat, turn, {
+				errorType: 'attachmentPreparationFailed',
+				message: toErrorMessage(error),
+			})) {
+				this._logService.info(`[AgentService] The initial turn for ${chat.toString()} ended before its attachment failure could be reported.`);
+			}
+			return;
+		}
+		// The submitting client cleared its composer once `createChat` resolved,
+		// so a rejection here is the only surviving record of the prompt.
+		this._turnService.startClientTurn(chat, rewritten, context.clientId, context.telemetryContext, credentials, { recoverableRejection: false });
 	}
 
 	/**
@@ -9004,6 +9089,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _whenSessionDataIdle(session: URI): Promise<void> {
+		await this._peerChatStore.whenSessionIdle(session);
+		await this._whenBackgroundCatalogStateWritesIdle(session.toString());
 		const ref = this._sessionDataService.openDatabase(session);
 		try {
 			// A released session's pending older-build copy is published while its database is still held.
@@ -9846,7 +9933,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let requestUnavailable = false;
 		try {
 			// The request is built from this session's catalog alone.
-			await this._peerChatStore.whenSessionsIdle([session]);
+			await this._peerChatStore.whenIdle(session);
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
 				const sessionKey = session.toString();
 				const catalog = await this._orchestratorDatabase.getSessionV2(sessionKey);
@@ -11103,9 +11190,10 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.rejectClientAction(channel, action, origin, 'The session provider does not support steering messages.');
 				return;
 			}
+			// Steering handed to the provider cannot be edited, and can be removed only if the provider can withdraw it.
 			if (state?.activeTurn && existing?.kind === PendingMessageKind.Steering
 				&& (action.type === ActionType.ChatPendingMessageRemoved
-					? action.kind === PendingMessageKind.Steering
+					? action.kind === PendingMessageKind.Steering && !this._providerService.getProviderForSession(sessionChannel)?.withdrawSteeringMessage
 					: action.kind !== existing.kind || !equals(existing.message, action.message))) {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot change a steering message while it is being processed.');
 				return;
@@ -11340,20 +11428,20 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, chatChannel: string, action: T, clientId: string): Promise<T> {
+	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, chatChannel: string, action: T, clientId: string, throwOnFailure = false): Promise<T> {
 		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
 		const roots = this._attachmentRoots(channel, chatChannel);
-		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, roots, clientId)));
+		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, roots, clientId, throwOnFailure)));
 		return {
 			...action,
 			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
-	private async _rewriteSingleAttachment(attachment: MessageAttachment, roots: { readonly write: URI; readonly known: readonly URI[] }, clientId: string): Promise<MessageAttachment> {
+	private async _rewriteSingleAttachment(attachment: MessageAttachment, roots: { readonly write: URI; readonly known: readonly URI[] }, clientId: string, throwOnFailure: boolean): Promise<MessageAttachment> {
 		try {
 			if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 				const bytes = decodeBase64(attachment.data).buffer;
@@ -11383,6 +11471,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
+			if (throwOnFailure) {
+				throw err;
+			}
 		}
 		return attachment;
 	}
