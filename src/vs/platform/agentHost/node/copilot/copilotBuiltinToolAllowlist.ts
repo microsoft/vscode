@@ -22,6 +22,8 @@ import { RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.
  * Adding a name here is an adoption decision for the tool budget owners, whom
  * `.github/CODENOTIFY` notifies. When that test reports a new runtime built-in, the
  * default fix is to add it to `KNOWN_LEFT_OFF` in the test, not to adopt it here.
+ * A rename of a tool already listed here is the exception: replace the old name
+ * with the new one so the capability stays on.
  */
 export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	// Shell. The runtime registers one family per platform and shell.

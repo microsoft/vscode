@@ -32,7 +32,9 @@ const MODES = ['interactive', 'plan', 'autopilot'] as const;
  * passes while the tool stays off for every session. Adopting a tool into
  * `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` instead puts its definition in front of
  * the model on every request, so it is a decision for the tool budget owners,
- * whom `.github/CODENOTIFY` notifies. Never adopt a tool just to make this test pass.
+ * whom `.github/CODENOTIFY` notifies. Never adopt a new tool just to make this
+ * test pass. A rename of an already adopted tool is different: replace the old
+ * name with the new one in the allow-list so the capability stays on.
  */
 const KNOWN_LEFT_OFF: Readonly<Record<string, string>> = {
 	dynamic_workflows_manage: 'dynamic workflows are excluded by CopilotSessionLauncher until Agent Host support is validated',
@@ -63,23 +65,35 @@ const NOT_EXERCISED: Readonly<Record<string, string>> = {
 };
 
 /**
- * Builds the failure message: which names disagree and the default fix for each.
- * Agents asked to make this test pass follow it, so it must steer toward
- * leaving tools off rather than adopting them.
+ * Builds the failure message: which names disagree and the fix for each.
+ * Agents asked to make this test pass follow it, so it must steer a new tool
+ * toward `KNOWN_LEFT_OFF` and a renamed adopted tool toward its new name.
  */
-function describeDrift(registeredButNotAllowListed: readonly string[], allowListedButNotRegistered: readonly string[], filteredMismatches: readonly string[]): string {
+function describeDrift(registered: ReadonlyMap<string, string>, registeredButNotAllowListed: readonly string[], allowListedButNotRegistered: readonly string[], filteredMismatches: readonly string[]): string {
 	const lines = ['The bundled runtime\'s built-in tools and COPILOT_ENABLED_BUILTIN_TOOL_NAMES disagree (see section 9 of src/vs/platform/agentHost/AGENTS.md).'];
 	const unreviewed = registeredButNotAllowListed.filter(name => !Object.hasOwn(KNOWN_LEFT_OFF, name));
+	const missing = allowListedButNotRegistered.filter(name => !Object.hasOwn(NOT_EXERCISED, name));
 	if (unreviewed.length) {
-		lines.push(`New runtime built-ins: ${unreviewed.join(', ')}. Default fix: add each to KNOWN_LEFT_OFF in this file with a reason such as 'new in SDK x.y.z, not reviewed'. That keeps it off for every session. Do not add it to COPILOT_ENABLED_BUILTIN_TOOL_NAMES to make this test pass; adopting a tool is a decision for the tool budget owners listed for copilotBuiltinToolAllowlist.ts in .github/CODENOTIFY.`);
+		lines.push(`New runtime built-ins:`);
+		for (const name of unreviewed) {
+			lines.push(`  - ${name}: ${(registered.get(name) ?? '').replace(/\s+/g, ' ').slice(0, 200)}`);
+		}
+	}
+	if (missing.length) {
+		lines.push(`Allow-listed but no longer registered: ${missing.join(', ')}.`);
+	}
+	if (unreviewed.length && missing.length) {
+		lines.push('Check each new built-in for a rename first. It is a rename when it does the same job as a missing allow-listed tool; compare its description above with the old tool\'s definition in test/node/e2e/providers/__snapshots__/*.prompt.md. For a rename, adopt the new name so the capability stays on: replace the old name with the new one in COPILOT_ENABLED_BUILTIN_TOOL_NAMES and in expectedModelFacingToolNames (copilotPromptsE2E.integrationTest.ts), add the new name to the tool display mapping (CopilotToolName in copilotToolDisplay.ts and the aliases in toolPresentation.ts) while keeping the old entry so restored sessions still render, regenerate the prompt snapshots, and name the rename in the PR description.');
+	}
+	if (unreviewed.length) {
+		lines.push('For a new built-in that is not a rename, add it to KNOWN_LEFT_OFF in this file with a reason such as \'new in SDK x.y.z, not reviewed\'. That keeps it off for every session. Do not add it to COPILOT_ENABLED_BUILTIN_TOOL_NAMES to make this test pass; adopting a new tool is a decision for the tool budget owners listed for copilotBuiltinToolAllowlist.ts in .github/CODENOTIFY.');
+	}
+	if (missing.length) {
+		lines.push('For a missing tool that was not renamed, remove it from COPILOT_ENABLED_BUILTIN_TOOL_NAMES and expectedModelFacingToolNames, and keep its display mapping for restored sessions.');
 	}
 	const staleLeftOff = Object.keys(KNOWN_LEFT_OFF).filter(name => !registeredButNotAllowListed.includes(name));
 	if (staleLeftOff.length) {
 		lines.push(`No longer registered by the runtime: ${staleLeftOff.join(', ')}. Remove them from KNOWN_LEFT_OFF.`);
-	}
-	const missing = allowListedButNotRegistered.filter(name => !Object.hasOwn(NOT_EXERCISED, name));
-	if (missing.length) {
-		lines.push(`Allow-listed but no longer registered: ${missing.join(', ')}. Default fix: remove them from COPILOT_ENABLED_BUILTIN_TOOL_NAMES, and treat any replacement name as a new runtime built-in (KNOWN_LEFT_OFF). If one was renamed, the allow-list owners decide whether to adopt the new name.`);
 	}
 	const staleNotExercised = Object.keys(NOT_EXERCISED).filter(name => !allowListedButNotRegistered.includes(name));
 	if (staleNotExercised.length) {
@@ -166,8 +180,8 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 		}
 	});
 
-	/** The built-ins a session registers across every mode, sorted. */
-	async function registeredBuiltins(model: string, availableTools: string[] | undefined): Promise<string[]> {
+	/** The built-ins a session registers across every mode, by name, with their descriptions. */
+	async function registeredBuiltins(model: string, availableTools: string[] | undefined): Promise<Map<string, string>> {
 		const config: SessionConfig = {
 			model,
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
@@ -186,18 +200,18 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 		};
 		const session = await client!.createSession(config);
 		try {
-			const names = new Set<string>();
+			const tools = new Map<string, string>();
 			for (const mode of MODES) {
 				await session.rpc.mode.set({ mode });
 				await session.rpc.tools.initializeAndValidate();
-				const { tools } = await session.rpc.tools.getCurrentMetadata();
-				for (const tool of tools ?? []) {
+				const metadata = await session.rpc.tools.getCurrentMetadata();
+				for (const tool of metadata.tools ?? []) {
 					if (!tool.mcpServerName) {
-						names.add(tool.name);
+						tools.set(tool.name, tool.description);
 					}
 				}
 			}
-			return [...names].sort();
+			return tools;
 		} finally {
 			await session.disconnect();
 		}
@@ -207,19 +221,19 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 		this.timeout(240_000);
 
 		const allowListed = new Set(COPILOT_ENABLED_BUILTIN_TOOL_NAMES);
-		const registered = new Set<string>();
+		const registered = new Map<string, string>();
 		const filteredMismatches: string[] = [];
 		for (const model of MODELS) {
 			const unfiltered = await registeredBuiltins(model, undefined);
-			const filtered = await registeredBuiltins(model, [...COPILOT_DEFAULT_AVAILABLE_TOOLS]);
-			unfiltered.forEach(name => registered.add(name));
-			const expectedFiltered = unfiltered.filter(name => allowListed.has(name));
+			const filtered = [...(await registeredBuiltins(model, [...COPILOT_DEFAULT_AVAILABLE_TOOLS])).keys()].sort();
+			unfiltered.forEach((description, name) => registered.set(name, description));
+			const expectedFiltered = [...unfiltered.keys()].filter(name => allowListed.has(name)).sort();
 			if (JSON.stringify(filtered) !== JSON.stringify(expectedFiltered)) {
 				filteredMismatches.push(`${model}: expected [${expectedFiltered.join(', ')}] but got [${filtered.join(', ')}]`);
 			}
 		}
 
-		const registeredButNotAllowListed = [...registered].filter(name => !allowListed.has(name)).sort();
+		const registeredButNotAllowListed = [...registered.keys()].filter(name => !allowListed.has(name)).sort();
 		const allowListedButNotRegistered = [...allowListed].filter(name => !registered.has(name)).sort();
 		assert.deepStrictEqual({
 			registeredButNotAllowListed,
@@ -229,6 +243,6 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			registeredButNotAllowListed: Object.keys(KNOWN_LEFT_OFF).sort(),
 			allowListedButNotRegistered: Object.keys(NOT_EXERCISED).sort(),
 			filteredMismatches: [],
-		}, describeDrift(registeredButNotAllowListed, allowListedButNotRegistered, filteredMismatches));
+		}, describeDrift(registered, registeredButNotAllowListed, allowListedButNotRegistered, filteredMismatches));
 	});
 });
