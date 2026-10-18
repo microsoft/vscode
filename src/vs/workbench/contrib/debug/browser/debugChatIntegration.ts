@@ -276,10 +276,18 @@ function createDebugVariableEntry(expression: IExpression): IDebugVariableEntry 
 	};
 }
 
-function createPausedLocationEntry(stackFrame: IStackFrame): IChatRequestFileEntry {
+/**
+ * Creates the chat attachment for the location the debugger is paused at.
+ */
+export function createPausedLocationEntry(stackFrame: IStackFrame): IChatRequestFileEntry {
 	const uri = stackFrame.source.uri;
 	let range = Range.lift(stackFrame.range);
-	if (range.isEmpty()) {
+	if (range.startLineNumber < 1 || range.startColumn < 1) {
+		// Debug adapters report 0 for a line or column they don't know. Attach the whole
+		// line instead, since chat participants can't handle a range with a zero position.
+		const lineNumber = Math.max(1, range.startLineNumber);
+		range = new Range(lineNumber, 1, lineNumber + 1, 1);
+	} else if (range.isEmpty()) {
 		range = range.setEndPosition(range.startLineNumber + 1, 1);
 	}
 
