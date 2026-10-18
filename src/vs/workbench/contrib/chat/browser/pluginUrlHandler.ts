@@ -20,9 +20,10 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IURLHandler, IURLService } from '../../../../platform/url/common/url.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { AICustomizationManagementCommands } from '../common/aiCustomizationWorkspaceService.js';
-import { IChatSessionsService, SessionType } from '../common/chatSessionsService.js';
+import { IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
 import { isUntitledChatSession } from '../common/model/chatUri.js';
@@ -54,6 +55,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._register(urlService.registerHandler(this));
@@ -136,7 +138,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			await this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
 				showDiscover: true,
 				sessionResource: session.resource,
-				searchQuery: pluginName ?? marketplace.name,
+				searchQuery: pluginName ?? '',
 			});
 		} catch (error) {
 			if (!isCancellationError(error)) {
@@ -177,11 +179,18 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		if (!confirmed) {
 			return undefined;
 		}
-		const created = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionEditor.${SessionType.AgentHostCopilot}`);
-		if (!created || created.scheme !== SessionType.AgentHostCopilot) {
+		const options: INewSessionInAgentsWindowOptions = { noWorkspace: true, agentHostProvider: COPILOT_CLI_AGENT_PROVIDER_ID };
+		const created = this.environmentService.isSessionsWindow
+			? await this.commandService.executeCommand<URI | undefined>(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, options)
+			: await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionEditor.${SessionType.AgentHostCopilot}`);
+		if (!URI.isUri(created) || created.scheme !== SessionType.AgentHostCopilot) {
 			throw new Error(localize('pluginLinkSessionCreationFailed', "Could not create a Copilot Agent Host session for this link."));
 		}
 		resource = created;
+		if (this.environmentService.isSessionsWindow) {
+			// Agents-window drafts already own their backend session; do not create a second provisional one.
+			return { resource, backendResource: resource };
+		}
 		const backendResource = await this.provisionalSessionService.getOrCreate(resource, COPILOT_CLI_AGENT_PROVIDER_ID, this.newSessionFolderService.resolveNewSessionPrimary(resource));
 		if (!backendResource) {
 			throw new Error(localize('pluginLinkSessionCreationFailed', "Could not create a Copilot Agent Host session for this link."));

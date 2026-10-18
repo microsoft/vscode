@@ -23,13 +23,14 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IURLService } from '../../../../../../platform/url/common/url.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IAgentSessionsModel, IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { PluginUrlHandler } from '../../../browser/pluginUrlHandler.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
-import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
@@ -39,6 +40,7 @@ suite('PluginUrlHandler', () => {
 	const sessionResource = URI.parse(`${SessionType.AgentHostCopilot}:/existing`);
 	const draftResource = URI.parse(`${SessionType.AgentHostCopilot}:/untitled-new`);
 	const backendResource = URI.parse('ahp-session:/opaque-backend');
+	const agentsDraftResource = URI.parse(`${SessionType.AgentHostCopilot}:/agents-draft`);
 
 	function createHandler(options: {
 		activeResource?: URI;
@@ -56,6 +58,7 @@ suite('PluginUrlHandler', () => {
 		pluginMissing?: boolean;
 		paginated?: boolean;
 		createFailed?: boolean;
+		isSessionsWindow?: boolean;
 		backendFailed?: boolean;
 		failure?: 'add' | 'query' | 'install';
 		cancelled?: boolean;
@@ -162,8 +165,16 @@ suite('PluginUrlHandler', () => {
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		instantiationService.stub(ICommandService, 'executeCommand', async (id: string, ...args: unknown[]) => {
 			commands.push({ id, args });
-			return id.startsWith('workbench.action.chat.openNewSessionEditor.') && !options.createFailed ? draftResource : undefined;
+			if (id === NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID) {
+				return options.createFailed ? undefined : agentsDraftResource;
+			}
+			if (id === `workbench.action.chat.openNewSessionEditor.${SessionType.AgentHostCopilot}`) {
+				return options.createFailed ? undefined : draftResource;
+			}
+			assert.strictEqual(id, AICustomizationManagementCommands.OpenEditor);
+			return undefined;
 		});
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false });
 		instantiationService.stub(IHostService, { focus: async () => { } });
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
@@ -197,7 +208,7 @@ suite('PluginUrlHandler', () => {
 				errors: [],
 				commands: [{
 					id: AICustomizationManagementCommands.OpenEditor,
-					args: [{ showDiscover: true, sessionResource, searchQuery: 'catalog' }],
+					args: [{ showDiscover: true, sessionResource, searchQuery: '' }],
 				}],
 			});
 		});
@@ -288,6 +299,34 @@ suite('PluginUrlHandler', () => {
 		assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, { calls: ['resolve'], commands: [], errors: [] });
 	});
 
+	test('uses the Agents-window new session command without creating a second backend', async () => {
+		const fixture = createHandler({ activeResource: URI.parse('local:/session'), isSessionsWindow: true });
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			dialogs: fixture.dialogs.length,
+			commands: fixture.commands,
+			errors: fixture.errors,
+		}, {
+			calls: ['resolve', `add:${agentsDraftResource}:acme/plugins`, `query:${agentsDraftResource}:catalog:`, `install:${agentsDraftResource}:catalog/my-plugin`],
+			dialogs: 2,
+			commands: [{
+				id: NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID,
+				args: [{ noWorkspace: true, agentHostProvider: 'copilotcli' }],
+			}, {
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ showDiscover: true, sessionResource: agentsDraftResource, searchQuery: 'my-plugin' }],
+			}],
+			errors: [],
+		});
+	});
+
+	test('declining session creation in the Agents window does not invoke a command', async () => {
+		const fixture = createHandler({ activeResource: draftResource, isSessionsWindow: true, confirmations: [true, false] });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ commands: fixture.commands, calls: fixture.calls, errors: fixture.errors }, { commands: [], calls: ['resolve'], errors: [] });
+	});
+
 	test('does not reuse archived sessions without asking to create a new one', async () => {
 		const fixture = createHandler({ activeResource: URI.parse('local:/session'), existingSession: true, archivedSession: true, confirmations: [true, false] });
 		await fixture.handler.handleURL(uri());
@@ -300,6 +339,7 @@ suite('PluginUrlHandler', () => {
 		{ pluginsEnabled: false },
 		{ activeResource: draftResource, available: false },
 		{ activeResource: draftResource, createFailed: true },
+		{ activeResource: draftResource, isSessionsWindow: true, createFailed: true },
 		{ activeResource: draftResource, backendFailed: true },
 		{ managementUnavailable: true },
 		{ installUnavailable: true },
