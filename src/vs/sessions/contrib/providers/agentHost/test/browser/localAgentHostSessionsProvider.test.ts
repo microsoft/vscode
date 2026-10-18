@@ -10164,34 +10164,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 				mainIsDefault: true,
 				peerTitle: 'Peer',
 			});
+		});
 
-			test('chat workspaces expose explicit subsets and inherit the full session workspace', () => {
-				const provider = createProvider(disposables, agentHost);
-				const primaryDirectory = URI.file('/workspace-primary');
-				const peerDirectory = URI.file('/workspace-peer');
-				const session = setupMultiChatSession(provider, 'multi-workspaces', [primaryDirectory, peerDirectory]);
-				const sessionUri = AgentSession.uri('copilotcli', 'multi-workspaces').toString();
-				const defaultChat = buildDefaultChatUri(sessionUri);
-				const peerChat = buildChatUri(sessionUri, 'peer-1');
-				const inheritedPeerChat = buildChatUri(sessionUri, 'peer-2');
+		test('chat workspaces expose explicit subsets and inherit the full session workspace', () => {
+			const provider = createProvider(disposables, agentHost);
+			const primaryDirectory = URI.file('/workspace-primary');
+			const peerDirectory = URI.file('/workspace-peer');
+			const session = setupMultiChatSession(provider, 'multi-workspaces', [primaryDirectory, peerDirectory]);
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-workspaces').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const inheritedPeerChat = buildChatUri(sessionUri, 'peer-2');
 
-				agentHost.setSessionState('multi-workspaces', 'copilotcli', makeState([
-					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
-					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
-					makeChatSummary(inheritedPeerChat, 'Inherited Peer'),
-				], { defaultChat }));
+			agentHost.setSessionState('multi-workspaces', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [primaryDirectory.toString()]),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [peerDirectory.toString()]),
+				makeChatSummary(inheritedPeerChat, 'Inherited Peer'),
+			], { defaultChat }));
 
-				assert.deepStrictEqual({
-					session: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
-					defaultChat: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
-					peerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
-					inheritedPeerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-2')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
-				}, {
-					session: [primaryDirectory.toString(), peerDirectory.toString()],
-					defaultChat: [primaryDirectory.toString()],
-					peerChat: [peerDirectory.toString()],
-					inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
-				});
+			assert.deepStrictEqual({
+				session: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				defaultChat: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				peerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				inheritedPeerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-2')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+			}, {
+				session: [primaryDirectory.toString(), peerDirectory.toString()],
+				defaultChat: [primaryDirectory.toString()],
+				peerChat: [peerDirectory.toString()],
+				inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
 			});
 		});
 

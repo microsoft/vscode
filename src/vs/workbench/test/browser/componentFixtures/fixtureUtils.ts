@@ -12,6 +12,7 @@ import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDis
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { disableScrollbarRevealOnScroll } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -1165,6 +1166,11 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			// Replace Math.random with a seeded PRNG so fixtures render deterministically.
 			disposableStore.add(pushRandomOverwrite(42));
 
+			// Auto-hiding scrollbars would otherwise flash on layout changes and race the screenshot.
+			if (context.host.kind === 'headless') {
+				context.addDisposable(disableScrollbarRevealOnScroll());
+			}
+
 			// Do not enable virtual time in explorer ui, as multiple fixtures are rendered in parallel.
 			const virtualTimeEnabled = (options.virtualTime?.enabled ?? true) && context.host.kind !== 'explorer-ui';
 			// Detect disposable leaks the same way unit tests do (`ensureNoDisposablesAreLeakedInTestSuite`).
@@ -1209,6 +1215,14 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			);
 			const virtualTimeApi = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 			const teardownDrainMs = options.virtualTime?.teardownDrainMs ?? 1100;
+			// Installed while the render is pending. A render that outlives the explorer's
+			// timeout must not keep its virtual clock global, or the explorer's dispose and the
+			// next fixture would schedule work on a clock that nothing advances.
+			let renderTimeApi: IDisposable | undefined;
+			const uninstallRenderTimeApi = () => {
+				renderTimeApi?.dispose();
+				renderTimeApi = undefined;
+			};
 
 			// Single async dispose orchestrates teardown order:
 			//   1. dispose user disposables (synchronous part)
@@ -1225,6 +1239,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					// land in `p` and can be drained below. Render unpushes
 					// virtual time when it completes (so screenshot capture
 					// etc. can use real timers), so we have to push again.
+					uninstallRenderTimeApi();
 					let teardownTimeApi: IDisposable | undefined;
 					if (virtualTimeEnabled) {
 						teardownTimeApi = pushGlobalTimeApi(virtualTimeApi);
@@ -1284,7 +1299,6 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 					onDidChangeEnableAnimations.fire(enabled);
 				});
 
-				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
 					renderTimeApi = pushGlobalTimeApi(virtualTimeApi);
 
@@ -1345,7 +1359,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				} finally {
 					// Unpush virtual time so the post-render flow (screenshot
 					// capture, stability checks, …) runs with real timers.
-					renderTimeApi?.dispose();
+					uninstallRenderTimeApi();
 				}
 			}
 

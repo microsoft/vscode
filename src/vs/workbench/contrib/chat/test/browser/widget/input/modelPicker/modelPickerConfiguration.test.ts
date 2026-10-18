@@ -165,8 +165,8 @@ suite('ModelPickerConfiguration', () => {
 			value: 64000,
 			schema: { type: 'number', enum: [32000, 64000], enumDescriptions: ['Standard', 'Extended'], default: 32000, readOnly: true },
 		}), [
-			{ index: 0, value: 32000, label: '32K', description: 'Standard', checked: false, isDefault: true, readOnly: true },
-			{ index: 1, value: 64000, label: '64K', description: 'Extended', checked: true, isDefault: false, readOnly: true },
+			{ index: 0, value: 32000, label: '32K', description: 'Standard', checked: false, isDefault: true, readOnly: true, unavailable: false },
+			{ index: 1, value: 64000, label: '64K', description: 'Extended', checked: true, isDefault: false, readOnly: true, unavailable: false },
 		]);
 	});
 
@@ -258,5 +258,13 @@ suite('ModelPickerConfiguration', () => {
 		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, enum: ['balanced', 'max'], enumItemLabels: ['Balance', 'Intelligence'] } } };
 		const valueFor = (saved: unknown) => getModelConfigProperty(model, createAccess({ tier: saved }, schema), 'navigation')?.value;
 		assert.deepStrictEqual({ dropped: valueFor('eco'), offered: valueFor('max') }, { dropped: 'balanced', offered: 'max' });
+	});
+
+	test('a saved tier the provider now lists as unavailable reads as its default', () => {
+		const model = createTierModel();
+		const original = model.metadata.configurationSchema!;
+		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, enum: ['balanced', 'max'], enumItemLabels: ['Balance', 'Max'], enumItemDisabled: [false, true] } } };
+		const valueFor = (saved: unknown) => getModelConfigProperty(model, createAccess({ tier: saved }, schema), 'navigation')?.value;
+		assert.deepStrictEqual({ unavailable: valueFor('max'), available: valueFor('balanced') }, { unavailable: 'balanced', available: 'balanced' });
 	});
 });

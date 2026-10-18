@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IReference, toDisposable } from '../../../
 import { ClientConnectionEvent, IChannel, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { parseGraphQLRequest } from '../../common/client/graphql.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
@@ -23,7 +23,7 @@ import { PullRequestListItem } from '../../common/core/pullRequests.js';
 import { ReviewThread, ReviewThreadSummary, ThreadComment } from '../../common/core/reviews.js';
 import { PullRequestSearchItem } from '../../common/core/search.js';
 import { ApiRequestProviders, GitHubService, IGitHubRequestProviderScope } from '../../common/githubService.js';
-import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError, IGitHubCredentialProvider } from '../../common/githubTypes.js';
+import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError, IGitHubCredentialProvider, MissingCommitError } from '../../common/githubTypes.js';
 import { ApiRequestError, MutationUncertainError } from '../../common/missionControl/missionControlClient.js';
 import { ApiRequestMessage, ApiResponseMessage, IGitHubCredentialBroker, parseAuthorization } from '../../common/remote/ipc.js';
 import { GitHubChannelClient, RemoteApiRequestProvider } from '../../common/remote/ipcClient.js';
@@ -75,8 +75,7 @@ class RecordingGitHubService extends GitHubService {
 	}
 }
 
-function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 })) {
-	const logService = store.add(new NullLogService());
+function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService())) {
 	const service = store.add(new RecordingGitHubService({
 		fetch,
 		credentialProvider: {
@@ -415,6 +414,11 @@ suite('GitHub anonymous IPC clients', () => {
 				name: 'SchemaError',
 			});
 		}
+		for (const priority of [null, '', 'urgent', 1]) {
+			await assert.rejects(connection.channel.call('request', [{ clientId: 'client', target: 'rest', request: { ...read, options: { priority } } }, undefined]), {
+				name: 'SchemaError',
+			});
+		}
 		await assert.rejects(connection.channel.call('request', { clientId: 'client' }), { name: 'SchemaError' });
 		await assert.rejects(connection.channel.call('request', [message('client')[0], {}]), { name: 'SchemaError' });
 		await assert.rejects(connection.channel.call('acquireAnonymousClient', { clientId: '' }), { name: 'SchemaError' });
@@ -701,6 +705,48 @@ suite('GitHub authenticated IPC clients', () => {
 		return { ...server, connect };
 	}
 
+	for (const missing of [false, true]) {
+		test(`classifies commit lookup errors after IPC execution (missing=${missing})`, async () => {
+			const body = JSON.stringify({ message: missing ? 'No commit found for SHA: head' : 'Validation Failed' });
+			const requests: string[] = [];
+			const { connect } = setup(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				return path === '/user' ? Response.json({ id: 101 }) : new Response(body, {
+					status: 422, statusText: 'Unprocessable Entity',
+					headers: { 'X-GitHub-Request-Id': 'remote-commit-lookup' },
+				});
+			});
+			const { remote } = connect();
+			const client = store.add(await remote.acquireClient(authorization, signal()));
+			const repository = { owner: 'o', name: 'r' };
+			for (const operation of [
+				() => client.pullRequests.listForCommit(repository, 'head', signal()),
+				() => client.repositories.getCommit(repository, 'head', signal()),
+				() => client.checks.listRuns(repository, 'head', signal()),
+				() => client.content.resolveRef('o', 'r', 'head', signal()),
+			]) {
+				await assert.rejects(operation(), error => {
+					assert.ok(error instanceof GitHubRequestError);
+					assert.deepStrictEqual({
+						name: error.name, missing: error instanceof MissingCommitError,
+						status: error.statusCode, statusText: error.statusText, body: error.responseBody,
+						requestId: error.responseMetadata?.requestId,
+					}, {
+						name: missing ? 'MissingCommitError' : 'GitHubRequestError', missing,
+						status: 422, statusText: 'Unprocessable Entity', body,
+						requestId: 'remote-commit-lookup',
+					});
+					return true;
+				});
+			}
+			assert.deepStrictEqual(requests, [
+				'/user', '/repos/o/r/commits/head/pulls', '/repos/o/r/commits/head',
+				'/repos/o/r/commits/head/check-runs', '/repos/o/r/commits/head',
+			]);
+		});
+	}
+
 	test('acquires the selected grant without fetching a token and runs notifications reads and mutations', async () => {
 		const requests: { path: string; method: string | undefined; token: string | null }[] = [];
 		const { connect, service } = setup(async (input, init) => {
@@ -743,6 +789,48 @@ suite('GitHub authenticated IPC clients', () => {
 			tokenRequests: Array.from({ length: 3 }, () => ({ ...authorization, accountId: 'account' })),
 			acquisitions: 1, releases: 1,
 		});
+	});
+
+	test('preserves request priorities through IPC for every provider and keeps operation defaults', async () => {
+		const traces: string[] = [];
+		const logService = store.add(new class extends NullLogService {
+			override trace(message: string): void { traces.push(message); }
+		}());
+		const { connect } = createTestServer(store, async (input, init) => {
+			const url = new URL(String(input));
+			if (url.hostname === 'raw.githubusercontent.com') {
+				return new Response('raw content');
+			}
+			if (url.pathname === '/user') {
+				return Response.json({ id: 101 });
+			}
+			if (url.pathname === '/graphql') {
+				return Response.json({ data: { node: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } });
+			}
+			if (url.pathname === '/agents/tasks') {
+				return Response.json({ tasks: [] });
+			}
+			if (init?.method === 'PATCH') {
+				return new Response(null, { status: 205 });
+			}
+			return Response.json([]);
+		}, logService);
+		const { remote, connection } = connect();
+		const broker = store.add(new TestCredentialBroker());
+		broker.options = { ...broker.options, missionControl: { endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test-integration' } } };
+		connection.registerCredentials(broker);
+		const client = store.add(await remote.acquireClient(authorization, signal()));
+
+		await client.notifications.list(signal(), { priority: 'background' });
+		await client.reviews.listThreadSummaries('PR_1', signal(), { priority: 'visible' });
+		await client.tasks.list(signal(), { priority: 'enrichment' });
+		await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
+		await client.tasks.list(signal());
+		await client.notifications.markRead('42', signal());
+
+		assert.deepStrictEqual(traces.filter(message => message.includes(' started on ')).map(message =>
+			/\(priority: (?<priority>[^)]+)\)$/.exec(message)?.groups?.priority
+		), ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation']);
 	});
 
 	for (const sameContext of [false, true]) {
@@ -2145,16 +2233,56 @@ suite('GitHub authenticated IPC clients', () => {
 		test('preserves documented API diagnostics and indeterminate HTTP failures without raw bodies', async () => {
 			const details = { message: 'Unavailable', documentation_url: 'https://docs.example.test', errors: [{ code: 'custom', message: 'Retry later' }] };
 			const { client } = await acquire(async () => Response.json({ ...details, secret: 'not-retained' }, {
-				status: 503, headers: { 'X-GitHub-Request-Id': 'request', 'Retry-After': '2' },
+				status: 503, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '2' },
 			}));
 			await assert.rejects(client.automations.create(repository, definition, signal()), (error: unknown) => {
 				assert.ok(error instanceof ApiRequestError);
 				assert.deepStrictEqual({
 					status: error.statusCode, response: error.response, requestId: error.requestId, retry: error.retryAfterSeconds, outcome: error.outcome, raw: error.responseBody,
-				}, { status: 503, response: details, requestId: 'request', retry: 2, outcome: 'indeterminate', raw: undefined });
+				}, { status: 503, response: details, requestId: 'ABCD:1234:5678:90AB:CDEF', retry: 2, outcome: 'indeterminate', raw: undefined });
 				return true;
 			});
 		});
+
+		for (const failure of [
+			{ status: 403, body: { error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, code: 'rate_limit_exceeded', limitedResource: 'token_mint' },
+			{ status: 409, body: { code: 'environment_compute_terminal' }, code: 'environment_compute_terminal', limitedResource: undefined },
+			{ status: 409, body: { error_code: 'future_code' }, code: 'future_code', limitedResource: undefined },
+		]) {
+			test(`preserves credential-free ${failure.code} diagnostics across IPC`, async () => {
+				const { client } = await acquire(async () => Response.json({
+					...failure.body, message: 'private credential', access_token: 'private credential',
+				}, { status: failure.status, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '5' } }));
+				await assert.rejects(client.environments.connect('env', signal()), error => {
+					assert.ok(error instanceof ApiRequestError);
+					assert.deepStrictEqual({
+						code: error.code, limitedResource: error.limitedResource, status: error.statusCode,
+						requestId: error.requestId, retryAfterSeconds: error.retryAfterSeconds,
+						response: error.response, raw: error.responseBody, privateContent: JSON.stringify(error).includes('private credential'),
+					}, {
+						code: failure.code, limitedResource: failure.limitedResource, status: failure.status,
+						requestId: 'ABCD:1234:5678:90AB:CDEF', retryAfterSeconds: 5,
+						response: undefined, raw: undefined, privateContent: false,
+					});
+					return true;
+				});
+			});
+		}
+
+		test('sandbox rate-limit policy survives IPC without blocking task reads', () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				times.push(Date.now());
+				return init?.method === 'POST'
+					? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'Retry-After': '2' } })
+					: Response.json({ tasks: [] });
+			});
+			const request = { prompt: 'test', environment_id: 'github-sandbox' };
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			await client.tasks.list(signal());
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			assert.deepStrictEqual(times.map(time => time - times[0]), [0, 0, 2000]);
+		}));
 
 		test('malformed dispatched write responses remain indeterminate', async () => {
 			const { client } = await acquire(async () => new Response('not JSON', { status: 201 }));

@@ -10,7 +10,8 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { GitHubWorkflowJob, GitHubWorkflowLog } from '../../github/common/githubPullRequestMutationService.js';
+import { WorkflowJob } from '../../github/common/core/actions.js';
+import { GitHubWorkflowLog } from '../../github/common/githubPullRequestMutationService.js';
 import { AgentMergeCIRequest } from './shared/agentMergeServerTools.js';
 
 export const agentMergeCIResponseBytes = 48_000;
@@ -24,7 +25,7 @@ export interface AgentMergeCIEvidence {
 	readonly id: string;
 	readonly scope: string;
 	readonly runAttempt: number;
-	readonly job: GitHubWorkflowJob;
+	readonly job: Pick<WorkflowJob, 'id' | 'run_id' | 'name' | 'head_sha' | 'run_attempt'> & { readonly checkRunId?: string };
 	readonly log: GitHubWorkflowLog;
 	readonly lineCount: number;
 	/** One UTF-16 offset per 1,024 lines bounds seeking without a full per-line index. */
@@ -46,9 +47,9 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 	private readonly _expiry = this._register(new RunOnceScheduler(() => this._prune(), evidenceLifetime));
 	private _characters = 0;
 
-	find(scope: string, jobId: string, runId: string, runAttempt: number): AgentMergeCIEvidence | undefined {
+	find(scope: string, jobId: number, runId: number, runAttempt: number): AgentMergeCIEvidence | undefined {
 		this._prune();
-		const entry = [...this._entries.values()].find(entry => entry.scope === scope && entry.job.id === jobId && entry.job.runId === runId && entry.runAttempt === runAttempt);
+		const entry = [...this._entries.values()].find(entry => entry.scope === scope && entry.job.id === jobId && entry.job.run_id === runId && entry.runAttempt === runAttempt);
 		if (!entry) {
 			return undefined;
 		}
@@ -77,7 +78,7 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 	}
 
 	/** Returns undefined when the log cannot fit without evicting evidence already advertised on this page. */
-	tryAdd(scope: string, runAttempt: number, job: GitHubWorkflowJob, log: GitHubWorkflowLog, signal: AbortSignal, retainedIds: ReadonlySet<string> = new Set()): AgentMergeCIEvidence | undefined {
+	tryAdd(scope: string, runAttempt: number, job: WorkflowJob, log: GitHubWorkflowLog, signal: AbortSignal, retainedIds: ReadonlySet<string> = new Set()): AgentMergeCIEvidence | undefined {
 		signal.throwIfAborted();
 		if (this._store.isDisposed || log.text.length > maximumEvidenceCharacters) {
 			throw new Error('CI evidence storage is unavailable or its memory limit was exceeded.');
@@ -91,7 +92,7 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 		}
 		const entry: AgentMergeCIEvidence = {
 			id: generateUuid(), scope, runAttempt,
-			job: { id: job.id, runId: job.runId, name: job.name.slice(0, 200), headSha: job.headSha, runAttempt: job.runAttempt, checkRunId: job.checkRunId },
+			job: { id: job.id, run_id: job.run_id, name: job.name.slice(0, 200), head_sha: job.head_sha, run_attempt: job.run_attempt, checkRunId: workflowJobCheckRunId(job) },
 			log: { ...log },
 			...indexLines(log.text),
 			expiresAt: Date.now() + evidenceLifetime,
@@ -313,11 +314,11 @@ export function ciFailureExcerpt(entry: AgentMergeCIEvidence): readonly CILine[]
 export function ciEvidenceMetadata(entry: AgentMergeCIEvidence) {
 	return {
 		evidenceId: entry.id,
-		runId: entry.job.runId,
+		runId: String(entry.job.run_id),
 		runAttempt: entry.runAttempt,
-		jobId: entry.job.id,
-		jobHeadSha: entry.job.headSha ?? null,
-		jobRunAttempt: entry.job.runAttempt ?? null,
+		jobId: String(entry.job.id),
+		jobHeadSha: entry.job.head_sha ?? null,
+		jobRunAttempt: entry.job.run_attempt ?? null,
 		complete: !entry.log.truncated,
 		capturedLines: entry.lineCount,
 		lineNumbering: 'One-based lines and UTF-16 columns in the cached redacted text.',
@@ -327,4 +328,8 @@ export function ciEvidenceMetadata(entry: AgentMergeCIEvidence) {
 		terminalLimit: entry.log.truncated ? 'Download stopped before EOF. Only the captured prefix is available; the true tail and uncaptured lines are unavailable. Repeating this read cannot extend the download limit.' : null,
 		expiresAt: new Date(entry.expiresAt).toISOString(),
 	};
+}
+
+export function workflowJobCheckRunId(job: Pick<WorkflowJob, 'check_run_url'>): string | undefined {
+	return /\/check-runs\/(?<id>\d+)(?:[?#]|$)/.exec(job.check_run_url ?? '')?.groups?.id;
 }

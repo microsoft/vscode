@@ -21,7 +21,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
-import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
@@ -59,6 +59,7 @@ const manual: IAutomationSchedule = { interval: 'manual', scheduleHour: 0, sched
 const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
+	readonly historyOptions: (TaskListOptions | undefined)[] = [];
 	readonly calls: string[] = [];
 	definitions: readonly AutomationDetail[] = [definition];
 	tasks: readonly Task[] = [];
@@ -91,7 +92,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
-	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
+	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		this.historyOptions.push(options);
 		this.calls.push('history');
 		await this.pendingHistory;
 		if (this.historyError) {
@@ -444,11 +446,18 @@ suite('CloudAutomationStore', () => {
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await provider.refresh();
 			api.calls.length = 0;
+			api.historyOptions.length = 0;
 			await clock.tickAsync(60_000);
 			assert.deepStrictEqual(api.calls, []);
 			await provider.runAutomation(provider.automations.get()[0].id);
 			await clock.tickAsync(120_000);
-			assert.deepStrictEqual(api.calls.filter(call => call !== 'visibility'), ['run', 'history', 'history', 'history', 'history', 'history']);
+			assert.deepStrictEqual({
+				calls: api.calls.filter(call => call !== 'visibility'),
+				priorities: api.historyOptions.map(options => options?.priority),
+			}, {
+				calls: ['run', 'history', 'history', 'history', 'history', 'history'],
+				priorities: Array(5).fill('background'),
+			});
 		} finally {
 			clock.restore();
 		}

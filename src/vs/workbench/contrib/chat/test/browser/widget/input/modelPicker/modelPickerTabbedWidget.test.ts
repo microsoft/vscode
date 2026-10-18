@@ -1342,6 +1342,58 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('Fusion with the provider\'s tiers offers Standard, High, and Max once, routing all three through Fusion with its promotion', async () => {
+		const fusion = createFusionModel();
+		const day = 24 * 60 * 60 * 1000;
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				autoModelTierPromotions: [{ id: 'launch', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: new Date(Date.now() - day).toISOString() }],
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Fusion');
+		const tiers = autoTiers(result.popup);
+		chooseOption(result.popup, 'Max');
+		await timeout(0);
+		const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
+		const promotion = result.popup.querySelector('.chat-model-card-tier-promotion')?.textContent;
+		goBack(result.popup);
+		assert.deepStrictEqual({ tiers, discount, promotion, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier }, {
+			tiers: ['Standard', 'High', 'Max'],
+			discount: 'Models routed via Fusion Max receive a 30% discount.',
+			promotion: 'Get 30% off Fusion usage.',
+			selections: ['copilot/auto'],
+			tier: 'hydrafusion-max',
+		});
+	});
+
+	test('Fusion does not offer HydraFusion Max beside provider tiers that hide it', () => {
+		const fusion = createFusionModel();
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion'], enumItemLabels: ['Standard', 'High'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Fusion');
+		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
+	});
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();

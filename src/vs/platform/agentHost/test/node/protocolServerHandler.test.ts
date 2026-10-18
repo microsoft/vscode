@@ -46,6 +46,7 @@ import type { AutomationCapabilities, Implementation } from '../../common/state/
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
+import { rootReducer } from '../../common/state/sessionReducers.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
@@ -2986,7 +2987,7 @@ suite('ProtocolServerHandler', () => {
 					{ method: 'resolveSessionConfig', params: { channel: ROOT_STATE_URI, provider: 'copilotcli' }, result: { schema: { type: 'object', properties: {} }, values: {} } },
 					{ method: 'sessionConfigCompletions', params: { channel: ROOT_STATE_URI, provider: 'copilotcli', property: 'model' }, result: { items: [] } },
 					{ method: 'extensions/listProjects', params: {}, result: { projects: [project] } },
-					{ method: 'subscribe', params: { channel: ROOT_STATE_URI }, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } } } },
+					{ method: 'subscribe', params: { channel: ROOT_STATE_URI }, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], config: stateManager.rootState.config, _meta: {} } } } },
 					{ method: 'unsubscribe', params: { channel: ROOT_STATE_URI }, result: null },
 				];
 				for (const [index, item] of cases.entries()) {
@@ -3105,11 +3106,11 @@ suite('ProtocolServerHandler', () => {
 			await barrier.complete();
 			await handler.whenIdle();
 			assert.deepStrictEqual(findResponse(transport.sent, 2), {
-				jsonrpc: '2.0', id: 2, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } } },
+				jsonrpc: '2.0', id: 2, result: { snapshot: { resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], config: stateManager.rootState.config, _meta: {} } } },
 			});
 		});
 
-		test('root discovery continues after expiry without exposing terminal or host configuration updates', async () => {
+		test('root discovery and host configuration updates continue after expiry without exposing terminals or customizations', async () => {
 			const expired = disposables.add(new Emitter<void>());
 			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
 			transport.relayAuthenticated = true;
@@ -3131,7 +3132,10 @@ suite('ProtocolServerHandler', () => {
 				actions: findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action),
 				response: findResponse(transport.sent, 2),
 			}, {
-				actions: [{ type: ActionType.RootAgentsChanged, agents: [{ ...discoveryAgent, protectedResources: undefined, capabilities: undefined }] }],
+				actions: [
+					{ type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } },
+					{ type: ActionType.RootAgentsChanged, agents: [{ ...discoveryAgent, protectedResources: undefined, capabilities: undefined }] },
+				],
 				response: { jsonrpc: '2.0', id: 2, result: null },
 			});
 		});
@@ -3166,7 +3170,7 @@ suite('ProtocolServerHandler', () => {
 				const result = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
 				assert.deepStrictEqual(result, replay
 					? { type: 'replay', actions: [], missing: [missingChannel, sessionUri, defaultChatUri], _meta: {} }
-					: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } }], _meta: {} });
+					: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], config: stateManager.rootState.config, _meta: {} } }], _meta: {} });
 				transport.relayAuthenticated = true;
 				transport.simulateMessage(request(3, 'subscribe', { channel: defaultChatUri }));
 				await handler.whenIdle();
@@ -3184,7 +3188,9 @@ suite('ProtocolServerHandler', () => {
 				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionActiveClientSet, activeClient: { clientId: 'discovery-client', tools: [] } });
 				const lastSeen = stateManager.serverSeq;
 				original.simulateClose();
-				stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } });
+				const configAction: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { secret: 'private-root-content' } };
+				stateManager.dispatchServerAction(ROOT_STATE_URI, configAction);
+				const configEnvelope: ActionEnvelope = { channel: ROOT_STATE_URI, action: configAction, serverSeq: stateManager.serverSeq, origin: undefined };
 				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Private session state' });
 				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'discovery-client', false));
 				transport.relayAuthenticated = false;
@@ -3199,8 +3205,8 @@ suite('ProtocolServerHandler', () => {
 				}, {
 					response: {
 						jsonrpc: '2.0', id: 2, result: replay
-							? { type: 'replay', actions: [], missing: [sessionUri] }
-							: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], _meta: {} } }] }
+							? { type: 'replay', actions: [configEnvelope], missing: [sessionUri] }
+							: { type: 'snapshot', snapshots: [{ resource: ROOT_STATE_URI, fromSeq: stateManager.serverSeq, state: { agents: [], config: stateManager.rootState.config, _meta: {} } }] }
 					},
 					activeClients: ['discovery-client'],
 				});
@@ -4087,8 +4093,8 @@ suite('ProtocolServerHandler', () => {
 				hostUpdates: findNotifications(transport.sent, 'action').length,
 			}, {
 				dispatched: [], configUnchanged: true,
-				initialConfig: authenticated === true ? config : undefined,
-				hostUpdates: authenticated === true ? 1 : 0,
+				initialConfig: config,
+				hostUpdates: 1,
 			});
 		});
 	}
@@ -4435,7 +4441,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	}
 
-	test('relay root configuration is available only after authentication', async () => {
+	test('relay root configuration is available before authentication without exposing MCP notifications or other clients\' rejections', async () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { mcpServers: { private: { env: { SECRET: 'test-private-secret' } } } } });
 		const unauthenticated = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'guest-lane', false));
 		unauthenticated.relayAuthenticated = false;
@@ -4444,7 +4450,6 @@ suite('ProtocolServerHandler', () => {
 		const initial = findResponse(unauthenticated.sent, 1);
 		const authenticated = connectClient('authorized-local', [ROOT_STATE_URI]);
 		agentService.emitMcpNotification({ channel: 'mcp://session/private-server', method: 'notifications/test', params: { content: 'private content' } });
-		unauthenticated.relayAuthenticated = true;
 		unauthenticated.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
 		await handler.whenIdle();
 		const full = findResponse(unauthenticated.sent, 2);
@@ -4455,12 +4460,12 @@ suite('ProtocolServerHandler', () => {
 			initialConfig: initial && hasKey(initial, { result: true }) ? (initial.result as InitializeResult).snapshots?.some(snapshot => hasKey(snapshot.state, { config: true })) : undefined,
 			guestMcp: findNotifications(unauthenticated.sent, 'notifications/test').length > 0,
 			authorizedMcp: findNotifications(authenticated.sent, 'notifications/test').length > 0,
-			authorizedRootContainsSecret: JSON.stringify(full).includes('test-private-secret'),
+			subscribedRootContainsSecret: JSON.stringify(full).includes('test-private-secret'),
 			relayReceivesHostSecretUpdate: JSON.stringify(unauthenticated.sent).includes('test-updated-secret'),
 			localReceivesHostSecretUpdate: JSON.stringify(authenticated.sent).includes('test-updated-secret'),
 			relayReceivesOtherClientRejection: JSON.stringify(unauthenticated.sent).includes('local-rejected-secret'),
 		}, {
-			initialContainsSecret: false, initialConfig: false, guestMcp: false, authorizedMcp: true, authorizedRootContainsSecret: true,
+			initialContainsSecret: true, initialConfig: true, guestMcp: false, authorizedMcp: true, subscribedRootContainsSecret: true,
 			relayReceivesHostSecretUpdate: true, localReceivesHostSecretUpdate: true,
 			relayReceivesOtherClientRejection: false,
 		});
@@ -4533,11 +4538,95 @@ suite('ProtocolServerHandler', () => {
 				responses: [response(active, 2), response(active, 5), response(active, 6), ...[3, 4, 5, 6].map(id => response(passive, id)), response(local, 2)],
 			}, {
 				initializations: 2, calls: ['write', 'list', 'session'],
-				preauth: { agents: [], _meta: extension.rootMeta },
+				preauth: { agents: [], config: { ...stateManager.rootState.config, values: { ...stateManager.rootState.config?.values, ...extension.rootConfig.values } }, _meta: extension.rootMeta },
 				rootConfig: { ...stateManager.rootState.config, values: { ...stateManager.rootState.config?.values, ...extension.rootConfig.values } },
 				responses: [AHP_AUTH_REQUIRED, null, JsonRpcErrorCodes.MethodNotFound, ['public-entry'], JsonRpcErrorCodes.InvalidRequest, JsonRpcErrorCodes.InvalidParams, 'session-result', JsonRpcErrorCodes.MethodNotFound],
 			});
 		});
+
+		for (const passive of [false, true]) {
+			for (const initiallyLoaded of [false, true]) {
+				test(`${passive ? 'passive' : 'active'} relay receives an ${initiallyLoaded ? 'already loaded' : 'initially empty'} catalogue through authentication and unauthenticated reconnect without resubscribing`, async () => {
+					let catalogue = { copilot: { projects: initiallyLoaded ? ['initial-project'] : [] } };
+					const changes = disposables.add(new Emitter<ActionEnvelope>());
+					const publish = (project: string) => {
+						catalogue = { copilot: { projects: [project] } };
+						changes.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: catalogue }));
+					};
+					const extension: IProtocolServerExtension = {
+						rootMeta: {},
+						get rootConfig() { return { schema: { type: 'object' as const, properties: {} }, values: catalogue }; },
+						onDidEmitAction: changes.event,
+						initialize: async () => { publish('authenticated-project'); },
+						requests: new Map(),
+					};
+					const { relay, scopedHandler, connect } = createExtensionHandler(extension);
+					const hostConfig = stateManager.rootState.config;
+					const active = connect('catalogue-client', passive);
+					const initial = findResponse(active.sent, 1);
+					assert.ok(initial && hasKey(initial, { result: true }));
+					const snapshot = (initial.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI);
+					assert.ok(snapshot && hasKey(snapshot.state, { agents: true }));
+					const initialConfig = snapshot.state.config;
+					const applyConfigActions = (state: RootState, actions: readonly ActionEnvelope[]): RootState => {
+						for (const { action } of actions) {
+							assert.ok(action.type === ActionType.RootConfigChanged);
+							state = rootReducer(state, action);
+						}
+						return state;
+					};
+					active.sent.length = 0;
+					publish('preauth-project');
+					const preauthRoot = applyConfigActions(snapshot.state, findNotifications(active.sent, 'action').map(message => message.params as ActionEnvelope));
+					active.sent.length = 0;
+					active.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+					await scopedHandler.whenIdle();
+					const authenticatedRoot = applyConfigActions(preauthRoot, findNotifications(active.sent, 'action').map(message => message.params as ActionEnvelope));
+					const lastSeen = stateManager.serverSeq;
+					active.simulateClose();
+					publish('reconnected-project');
+
+					const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'catalogue-client', passive));
+					reconnected.relayAuthenticated = false;
+					relay.simulateConnection(reconnected);
+					reconnected.simulateMessage(request(3, 'reconnect', { clientId: 'catalogue-client', lastSeenServerSeq: lastSeen, subscriptions: [ROOT_STATE_URI] }));
+					await scopedHandler.whenIdle();
+					const replayResponse = findResponse(reconnected.sent, 3);
+					assert.ok(replayResponse && hasKey(replayResponse, { result: true }));
+					const replay = replayResponse.result as ReconnectResult;
+					assert.ok(replay.type === 'replay');
+					const replayedRoot = applyConfigActions(authenticatedRoot, replay.actions);
+					reconnected.simulateClose();
+
+					const restored = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'catalogue-client', passive));
+					restored.relayAuthenticated = false;
+					relay.simulateConnection(restored);
+					restored.simulateMessage(request(4, 'reconnect', { clientId: 'catalogue-client', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI] }));
+					await scopedHandler.whenIdle();
+					const snapshotResponse = findResponse(restored.sent, 4);
+					assert.ok(snapshotResponse && hasKey(snapshotResponse, { result: true }));
+					const snapshots = snapshotResponse.result as ReconnectResult;
+					assert.ok(snapshots.type === 'snapshot');
+					const restoredSnapshot = snapshots.snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI);
+					assert.ok(restoredSnapshot && hasKey(restoredSnapshot.state, { agents: true }));
+					assert.deepStrictEqual({
+						initialConfig,
+						preauthConfig: preauthRoot.config,
+						authenticatedConfig: authenticatedRoot.config,
+						replayedConfig: replayedRoot.config,
+						restoredConfig: restoredSnapshot.state.config,
+						nativeConfig: stateManager.rootState.config,
+					}, {
+						initialConfig: { ...hostConfig, values: { ...hostConfig?.values, copilot: { projects: initiallyLoaded ? ['initial-project'] : [] } } },
+						preauthConfig: { ...hostConfig, values: { ...hostConfig?.values, copilot: { projects: ['preauth-project'] } } },
+						authenticatedConfig: { ...hostConfig, values: { ...hostConfig?.values, copilot: { projects: ['authenticated-project'] } } },
+						replayedConfig: { ...hostConfig, values: { ...hostConfig?.values, copilot: { projects: ['reconnected-project'] } } },
+						restoredConfig: { ...hostConfig, values: { ...hostConfig?.values, copilot: { projects: ['reconnected-project'] } } },
+						nativeConfig: hostConfig,
+					});
+				});
+			}
+		}
 
 		test('host settings preserve the catalogue through edits, replacement and reconnect', async () => {
 			let catalogue = { copilot: { projects: ['initial-project'] } };
@@ -4859,7 +4948,7 @@ suite('ProtocolServerHandler', () => {
 			localProjectActions: findNotifications(local.sent, 'action').length,
 			replay: replayResult?.type === 'replay' ? replayResult.actions.map(envelope => envelope.action) : replayResult?.type,
 		}, {
-			preauthCatalogue: false, preauthCapability: true, denied: AHP_AUTH_REQUIRED, authenticatedCatalogue: true,
+			preauthCatalogue: true, preauthCapability: true, denied: AHP_AUTH_REQUIRED, authenticatedCatalogue: true,
 			calls: ['extensions/cloneProject', 'extensions/listProjects', 'extensions/getPlan'],
 			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [projectedAction, projectedAction], secret: true,
 			reconnectedCatalogue: true, reconnectedSecret: true,
