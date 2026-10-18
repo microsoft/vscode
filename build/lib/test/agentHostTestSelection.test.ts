@@ -183,6 +183,33 @@ suite('Agent Host PR test selection', () => {
 		});
 	});
 
+	test('the Agent Host E2E runner runs exactly the files that the integration scripts exclude', () => {
+		const e2eDirectory = 'src/vs/platform/agentHost/test/node/e2e';
+		const shellGlob = readFileSync(path.join(repositoryRoot, 'scripts/test-integration.sh'), 'utf8').match(/^AGENT_HOST_E2E_GLOB="(?<glob>[^"]+)"$/m)?.groups?.glob;
+		const batchGlob = readFileSync(path.join(repositoryRoot, 'scripts/test-integration.bat'), 'utf8').match(/--excludeRunGlob "(?<glob>[^"]+)"/)?.groups?.glob;
+		assert.ok(shellGlob);
+		// The scripts match compiled output, so test the compiled path of every E2E source file.
+		const excluded = readdirSync(path.join(repositoryRoot, e2eDirectory), { recursive: true, encoding: 'utf8' })
+			.map(file => path.posix.join(e2eDirectory, file.split(path.sep).join('/')))
+			.filter(file => file.endsWith('.integrationTest.ts') && path.matchesGlob(file.replace(/^src\//, 'out/').replace(/\.ts$/, '.js'), shellGlob))
+			.sort();
+		const runnerFiles = [...readFileSync(path.join(repositoryRoot, 'test/integration/agentHost/runner.ts'), 'utf8').matchAll(/^\t\tfile: '(?<file>[^']+)',$/gm)]
+			.map(match => match.groups!.file)
+			.sort();
+		assert.deepStrictEqual({ batchGlob, excludedFromIntegrationScripts: excluded, runByAgentHostE2E: runnerFiles }, {
+			batchGlob: shellGlob,
+			excludedFromIntegrationScripts: runnerFiles,
+			runByAgentHostE2E: [
+				`${e2eDirectory}/conformance/agentHostConformance.integrationTest.ts`,
+				`${e2eDirectory}/providers/claudeAgentHostE2E.integrationTest.ts`,
+				`${e2eDirectory}/providers/codexAgentHostE2E.integrationTest.ts`,
+				`${e2eDirectory}/providers/copilotAgentHostE2E.integrationTest.ts`,
+				`${e2eDirectory}/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts`,
+				`${e2eDirectory}/providers/copilotOtelAgentHostE2E.integrationTest.ts`,
+			],
+		});
+	});
+
 	test('every CI step that runs the integration tests is paired with an Agent Host E2E step', () => {
 		interface ICommandStep {
 			readonly command: string;
