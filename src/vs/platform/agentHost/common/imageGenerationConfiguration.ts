@@ -35,11 +35,30 @@ export function migrateLegacyImageGenerationSetting(enabled: unknown): CopilotIm
 	return typeof enabled === 'boolean' ? (enabled ? CopilotImageGenerationModels[0] : CopilotImageGenerationOff) : undefined;
 }
 
+/** What an image model can do with a request. */
+export type ImageGenerationCapability = 'generate' | 'edit';
+
+/** What an image model does and costs, for surfaces that describe it in more detail than Settings. */
+export interface IImageGenerationModelDetails {
+	readonly capabilities: readonly ImageGenerationCapability[];
+	/** Rates in AI credits per million tokens, as stated in the model's Settings description. */
+	readonly rates: {
+		readonly textInput: number;
+		readonly textOutput: number;
+		readonly imageInput: number;
+		readonly imageOutput: number;
+	};
+	/** Whether the rates are preview rates, which may change. */
+	readonly previewRates: boolean;
+}
+
 /** An image model setting value with its display label and a markdown description of its rates. */
 export interface IImageGenerationModelChoice {
 	readonly id: CopilotImageGenerationModelSetting;
 	readonly label: string;
 	readonly description: string;
+	/** Absent for the value that turns image generation off. */
+	readonly details?: IImageGenerationModelDetails;
 }
 
 const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, Omit<IImageGenerationModelChoice, 'id'>> = {
@@ -50,6 +69,11 @@ const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, Om
 	'gpt-image-2.5-flare': {
 		label: 'GPT Image 2.5 Flare',
 		description: nls.localize('chat.copilot.imageGeneration.model.gptImage25Flare', "Generate and edit images with **GPT Image 2.5 Flare** when it is available to your account. Prompts and selected images are sent to Flare.\n\n**Preview rates (AI credits per 1 million tokens):**\n- **Text tokens:** 500 input / 0 output\n- **Image tokens:** 800 input / 3,000 output\n\nThese charges are in addition to the conversation model. Rates may change; these are token rates, not per-image prices."),
+		details: {
+			capabilities: ['generate', 'edit'],
+			rates: { textInput: 500, textOutput: 0, imageInput: 800, imageOutput: 3000 },
+			previewRates: true,
+		},
 	},
 };
 

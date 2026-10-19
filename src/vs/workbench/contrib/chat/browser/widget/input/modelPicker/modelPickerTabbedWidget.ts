@@ -25,7 +25,7 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { CopilotImageGenerationOff, isImageGenerationModelSelected } from '../../../../../../../platform/agentHost/common/imageGenerationConfiguration.js';
+import { CopilotImageGenerationOff, IImageGenerationModelChoice, isImageGenerationModelSelected } from '../../../../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import type { AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -52,6 +52,7 @@ import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAI
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IModelPickerImageModels } from './modelPickerImageModels.js';
+import { getImageModelCapabilityLabel, ImageModelCard } from './modelPickerImageModelCard.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -59,6 +60,7 @@ const PICKER_WIDTH = 320;
 const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 const OTHER_MODELS_EXPANDED_STORAGE_KEY = 'chat.modelPicker.otherModelsExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
+const IMAGE_MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.imageModelDetails';
 
 function isComparisonConfigurationValue(value: unknown): value is string | number | boolean | null {
 	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
@@ -138,6 +140,8 @@ export class TabbedModelPicker extends Disposable {
 	private _detailsCard: ModelCard | undefined;
 	/** The detail page of an on-device model family, while it is shown. */
 	private readonly _localModelCard = this._register(new MutableDisposable<LocalModelCard>());
+	/** The detail page of an image model, while it is shown. */
+	private readonly _imageModelCard = this._register(new MutableDisposable<ImageModelCard>());
 	/** The "On This Device" tab came or went while a detail page covered the list. */
 	private _localModelRebuildPending = false;
 	private readonly _onDidChangePricingDisclosure = this._register(new Emitter<void>());
@@ -229,6 +233,7 @@ export class TabbedModelPicker extends Disposable {
 			this._detailsModelId = undefined;
 			this._detailsCard = undefined;
 			this._localModelCard.clear();
+			this._imageModelCard.clear();
 			this._localModelRebuildPending = false;
 			this._configurationListener.clear();
 			this._cards.clearAndDisposeAll();
@@ -446,6 +451,7 @@ export class TabbedModelPicker extends Disposable {
 		this._detailsModelId = undefined;
 		this._detailsCard = undefined;
 		this._localModelCard.clear();
+		this._imageModelCard.clear();
 		this._localModelRebuildPending = false;
 		this._cards.clearAndDisposeAll();
 		const comparison = context.comparison?.available.get() ? context.comparison : undefined;
@@ -850,12 +856,12 @@ export class TabbedModelPicker extends Disposable {
 		return actions;
 	}
 
-	/** One row per image model with the one in use checked; the hover carries the model's rates. */
+	/** One row per image model with the one in use checked; a model's Details shows what it can do and costs. */
 	private _buildImageModelItems(imageModels: IModelPickerImageModels): IActionListItem<IActionWidgetDropdownAction>[] {
 		const selectedModelId = imageModels.selectedModelId.get();
 		return imageModels.models.map(model => {
 			const checked = model.id === selectedModelId;
-			const description = new MarkdownString(model.description);
+			const details = model.details;
 			return {
 				item: {
 					id: model.id,
@@ -868,13 +874,62 @@ export class TabbedModelPicker extends Disposable {
 				},
 				kind: ActionListItemKind.Action,
 				label: model.label,
-				// Screen reader users never reach the hover, so the rates are read with the row.
-				ariaDescription: renderAsPlaintext(description, { omitMarkdownSyntax: true }),
+				// A model's row says what it does and its Details has the rest; Off has only its description.
+				ariaDescription: details
+					? details.capabilities.map(capability => getImageModelCapabilityLabel(capability)).join(', ')
+					: renderAsPlaintext(new MarkdownString(model.description), { omitMarkdownSyntax: true }),
+				// Right Arrow on the row opens the same details as its button.
+				opensDialog: !!details,
 				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
 				hideIcon: false,
 				className: ['chat-model-picker-model', ...(checked ? ['chat-model-picker-current'] : [])].join(' '),
-				hover: { content: description },
+				toolbarLabels: true,
+				toolbarActions: details ? [this._createImageModelDetailsAction(imageModels, model)] : undefined,
+				toolbarDialogActionIds: details ? [IMAGE_MODEL_DETAILS_ACTION_ID] : undefined,
 			};
+		});
+	}
+
+	private _createImageModelDetailsAction(imageModels: IModelPickerImageModels, model: IImageGenerationModelChoice): IAction {
+		return toAction({
+			id: IMAGE_MODEL_DETAILS_ACTION_ID,
+			label: localize('chat.modelPicker.details', "Details"),
+			tooltip: localize('chat.modelPicker.modelDetails', "{0} Details", model.label),
+			run: () => this._showImageModelDetails(imageModels, model.id),
+		});
+	}
+
+	/** Shows an image model's detail page over the image list; Back returns focus to its row or Details button. */
+	private _showImageModelDetails(imageModels: IModelPickerImageModels, modelId: string, returnFocusToRow = false): void {
+		const model = imageModels.models.find(candidate => candidate.id === modelId);
+		if (!model?.details) {
+			return;
+		}
+		this._selectionVersion++;
+		this._detailsModelId = undefined;
+		this._detailsCard = undefined;
+		this._localModelCard.clear();
+		const card = new ImageModelCard(model, model.details, this._pricingDisclosure);
+		this._imageModelCard.value = card;
+		this._widget.showDetails({
+			label: localize('chat.modelPicker.modelDetails', "{0} Details", model.label),
+			backLabel: localize('chat.modelPicker.backToModels', "Back to Models"),
+			renderHeader: container => {
+				container.appendChild(card.headerElement);
+				return toDisposable(() => card.headerElement.remove());
+			},
+			render: container => {
+				container.appendChild(card.element);
+				return toDisposable(() => card.element.remove());
+			},
+			focus: container => container.focus(),
+			restoreFocus: () => returnFocusToRow ? this._widget.focusItem(modelId) : this._widget.focusItemAction(modelId, IMAGE_MODEL_DETAILS_ACTION_ID),
+			onBack: () => {
+				this._selectionVersion++;
+				if (this._imageModelCard.value === card) {
+					this._imageModelCard.clear();
+				}
+			},
 		});
 	}
 
@@ -1103,6 +1158,7 @@ export class TabbedModelPicker extends Disposable {
 		this._selectionVersion++;
 		this._detailsModelId = undefined;
 		this._detailsCard = undefined;
+		this._imageModelCard.clear();
 		const card = new LocalModelCard(details, this._openerService, this._accessibilityService);
 		this._localModelCard.value = card;
 		this._widget.showDetails({
@@ -1306,6 +1362,14 @@ export class TabbedModelPicker extends Disposable {
 		if (!context || !itemId) {
 			return false;
 		}
+		if (item.toolbarActions?.some(action => action.id === IMAGE_MODEL_DETAILS_ACTION_ID)) {
+			const imageModels = this._getShownImageModels(context);
+			if (!imageModels) {
+				return false;
+			}
+			this._showImageModelDetails(imageModels, itemId, true);
+			return true;
+		}
 		if (item.toolbarActions?.some(action => action.id === LOCAL_MODEL_DETAILS_ACTION_ID)) {
 			const model = context.models.find(candidate => candidate.identifier === itemId);
 			const familyId = model
@@ -1433,6 +1497,7 @@ export class TabbedModelPicker extends Disposable {
 		this._selectionVersion++;
 		this._detailsCard = undefined;
 		this._localModelCard.clear();
+		this._imageModelCard.clear();
 		this._detailsModelId = model.identifier;
 		const card = this._getModelCard(model, context);
 		card.refresh();

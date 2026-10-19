@@ -833,10 +833,14 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { imageModels: true, imageModel: CopilotImageGenerationModels[0] }),
 	}),
-	// Turning it on lists the image models in place of the chat models; each row's hover has its rates.
+	// Turning it on lists the image models in place of the chat models; a model's Details says what it can do and costs.
 	PickerImageModels: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { imageModels: true, showImageModels: true }),
+	}),
+	PickerImageModelDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { imageModels: true, showImageModels: true, openDetailsFor: 'GPT Image 2.5 Flare', pricingExpanded: true }),
 	}),
 	...Object.fromEntries(Object.entries({
 		PickerWithManagedDefault: { managedDefaultModel: 'gpt-5-5' },
