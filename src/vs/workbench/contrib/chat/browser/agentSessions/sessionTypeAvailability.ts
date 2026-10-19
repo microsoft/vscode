@@ -9,6 +9,8 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 
+const copilotHarnessPolicyUrl = 'https://aka.ms/vscode-copilot-harness-policy';
+
 /**
  * Why a session type cannot currently be selected, or
  * {@link SessionTypeAvailability.Available} when it can.
@@ -168,7 +170,7 @@ export function getSessionTypeUnavailableDescription(availability: SessionTypeAv
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModels', "No models available"));
 		case SessionTypeAvailability.DisabledByPolicy:
-			return new MarkdownString('$(briefcase) ', { supportThemeIcons: true }).appendMarkdown(localize('chat.sessionType.disabledByPolicy', "Disabled by enterprise policy"));
+			return new MarkdownString('$(briefcase) ', { supportThemeIcons: true }).appendMarkdown(localize('chat.sessionType.disabledByPolicyLink', "Disabled by policy · [Learn why]({0})", copilotHarnessPolicyUrl));
 		default:
 			return undefined;
 	}
@@ -194,7 +196,7 @@ export function getSessionTypeUnavailableHover(availability: SessionTypeAvailabi
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModelsHover', "No models are available for this agent."));
 		case SessionTypeAvailability.DisabledByPolicy:
-			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "Your organization's managed settings require the Copilot harness. [Learn why Local is disabled]({0}).", 'https://aka.ms/vscode-copilot-harness-policy'));
+			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "Your organization's managed settings require the Copilot harness. [Learn why Local is disabled]({0}).", copilotHarnessPolicyUrl));
 		default:
 			return undefined;
 	}

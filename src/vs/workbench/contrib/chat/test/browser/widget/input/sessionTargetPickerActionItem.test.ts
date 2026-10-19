@@ -17,7 +17,8 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -25,6 +26,8 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -140,6 +143,54 @@ function getCopilotAvailability(allowSignedOutWhenUsable: boolean): SessionTypeA
 suite('SessionTypePickerActionItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const activation of ['mouse', 'keyboard'] as const) {
+		test(`opens inline policy help with ${activation} without selecting Local or closing the picker`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const opened: string[] = [];
+			instantiation.stub(IKeybindingService, new MockKeybindingService());
+			instantiation.stub(IHoverService, NullHoverService);
+			instantiation.stub(IOpenerService, {
+				open: async resource => { opened.push(resource.toString()); return true; },
+			});
+			let selections = 0;
+			let hides = 0;
+			const action = createSessionTypePickerAction(
+				baseAction,
+				{ type: AgentSessionProviders.Local, label: 'Local', hoverDescription: '', commandId: 'open.local' },
+				AgentSessionProviders.AgentHostCopilot, SessionTypeAvailability.DisabledByPolicy, true,
+				{ label: 'Agent Types', order: 1 }, undefined, Codicon.vm, () => { selections++; },
+			);
+			const widget = store.add(instantiation.createInstance(
+				ActionListWidget<IActionWidgetDropdownAction>, 'policyHelpTest', false,
+				[{
+					kind: ActionListItemKind.Action, item: action, label: action.label,
+					disabled: !action.enabled, description: action.description, ariaDescription: action.ariaDescription,
+				}],
+				{ onHide: () => { hides++; }, onSelect: () => { selections++; } },
+				undefined, undefined,
+			));
+			document.body.appendChild(widget.domNode);
+			store.add(toDisposable(() => widget.domNode.remove()));
+			widget.layout(24, 400);
+			const link = widget.domNode.querySelector<HTMLAnchorElement>('.description a');
+			assert.ok(link);
+			link.focus();
+			if (activation === 'mouse') {
+				link.click();
+			} else {
+				link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			}
+			assert.deepStrictEqual({
+				opened, selections, hides, text: link.textContent,
+				tabIndex: link.tabIndex, focused: document.activeElement === link,
+				disabled: widget.domNode.querySelector('.monaco-list-row')?.classList.contains('option-disabled'),
+			}, {
+				opened: ['https://aka.ms/vscode-copilot-harness-policy'], selections: 0, hides: 0,
+				text: 'Learn why', tabIndex: 0, focused: true, disabled: true,
+			});
+		});
+	}
+
 	function createManagedPicker(position: 'sidebar' | 'editor', hostAvailable = true, localEnabled = true) {
 		const instantiation = store.add(new TestInstantiationService());
 		const changed = store.add(new Emitter<void>());
@@ -239,9 +290,9 @@ suite('SessionTypePickerActionItem', () => {
 				fixture.selectLocal();
 				assert.deepStrictEqual({ snapshots, removed: fixture.getLocal()?.disabled, commands: fixture.commands }, {
 					snapshots: Array.from({ length: 6 }, () => ({
-						label: 'Local', disabled: true, description: '$(briefcase) Disabled by enterprise policy',
+						label: 'Local', disabled: true, description: '$(briefcase) Disabled by policy · [Learn why](https://aka.ms/vscode-copilot-harness-policy)',
 						hover: 'Your organization\'s managed settings require the Copilot harness. [Learn why Local is disabled](https://aka.ms/vscode-copilot-harness-policy).',
-						ariaDescription: 'Disabled by enterprise policy. Your organization\'s managed settings require the Copilot harness. Learn why Local is disabled.',
+						ariaDescription: 'Disabled by policy · Learn why. Your organization\'s managed settings require the Copilot harness. Learn why Local is disabled.',
 					})),
 					removed: false, commands: ['workbench.action.chat.openNewChatSessionInPlace.local'],
 				});
