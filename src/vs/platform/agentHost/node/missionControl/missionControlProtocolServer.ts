@@ -797,9 +797,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private _receiveForClient(clientId: string, payload: unknown): void {
 		let lane = this._lanes.get(clientId);
 		if (lane?.isClosed) {
-			lane = this._createLane(clientId, lane.passive);
-			this._onConnection.fire(lane);
-			lane.activate();
+			lane = this._replaceLane(lane);
 		}
 		lane?.receive(payload);
 	}
@@ -820,14 +818,22 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._join(`user.${this._owner}.env.${this._environment}.client.${spawn.client_id}.to-host`);
 	}
 
+	private _replaceLane(previous: MissionControlLane): MissionControlLane {
+		// Detach before disposal so a client-requested replacement does not publish a closed notice.
+		this._lanes.deleteAndLeak(previous.clientId)?.dispose();
+		const lane = this._createLane(previous.clientId, previous.passive);
+		this._onConnection.fire(lane);
+		lane.activate();
+		return lane;
+	}
+
 	private _createLane(clientId: string, passive: boolean): MissionControlLane {
 		const prefix = `user.${this._owner}.env.${this._environment}.client.${clientId}`;
 		const lane: MissionControlLane = new MissionControlLane(clientId, passive, (group, payload, generation) => this._publish(group, payload, generation, lane), prefix, this._authenticationFactory?.(), (previous, message) => {
 			if (this._closed || this._lanes.get(clientId) !== previous) {
 				return;
 			}
-			previous.dispose();
-			this._receiveForClient(clientId, message);
+			this._replaceLane(previous).receive(message);
 		}, ended => {
 			if (!this._closed && this._lanes.get(clientId) === ended) {
 				const ackId = ++this._ackId;
