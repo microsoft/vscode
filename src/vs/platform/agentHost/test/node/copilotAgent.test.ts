@@ -62,7 +62,7 @@ import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, read
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -1781,6 +1781,10 @@ suite('CopilotAgent', () => {
 			const secondary = URI.file('/workspace/secondary');
 			const customizationDirectory = URI.file('/workspace/customizations');
 			const project = { uri: URI.file('/workspace/project'), displayName: 'Project' };
+			const projectExtensionTrustGrant = {
+				worktreeDirectory: URI.file('/workspace/project.worktrees/session'),
+				repositoryRoot: project.uri,
+			};
 			const config = { isolation: 'folder' };
 			const expected = {
 				'copilot.model': JSON.stringify(model),
@@ -1793,10 +1797,26 @@ suite('CopilotAgent', () => {
 				'copilot.project.resolved': 'true',
 				'copilot.project.uri': project.uri.toString(),
 				'copilot.project.displayName': project.displayName,
+				'copilot.projectExtensionTrustGrant': JSON.stringify({
+					worktreeDirectory: projectExtensionTrustGrant.worktreeDirectory.toString(),
+					repositoryRoot: projectExtensionTrustGrant.repositoryRoot.toString(),
+				}),
 				configValues: JSON.stringify(config),
 			};
 			try {
-				await agent['_storeSessionMetadata']({ storage: session, owner: session }, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
+				await agent['_storeSessionMetadata']({ storage: session, owner: session }, {
+					model,
+					workingDirectory: primary,
+					workingDirectories: [primary, secondary],
+					customizationDirectory,
+					project,
+					projectResolved: true,
+					configValues: config,
+					archived: true,
+					ehcliAdopted: true,
+					lastMigratedTurnId: 'last-migrated-turn',
+					projectExtensionTrustGrant,
+				});
 
 				const ownedKeys = [AH_META_IS_ARCHIVED_DB_KEY, 'configValues', 'copilot.customizationDirectory', 'copilot.project.resolved', 'copilot.project.uri', 'copilot.project.displayName'];
 				const owned = Object.fromEntries(Object.entries(expected).filter(([key]) => ownedKeys.includes(key)));
@@ -1845,7 +1865,14 @@ suite('CopilotAgent', () => {
 			const mirrorWrites = spy(ref.object, 'applyMetadataChanges');
 			const expected = { 'copilot.workingDirectories': '[]', configValues: '{}' };
 			try {
-				await agent['_storeSessionMetadata']({ storage: session, owner: session }, undefined, undefined, [], undefined, undefined, false, {}, false, false, '');
+				await agent['_storeSessionMetadata']({ storage: session, owner: session }, {
+					workingDirectories: [],
+					projectResolved: false,
+					configValues: {},
+					archived: false,
+					ehcliAdopted: false,
+					lastMigratedTurnId: '',
+				});
 
 				assert.deepStrictEqual({
 					mirroredOwned: mirrorWrites.firstCall?.args[0],
@@ -1872,7 +1899,12 @@ suite('CopilotAgent', () => {
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
 			const primary = URI.file('/workspace/peer');
 			try {
-				await agent['_storeSessionMetadata']({ storage: chat, owner: AgentSession.uri('copilotcli', 'owner') }, undefined, primary, [primary], undefined, undefined, false, { isolation: 'folder' });
+				await agent['_storeSessionMetadata']({ storage: chat, owner: AgentSession.uri('copilotcli', 'owner') }, {
+					workingDirectory: primary,
+					workingDirectories: [primary],
+					projectResolved: false,
+					configValues: { isolation: 'folder' },
+				});
 
 				assert.deepStrictEqual({
 					batched: batchedWrites.getCalls().map(call => call.args[0]),
@@ -1903,7 +1935,10 @@ suite('CopilotAgent', () => {
 			const sessionStateWrites = spy(agent['_sessionStateStore'], 'writeMetadata');
 			const primary = URI.file('/workspace/moved');
 			try {
-				await agent['_storeSessionMetadata']({ storage, owner }, undefined, primary, [primary], undefined, undefined);
+				await agent['_storeSessionMetadata']({ storage, owner }, {
+					workingDirectory: primary,
+					workingDirectories: [primary],
+				});
 				const read = await agent['_readSessionMetadata']({ storage, owner });
 
 				assert.deepStrictEqual({
@@ -1937,7 +1972,7 @@ suite('CopilotAgent', () => {
 			const individualWrites = spy(ref.object, 'setMetadata');
 			const batchedWrites = spy(ref.object, 'setMetadataValues');
 			try {
-				await agent['_storeSessionMetadata']({ storage: session, owner: session }, undefined, undefined, undefined, undefined, undefined);
+				await agent['_storeSessionMetadata']({ storage: session, owner: session }, {});
 
 				assert.deepStrictEqual({
 					individualWrites: individualWrites.callCount,
@@ -1968,7 +2003,11 @@ suite('CopilotAgent', () => {
 			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
 			try {
 				await assert.rejects(
-					agent['_storeSessionMetadata']({ storage: session, owner: session }, undefined, URI.file('/workspace/next'), undefined, undefined, undefined, false, { isolation: 'worktree' }),
+					agent['_storeSessionMetadata']({ storage: session, owner: session }, {
+						workingDirectory: URI.file('/workspace/next'),
+						projectResolved: false,
+						configValues: { isolation: 'worktree' },
+					}),
 					error => error === failure,
 				);
 				await ref.object.whenIdle();
@@ -3524,16 +3563,17 @@ suite('CopilotAgent', () => {
 			let initializationCalls = 0;
 			let registered = false;
 			const internals = agent as unknown as {
-				_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<IDisposable>;
 				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
 			};
-			internals._acquireExtensionLaunchAdmission = async () => {
+			internals._acquireProjectExtensionLaunchAdmission = async () => {
 				admissionStarted.complete();
 				await releaseAdmission.p;
 				return toDisposable(() => { admissionDisposed = true; });
 			};
 			const session = {
 				extensionLaunchDirectories: [URI.file('/workspace')],
+				projectExtensionTrustGrant: undefined,
 				setExtensionLaunchAdmission: () => { admissionAttached = true; },
 				initializeSession: async () => { initializationCalls++; },
 				dispose: () => { sessionDisposed = true; },
@@ -10695,6 +10735,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.projectExtensionTrustGrant', value: '' },
 						{ key: 'copilot.customizationDirectory', value: previous.toString() },
 						{ key: 'copilot.sharedCustomizationDirectories', value: '' },
 						{ key: 'copilot.project.uri', value: '' },
@@ -10702,6 +10743,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: '' },
 						{ key: 'copilot.workingDirectory', value: previous.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([previous.toString()]) },
+						{ key: 'copilot.projectExtensionTrustGrant', value: '' },
 					],
 					metadata: {
 						'copilot.workingDirectory': previous.toString(),
@@ -10789,6 +10831,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.projectExtensionTrustGrant', value: '' },
 						{ key: 'copilot.customizationDirectory', value: previous.toString() },
 						{ key: 'copilot.sharedCustomizationDirectories', value: '' },
 						{ key: 'copilot.project.uri', value: previous.toString() },
@@ -10796,6 +10839,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: previous.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([previous.toString()]) },
+						{ key: 'copilot.projectExtensionTrustGrant', value: '' },
 					],
 					metadata: {
 						'copilot.workingDirectory': previous.toString(),
@@ -10885,6 +10929,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: next.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([next.toString()]) },
+						{ key: 'copilot.projectExtensionTrustGrant', value: '' },
 						{ key: 'copilot.customizationDirectory', value: actual.toString() },
 						{ key: 'copilot.sharedCustomizationDirectories', value: '' },
 						{ key: 'copilot.project.uri', value: '' },
@@ -10892,6 +10937,7 @@ suite('CopilotAgent', () => {
 						{ key: 'copilot.project.resolved', value: 'true' },
 						{ key: 'copilot.workingDirectory', value: actual.toString() },
 						{ key: 'copilot.workingDirectories', value: JSON.stringify([actual.toString()]) },
+						{ key: 'copilot.projectExtensionTrustGrant', value: '' },
 					],
 					metadata: {
 						'copilot.workingDirectory': actual.toString(),
@@ -24235,8 +24281,10 @@ suite('CopilotAgent', () => {
 		 * `sessionId` echoes the launch plan, which is what `createChat` records
 		 * as the chat's backing.
 		 */
-		function stubBackingSession(agent: CopilotAgent): void {
+		function stubBackingSession(agent: CopilotAgent): CopilotSessionLaunchPlan[] {
+			const launchPlans: CopilotSessionLaunchPlan[] = [];
 			(agent as unknown as ConvInternals)._createAgentSession = (launchPlan, _dir, _ac, identity) => {
+				launchPlans.push(launchPlan);
 				const sessionUri = identity?.owner.get() ?? AgentSession.uri('copilotcli', launchPlan.sessionId);
 				const chatChannelUri = identity?.chatChannelUri ?? defaultChatUri(sessionUri);
 				return {
@@ -24257,6 +24305,7 @@ suite('CopilotAgent', () => {
 					dispose(): void { launchPlan.shellManager?.dispose(); },
 				} as unknown as CopilotAgentSession;
 			};
+			return launchPlans;
 		}
 
 		test('one createChat entry serves both a deferred first backing and an eager additional backing', async () => {
@@ -24305,6 +24354,101 @@ suite('CopilotAgent', () => {
 					},
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('eager peer creation inherits extension trust without a live parent runtime', async () => {
+			const tempRoot = await fs.mkdtemp(`${os.tmpdir()}/peer-worktree-extension-`);
+			const ownerRepository = URI.file(join(tempRoot, 'owner'));
+			const peerRepository = URI.file(join(tempRoot, 'peer'));
+			const worktree = URI.file(join(tempRoot, 'peer.worktrees', 'session'));
+			const ordinaryFolder = URI.file(join(tempRoot, 'owner.worktrees', 'ordinary'));
+			const ownerPrimaryWorktree = URI.file(join(tempRoot, 'owner.worktrees', 'primary'));
+			await fs.mkdir(ownerRepository.fsPath, { recursive: true });
+			await fs.mkdir(peerRepository.fsPath, { recursive: true });
+			await fs.mkdir(worktree.fsPath, { recursive: true });
+			await fs.mkdir(ordinaryFolder.fsPath, { recursive: true });
+			await fs.mkdir(ownerPrimaryWorktree.fsPath, { recursive: true });
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				sessionDataService,
+				rootConfig: {
+					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [ownerRepository.toString(), peerRepository.toString()] },
+				},
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'cold-peer-worktree');
+				const peer = URI.parse(buildChatUri(session, 'peer-a'));
+				const ordinaryPeer = URI.parse(buildChatUri(session, 'peer-ordinary'));
+				const primaryPeer = URI.parse(buildChatUri(session, 'peer-primary'));
+				const sessionSettings: IAgentChatSessionSettings = {
+					...hostSessionSettings(session)!,
+					additionalWorktrees: [{
+						handle: 'peer-worktree',
+						workingDirectory: worktree.toString(),
+						repositoryRoot: peerRepository.toString(),
+						chat: peer.toString(),
+					}],
+				};
+				const launchPlans = stubBackingSession(agent);
+				const ownerDb = sessionDataService.openDatabase(session);
+				await ownerDb.object.setMetadata('copilot.projectExtensionTrustGrant', JSON.stringify({
+					worktreeDirectory: URI.file(await fs.realpath(ownerPrimaryWorktree.fsPath)).toString(),
+					repositoryRoot: URI.file(await fs.realpath(ownerRepository.fsPath)).toString(),
+				}));
+				ownerDb.dispose();
+
+				await agent.chats.createChat(peer, { ...exactChatContext(session, peer), sessionSettings }, {
+					workingDirectories: [worktree],
+					project: { uri: ownerRepository, displayName: 'owner' },
+				});
+				await agent.chats.createChat(ordinaryPeer, { ...exactChatContext(session, ordinaryPeer), sessionSettings }, {
+					workingDirectories: [ordinaryFolder],
+					project: { uri: ownerRepository, displayName: 'owner' },
+					config: { [SessionConfigKey.Isolation]: 'worktree' },
+				});
+				await agent.chats.createChat(primaryPeer, {
+					...exactChatContext(session, primaryPeer),
+					sessionSettings: {
+						...sessionSettings,
+						defaultChatWorkingDirectory: ownerPrimaryWorktree,
+						additionalWorktrees: [],
+					},
+				}, {
+					workingDirectories: [ownerPrimaryWorktree],
+					project: { uri: ownerRepository, displayName: 'owner' },
+				});
+				const peerDb = sessionDataService.openDatabase(peer);
+				const persistedProject = await peerDb.object.getMetadata('copilot.project.uri');
+				const persistedProjectExtensionTrustGrant = await peerDb.object.getMetadata('copilot.projectExtensionTrustGrant');
+				peerDb.dispose();
+
+				assert.deepStrictEqual({
+					launchPlans: launchPlans.map(plan => plan.projectExtensionTrustGrant && {
+						worktreeDirectory: plan.projectExtensionTrustGrant.worktreeDirectory.toString(),
+						repositoryRoot: plan.projectExtensionTrustGrant.repositoryRoot.toString(),
+					}),
+					persistedProject,
+					persistedProjectExtensionTrustGrant: persistedProjectExtensionTrustGrant ? JSON.parse(persistedProjectExtensionTrustGrant) : undefined,
+				}, {
+					launchPlans: [{
+						worktreeDirectory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
+						repositoryRoot: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
+					}, undefined, {
+						worktreeDirectory: URI.file(await fs.realpath(ownerPrimaryWorktree.fsPath)).toString(),
+						repositoryRoot: URI.file(await fs.realpath(ownerRepository.fsPath)).toString(),
+					}],
+					persistedProject: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
+					persistedProjectExtensionTrustGrant: {
+						worktreeDirectory: URI.file(await fs.realpath(worktree.fsPath)).toString(),
+						repositoryRoot: URI.file(await fs.realpath(peerRepository.fsPath)).toString(),
+					},
+				});
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});
@@ -26285,6 +26429,111 @@ suite('CopilotAgent', () => {
 				}
 			}).timeout(30_000);
 		}
+
+		test('resume preserves inherited extension trust for an isolated worktree', async () => {
+			const tempRoot = await fs.mkdtemp(`${os.tmpdir()}/resume-worktree-extension-`);
+			const ownerRepository = join(tempRoot, 'owner');
+			const peerRepository = join(tempRoot, 'peer');
+			const worktree = join(tempRoot, 'peer.worktrees', 'session');
+			const extensionDirectory = join(worktree, '.github', 'extensions', 'preview');
+			const modulePath = join(extensionDirectory, 'extension.mjs');
+			await fs.mkdir(ownerRepository, { recursive: true });
+			await fs.mkdir(peerRepository, { recursive: true });
+			await fs.mkdir(extensionDirectory, { recursive: true });
+			await fs.writeFile(modulePath, '');
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 's1');
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('copilot.workingDirectory', URI.file(worktree).toString());
+				await dbRef.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file(worktree).toString()]));
+				await dbRef.object.setMetadata('copilot.project.resolved', 'true');
+				await dbRef.object.setMetadata('copilot.project.uri', URI.file(peerRepository).toString());
+				await dbRef.object.setMetadata('copilot.project.displayName', 'peer');
+				await dbRef.object.setMetadata('copilot.projectExtensionTrustGrant', JSON.stringify({
+					worktreeDirectory: URI.file(await fs.realpath(worktree)).toString(),
+					repositoryRoot: URI.file(await fs.realpath(peerRepository)).toString(),
+				}));
+			} finally {
+				dbRef.dispose();
+			}
+			const client = new TestCopilotClient([sdkSession('s1', worktree)]);
+			client.resumeSession = async id => new MockCopilotSession(id) as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService,
+				rootConfig: {
+					[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(ownerRepository).toString(), URI.file(peerRepository).toString()] },
+				},
+			});
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await (agent as unknown as AgentInternals)._resumeSession('s1', sessionBackedChat('s1'));
+				const launch = await getCreatedClientOptions(agent).at(-1)?.extensionLaunchProvider?.resolve({
+					id: 'project:preview',
+					name: 'preview',
+					modulePath,
+					source: 'project',
+				});
+				const resumedDb = sessionDataService.openDatabase(session);
+				const persistedProject = await resumedDb.object.getMetadata('copilot.project.uri');
+				resumedDb.dispose();
+				assert.deepStrictEqual({
+					extensionPathMatches: launch?.launch?.env.EXTENSION_PATH
+						? isEqual(URI.file(launch.launch.env.EXTENSION_PATH), URI.file(await fs.realpath(modulePath)))
+						: false,
+					persistedProject,
+				}, {
+					extensionPathMatches: true,
+					persistedProject: URI.file(await fs.realpath(peerRepository)).toString(),
+				});
+			} finally {
+				await fs.rm(tempRoot, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
+		test('resume leaves unresolved project metadata available for later resolution', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/resume-unresolved-project-`);
+			const workingDirectory = URI.file(join(root, 'workspace'));
+			await fs.mkdir(workingDirectory.fsPath, { recursive: true });
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 'resume-unresolved-project');
+			const chat = sessionBackedChat('resume-unresolved-project');
+			const dbRef = sessionDataService.openDatabase(session);
+			await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+			dbRef.dispose();
+			const client = new TestCopilotClient([sdkSession('resume-unresolved-project', workingDirectory.fsPath, { repository: 'owner/repository' })]);
+			client.resumeSession = async id => new MockCopilotSession(id) as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService,
+			});
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await (agent as unknown as AgentInternals)._resumeSession('resume-unresolved-project', chat);
+				const beforeMetadata = sessionDataService.openDatabase(session);
+				const resolvedBeforeMetadata = await beforeMetadata.object.getMetadata('copilot.project.resolved');
+				beforeMetadata.dispose();
+				const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({
+					resolvedBeforeMetadata,
+					project: metadata?.project && {
+						uri: metadata.project.uri.toString(),
+						displayName: metadata.project.displayName,
+					},
+				}, {
+					resolvedBeforeMetadata: undefined,
+					project: { uri: 'https://github.com/owner/repository', displayName: 'repository' },
+				});
+			} finally {
+				await fs.rm(root, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
 
 		test('resume replaces the complete SDK system message when configured', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);

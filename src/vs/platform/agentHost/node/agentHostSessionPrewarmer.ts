@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { type IAgent, type IAgentChatContext } from '../common/agent.js';
-import { AgentHostPrewarmSessionsConfigKey, AgentHostWorkspaceTrustConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostPrewarmSessionsConfigKey, AgentHostWorkspaceTrustConfigKey, areAllAgentHostWorkspaceResourcesTrusted, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostPrewarmSessionsSettingId } from '../common/agentService.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -162,7 +162,7 @@ export class AgentHostSessionPrewarmer extends Disposable {
 		if (!trust) {
 			return false;
 		}
-		if (!trust.enabled) {
+		if (areAllAgentHostWorkspaceResourcesTrusted(trust)) {
 			return true;
 		}
 		return trust.trustedUris.some(uri => {
