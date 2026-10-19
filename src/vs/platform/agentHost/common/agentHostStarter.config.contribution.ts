@@ -226,7 +226,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatProvidersSettingId.Enabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.multipleChatProviders.enabled', "Enables chats in one Agent Host session to use different agents."),
+			description: nls.localize('chat.agentHost.multipleChatProviders.enabled', "Enables chats in one Agent Host session to use different agents. Takes effect when VS Code reconnects to the agent host, for example after a reload."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
