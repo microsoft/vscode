@@ -2170,6 +2170,70 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('customization inventory uses the verified hidden policy session while a chat is live', async () => {
+		const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/copilot-customization-policy-`);
+		const sessionId = 'visible-chat';
+		const session = AgentSession.uri('copilotcli', sessionId);
+		const chat = defaultChatUri(session);
+		const context = exactChatContext(session, chat, session);
+		const client = new TestCopilotClient([sdkSession(sessionId, workingDirectory)]);
+		const runtimes = new Map<string, MockCopilotSession>();
+		client.createSession = async config => {
+			const runtime = new MockCopilotSession(config.sessionId ?? sessionId);
+			runtimes.set(runtime.sessionId, runtime);
+			return runtime as unknown as CopilotSession;
+		};
+		client.resumeSession = async id => {
+			const runtime = new MockCopilotSession(id);
+			runtimes.set(id, runtime);
+			return runtime as unknown as CopilotSession;
+		};
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const inventoryRequests: string[] = [];
+		const skillInstallations: Pick<CopilotClient['rpc']['skills']['installations'], 'list'> = {
+			list: async request => {
+				inventoryRequests.push(`skills:${request.policySessionId}`);
+				return { kind: 'outcome', negotiated, outcome: { kind: 'listed', installations: [] } };
+			},
+		};
+		const mcpInstallations: Pick<CopilotClient['rpc']['mcp']['installations'], 'list'> = {
+			list: async request => {
+				inventoryRequests.push(`mcp:${request.policySessionId}`);
+				return { kind: 'outcome', negotiated, outcome: { kind: 'listed', installations: [] } };
+			},
+		};
+		const discover: CopilotClient['rpc']['mcp']['discover'] = async () => ({ servers: [] });
+		Object.assign(client.rpc.skills, { installations: skillInstallations });
+		Object.assign(client.rpc.mcp, { installations: mcpInstallations, discover });
+		const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			await provisionSession(agent, { session, workingDirectories: [URI.file(workingDirectory)] });
+			await agent.chats.prepareTurn!(chat, 'turn-1', [URI.file(workingDirectory)], context);
+			const visibleSessionId = agent['_findSessionChat'](session)?.sessionId;
+			assert.ok(visibleSessionId);
+
+			await agent.listCustomizationInstallations(session);
+
+			const hiddenSessionIds = [...runtimes.keys()].filter(id => id !== visibleSessionId);
+			assert.deepStrictEqual({
+				hiddenSessionIds: hiddenSessionIds.length,
+				inventoryRequests,
+				hiddenCredentialHosts: runtimes.get(hiddenSessionIds[0])?.gitHubCredentialUpdates.map(update => update.credentials.host),
+				hiddenSessionIsDiscoverable: !agent['_customizationInstallations'].isPolicySessionId(hiddenSessionIds[0]),
+			}, {
+				hiddenSessionIds: 1,
+				inventoryRequests: [`skills:${hiddenSessionIds[0]}`, `mcp:${hiddenSessionIds[0]}`],
+				hiddenCredentialHosts: ['https://github.com'],
+				hiddenSessionIsDiscoverable: false,
+			});
+		} finally {
+			await disposeAgent(agent);
+			await fs.rm(workingDirectory, { recursive: true, force: true });
+		}
+	});
+
 	test('a chat may set its own approvals, mode, tool permissions and sandbox', async () => {
 		const agent = createTestAgent(disposables);
 		try {
