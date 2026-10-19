@@ -7,9 +7,6 @@
 .chat-generated-image-result,
 .chat-image-generation-placeholder {
 	--chat-generated-image-max-height: min(60vh, 400px);
-}
-
-.chat-image-generation-placeholder {
 	/* The save action beside a generated image, and the gap before it. */
 	--chat-generated-image-actions-width: 30px;
 }
@@ -47,9 +44,17 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-/* The loading square that the image grows from, measured where it loaded so that the handoff is seamless. */
+/*
+ * The loading square that the image grows from: the size measured where it loaded, so that the handoff is
+ * seamless, but never more than the shortest edge the image can have, in case the chat resizes while the
+ * image's bytes load. The gallery's width is the width the image will have.
+ */
 .chat-image-reveal.pending {
-	width: var(--chat-image-reveal-pending-size, round(down, calc(var(--chat-generated-image-max-height) * 2 / 3), 1px));
+	width: min(
+		var(--chat-image-reveal-pending-size, 100cqi),
+		round(down, calc(var(--chat-generated-image-max-height) * 2 / 3), 1px),
+		round(down, calc((100cqi - var(--chat-generated-image-actions-width, 0px)) * 2 / 3), 1px)
+	);
 }
 
 .chat-image-reveal.pending > img {
@@ -71,6 +76,8 @@
 
 :is(.chat-image-generation-single, .chat-image-generation-batch) .chat-generated-image-result {
 	width: 100%;
+	/* Sized by the chat rather than by its image, so that a pending image can size itself against it. */
+	container-type: inline-size;
 
 	.chat-collapsible-io-resource-group {
 		width: fit-content;
