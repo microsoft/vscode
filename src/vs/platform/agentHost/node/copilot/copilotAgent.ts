@@ -1256,7 +1256,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),
-			session => this._findSessionChat(session)?.sessionId,
 			async (client, sessionId) => {
 				const copilotClient = client as CopilotClient;
 				const createSession = () => this._sessionLauncher.createCustomizationPolicySession(
@@ -2837,24 +2836,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 	}
 
-	searchCustomizationMarketplace(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
-		return this._customizationInstallations.search(session, request);
+	// SDK customization operations always bind to the hidden, credential-verified
+	// policy session rather than the session's chat; see CopilotCustomizationInstallations.
+	searchCustomizationMarketplace(_session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		return this._customizationInstallations.search(request);
 	}
 
-	listCustomizationInstallations(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		return this._customizationInstallations.list(session);
+	listCustomizationInstallations(_session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._customizationInstallations.list();
 	}
 
-	prepareCustomizationInstallation(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
-		return this._customizationInstallations.prepare(session, request);
+	prepareCustomizationInstallation(_session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		return this._customizationInstallations.prepare(request);
 	}
 
 	applyCustomizationInstallation(operationId: string): Promise<void> {
 		return this._customizationInstallations.apply(operationId);
 	}
 
-	recoverCustomizationInstallations(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		return this._customizationInstallations.recover(session);
+	recoverCustomizationInstallations(_session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._customizationInstallations.recover();
 	}
 
 	addMcpServerConfiguration(name: string, config: IMcpServerConfiguration): Promise<void> {
