@@ -91,4 +91,21 @@ suite('Files - Explorer rename focus', () => {
 			finished: [{ value: 'renamed.txt', success: true }], connected: false
 		});
 	});
+
+	test('finishes rename when focus moves within its document while it is unfocused', async () => {
+		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', false);
+		await timeout(0);
+		// No blur is dispatched for focus changes while the document is unfocused
+		otherInput.focus();
+		await timeout(0);
+		assert.deepStrictEqual(finished, []);
+
+		const refocused = new Promise<void>(resolve => store.add(dom.addDisposableListener(dom.getWindow(input), dom.EventType.FOCUS, () => resolve())));
+		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
+		await refocused;
+		await timeout(0);
+		assert.deepStrictEqual({ finished, connected: input.isConnected }, {
+			finished: [{ value: 'renamed.txt', success: true }], connected: false
+		});
+	});
 });
