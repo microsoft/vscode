@@ -23,7 +23,7 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
 			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
 			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
-		].map(help => help.includes('it remains in the harness picker as a disabled option') && help.includes('asks you to contact your administrator')), [true, true, true, false, false, false]);
+		].map(help => help.includes('it remains in the harness picker as a disabled option') && help.includes('Learn why Local is disabled link')), [true, true, true, false, false, false]);
 	});
 
 	test('documents the session working set while preserving existing editor guidance', () => {

@@ -194,7 +194,7 @@ export function getSessionTypeUnavailableHover(availability: SessionTypeAvailabi
 		case SessionTypeAvailability.NoModels:
 			return new MarkdownString(localize('chat.sessionType.noModelsHover', "No models are available for this agent."));
 		case SessionTypeAvailability.DisabledByPolicy:
-			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "This harness is disabled by your organization's policy. Contact your administrator for more information."));
+			return new MarkdownString(localize('chat.sessionType.disabledByPolicyHover', "Your organization's managed settings require the Copilot harness. [Learn why Local is disabled]({0}).", 'https://aka.ms/vscode-copilot-harness-policy'));
 		default:
 			return undefined;
 	}

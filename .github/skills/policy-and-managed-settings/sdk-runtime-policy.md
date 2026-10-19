@@ -36,7 +36,7 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 
 A nonempty effective managed `permissions` object, or managed `sandbox.enabled: true`, requires Copilot Agent Host. Permission-key presence is sufficient, including `defaultMode`, explicit `false` / `"enable"`, and empty rule lists. VS Code preserves permission-key presence across server and file delivery and watches the runtime's declared permission keys in native MDM; it does not parse or enforce rule grammar. Permissions do not turn sandboxing on.
 
-When effective enterprise policy prohibits Local, the harness picker keeps its row visible but disabled, with a policy explanation and guidance to contact an administrator. This presentation does not make Local selectable, usable as a fallback, or exempt from request blocking and migration. Personal visibility settings still apply when no enterprise restriction is active.
+When effective enterprise policy prohibits Local, the harness picker keeps its row visible but disabled, with a policy explanation and a link to learn why Local is disabled. This presentation does not make Local selectable, usable as a fallback, or exempt from request blocking and migration. Personal visibility settings still apply when no enterprise restriction is active.
 
 The legacy network boundary bridge targets runtime-native Domain operations only. It does not change tool selection, the experimental terminal override, or VS Code client fetch. Native `limitTo` enforcement in the integrated browser is deferred; existing browser controls remain unchanged. Browser/client tools, experimental terminal overrides, arbitrary extension/MCP networking, and client-run code must not be assumed to inherit the runtime's Domain enforcement.
 

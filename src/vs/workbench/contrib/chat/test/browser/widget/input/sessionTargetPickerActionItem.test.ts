@@ -240,8 +240,8 @@ suite('SessionTypePickerActionItem', () => {
 				assert.deepStrictEqual({ snapshots, removed: fixture.getLocal()?.disabled, commands: fixture.commands }, {
 					snapshots: Array.from({ length: 6 }, () => ({
 						label: 'Local', disabled: true, description: '$(briefcase) Disabled by enterprise policy',
-						hover: 'This harness is disabled by your organization\'s policy. Contact your administrator for more information.',
-						ariaDescription: 'Disabled by enterprise policy. This harness is disabled by your organization\'s policy. Contact your administrator for more information.',
+						hover: 'Your organization\'s managed settings require the Copilot harness. [Learn why Local is disabled](https://aka.ms/vscode-copilot-harness-policy).',
+						ariaDescription: 'Disabled by enterprise policy. Your organization\'s managed settings require the Copilot harness. Learn why Local is disabled.',
 					})),
 					removed: false, commands: ['workbench.action.chat.openNewChatSessionInPlace.local'],
 				});
