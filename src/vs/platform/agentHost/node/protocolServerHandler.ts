@@ -52,7 +52,7 @@ import type { CommandMap } from '../common/state/protocol/messages.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { compareProtocolVersions, PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
@@ -147,6 +147,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 			resource: chat.chat.toString(),
 			title: chat.summary ?? '',
 			origin: chat.origin,
+			...(chat.provider !== undefined ? { provider: chat.provider } : {}),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			// Forward the chat's activity bits so clients can present them without subscribing.
 			...(chat.status !== undefined || chat.isRead !== undefined ? {
@@ -413,6 +414,9 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
 		},
 	};
 }
+
+/** The first protocol version whose clients may be told about `multipleChatProviders`. */
+const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
 
 /**
  * Represents a connected protocol client with its subscription state.
@@ -913,6 +917,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	// ---- Handshake handlers ----------------------------------------------------
 
+	/**
+	 * Whether a connection that negotiated `protocolVersion` is told that chats
+	 * of one session may use different agents (`multipleChatProviders`): only
+	 * behind the host setting and from protocol version 1.1.0.
+	 */
+	private _supportsMultipleChatProviders(protocolVersion: string): boolean {
+		return !this._config.relayRoots
+			&& this._agentService.multipleChatProvidersEnabled === true
+			&& compareProtocolVersions(protocolVersion, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0;
+	}
+
 	private _handleInitialize(
 		params: InitializeParams,
 		transport: IProtocolTransport,
@@ -1036,6 +1051,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
+				...(this._supportsMultipleChatProviders(negotiated) ? { multipleChatProviders: {} } : {}),
 			};
 			return {
 				client,
@@ -2080,6 +2096,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (chatUriError !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
+			if (params.provider !== undefined && (typeof params.provider !== 'string' || !this._supportsMultipleChatProviders(_client.protocolVersion))) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'This host does not support chats with their own agent.');
+			}
 			const source = params.source;
 			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined
 				? {
@@ -2110,6 +2129,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					default:
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported createChat source kind: ${String((source as { kind?: unknown }).kind)}`);
 				}
+			}
+			if (params.provider !== undefined) {
+				options = { ...options, provider: params.provider };
 			}
 			await this._agentService.createChat(
 				URI.parse(params.channel),

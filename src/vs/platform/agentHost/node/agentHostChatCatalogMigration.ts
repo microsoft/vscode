@@ -127,7 +127,7 @@ export async function migrateChatCatalogV2(
 					workingDirectories,
 					isRead: chat.isRead,
 					archived: chat.archived,
-					metadata: { summary: chat.summary, titleSource: chat.titleSource, interactivity: chat.interactivity, changes: chat.changes },
+					metadata: { summary: chat.summary, titleSource: chat.titleSource, interactivity: chat.interactivity, ...(chat.provider !== undefined ? { provider: chat.provider } : {}), changes: chat.changes },
 				};
 			} finally {
 				reference?.dispose();

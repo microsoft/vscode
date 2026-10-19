@@ -309,6 +309,7 @@ class MockAgentService implements IAgentService {
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
 	automationCapabilities: AutomationCapabilities | undefined;
+	multipleChatProvidersEnabled = false;
 	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
 	async runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
 		this.automationRunRequests.push(params);
@@ -7754,6 +7755,52 @@ suite('ProtocolServerHandler', () => {
 
 	suite('createChat / disposeChat', () => {
 		const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+		test('advertises multipleChatProviders only behind the setting and from protocol 1.1.0', () => {
+			const capability = (clientId: string, protocolVersions: readonly string[]) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId }));
+				const resp = findResponse(transport.sent, 1);
+				const result = resp && hasKey(resp, { result: true }) ? resp.result as InitializeResult : undefined;
+				return { advertised: result?.multipleChatProviders, hasKey: !!result && Object.hasOwn(result, 'multipleChatProviders') };
+			};
+			const off = capability('providers-off', [PROTOCOL_VERSION]);
+			agentService.multipleChatProvidersEnabled = true;
+			assert.deepStrictEqual({
+				off,
+				on: capability('providers-on', [PROTOCOL_VERSION]),
+				older: capability('providers-older', ['1.0.0']),
+			}, {
+				off: { advertised: undefined, hasKey: false },
+				on: { advertised: {}, hasKey: true },
+				older: { advertised: undefined, hasKey: false },
+			});
+		});
+
+		test('createChat rejects a provider unless multipleChatProviders is advertised, and forwards it when it is', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const off = connectClient('client-provider-off');
+			off.sent.length = 0;
+			const rejected = waitForResponse(off, 2);
+			off.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat, provider: 'codex' }));
+			const rejectedResponse = await rejected;
+
+			agentService.multipleChatProvidersEnabled = true;
+			const on = connectClient('client-provider-on');
+			on.sent.length = 0;
+			const accepted = waitForResponse(on, 2);
+			on.simulateMessage(request(2, 'createChat', { channel: sessionUri, chat: peerChat, provider: 'codex' }));
+			await accepted;
+
+			assert.deepStrictEqual({
+				rejectedCode: hasKey(rejectedResponse as JsonRpcResponse, { error: true }) ? (rejectedResponse as { error: { code: number } }).error.code : undefined,
+				created: agentService.createdChats.map(created => created.options),
+			}, {
+				rejectedCode: JsonRpcErrorCodes.InvalidParams,
+				created: [{ provider: 'codex' }],
+			});
+		});
 
 		test('createChat on the default chat URI is a no-op', async () => {
 			stateManager.createSession(makeSessionSummary());

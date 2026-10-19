@@ -116,7 +116,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	}
 	titleController.seedTitleFromFirstMessage(request.session, request.message.text, request.chat, request.message.model);
 
-	const agent = providerService.getProviderForSession(request.session);
+	const agent = providerService.getProviderForChat(request.session, request.turnChannel);
 	if (!agent) {
 		const error: ErrorInfo = { errorType: 'noAgent', message: 'No agent found for session' };
 		stateManager.dispatchServerAction(request.turnChannel, {

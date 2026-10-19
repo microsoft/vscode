@@ -32,6 +32,8 @@ const metadataValidator = vObj({
 	summary: vOptionalProp(new BoundedStringValidator(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	titleSource: vOptionalProp(vEnum('user', 'agent', 'auto')),
 	interactivity: vOptionalProp(vEnum(ChatInteractivity.Full, ChatInteractivity.ReadOnly, ChatInteractivity.Hidden)),
+	/** The chat's own agent when it differs from its session's; absence means the session's agent. */
+	provider: vOptionalProp(new BoundedStringValidator(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT)),
 	changes: vOptionalProp(agentHostCatalogChangesValidator),
 });
 const payloadValidator = vObj({ metadataVersion: vNumber(), data: metadataValidator });

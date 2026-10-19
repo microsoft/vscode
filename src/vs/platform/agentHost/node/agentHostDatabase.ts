@@ -3517,6 +3517,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				...(actual.summary === undefined ? {} : { summary: actual.summary }),
 				...(actual.titleSource === undefined ? {} : { titleSource: actual.titleSource }),
 				interactivity: actual.interactivity ?? ChatInteractivity.Full,
+				...(actual.provider === undefined ? {} : { provider: actual.provider }),
 				...(actual.changes === undefined ? {} : { changes: actual.changes }),
 			};
 			const origin = actual.origin === undefined ? undefined : typeof actual.origin === 'string' ? actual.origin : stableStringify(actual.origin);
