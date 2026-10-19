@@ -806,8 +806,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(hasRoundedTopCorners
 			&& parseFloat(trayStyle.borderBottomLeftRadius) === 0 && parseFloat(trayStyle.borderBottomRightRadius) === 0
 			&& trayStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
-			&& trayStyle.backgroundColor === targetWindow.getComputedStyle(inputArea).backgroundColor,
-			'The experimental tray must match the input background, with rounded top corners and square bottom corners, with or without a custom background.');
+			&& (!isHighContrast(context.theme.type) || trayStyle.backgroundColor === targetWindow.getComputedStyle(inputArea).backgroundColor),
+			'The experimental tray must have a filled background and joined corners, preserving the solid input background in high contrast.');
 		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
 			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
