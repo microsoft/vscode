@@ -10,6 +10,7 @@ import {
 	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
+	ByokResponsesStreamEmitter,
 	capBridgeTools,
 	endsWithUserMessage,
 	hasVisibleBridgeOutput,
@@ -301,6 +302,130 @@ suite('byokResponsesTranslation', () => {
 				total_tokens: 15,
 			},
 		});
+	});
+
+	test('emits Responses SSE incrementally instead of buffering the completion', () => {
+		type ParsedSse = { readonly event: string; readonly data: Record<string, unknown> };
+		const parse = (frames: readonly string[]): ParsedSse[] => frames.map(frame => {
+			const lines = frame.trim().split('\n');
+			return {
+				event: lines[0].slice('event: '.length),
+				data: JSON.parse(lines[1].slice('data: '.length)) as Record<string, unknown>,
+			};
+		});
+
+		const emitter = new ByokResponsesStreamEmitter('gpt-5');
+
+		assert.deepStrictEqual(parse(emitter.start()).map(e => e.event), ['response.created', 'response.in_progress']);
+
+		const thinking = parse(emitter.progress({ kind: 'thinking', id: 'rs_1', value: 'thin', startsNewSummaryPart: false }));
+		assert.deepStrictEqual(thinking.map(e => e.event), [
+			'response.output_item.added',
+			'response.reasoning_summary_part.added',
+			'response.reasoning_summary_text.delta',
+		]);
+		assert.strictEqual(thinking[2].data.delta, 'thin');
+
+		// A continuation writes only the new delta; it must not re-announce the item.
+		const moreThinking = parse(emitter.progress({ kind: 'thinking', id: 'rs_1', value: 'king', startsNewSummaryPart: false }));
+		assert.deepStrictEqual(moreThinking.map(e => e.event), ['response.reasoning_summary_text.delta']);
+		assert.strictEqual(moreThinking[0].data.delta, 'king');
+
+		const text = parse(emitter.progress({ kind: 'text', value: 'hel' }));
+		assert.deepStrictEqual(text.map(e => e.event), [
+			'response.reasoning_summary_text.done',
+			'response.reasoning_summary_part.done',
+			'response.output_item.done',
+			'response.output_item.added',
+			'response.content_part.added',
+			'response.output_text.delta',
+		]);
+		const streamedMessageId = (text[3].data.item as { id: string }).id;
+		assert.strictEqual(text[5].data.delta, 'hel');
+
+		const moreText = parse(emitter.progress({ kind: 'text', value: 'lo' }));
+		assert.deepStrictEqual(moreText.map(e => e.event), ['response.output_text.delta']);
+		assert.strictEqual(moreText[0].data.delta, 'lo');
+
+		const finished = parse(emitter.finish({
+			responseId: 'resp_provider',
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['thinking'] },
+				{ type: 'message', content: [{ type: 'text', text: 'hello' }] },
+			],
+			usage: { inputTokens: 1, outputTokens: 2 },
+		}));
+
+		assert.deepStrictEqual(finished.map(e => e.event), [
+			'response.output_text.done',
+			'response.content_part.done',
+			'response.output_item.done',
+			'response.completed',
+		]);
+
+		const completed = finished.at(-1)!.data.response as { id: string; output: Array<{ id: string; type: string }>; output_text: string };
+		assert.strictEqual(completed.id, 'resp_provider');
+		// The completed payload is authoritative and is not duplicated by the deltas.
+		assert.strictEqual(completed.output_text, 'hello');
+		assert.deepStrictEqual(completed.output.map(item => item.type), ['reasoning', 'message']);
+		// Items keep the id announced while streaming.
+		assert.strictEqual(completed.output[1].id, streamedMessageId);
+	});
+
+	test('opens a new reasoning summary part without repeating earlier text', () => {
+		type ParsedSse = { readonly event: string; readonly data: Record<string, unknown> };
+		const parse = (frames: readonly string[]): ParsedSse[] => frames.map(frame => {
+			const lines = frame.trim().split('\n');
+			return {
+				event: lines[0].slice('event: '.length),
+				data: JSON.parse(lines[1].slice('data: '.length)) as Record<string, unknown>,
+			};
+		});
+
+		const emitter = new ByokResponsesStreamEmitter('gpt-5');
+		emitter.start();
+		emitter.progress({ kind: 'thinking', id: 'rs_1', value: 'one', startsNewSummaryPart: false });
+
+		const next = parse(emitter.progress({ kind: 'thinking', id: 'rs_1', value: 'two', startsNewSummaryPart: true }));
+		assert.deepStrictEqual(next.map(e => e.event), [
+			'response.reasoning_summary_text.done',
+			'response.reasoning_summary_part.done',
+			'response.reasoning_summary_part.added',
+			'response.reasoning_summary_text.delta',
+		]);
+		assert.strictEqual(next[0].data.text, 'one');
+		assert.strictEqual(next[3].data.delta, 'two');
+		assert.strictEqual(next[3].data.summary_index, 1);
+
+		const finished = parse(emitter.finish({ output: [{ type: 'reasoning', id: 'rs_1', summary: ['one', 'two'] }] }));
+		const item = finished.find(e => e.event === 'response.output_item.done')!.data.item as { summary: Array<{ text: string }> };
+		assert.deepStrictEqual(item.summary.map(part => part.text), ['one', 'two']);
+	});
+
+	test('announces a tool call as soon as it is reported', () => {
+		type ParsedSse = { readonly event: string; readonly data: Record<string, unknown> };
+		const parse = (frames: readonly string[]): ParsedSse[] => frames.map(frame => {
+			const lines = frame.trim().split('\n');
+			return {
+				event: lines[0].slice('event: '.length),
+				data: JSON.parse(lines[1].slice('data: '.length)) as Record<string, unknown>,
+			};
+		});
+
+		const emitter = new ByokResponsesStreamEmitter('gpt-5');
+		const frames = parse(emitter.progress({
+			kind: 'toolCall',
+			item: { type: 'function_call', callId: 'call_1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+		}));
+
+		assert.deepStrictEqual(frames.map(e => e.event), [
+			'response.output_item.added',
+			'response.function_call_arguments.delta',
+			'response.function_call_arguments.done',
+			'response.output_item.done',
+		]);
+		assert.strictEqual(frames[1].data.delta, '{"city":"NYC"}');
+		assert.strictEqual((frames[3].data.item as { call_id: string }).call_id, 'call_1');
 	});
 
 	test('encodes a completed non-streaming Responses body', () => {

@@ -38,7 +38,7 @@ suite('ByokLmProxyService', () => {
 	}
 
 	async function withProxy(
-		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
+		chat: IByokLmBridgeConnection['chat'],
 		run: (handle: IByokLmProxyHandle, service: ByokLmProxyService) => Promise<void>,
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
@@ -787,6 +787,60 @@ suite('ByokLmProxyService', () => {
 				assert.ok(text.includes('"type":"function_call"'), `expected function_call in SSE: ${text}`);
 				assert.ok(text.includes('event: response.completed'), `expected completed response: ${text}`);
 				assert.ok(text.includes('getWeather'));
+			},
+		);
+	});
+
+	test('writes SSE frames to the client while the bridge is still streaming', async () => {
+		let releaseBridge!: () => void;
+		const bridgeReleased = new Promise<void>(resolve => releaseBridge = resolve);
+		let progressReported!: () => void;
+		const progressSeen = new Promise<void>(resolve => progressReported = resolve);
+
+		await withProxy(
+			async (_request, _token, progress) => {
+				progress?.({ kind: 'text', value: 'hello' });
+				progressReported();
+				await bridgeReleased;
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'hello' }] }] };
+			},
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input: 'hi', stream: true }),
+				});
+				const reader = response.body!.getReader();
+				const decoder = new TextDecoder();
+				const readOrFail = () => Promise.race([
+					reader.read(),
+					new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('timed out waiting for a streamed delta')), 5000)),
+				]);
+
+				await progressSeen;
+
+				// The bridge is still blocked here: a delta can only arrive if the proxy
+				// writes frames as they are reported instead of after the completion.
+				let buffered = '';
+				while (!buffered.includes('response.output_text.delta')) {
+					const { done, value } = await readOrFail();
+					assert.strictEqual(done, false, `stream closed before any delta arrived: ${buffered}`);
+					buffered += decoder.decode(value, { stream: true });
+				}
+				assert.ok(buffered.includes('hello'), buffered);
+
+				releaseBridge();
+
+				for (; ;) {
+					const { done, value } = await readOrFail();
+					if (done) {
+						break;
+					}
+					buffered += decoder.decode(value, { stream: true });
+				}
+
+				assert.ok(buffered.includes('event: response.completed'), buffered);
+				assert.ok(buffered.includes('"output_text":"hello"'), buffered);
 			},
 		);
 	});

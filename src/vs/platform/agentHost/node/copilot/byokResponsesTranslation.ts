@@ -6,9 +6,12 @@
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import {
 	ByokLmImageMimeType,
+	IByokLmChatProgress,
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
+	IByokLmCustomToolCallItem,
+	IByokLmFunctionCallItem,
 	IByokLmInputItem,
 	IByokLmOutputItem,
 	IByokLmTool,
@@ -453,22 +456,26 @@ function responseEnvelope(responseId: string, model: string, status: 'in_progres
 	};
 }
 
-function prepareResponse(result: IByokLmChatResult, model: string) {
-	const responseId = result.responseId ?? nextId('resp');
-	const output = result.output.map(toResponsesOutputItem);
+function usageFromResult(result: IByokLmChatResult) {
 	const inputTokens = result.usage?.inputTokens ?? 0;
 	const outputTokens = result.usage?.outputTokens ?? 0;
-	const usage = {
+	return {
 		input_tokens: inputTokens,
 		input_tokens_details: { cached_tokens: 0 },
 		output_tokens: outputTokens,
 		output_tokens_details: { reasoning_tokens: result.usage?.reasoningTokens ?? 0 },
 		total_tokens: inputTokens + outputTokens,
 	};
+}
+
+function prepareResponse(result: IByokLmChatResult, model: string) {
+	const responseId = result.responseId ?? nextId('resp');
+	const output = result.output.map(toResponsesOutputItem);
+	const completed = responseEnvelope(responseId, model, 'completed', output, usageFromResult(result));
 	return {
 		responseId,
 		output,
-		completed: responseEnvelope(responseId, model, 'completed', output, usage),
+		completed,
 	};
 }
 
@@ -591,6 +598,273 @@ function callFrames(item: Extract<ResponsesOutputItem, { type: 'function_call' |
 			input: item.input,
 		}),
 	];
+}
+
+type OpenByokResponsesMessage = {
+	readonly kind: 'message';
+	readonly index: number;
+	readonly id: string;
+	text: string;
+};
+
+type OpenByokResponsesReasoning = {
+	readonly kind: 'reasoning';
+	readonly index: number;
+	readonly id: string;
+	/** The renderer's thinking-part id, used to decide whether text continues the open item. */
+	readonly sourceId: string | undefined;
+	summaryIndex: number;
+	/** Accumulated text per summary part; the last entry is the part being written. */
+	readonly parts: string[];
+};
+
+type OpenByokResponsesItem = OpenByokResponsesMessage | OpenByokResponsesReasoning;
+
+/**
+ * Incremental Responses SSE emitter for the BYOK bridge.
+ *
+ * The renderer reports content as the LM API produces it, so frames can be
+ * written to the SDK runtime while the model is still generating instead of
+ * being synthesized from the buffered completion. {@link finish} closes the
+ * open item and emits `response.completed` built from the authoritative
+ * result, so item order and tool calls come from the final payload while the
+ * response id stays stable for stateful continuation.
+ */
+export class ByokResponsesStreamEmitter {
+
+	private readonly _sequence = { value: 0 };
+	private readonly _mintedResponseId = nextId('resp');
+	private readonly _items: ResponsesOutputItem[] = [];
+	private _outputIndex = -1;
+	private _open: OpenByokResponsesItem | undefined;
+
+	constructor(private readonly _model: string) { }
+
+	/** Opens the stream. Safe to write before the model has produced anything. */
+	start(): string[] {
+		const skeleton = responseEnvelope(this._mintedResponseId, this._model, 'in_progress', [], undefined);
+		return [
+			sseEvent('response.created', { type: 'response.created', sequence_number: this._sequence.value++, response: skeleton }),
+			sseEvent('response.in_progress', { type: 'response.in_progress', sequence_number: this._sequence.value++, response: skeleton }),
+		];
+	}
+
+	/** Frames for one incrementally reported piece of content. */
+	progress(progress: IByokLmChatProgress): string[] {
+		switch (progress.kind) {
+			case 'text':
+				return this._appendText(progress.value);
+			case 'thinking':
+				return this._appendThinking(progress.id, progress.value, progress.startsNewSummaryPart);
+			case 'toolCall':
+				return this._appendToolCall(progress.item);
+		}
+	}
+
+	/** Closes the open item and completes the response from the final result. */
+	finish(result: IByokLmChatResult): string[] {
+		const frames = this._closeOpen();
+		const responseId = result.responseId ?? this._mintedResponseId;
+		// Reuse the ids announced while streaming so every item keeps one identity
+		// across `output_item.added`, the deltas and `response.completed`.
+		const output = result.output.map((item, index) => {
+			const mapped = toResponsesOutputItem(item);
+			const streamed = this._items[index];
+			return streamed && streamed.type === mapped.type ? { ...mapped, id: streamed.id } : mapped;
+		});
+		const completed = responseEnvelope(responseId, this._model, 'completed', output, usageFromResult(result));
+		frames.push(sseEvent('response.completed', {
+			type: 'response.completed',
+			sequence_number: this._sequence.value++,
+			response: completed,
+		}));
+		return frames;
+	}
+
+	private _appendText(value: string): string[] {
+		if (value.length === 0) {
+			return [];
+		}
+		const frames: string[] = [];
+		if (this._open?.kind !== 'message') {
+			frames.push(...this._closeOpen());
+			const item: ResponsesOutputItem = {
+				id: nextId('msg'),
+				type: 'message',
+				role: 'assistant',
+				status: 'completed',
+				content: [],
+			};
+			frames.push(...this._beginItem(item));
+			const index = this._outputIndex;
+			frames.push(sseEvent('response.content_part.added', {
+				type: 'response.content_part.added',
+				sequence_number: this._sequence.value++,
+				item_id: item.id,
+				output_index: index,
+				content_index: 0,
+				part: { type: 'output_text', text: '', annotations: [], logprobs: [] },
+			}));
+			this._open = { kind: 'message', index, id: item.id, text: '' };
+		}
+		const open = this._open as OpenByokResponsesMessage;
+		open.text += value;
+		frames.push(sseEvent('response.output_text.delta', {
+			type: 'response.output_text.delta',
+			sequence_number: this._sequence.value++,
+			item_id: open.id,
+			output_index: open.index,
+			content_index: 0,
+			delta: value,
+			logprobs: [],
+		}));
+		return frames;
+	}
+
+	private _appendThinking(id: string | undefined, value: string, startsNewSummaryPart: boolean): string[] {
+		if (value.length === 0) {
+			return [];
+		}
+		const frames: string[] = [];
+		let open = this._open;
+		if (open?.kind !== 'reasoning' || open.sourceId !== id) {
+			frames.push(...this._closeOpen());
+			const item: ResponsesOutputItem = {
+				id: id?.startsWith('rs') ? id : nextId('rs'),
+				type: 'reasoning',
+				status: 'completed',
+				summary: [],
+				encrypted_content: null,
+			};
+			frames.push(...this._beginItem(item));
+			open = { kind: 'reasoning', index: this._outputIndex, id: item.id, sourceId: id, summaryIndex: 0, parts: [''] };
+			this._open = open;
+			frames.push(...this._beginSummaryPart(open));
+		} else if (startsNewSummaryPart) {
+			frames.push(...this._closeSummaryPart(open));
+			open.summaryIndex++;
+			open.parts.push('');
+			frames.push(...this._beginSummaryPart(open));
+		}
+		open.parts[open.summaryIndex] += value;
+		frames.push(sseEvent('response.reasoning_summary_text.delta', {
+			type: 'response.reasoning_summary_text.delta',
+			sequence_number: this._sequence.value++,
+			item_id: open.id,
+			output_index: open.index,
+			summary_index: open.summaryIndex,
+			delta: value,
+		}));
+		return frames;
+	}
+
+	private _appendToolCall(item: IByokLmFunctionCallItem | IByokLmCustomToolCallItem): string[] {
+		const frames = this._closeOpen();
+		const mapped: ResponsesOutputItem = item.type === 'function_call'
+			? { id: nextId('fc'), type: 'function_call', status: 'completed', call_id: item.callId, name: item.name, arguments: item.argumentsJson }
+			: { id: nextId('ctc'), type: 'custom_tool_call', status: 'completed', call_id: item.callId, name: item.name, input: item.input };
+		frames.push(...this._beginItem(mapped));
+		const index = this._outputIndex;
+		frames.push(...callFrames(mapped, index, this._sequence));
+		frames.push(sseEvent('response.output_item.done', {
+			type: 'response.output_item.done',
+			sequence_number: this._sequence.value++,
+			output_index: index,
+			item: mapped,
+		}));
+		return frames;
+	}
+
+	private _beginItem(item: ResponsesOutputItem): string[] {
+		const index = ++this._outputIndex;
+		this._items[index] = item;
+		return [sseEvent('response.output_item.added', {
+			type: 'response.output_item.added',
+			sequence_number: this._sequence.value++,
+			output_index: index,
+			item: toInProgressOutputItem(item),
+		})];
+	}
+
+	private _beginSummaryPart(open: OpenByokResponsesReasoning): string[] {
+		return [sseEvent('response.reasoning_summary_part.added', {
+			type: 'response.reasoning_summary_part.added',
+			sequence_number: this._sequence.value++,
+			item_id: open.id,
+			output_index: open.index,
+			summary_index: open.summaryIndex,
+			part: { type: 'summary_text', text: '' },
+		})];
+	}
+
+	private _closeSummaryPart(open: OpenByokResponsesReasoning): string[] {
+		const text = open.parts[open.summaryIndex];
+		return [
+			sseEvent('response.reasoning_summary_text.done', {
+				type: 'response.reasoning_summary_text.done',
+				sequence_number: this._sequence.value++,
+				item_id: open.id,
+				output_index: open.index,
+				summary_index: open.summaryIndex,
+				text,
+			}),
+			sseEvent('response.reasoning_summary_part.done', {
+				type: 'response.reasoning_summary_part.done',
+				sequence_number: this._sequence.value++,
+				item_id: open.id,
+				output_index: open.index,
+				summary_index: open.summaryIndex,
+				part: { type: 'summary_text', text },
+			}),
+		];
+	}
+
+	private _closeOpen(): string[] {
+		const open = this._open;
+		if (!open) {
+			return [];
+		}
+		this._open = undefined;
+		const frames: string[] = [];
+		let item: ResponsesOutputItem;
+		if (open.kind === 'message') {
+			const part = { type: 'output_text' as const, text: open.text, annotations: [], logprobs: [] };
+			frames.push(sseEvent('response.output_text.done', {
+				type: 'response.output_text.done',
+				sequence_number: this._sequence.value++,
+				item_id: open.id,
+				output_index: open.index,
+				content_index: 0,
+				text: open.text,
+				logprobs: [],
+			}));
+			frames.push(sseEvent('response.content_part.done', {
+				type: 'response.content_part.done',
+				sequence_number: this._sequence.value++,
+				item_id: open.id,
+				output_index: open.index,
+				content_index: 0,
+				part,
+			}));
+			item = { id: open.id, type: 'message', role: 'assistant', status: 'completed', content: [part] };
+		} else {
+			frames.push(...this._closeSummaryPart(open));
+			item = {
+				id: open.id,
+				type: 'reasoning',
+				status: 'completed',
+				summary: open.parts.map(text => ({ type: 'summary_text', text })),
+				encrypted_content: null,
+			};
+		}
+		frames.push(sseEvent('response.output_item.done', {
+			type: 'response.output_item.done',
+			sequence_number: this._sequence.value++,
+			output_index: open.index,
+			item,
+		}));
+		return frames;
+	}
 }
 
 export function bridgeResultToResponsesSseFrames(result: IByokLmChatResult, model: string): string[] {

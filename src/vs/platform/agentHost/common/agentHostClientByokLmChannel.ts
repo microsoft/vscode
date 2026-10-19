@@ -7,11 +7,14 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Throttler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	IAgentHostByokLmHandler,
 	IByokLmBridgeConnection,
+	IByokLmChatProgress,
+	IByokLmChatProgressReporter,
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmModelInfo,
@@ -27,16 +30,36 @@ import {
 export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
 
 /**
+ * Event name carrying {@link IByokLmChatProgress} for one in-flight `chat`
+ * call. The node side subscribes with the request id as the event argument
+ * before issuing the call, so the renderer can push content as it arrives.
+ */
+export const AGENT_HOST_CLIENT_BYOK_LM_PROGRESS_EVENT = 'chatProgress';
+
+interface IByokLmChatCallArgs {
+	readonly request: IByokLmChatRequest;
+	/** Correlates this call with its {@link AGENT_HOST_CLIENT_BYOK_LM_PROGRESS_EVENT} stream. */
+	readonly requestId: string;
+}
+
+/**
  * Wraps an {@link IChannel} (obtained from the agent host's
  * `UtilityProcessServer.getChannel`) into an {@link IByokLmBridgeConnection}
  * suitable for the node-side {@link IByokLmProxyService}. This is the node end
- * of the bridge: `chat()` ships the request to the renderer and resolves with
- * the buffered completion the renderer produced from the LM API, and
- * `onDidChangeModels` is the renderer's pushed model snapshot stream.
+ * of the bridge: `chat()` ships the request to the renderer, forwards streamed
+ * content from the per-request progress channel, and resolves with the final
+ * result; `onDidChangeModels` is the renderer's pushed model snapshot stream.
  */
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
 	return {
-		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
+		chat: (request, token, progress) => {
+			const requestId = generateUuid();
+			const subscription = progress
+				? channel.listen<IByokLmChatProgress>(AGENT_HOST_CLIENT_BYOK_LM_PROGRESS_EVENT, requestId)(progress)
+				: undefined;
+			return (channel.call('chat', { request, requestId } satisfies IByokLmChatCallArgs, token) as Promise<IByokLmChatResult>)
+				.finally(() => subscription?.dispose());
+		},
 		onDidChangeModels: channel.listen<IByokLmModelInfo[]>('models'),
 	};
 }
@@ -55,11 +78,41 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	listen<T>(_ctx: unknown, event: string): Event<T> {
+	/**
+	 * Per-request progress emitters, keyed by the request id the node side
+	 * passes to {@link AGENT_HOST_CLIENT_BYOK_LM_PROGRESS_EVENT}. Created on
+	 * demand and disposed when the matching `chat` call settles.
+	 */
+	private readonly _chatProgress = new Map<string, Emitter<IByokLmChatProgress>>();
+
+	listen<T>(_ctx: unknown, event: string, arg?: unknown): Event<T> {
 		if (event === 'models') {
 			return this._modelsSnapshotEvent() as Event<T>;
 		}
+		if (event === AGENT_HOST_CLIENT_BYOK_LM_PROGRESS_EVENT) {
+			if (typeof arg !== 'string') {
+				throw new Error(`'${AGENT_HOST_CLIENT_BYOK_LM_PROGRESS_EVENT}' requires a request id argument`);
+			}
+			return this._chatProgressEmitter(arg).event as Event<T>;
+		}
 		throw new Error(`No event '${event}' on AgentHostClientByokLmChannel`);
+	}
+
+	private _chatProgressEmitter(requestId: string): Emitter<IByokLmChatProgress> {
+		let emitter = this._chatProgress.get(requestId);
+		if (!emitter) {
+			emitter = new Emitter<IByokLmChatProgress>();
+			this._chatProgress.set(requestId, emitter);
+		}
+		return emitter;
+	}
+
+	private _disposeChatProgress(requestId: string): void {
+		const emitter = this._chatProgress.get(requestId);
+		if (emitter) {
+			this._chatProgress.delete(requestId);
+			emitter.dispose();
+		}
 	}
 
 	/**
@@ -102,11 +155,18 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 		return emitter.event;
 	}
 
-	async call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {
+	async call<T>(_ctx: unknown, command: string, arg?: unknown, token?: CancellationToken): Promise<T> {
 		switch (command) {
 			case 'chat': {
-				const result = await this._handler.chat(arg as IByokLmChatRequest, CancellationToken.None);
-				return result as T;
+				const { request, requestId } = arg as IByokLmChatCallArgs;
+				const emitter = this._chatProgressEmitter(requestId);
+				const report: IByokLmChatProgressReporter = progress => emitter.fire(progress);
+				try {
+					const result = await this._handler.chat(request, token ?? CancellationToken.None, report);
+					return result as T;
+				} finally {
+					this._disposeChatProgress(requestId);
+				}
 			}
 		}
 		throw new Error(`Unknown command '${command}' on AgentHostClientByokLmChannel`);
@@ -115,14 +175,14 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 
 export class NullAgentHostClientByokLmChannel implements IServerChannel {
 
-	listen<T>(_ctx: unknown, event: string): Event<T> {
+	listen<T>(_ctx: unknown, event: string, _arg?: unknown): Event<T> {
 		if (event === 'models') {
 			return Event.None;
 		}
 		throw new Error(`No event '${event}' on NullAgentHostClientByokLmChannel`);
 	}
 
-	async call<T>(_ctx: unknown, command: string): Promise<T> {
+	async call<T>(_ctx: unknown, command: string, _arg?: unknown, _token?: CancellationToken): Promise<T> {
 		throw new Error(`No command '${command}' on NullAgentHostClientByokLmChannel`);
 	}
 }

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IAgentHostByokLmHandler, IByokLmChatProgress, IByokLmChatProgressReporter, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
@@ -16,11 +17,11 @@ suite('agentHostClientByokLmChannel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function handlerOf(
-		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
+		chat: (request: IByokLmChatRequest, token: CancellationToken, progress?: IByokLmChatProgressReporter) => Promise<IByokLmChatResult>,
 		listModels: () => Promise<IByokLmModelInfo[]> = async () => [],
 		onDidChangeModels?: Event<void>,
 	): IAgentHostByokLmHandler {
-		return { _serviceBrand: undefined, chat: (request) => chat(request), listModels: () => listModels(), onDidChangeModels };
+		return { _serviceBrand: undefined, chat: (request, token, progress) => chat(request, token, progress), listModels: () => listModels(), onDidChangeModels };
 	}
 
 	/** Resolves once the channel's async snapshot publish has settled. */
@@ -34,14 +35,14 @@ suite('agentHostClientByokLmChannel', () => {
 	function bridge(handler: IAgentHostByokLmHandler) {
 		const server = new AgentHostClientByokLmChannel(handler, new NullLogService());
 		const channel: IChannel = {
-			call<T>(command: string, arg?: unknown): Promise<T> {
-				return server.call<T>(null, command, arg);
+			call<T>(command: string, arg?: unknown, token?: CancellationToken): Promise<T> {
+				return server.call<T>(null, command, arg, token);
 			},
-			listen<T>(event: string): Event<T> {
+			listen<T>(event: string, arg?: unknown): Event<T> {
 				// Mirror ChannelClient.listen: defer to the server channel only when
 				// the returned event is actually subscribed (lazy), so a connection
 				// that never listens allocates nothing.
-				return (listener, thisArgs?, disposables?) => server.listen<T>(null, event)(listener, thisArgs, disposables);
+				return (listener, thisArgs?, disposables?) => server.listen<T>(null, event, arg)(listener, thisArgs, disposables);
 			},
 		};
 		return createAgentHostClientByokLmConnection(channel);
@@ -70,7 +71,7 @@ suite('agentHostClientByokLmChannel', () => {
 				{ type: 'message', role: 'user', content: [{ type: 'text', text: 'ping' }] },
 			],
 		};
-		const result = await connection.chat(request);
+		const result = await connection.chat(request, CancellationToken.None);
 
 		assert.deepStrictEqual(seen, request);
 		assert.deepStrictEqual(result, {
@@ -83,9 +84,30 @@ suite('agentHostClientByokLmChannel', () => {
 		});
 	});
 
+	test('forwards streamed progress before the call resolves', async () => {
+		const seen: IByokLmChatProgress[] = [];
+		let handlerReturned = false;
+		const connection = bridge(handlerOf(async (_request, _token, progress) => {
+			progress?.({ kind: 'thinking', id: 'rs_1', value: 'hmm', startsNewSummaryPart: false });
+			progress?.({ kind: 'text', value: 'pong' });
+			handlerReturned = true;
+			return { output: [{ type: 'message', content: [{ type: 'text', text: 'pong' }] }] };
+		}));
+
+		await connection.chat({ vendor: 'v', modelId: 'm', input: [] }, CancellationToken.None, progress => {
+			assert.strictEqual(handlerReturned, false, 'progress must reach the node side before the result resolves');
+			seen.push(progress);
+		});
+
+		assert.deepStrictEqual(seen, [
+			{ kind: 'thinking', id: 'rs_1', value: 'hmm', startsNewSummaryPart: false },
+			{ kind: 'text', value: 'pong' },
+		]);
+	});
+
 	test('forwards a bridge error result unchanged', async () => {
 		const connection = bridge(handlerOf(async () => ({ output: [], error: 'no model' })));
-		const result = await connection.chat({ vendor: 'v', modelId: 'm', input: [] });
+		const result = await connection.chat({ vendor: 'v', modelId: 'm', input: [] }, CancellationToken.None);
 		assert.strictEqual(result.error, 'no model');
 	});
 
