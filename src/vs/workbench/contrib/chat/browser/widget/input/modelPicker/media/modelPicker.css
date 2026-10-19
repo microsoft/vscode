@@ -494,7 +494,8 @@
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active,
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active:hover,
-.action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
+.action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked,
+.action-widget.image-models-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
 	color: var(--vscode-modernTab-activeForeground);
 	background: var(--vscode-modernTab-activeBackground);
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);

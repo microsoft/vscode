@@ -162,8 +162,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly sizingTab?: string;
 	/** Show the checked item's hover after the popup has been positioned. */
 	readonly showCheckedItemHover?: boolean;
-	/** Optional icon buttons rendered after the tabs. */
-	readonly tabBarActions?: readonly ITabBarAction[];
+	/** Optional icon buttons rendered after the tabs; computed per active tab when a function, so an action can belong to one tab. */
+	readonly tabBarActions?: readonly ITabBarAction[] | ((activeTab: string) => readonly ITabBarAction[]);
 	/**
 	 * When tabs show their label beside their icon. `active` labels only the active tab,
 	 * and a tab with no icon always shows its label. Defaults to `always`.
@@ -386,7 +386,8 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
-				for (const tabAction of options.tabBarActions ?? []) {
+				const tabBarActions = typeof options.tabBarActions === 'function' ? options.tabBarActions(activeTab) : options.tabBarActions;
+				for (const tabAction of tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
 					button.classList.toggle('align-end', !!tabAction.alignEnd);

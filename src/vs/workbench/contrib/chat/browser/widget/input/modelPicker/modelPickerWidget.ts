@@ -57,6 +57,7 @@ import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
+import { ConfigurationModelPickerImageModels, IModelPickerImageModels, ModelPickerImageModelsSettingId } from './modelPickerImageModels.js';
 import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
@@ -152,6 +153,7 @@ export class ModelPickerWidget extends Disposable {
 	private readonly _localModels = this._register(new MutableDisposable<DisposableStore>());
 	private _localModelsController: ModelPickerLocalModels | undefined;
 	private _localModelsConnection: IAgentConnection | undefined;
+	private _imageModels: IModelPickerImageModels | undefined;
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -647,6 +649,17 @@ export class ModelPickerWidget extends Disposable {
 		return this._localModelsController;
 	}
 
+	/** The image models behind the Copilot tab's image toggle, only while the setting is on for a local Copilot Agent Host chat, which can generate images. */
+	private _getImageModels(): IModelPickerImageModels | undefined {
+		const applies = this._configurationService.getValue<boolean>(ModelPickerImageModelsSettingId) === true
+			&& this._delegate.getSessionType?.() === SessionType.AgentHostCopilot;
+		if (!applies) {
+			return undefined;
+		}
+		this._imageModels ??= this._instantiationService.createInstance(ConfigurationModelPickerImageModels);
+		return this._imageModels;
+	}
+
 	/** Updates an open picker's on-device rows in place, keeping keyboard focus on the row, and an on-device model's readout. */
 	private _refreshLocalModels(): void {
 		if (this._tabbedPicker.value?.isVisible) {
@@ -824,6 +837,7 @@ export class ModelPickerWidget extends Disposable {
 				dismiss: () => this.dismissCacheBreakHint(),
 			} : undefined,
 			localModels: localModels?.getPresentation(),
+			imageModels: this._getImageModels(),
 		}, telemetrySession, showDetails ? this._selectedModel?.identifier : undefined, focusConfiguration, options);
 	}
 

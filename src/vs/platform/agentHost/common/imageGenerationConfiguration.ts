@@ -35,13 +35,14 @@ export function migrateLegacyImageGenerationSetting(enabled: unknown): CopilotIm
 	return typeof enabled === 'boolean' ? (enabled ? CopilotImageGenerationModels[0] : CopilotImageGenerationOff) : undefined;
 }
 
-/** A Settings dropdown entry; the markdown description carries the model's rates. */
-interface IImageGenerationModelChoice {
+/** An image model setting value with its display label and a markdown description of its rates. */
+export interface IImageGenerationModelChoice {
+	readonly id: CopilotImageGenerationModelSetting;
 	readonly label: string;
 	readonly description: string;
 }
 
-const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, IImageGenerationModelChoice> = {
+const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, Omit<IImageGenerationModelChoice, 'id'>> = {
 	[CopilotImageGenerationOff]: {
 		label: nls.localize('chat.copilot.imageGeneration.model.off.label', "Off"),
 		description: nls.localize('chat.copilot.imageGeneration.model.off', "Agents cannot generate or edit images."),
@@ -53,6 +54,9 @@ const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, II
 };
 
 const imageGenerationModelSettingValues: readonly CopilotImageGenerationModelSetting[] = [CopilotImageGenerationOff, ...CopilotImageGenerationModels];
+
+/** The image model choices in Settings order, Off first, for surfaces other than Settings such as the model picker. */
+export const imageGenerationModelChoiceList: readonly IImageGenerationModelChoice[] = imageGenerationModelSettingValues.map(id => ({ id, ...imageGenerationModelChoices[id] }));
 
 export const imageGenerationConfigurationProperties = {
 	[CopilotImageGenerationModelSettingId]: {

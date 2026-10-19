@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { SelectBox } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
@@ -13,6 +14,7 @@ import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
@@ -48,6 +50,7 @@ import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerH
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerComparison } from './modelPickerComparison.js';
+import { IModelPickerImageModels } from './modelPickerImageModels.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -58,6 +61,11 @@ const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
 
 function isComparisonConfigurationValue(value: unknown): value is string | number | boolean | null {
 	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+/** Introduces the image models the Copilot tab lists while its image toggle is on. */
+function getImageModelsHint(): string {
+	return localize('chat.modelPicker.imageModels.hint', "Choose the model Copilot uses to generate and edit images. Its charges are in addition to the conversation model.");
 }
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
@@ -101,6 +109,8 @@ export interface ITabbedModelPickerContext {
 	readonly configurationCacheBreakHint?: ITabbedModelPickerContext['cacheBreakHint'];
 	/** The "On This Device" tab's rows and direct-row presentation, when the chat's Agent Host offers on-device models. */
 	readonly localModels?: IModelPickerLocalModels;
+	/** Image models the Copilot tab's image toggle lists in place of chat models, when the chat can generate images. */
+	readonly imageModels?: IModelPickerImageModels;
 }
 
 /** Why the picker closed, so its owner can choose where focus goes next. */
@@ -140,6 +150,9 @@ export class TabbedModelPicker extends Disposable {
 	private _contextViewLayer: number | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
+	/** Whether the Copilot tab lists image models instead of chat models; like search, it ends when the popup closes. */
+	private _imageModelsVisible = false;
+	private readonly _imageModelsListener = this._register(new MutableDisposable());
 	private _filterValue = '';
 	/** Set while Done closes the picker, so the hide is reported as a completed guided selection. */
 	private _finishingComparison = false;
@@ -203,6 +216,8 @@ export class TabbedModelPicker extends Disposable {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
+			this._imageModelsVisible = false;
+			this._imageModelsListener.clear();
 			this._filterValue = '';
 			this._selectionVersion++;
 			this._detailsModelId = undefined;
@@ -234,6 +249,7 @@ export class TabbedModelPicker extends Disposable {
 			return;
 		}
 		this._searchVisible = true;
+		this._imageModelsVisible = false;
 		this._showCurrent(options.initialFilterValue, options.initialFocusItemId);
 	}
 
@@ -253,6 +269,14 @@ export class TabbedModelPicker extends Disposable {
 		this._context = pickerContext;
 		this._rememberHydraFusionTier(pickerContext);
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
+		const imageModels = context.imageModels;
+		// The image model can change after its row is chosen, e.g. once the setting is written, so its rows follow it.
+		this._imageModelsListener.value = imageModels && autorun(reader => {
+			imageModels.selectedModelId.read(reader);
+			if (this._getShownImageModels(this._context)) {
+				this._widget.refreshActiveList({ preserveScrollPosition: true, preserveSize: true });
+			}
+		});
 		this._contextViewLayer = contextViewLayer;
 		const requestedModel = pickerContext.models.find(model => model.identifier === detailsModelId);
 		// An on-device direct model's details are its family's page in the "On This Device" tab.
@@ -441,12 +465,13 @@ export class TabbedModelPicker extends Disposable {
 			// upgrade would unlock, which is too short to hold another provider's models.
 			sizingTab: this._hasBuiltInChoices(context) ? MODEL_PICKER_BUILT_IN_DESTINATION : undefined,
 			contextViewLayer: this._contextViewLayer,
-			tabBarActions: this._buildTabBarActions(context),
+			tabBarActions: activeTab => this._buildTabBarActions(this._getActiveContext(this._context ?? baseContext), activeTab),
 			tabBarClassName: 'chat-model-picker-tabbar',
-			widgetClassNames: () => [
+			widgetClassNames: activeTab => [
 				'chat-model-picker-widget',
 				...(step ? ['model-picker-comparison'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
+				...(this._getShownImageModels(this._context, activeTab) ? ['image-models-mode'] : []),
 			],
 			tabLabels: 'active',
 			filterInTabBar: true,
@@ -459,12 +484,20 @@ export class TabbedModelPicker extends Disposable {
 				const isOnDevice = destination.id === MODEL_PICKER_ON_DEVICE_DESTINATION;
 				// Search spans every destination at once, so each model names its provider.
 				const searching = this._searchVisible && !forSizing;
-				const items = searching
-					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
-					: isOnDevice
-						? this._buildLocalModelItems(current)
-						: this._buildItems(destination, sections, current);
-				const hint = step ? { text: step.description, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
+				// The popup is sized from the chat models, so the shorter image list doesn't shrink it.
+				const imageModels = forSizing ? undefined : this._getShownImageModels(current, destination.id);
+				const items = imageModels
+					? this._buildImageModelItems(imageModels)
+					: searching
+						? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
+						: isOnDevice
+							? this._buildLocalModelItems(current)
+							: this._buildItems(destination, sections, current);
+				const hint = step
+					? { text: step.description, link: undefined, dismiss: undefined }
+					: imageModels
+						? { text: getImageModelsHint(), link: undefined, dismiss: undefined }
+						: current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withActionWidgetDropdownMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
@@ -478,6 +511,7 @@ export class TabbedModelPicker extends Disposable {
 					filterAsCombobox: true,
 					onType: text => {
 						this._searchVisible = true;
+						this._imageModelsVisible = false;
 						current.onDidSearch();
 						this._showCurrent(text);
 					},
@@ -526,8 +560,8 @@ export class TabbedModelPicker extends Disposable {
 			delegate: {
 				onSelect: action => {
 					void action.run();
-					// A row that opens its detail page, such as an on-device model to set up, keeps the picker open.
-					if (!step && !this._widget.isShowingDetails) {
+					// Rows that open a detail page, and image models (listed until their toggle is off), keep the picker open.
+					if (!step && !this._widget.isShowingDetails && !this._getShownImageModels(this._context)) {
 						this._widget.hide();
 					}
 				},
@@ -717,10 +751,38 @@ export class TabbedModelPicker extends Disposable {
 			|| (hydraFusionTiers.includes(model) && hydraFusionTiers.includes(defaultModel))) ? defaultModel : undefined;
 	}
 
-	private _buildTabBarActions(context: ITabbedModelPickerContext): ITabBarAction[] {
+	/** Whether the Copilot tab offers its image toggle: comparing keeps the comparison toggle in that place. */
+	private _offersImageModels(context: ITabbedModelPickerContext | undefined, activeTab: string | undefined): context is ITabbedModelPickerContext & { readonly imageModels: IModelPickerImageModels } {
+		return !!context?.imageModels && activeTab === MODEL_PICKER_BUILT_IN_DESTINATION && !context.comparison?.state.get();
+	}
+
+	/** The image models listed in place of the active tab's chat models, while the image toggle is on. */
+	private _getShownImageModels(context: ITabbedModelPickerContext | undefined, activeTab = this._activeDestination): IModelPickerImageModels | undefined {
+		return this._imageModelsVisible && !this._searchVisible && this._offersImageModels(context, activeTab) ? context.imageModels : undefined;
+	}
+
+	private _buildTabBarActions(context: ITabbedModelPickerContext, activeTab: string): ITabBarAction[] {
 		const actions: ITabBarAction[] = [];
 		const comparison = context.comparison;
-		if (comparison?.available.get()) {
+		if (this._offersImageModels(context, activeTab)) {
+			// In the Copilot tab, image models take comparison's place beside Search.
+			actions.push({
+				id: 'imageModels',
+				icon: Codicon.fileMedia,
+				tooltip: localize('chat.modelPicker.imageModels', "Image Models"),
+				alignEnd: true,
+				useManagedHover: true,
+				checked: !!this._getShownImageModels(context, activeTab),
+				run: () => {
+					this._imageModelsVisible = !this._getShownImageModels(context, activeTab);
+					this._searchVisible = false;
+					this._showCurrent();
+					if (this._imageModelsVisible) {
+						status(getImageModelsHint());
+					}
+				},
+			});
+		} else if (comparison?.available.get()) {
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
@@ -733,6 +795,7 @@ export class TabbedModelPicker extends Disposable {
 					if (comparison.state.get()) {
 						comparison.cancel();
 					} else {
+						this._imageModelsVisible = false;
 						comparison.start();
 					}
 					this._showCurrent(this._filterValue);
@@ -762,6 +825,7 @@ export class TabbedModelPicker extends Disposable {
 				run: () => {
 					this._searchVisible = !this._searchVisible;
 					if (this._searchVisible) {
+						this._imageModelsVisible = false;
 						context.onDidSearch();
 					}
 					this._showCurrent();
@@ -769,6 +833,34 @@ export class TabbedModelPicker extends Disposable {
 			});
 		}
 		return actions;
+	}
+
+	/** One row per image model with the one in use checked; the hover carries the model's rates. */
+	private _buildImageModelItems(imageModels: IModelPickerImageModels): IActionListItem<IActionWidgetDropdownAction>[] {
+		const selectedModelId = imageModels.selectedModelId.get();
+		return imageModels.models.map(model => {
+			const checked = model.id === selectedModelId;
+			const description = new MarkdownString(model.description);
+			return {
+				item: {
+					id: model.id,
+					enabled: true,
+					checked,
+					class: undefined,
+					label: model.label,
+					tooltip: model.label,
+					run: () => imageModels.select(model.id),
+				},
+				kind: ActionListItemKind.Action,
+				label: model.label,
+				// Screen reader users never reach the hover, so the rates are read with the row.
+				ariaDescription: renderAsPlaintext(description, { omitMarkdownSyntax: true }),
+				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
+				hideIcon: false,
+				className: ['chat-model-picker-model', ...(checked ? ['chat-model-picker-current'] : [])].join(' '),
+				hover: { content: description },
+			};
+		});
 	}
 
 	private _renderComparisonFooter(container: HTMLElement, comparison: IModelPickerComparison): DisposableStore {

@@ -1300,6 +1300,33 @@ suite('TabbedActionListWidget', () => {
 		);
 	});
 
+	test('tab bar actions computed per tab are rebuilt on tab switch', () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
+			initialTab: 'Local',
+			tabBarActions: tab => [
+				...(tab === 'Local' ? [{ id: 'localOnly', icon: Codicon.fileMedia, tooltip: 'Local Only', checked: false, run: () => { } }] : []),
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search', alignEnd: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const actions = () => [...document.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action')].map(button => button.dataset.id);
+		const onShow = actions();
+		document.querySelectorAll<HTMLElement>('.tabbed-action-list-tabstrip .monaco-button')[1].click();
+		const afterTabSwitch = actions();
+
+		assert.deepStrictEqual({ onShow, afterTabSwitch }, { onShow: ['localOnly', 'search'], afterTabSwitch: ['search'] });
+	});
+
 	test('opening with a collapsed body focuses the footer without animating', () => {
 		const { body, button } = createCollapsibleWidget(disposables, false, true);
 		body.querySelector<HTMLElement>('.monaco-button')!.focus();
