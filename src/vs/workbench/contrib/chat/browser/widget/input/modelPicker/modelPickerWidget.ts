@@ -9,7 +9,6 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
