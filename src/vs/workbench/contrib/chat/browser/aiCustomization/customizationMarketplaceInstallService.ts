@@ -255,7 +255,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		if (installedSource?.kind === 'plugin' && resourceSource?.kind === 'providerCatalog' && resourceSource.resourceKind === 'plugin' && resourceSource.repository) {
 			return installedSource.repository.toLowerCase() === resourceSource.repository.toLowerCase()
-				&& normalizePluginPath(installedSource.path) === normalizePluginPath(resourceSource.path)
+				&& normalizePluginPath(installedSource.path) === getCatalogPluginRoot(resourceSource.path)
 				&& versionsCompatible;
 		}
 		if (!installedSource && resourceSource?.kind === 'mcpGallery' && installed.mediaType === CustomizationMarketplaceMediaType.McpServer) {
@@ -684,7 +684,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			};
 		}
 		if (source.kind === 'skill' || source.kind === 'mcp' || source.kind === 'plugin' || source.kind === 'providerPlugin' || source.kind === 'providerCatalog') {
-			if ((source.kind === 'plugin' || source.kind === 'providerPlugin') &&
+			if ((source.kind === 'plugin' || source.kind === 'providerPlugin' || source.kind === 'providerCatalog' && source.resourceKind === 'plugin') &&
 				!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
@@ -1342,6 +1342,20 @@ function getConnectorOperationKey(resource: ICustomizationMarketplaceResource): 
 
 function normalizePluginPath(path: string | undefined): string {
 	return path?.replace(/^\/+|\/+$/g, '') ?? '';
+}
+
+function getCatalogPluginRoot(path: string | undefined): string {
+	const normalized = normalizePluginPath(path);
+	for (const descriptor of ['.github/plugin/plugin.json', '.plugin/plugin.json']) {
+		if (normalized === descriptor) {
+			return '';
+		}
+		const suffix = `/${descriptor}`;
+		if (normalized.endsWith(suffix)) {
+			return normalized.slice(0, -suffix.length);
+		}
+	}
+	return normalized;
 }
 
 async function createInstallationRecordId(slot: readonly (string | null)[]): Promise<string> {

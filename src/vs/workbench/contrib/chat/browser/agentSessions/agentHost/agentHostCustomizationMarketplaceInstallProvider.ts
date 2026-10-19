@@ -13,7 +13,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceResource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -37,8 +37,6 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	private readonly unavailableCatalogItems = new Map<string, string>();
 	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
-	private knownInstallationIds = new Set<string>();
-	private pendingCatalogInstall: { readonly resource: ICustomizationMarketplaceResource; readonly previousIds: ReadonlySet<string> } | undefined;
 	private readonly catalogAuthenticationRequired = new Set<string>();
 	readonly onDidChange: Event<void>;
 
@@ -282,10 +280,8 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	async getInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
 		this.throwIfCancelled(token);
-		let pluginInstallations = this.getPluginInstallations();
+		const pluginInstallations = this.getPluginInstallations();
 		if (!this.agentHostService.listCustomizationInstallations) {
-			this.captureCatalogAssociation(pluginInstallations);
-			pluginInstallations = this.getPluginInstallations();
 			return pluginInstallations;
 		}
 		let backendSession: URI;
@@ -303,25 +299,18 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			this.throwIfCancelled(token);
 			this.logService.error('[AgentHostCustomizationMarketplace] Unable to load session-bound SDK installation receipts', error);
 			const receiptInstallations = this.receiptInstallations.get(backendSession) ?? [];
-			this.captureCatalogAssociation([...receiptInstallations, ...pluginInstallations]);
-			pluginInstallations = this.getPluginInstallations();
 			return [...receiptInstallations, ...pluginInstallations];
 		}
 		this.throwIfCancelled(token);
-		const rawReceiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
-		this.captureCatalogAssociation([...rawReceiptInstallations, ...pluginInstallations]);
-		pluginInstallations = this.getPluginInstallations();
 		const receiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
 		this.receiptInstallations.set(backendSession, receiptInstallations);
 		while (this.receiptInstallations.size > maxCachedReceiptSessions) {
 			this.receiptInstallations.delete(this.receiptInstallations.keys().next().value!);
 		}
-		const result = [
+		return [
 			...receiptInstallations,
 			...pluginInstallations,
 		];
-		this.knownInstallationIds = new Set(result.map(installation => installation.installationId).filter((id): id is string => !!id));
-		return result;
 	}
 
 	async install(sessionResource: URI, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
@@ -464,7 +453,11 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		return review;
 	}
 
-	private async confirmAndApply(review: IAgentCustomizationInstallationReview, token: CancellationToken): Promise<void> {
+	private async confirmAndApply(
+		review: IAgentCustomizationInstallationReview,
+		token: CancellationToken,
+		beforeChange?: (result: IAgentCustomizationInstallationApplyResult | undefined) => Promise<void> | void,
+	): Promise<void> {
 		const confirmation = await this.dialogService.confirm({
 			type: 'question',
 			message: review.action === 'install'
@@ -483,22 +476,28 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (!this.agentHostService.applyCustomizationInstallation) {
 			throw new Error(localize('agentHost.customizationInstall.applyUnavailable', "The selected agent cannot apply this SDK installation."));
 		}
-		await this.agentHostService.applyCustomizationInstallation(this.providerId, review.operationId);
+		const result = await this.agentHostService.applyCustomizationInstallation(this.providerId, review.operationId);
+		this.throwIfCancelled(token);
+		await beforeChange?.(result);
 		this.throwIfCancelled(token);
 		this._onDidChange.fire();
 	}
 
 	private async confirmAndApplyCatalogResource(review: IAgentCustomizationInstallationReview, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
-		const pendingCatalogInstall = { resource, previousIds: new Set(this.knownInstallationIds) };
-		this.pendingCatalogInstall = pendingCatalogInstall;
-		try {
-			await this.confirmAndApply(review, token);
-		} catch (error) {
-			if (this.pendingCatalogInstall === pendingCatalogInstall) {
-				this.pendingCatalogInstall = undefined;
+		await this.confirmAndApply(review, token, async result => {
+			const installation = resource.installation;
+			if (installation?.kind !== 'providerCatalog' && installation?.kind !== 'mcpGallery') {
+				return;
 			}
-			throw error;
-		}
+			if (result?.kind === 'receipt') {
+				this.rememberCatalogAssociation(result.installationId, resource);
+				return;
+			}
+			if (result?.kind === 'plugin') {
+				const plugin = await this.waitForAppliedPluginInventory(result, token);
+				this.rememberCatalogAssociation(getPluginInstallationId(plugin.copilotCliInstallation!), resource);
+			}
+		});
 	}
 
 	private getReviewDetail(review: IAgentCustomizationInstallationReview): string {
@@ -555,26 +554,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		};
 	}
 
-	private captureCatalogAssociation(installations: readonly IRecordedCustomizationMarketplaceResource[]): void {
-		const pending = this.pendingCatalogInstall;
-		const pendingInstallation = pending?.resource.installation;
-		if (!pending || pendingInstallation?.kind !== 'providerCatalog' && pendingInstallation?.kind !== 'mcpGallery') {
-			return;
-		}
-		const resourceKind = pendingInstallation.kind === 'providerCatalog' ? pendingInstallation.resourceKind : 'mcp';
-		const candidates = installations.filter(installation =>
-			!!installation.installationId
-			&& !pending.previousIds.has(installation.installationId)
-			&& installation.state.target.kind === resourceKind
-		);
-		if (candidates.length === 1 && candidates[0].installationId) {
-			this.catalogAssociations.set(candidates[0].installationId, pending.resource);
-			while (this.catalogAssociations.size > maxCatalogAssociations) {
-				this.catalogAssociations.delete(this.catalogAssociations.keys().next().value!);
-			}
-			this.pendingCatalogInstall = undefined;
-		} else if (candidates.length > 1) {
-			this.pendingCatalogInstall = undefined;
+	private rememberCatalogAssociation(installationId: string, resource: ICustomizationMarketplaceResource): void {
+		this.catalogAssociations.set(installationId, resource);
+		while (this.catalogAssociations.size > maxCatalogAssociations) {
+			this.catalogAssociations.delete(this.catalogAssociations.keys().next().value!);
 		}
 	}
 
@@ -659,6 +642,31 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			operation.dispose();
 		}
 	}
+
+	private async waitForAppliedPluginInventory(identity: Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>, token: CancellationToken): Promise<IAgentPlugin> {
+		const operation = new DisposableStore();
+		try {
+			const inventoryUpdated = new Promise<IAgentPlugin>((resolve, reject) => {
+				const checkInventory = () => {
+					const plugin = this.agentPluginService.plugins.get().find(candidate => isAppliedPluginInstallation(candidate, identity));
+					if (plugin) {
+						resolve(plugin);
+					}
+				};
+				operation.add(Event.fromObservableLight(this.agentPluginService.plugins)(checkInventory));
+				operation.add(token.onCancellationRequested(() => reject(new CancellationError())));
+				checkInventory();
+			});
+			const plugin = await raceTimeout(inventoryUpdated, pluginInventoryUpdateTimeoutMs);
+			if (!plugin) {
+				throw new Error(localize('agentHost.customizationInstall.pluginInventoryTimeout', "The SDK completed the plugin operation, but its installation inventory did not update."));
+			}
+			this.throwIfCancelled(token);
+			return plugin;
+		} finally {
+			operation.dispose();
+		}
+	}
 }
 
 function isPluginInstallation(
@@ -668,6 +676,19 @@ function isPluginInstallation(
 	return candidate?.name === expected.name
 		&& candidate.marketplace === expected.marketplace
 		&& candidate.directSourceId === expected.directSourceId;
+}
+
+function isAppliedPluginInstallation(
+	plugin: IAgentPlugin,
+	expected: Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>,
+): boolean {
+	const installation = plugin.copilotCliInstallation;
+	const source = installation?.source;
+	return installation?.name === expected.name
+		&& source?.kind === 'github'
+		&& source.repository.toLowerCase() === expected.repository.toLowerCase()
+		&& (source.sha ?? source.ref) === expected.ref
+		&& (source.path ?? '') === expected.path;
 }
 
 function toPluginMarketplaceResource(plugin: IAgentPlugin): ICustomizationMarketplaceResource {

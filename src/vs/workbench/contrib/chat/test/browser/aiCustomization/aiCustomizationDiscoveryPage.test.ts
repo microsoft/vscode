@@ -79,7 +79,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		installedPlugins: readonly IAgentPlugin[] = [],
 		setupUrl?: URI,
 		installedIdentifiers: readonly string[] = [],
-		browseSections?: ICustomizationMarketplaceBrowseSections,
+		browseSections?: ICustomizationMarketplaceBrowseSections | Promise<ICustomizationMarketplaceBrowseSections>,
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -146,7 +146,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly allSources = sources;
 			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
-			override async getBrowseSections() { return browseSections; }
+			override async getBrowseSections() { return await browseSections; }
 			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
 				requests.push({ options, token, result });
@@ -2369,13 +2369,54 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('does not cache incomplete Browse results while curated sections are pending', async () => {
+		const browseSections = new DeferredPromise<ICustomizationMarketplaceBrowseSections>();
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			browseSections.p,
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('catalog-featured')] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('mail');
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({ items: [resource('search-result')] });
+		fixture.page.setSearchQuery('');
+		await waitForRequestCount(fixture.requests, 3);
+		const restoredBeforeFeeds = fixture.page.getAccessibilityContent().match(/^(?:catalog-featured|search-result)$/gm);
+
+		await fixture.requests[2].result.complete({ items: [resource('fresh-featured')] });
+		await browseSections.complete({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			sections: [{ id: 'editors', title: 'Editor\'s picks', items: [resource('curated-featured')] }],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			queries: fixture.requests.map(request => request.options.query),
+			restoredBeforeFeeds,
+			visible: fixture.page.getAccessibilityContent().match(/^(?:catalog-featured|search-result|fresh-featured|curated-featured)$/gm),
+		}, {
+			queries: [undefined, 'mail', undefined],
+			restoredBeforeFeeds: null,
+			visible: ['curated-featured'],
+		});
+	});
+
 
 	test('clearing search restores browse results only for the selected source', async () => {
 		const fixture = createPage(['agentFinder', 'copilotConnectors']);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('all-featured')] });
+		await timeout(0);
 		await fixture.selectSource('copilotConnectors');
 		await fixture.requests[1].result.complete({ items: [resource('connector-featured', { sourceId: 'copilotConnectors' })] });
+		await timeout(0);
 		fixture.page.setSearchQuery('mail');
 		await timeout(0);
 		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
@@ -2397,8 +2438,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		const fixture = createPage(['agentFinder', 'copilotConnectors']);
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('all-featured')] });
+		await timeout(0);
 		await fixture.selectSource('copilotConnectors');
 		await fixture.requests[1].result.complete({ items: [resource('connector-featured', { sourceId: 'copilotConnectors' })] });
+		await timeout(0);
 		fixture.page.setSearchQuery('mail');
 		await timeout(0);
 		await fixture.requests[2].result.complete({ items: [resource('connector-search', { sourceId: 'copilotConnectors' })] });
