@@ -517,10 +517,12 @@ export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly C
 
 /** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
 export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
-	for (let i = 0; i < published.length; i++) {
-		const index = published[i].agents.findIndex(agent => agent.uri.toString() === agentUri);
-		if (index >= 0 && applied[i] && parsedPluginsEqual([applied[i]], [published[i]])) {
-			return applied[i].agents[index]?.name;
+	for (const plugin of published) {
+		const index = plugin.agents.findIndex(agent => agent.uri.toString() === agentUri);
+		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
+		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
+		if (equivalent) {
+			return equivalent.agents[index]?.name;
 		}
 	}
 	return undefined;

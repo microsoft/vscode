@@ -25388,6 +25388,34 @@ Use the attached image as context.
 			assert.deepStrictEqual(runtimeRestartEvents(telemetryService), [{ kind: 'mcpServer', cause: 'runtime', firstTurn: true, phase: 'idle' }]);
 		});
 
+		test('reports an MCP restart while resuming a chat with completed history as a later-turn restart', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const status = (status: SessionEventPayload<'session.mcp_server_status_changed'>['data']['status']): SessionEvent => ({
+				type: 'session.mcp_server_status_changed', id: `status-${status}`, timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+				data: { serverName: 'private-server', status },
+			});
+			const { session } = await createAgentSession(disposables, {
+				telemetryService,
+				resume: true,
+				configureMockSession: mock => {
+					mock.messages = toSessionEvents([
+						{ type: 'user.message', id: 'request', data: { content: 'hello' } },
+						{ type: 'assistant.message', data: { messageId: 'reply', content: 'hi' } },
+						{ type: 'session.idle', data: {} },
+					]);
+				},
+				duringLaunch: runtime => {
+					for (const event of [status('pending'), status('connected'), status('not_configured'), status('pending')]) {
+						runtime.onSessionEvent?.(event);
+					}
+				},
+			});
+			assert.strictEqual(await session.completedTurnHistory, true);
+			await timeout(0);
+
+			assert.deepStrictEqual(runtimeRestartEvents(telemetryService), [{ kind: 'mcpServer', cause: 'runtime', firstTurn: false, phase: 'idle' }]);
+		});
+
 		test('reports MCP restarts after a completed turn as later-turn restarts', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { session, mockSession } = await createAgentSession(disposables, { telemetryService });

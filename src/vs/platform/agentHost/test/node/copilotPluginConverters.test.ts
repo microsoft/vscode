@@ -807,7 +807,8 @@ suite('copilotPluginConverters', () => {
 				findRelocatedAgentName([applied], [published], agentUri),
 				findRelocatedAgentName([applied], [{ ...published, nonce: 'changed-resource-body' }], agentUri),
 				findRelocatedAgentName([applied], [published], 'file:///unknown.agent.md'),
-			], [applied.agents[0].name, undefined, undefined]);
+				findRelocatedAgentName([applied], [{ ...makePlugin(), pluginDir: URI.file('/workspace') }, published], agentUri),
+			], [applied.agents[0].name, undefined, undefined, applied.agents[0].name]);
 		});
 
 		test('preserves content changes when plugin roots differ', () => {
