@@ -25892,10 +25892,12 @@ suite('CopilotAgent', () => {
 				const persistedProject = await resumedDb.object.getMetadata('copilot.project.uri');
 				resumedDb.dispose();
 				assert.deepStrictEqual({
-					extensionPath: launch?.launch?.env.EXTENSION_PATH,
+					extensionPathMatches: launch?.launch?.env.EXTENSION_PATH
+						? isEqual(URI.file(launch.launch.env.EXTENSION_PATH), URI.file(await fs.realpath(modulePath)))
+						: false,
 					persistedProject,
 				}, {
-					extensionPath: await fs.realpath(modulePath),
+					extensionPathMatches: true,
 					persistedProject: URI.file(await fs.realpath(peerRepository)).toString(),
 				});
 			} finally {

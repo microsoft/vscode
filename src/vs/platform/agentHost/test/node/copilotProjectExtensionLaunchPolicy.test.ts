@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -98,7 +99,7 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 		const releaseRealpath = new DeferredPromise<void>();
 		let delayModuleResolution = false;
 		const { configurationService, policy } = createPolicy(async path => {
-			if (delayModuleResolution && path === modulePath) {
+			if (delayModuleResolution && isEqual(URI.file(path), URI.file(modulePath))) {
 				realpathStarted.complete();
 				await releaseRealpath.p;
 			}
