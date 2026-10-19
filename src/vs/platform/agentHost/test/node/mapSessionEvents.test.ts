@@ -22,6 +22,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { ISessionDatabase, MAX_TOOL_RESULT_RESOURCE_BYTES } from '../../common/sessionDataService.js';
 import { TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
 
 function mapSessionEvents(session: URI, db: ISessionDatabase | undefined, events: Parameters<typeof mapSessionEventsWithRouting>[2], options: IMapSessionEventsOptions | undefined = undefined) {
 	return mapSessionEventsWithRouting(session, db, events, URI.parse(buildChatUri(session, 'default')), session, options);
@@ -1986,6 +1987,168 @@ suite('mapSessionEvents — history replay', () => {
 			parts: [{ kind: ResponsePartKind.Markdown, content: 'No new instructions.' }],
 		}]);
 	});
+
+	for (const hasPreviousTurn of [false, true]) {
+		test(`restores user-invoked skills in the following request (${hasPreviousTurn ? 'follow-up' : 'first'} turn)`, async () => {
+			const previousEvents: ISessionEvent[] = hasPreviousTurn ? [
+				{ type: 'user.message', id: 'previous-user', data: { content: 'Previous request' } },
+				{ type: 'assistant.message', data: { content: 'Previous response' } },
+			] : [];
+			const events: ISessionEvent[] = [
+				...previousEvents,
+				{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+				{ type: 'skill.invoked', id: 'second-user-skill', data: { name: 'review', path: '/skills/review/SKILL.md', content: '', trigger: 'user-invoked' } },
+				{ type: 'user.message', id: 'user-event', timestamp: '2026-10-16T18:58:31.354Z', data: { content: '/publish the SDK' } },
+				{ type: 'assistant.message', data: { content: 'Publishing the SDK' } },
+				{ type: 'skill.invoked', id: 'agent-skill', data: { name: 'test', path: '/skills/test/SKILL.md', content: '', trigger: 'agent-invoked' } },
+				{ type: 'assistant.message', data: { content: 'Published' } },
+			];
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+			assert.deepStrictEqual(turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				startedAt: turn.startedAt,
+				state: turn.state,
+				parts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall
+					? { kind: part.kind, toolCallId: part.toolCall.toolCallId }
+					: partKinds([part])[0]),
+			})), [
+				...(hasPreviousTurn ? [{
+					id: 'previous-user',
+					message: 'Previous request',
+					startedAt: undefined,
+					state: TurnState.Complete,
+					parts: [{ kind: ResponsePartKind.Markdown, content: 'Previous response' }],
+				}] : []),
+				{
+					id: 'user-event',
+					message: '/publish the SDK',
+					startedAt: '2026-10-16T18:58:31.354Z',
+					state: TurnState.Complete,
+					parts: [
+						{ kind: ResponsePartKind.ToolCall, toolCallId: 'synth-skill-user-skill' },
+						{ kind: ResponsePartKind.ToolCall, toolCallId: 'synth-skill-second-user-skill' },
+						{ kind: ResponsePartKind.Markdown, content: 'Publishing the SDK' },
+						{ kind: ResponsePartKind.ToolCall, toolCallId: 'synth-skill-agent-skill' },
+						{ kind: ResponsePartKind.Markdown, content: 'Published' },
+					],
+				},
+			]);
+		});
+	}
+
+	test('restores the worktree announcement below the first request with a pre-request skill', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+			{ type: 'user.message', id: 'user-event', data: { content: '/publish the SDK' } },
+			{ type: 'assistant.message', data: { content: 'Published' } },
+		]));
+		const restored = prependAnnouncementToFirstTurn(turns, 'Created isolated worktree\n\n');
+
+		assert.deepStrictEqual(restored.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			message: '/publish the SDK',
+			parts: [
+				{ kind: ResponsePartKind.Markdown, content: 'Created isolated worktree\n\n' },
+				{ kind: ResponsePartKind.ToolCall },
+				{ kind: ResponsePartKind.Markdown, content: 'Published' },
+			],
+		}]);
+	});
+
+	test('restores an initial skill without trigger metadata in the following request', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'skill.invoked', id: 'legacy-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '' } },
+			{ type: 'user.message', id: 'user-event', data: { content: '/publish the SDK' } },
+			{ type: 'assistant.message', data: { content: 'Published' } },
+		]));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			id: turn.id,
+			message: turn.message.text,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			id: 'user-event',
+			message: '/publish the SDK',
+			parts: [
+				{ kind: ResponsePartKind.ToolCall },
+				{ kind: ResponsePartKind.Markdown, content: 'Published' },
+			],
+		}]);
+	});
+
+	test('preserves a skill invocation when history has no user message', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+		]));
+
+		assert.deepStrictEqual(turns.map(turn => ({
+			message: turn.message.text,
+			state: turn.state,
+			parts: partKinds(turn.responseParts),
+		})), [{
+			message: '',
+			state: TurnState.Cancelled,
+			parts: [{ kind: ResponsePartKind.ToolCall }],
+		}]);
+	});
+
+	for (const boundary of ['abort', 'session.error'] as const) {
+		for (const hasPreviousTurn of [false, true]) {
+			for (const hasReplacementRequest of [false, true]) {
+				test(`preserves a pending skill at ${boundary} (previous: ${hasPreviousTurn}, replacement: ${hasReplacementRequest})`, async () => {
+					const previousEvents: ISessionEvent[] = hasPreviousTurn ? [
+						{ type: 'user.message', id: 'previous-user', data: { content: 'Previous request' } },
+						{ type: 'assistant.message', data: { content: 'Previous response' } },
+					] : [];
+					const replacementEvents: ISessionEvent[] = hasReplacementRequest ? [
+						{ type: 'user.message', id: 'replacement-user', data: { content: 'Explain this file' } },
+						{ type: 'assistant.message', data: { content: 'File explanation' } },
+					] : [];
+					const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+						...previousEvents,
+						{ type: 'skill.invoked', id: 'user-skill', data: { name: 'publish', path: '/skills/publish/SKILL.md', content: '', trigger: 'user-invoked' } },
+						boundary === 'abort'
+							? { type: 'abort', data: { reason: 'user requested' } }
+							: { type: 'session.error', data: { errorType: 'requestFailed', message: 'Skill request failed' } },
+						...replacementEvents,
+					]));
+
+					assert.deepStrictEqual(turns.map(turn => ({
+						message: turn.message.text,
+						state: turn.state,
+						parts: turn.responseParts.map(part => part.kind),
+						error: getTurnError(turn)?.message,
+					})), [
+						...(hasPreviousTurn ? [{
+							message: 'Previous request',
+							state: TurnState.Complete,
+							parts: [ResponsePartKind.Markdown],
+							error: undefined,
+						}] : []),
+						{
+							message: '',
+							state: boundary === 'abort' ? TurnState.Cancelled : TurnState.Error,
+							parts: boundary === 'abort' ? [ResponsePartKind.ToolCall] : [ResponsePartKind.ToolCall, ResponsePartKind.Error],
+							error: boundary === 'abort' ? undefined : 'Skill request failed',
+						},
+						...(hasReplacementRequest ? [{
+							message: 'Explain this file',
+							state: TurnState.Complete,
+							parts: [ResponsePartKind.Markdown],
+							error: undefined,
+						}] : []),
+					]);
+				});
+			}
+		}
+	}
 
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [

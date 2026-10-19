@@ -11,6 +11,7 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { ISelection, Selection } from '../../../../../../editor/common/core/selection.js';
@@ -133,7 +134,8 @@ suite('Chat implicit custom editor context', () => {
 		assert.strictEqual(fixture.implicitContext.enabledBaseEntries(false)[0].id, 'vscode.implicit.selection');
 	});
 
-	test('selection changes, collapsed carets and cleared selections update context without webview messages', async () => {
+	test('selection changes, collapsed carets and cleared selections update context without webview messages', () => runWithFakedTimers({}, async () => {
+		// Advance past the selection debounce in virtual time.
 		const fixture = setupContext();
 		fixture.input.navigation = fixture.navigation;
 		fixture.navigation.updateSelection(new Selection(3, 5, 2, 1));
@@ -147,7 +149,7 @@ suite('Chat implicit custom editor context', () => {
 		fixture.navigation.updateSelection(undefined);
 		await timeout(510);
 		assert.deepStrictEqual(fixture.values(), [{ value: fixture.model.uri, isSelection: false }]);
-	});
+	}));
 
 	test('switching panels uses only the active panel and detaches the previous navigation', async () => {
 		const fixture = setupContext();
@@ -199,7 +201,8 @@ suite('Chat implicit custom editor context', () => {
 		});
 	}
 
-	test('an older async selection update cannot replace a newer selection or editor', async () => {
+	test('an older async selection update cannot replace a newer selection or editor', () => runWithFakedTimers({}, async () => {
+		// Advance past the selection debounce in virtual time.
 		let pending: DeferredPromise<StringChatContextValue | undefined> | undefined;
 		const fixture = setupContext({ contextForResource: () => pending?.p ?? Promise.resolve(undefined) });
 		fixture.input.navigation = fixture.navigation;
@@ -229,7 +232,7 @@ suite('Chat implicit custom editor context', () => {
 		assert.deepStrictEqual(fixture.values(), [{
 			value: { uri: fixture.codeModel.uri, range: fixture.codeSelection }, isSelection: true,
 		}]);
-	});
+	}));
 
 	test('disposing the contribution cancels pending updates and removes selection listeners', async () => {
 		let pending: DeferredPromise<StringChatContextValue | undefined> | undefined;

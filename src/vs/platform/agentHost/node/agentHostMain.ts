@@ -74,13 +74,7 @@ void startAgentHost().catch(err => {
 });
 
 async function startAgentHost(): Promise<void> {
-	// Setup RPC - supports both Electron utility process and Node child process
-	let server: ChildProcessServer<string> | UtilityProcessServer;
-	if (isUtilityProcess(process)) {
-		server = new UtilityProcessServer();
-	} else {
-		server = new ChildProcessServer(AgentHostIpcChannels.AgentHost);
-	}
+	const utilityProcessServer = isUtilityProcess(process) ? new UtilityProcessServer() : undefined;
 
 	const disposables = new DisposableStore();
 	const protocolIngressDisposables = disposables.add(new DisposableStore());
@@ -92,7 +86,8 @@ async function startAgentHost(): Promise<void> {
 	const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 	const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 	// Non-protocol management and logging IPC remain separate from the AHP data plane.
-	server.registerChannel(AgentHostIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
+	const loggerChannel = new LoggerChannel(loggerService, () => DefaultURITransformer);
+	utilityProcessServer?.registerChannel(AgentHostIpcChannels.Logger, loggerChannel);
 	const logger = loggerService.createLogger('agenthost', { name: localize('agentHost', "Agent Host") });
 	// OTLP log fan-out: any consumer that subscribes to the host's
 	// `ahp-otlp://logs/{level}` channel will receive every log record this
@@ -225,9 +220,13 @@ async function startAgentHost(): Promise<void> {
 		)));
 	}
 
+	// The child-process IPC handshake must wait until runtime initialization can no longer delay channel registration.
+	const server = utilityProcessServer ?? new ChildProcessServer(AgentHostIpcChannels.AgentHost);
+
 	// Retain the imperative bridge only for the child-process server consumers.
 	// The utility-process MessagePort exposes Protocol and Management instead.
 	if (!(server instanceof UtilityProcessServer)) {
+		server.registerChannel(AgentHostIpcChannels.Logger, loggerChannel);
 		const agentChannel = ProxyChannel.fromService(agentService, disposables);
 		server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 	}

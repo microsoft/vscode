@@ -49,7 +49,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -1436,8 +1436,8 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 
@@ -1450,18 +1450,9 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
-	test('advertises multipleWorkingDirectories only when the hidden setting is enabled', () => {
-		const { agent, configService } = createTestContext(disposables);
-		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
-		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: false });
-		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
-			disabledByDefault: undefined,
-			whenEnabled: { immutablePrimary: true },
-			afterDisabling: undefined,
-		});
+	test('advertises multipleWorkingDirectories by default', () => {
+		const { agent } = createTestContext(disposables);
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleWorkingDirectories, { immutablePrimary: true });
 	});
 
 	test('selects provider-native autonomous session config and respects policy', () => {
@@ -2703,7 +2694,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('createChat({ fork }) ignores requested working directories and inherits the live source set', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const sourcePrimary = URI.file('/source-a');
@@ -3140,7 +3131,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('multi-root session passes additionalDirectories to the SDK and emits the full resolved set', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const repoA = URI.file('/repo-a');
@@ -3166,7 +3157,7 @@ suite('ClaudeAgent', () => {
 
 	test('consecutive send snapshots replace secondary roots before the next prompt', async () => {
 		const database = new TestSessionDatabase();
-		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3205,7 +3196,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('identical consecutive send snapshots do not rebuild the Claude query', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const secondary = URI.file('/repo-b');
@@ -3230,7 +3221,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a queued send applies changed roots only after the active turn completes', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3277,7 +3268,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('an unloaded single-root session accepts its first secondary root', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const secondary = URI.file('/repo-b');
@@ -3301,7 +3292,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('failed secondary-root rebuild blocks the prompt and retries on the next send', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3339,7 +3330,7 @@ suite('ClaudeAgent', () => {
 			}
 			await originalSetMetadata(key, value);
 		};
-		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3370,7 +3361,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('multi-root session discovers and retains customizations from an additional directory', async () => {
-		const { agent, sdk, fileService, stateManager } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk, fileService, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -3407,7 +3398,7 @@ suite('ClaudeAgent', () => {
 		const repoB = URI.file('/repo-b');
 
 		// First "process": create + first send persists the overlay working set.
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
@@ -3437,7 +3428,7 @@ suite('ClaudeAgent', () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
 		const staleRepoB = URI.file('/repo-b');
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, staleRepoB] });
 		const sessionId = created.sdkSessionId;
@@ -3465,7 +3456,7 @@ suite('ClaudeAgent', () => {
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
@@ -3491,7 +3482,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a forked peer chat inherits the parent session additional directories', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const repoA = URI.file('/repo-a');
@@ -3518,7 +3509,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a live peer chat replaces roots from each complete send snapshot', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -9059,8 +9050,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
 		const pm = new FakeAgentPluginManager();
-		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/primary');
 		const additional = URI.file('/additional');

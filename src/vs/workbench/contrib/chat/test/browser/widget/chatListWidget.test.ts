@@ -1879,25 +1879,100 @@ suite('ChatListWidget', () => {
 			return { disposables, model, viewModel, container, widget, request, response, progress, measure };
 		}
 
-		test('incremental progress alignment avoids a synchronous row measurement on rerender', async () => {
-			const { disposables, widget, progress } = await createStreamingProgress(13, true);
-			const row = progress.closest<HTMLElement>('.interactive-response');
-			assert.ok(row);
-			const measurement = sinon.spy(row, 'getBoundingClientRect');
-			disposables.add(toDisposable(() => measurement.restore()));
+		for (const incrementalRendering of [false, true]) {
+			test(`progress alignment avoids a synchronous row measurement on refresh (incremental: ${incrementalRendering})`, async () => {
+				const { disposables, model, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
+				const row = progress.closest<HTMLElement>('.interactive-response');
+				assert.ok(row);
+				const measurement = sinon.spy(row, 'getBoundingClientRect');
+				disposables.add(toDisposable(() => measurement.restore()));
 
-			widget.rerender();
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+				widget.refresh();
 
-			assert.deepStrictEqual({
-				synchronousMeasurements: measurement.callCount,
-				rowRounding: row.style.getPropertyValue('--chat-response-height-rounding'),
-				progressHasRounding: progress.style.getPropertyValue('--chat-response-height-rounding') !== '',
-			}, {
-				synchronousMeasurements: 0,
-				rowRounding: '',
-				progressHasRounding: true,
+				assert.deepStrictEqual({
+					synchronousMeasurements: measurement.callCount,
+					rowRounding: row.style.getPropertyValue('--chat-response-height-rounding'),
+					progressHasRounding: progress.style.getPropertyValue('--chat-response-height-rounding') !== '',
+				}, {
+					synchronousMeasurements: 0,
+					rowRounding: '',
+					progressHasRounding: true,
+				});
 			});
-		});
+
+			test(`restores cached alignment when progress is replaced without resizing the row (incremental: ${incrementalRendering})`, async () => {
+				const { disposables, model, container, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
+				const row = progress.closest<HTMLElement>('.interactive-response');
+				assert.ok(row);
+				const height = row.getBoundingClientRect().height;
+				widget.updateRendererOptions({ readOnly: true });
+				const measurement = sinon.spy(row, 'getBoundingClientRect');
+				disposables.add(toDisposable(() => measurement.restore()));
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+				widget.refresh();
+
+				const synchronousMeasurements = measurement.callCount;
+				const replacement = container.querySelector<HTMLElement>('.chat-working-progress');
+				assert.deepStrictEqual({
+					replaced: !!replacement && replacement !== progress,
+					sameRow: replacement?.closest('.interactive-response') === row,
+					height: row.getBoundingClientRect().height,
+					synchronousMeasurements,
+					rounding: replacement?.style.getPropertyValue('--chat-response-height-rounding'),
+				}, {
+					replaced: true,
+					sameRow: true,
+					height,
+					synchronousMeasurements: 0,
+					rounding: `${Math.ceil(height) - height}px`,
+				});
+			});
+
+			test(`restores progress alignment in the first frame after virtualization (incremental: ${incrementalRendering})`, async () => {
+				const { container, widget, progress, measure } = await createStreamingProgress(13, incrementalRendering);
+				const before = measure();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.ok(!progress.isConnected, 'The streaming progress must actually leave the DOM');
+
+				widget.scrollToEnd();
+				const reconnected = container.querySelector<HTMLElement>('.chat-working-progress');
+				const reconnectedRow = reconnected?.closest<HTMLElement>('.interactive-response');
+				const reconnectedMarkdown = reconnectedRow?.querySelector<HTMLElement>('.chat-markdown-part');
+				assert.ok(reconnected && reconnectedRow && reconnectedMarkdown);
+				const reconnectedHeight = reconnectedRow.getBoundingClientRect().height;
+				const staleRounding = reconnected.style.getPropertyValue('--chat-response-height-rounding');
+				const expectedHeight = Math.ceil(reconnectedHeight) - (staleRounding === '0px' ? 0.5 : 0);
+				const expectedRounding = `${Math.ceil(expectedHeight) - expectedHeight}px`;
+				// Settle to a different fractional height before the first paint, without changing the rounded scroll height.
+				reconnectedMarkdown.style.height = `${reconnectedMarkdown.getBoundingClientRect().height + expectedHeight - reconnectedHeight}px`;
+				assert.notStrictEqual(reconnected.style.getPropertyValue('--chat-response-height-rounding'), expectedRounding);
+
+				const positions = [];
+				for (let frame = 0; frame < 4; frame++) {
+					await nextFrame();
+					await timeout(0);
+					const current = container.querySelector<HTMLElement>('.chat-working-progress');
+					const row = current?.closest<HTMLElement>('.interactive-response');
+					const label = current?.querySelector<HTMLElement>('.progress-step');
+					const icon = current?.querySelector<HTMLElement>('.chat-progress-icon');
+					assert.ok(current && row && label && icon);
+					const height = row.getBoundingClientRect().height;
+					positions.push({
+						progress: current.getBoundingClientRect().top,
+						label: label.getBoundingClientRect().top,
+						icon: icon.getBoundingClientRect().top,
+						height,
+						rounding: current.style.getPropertyValue('--chat-response-height-rounding'),
+						corrected: current.style.getPropertyValue('--chat-response-height-rounding') === `${Math.ceil(height) - height}px`,
+						atBottom: widget.isScrolledToBottom,
+					});
+				}
+				assert.deepStrictEqual(positions, Array.from({ length: 4 }, () => ({ ...before, height: expectedHeight, rounding: expectedRounding, corrected: true, atBottom: true })));
+			});
+		}
 
 		for (const { fontSize, pendingKind } of [13, 14].flatMap(fontSize => [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering].map(pendingKind => ({ fontSize, pendingKind })))) {
 			for (const incrementalRendering of [false, true]) {

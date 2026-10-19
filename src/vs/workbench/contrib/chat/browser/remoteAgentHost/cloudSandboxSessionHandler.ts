@@ -23,7 +23,7 @@ import { IChatProgress, IChatService } from '../../common/chatService/chatServic
 import { getChatSessionHistoryContent, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
-import { CloudSandboxReadOnlySessionHandler, ICloudSandboxReadOnlyConfig, ReadOnlyChatSession } from './cloudSandboxReadOnlySessionHandler.js';
+import { CloudSandboxReadOnlySessionHandler, getCloudSandboxTaskId, ICloudSandboxReadOnlyConfig, ReadOnlyChatSession } from './cloudSandboxReadOnlySessionHandler.js';
 import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 
 const LIVE_CONTENT_TIMEOUT_MS = 30_000;
@@ -214,6 +214,7 @@ class CloudSandboxChatSessionReference extends Disposable implements IChatSessio
 
 interface ISandboxChatEntry extends IDisposable {
 	readonly resource: URI;
+	readonly taskId: string | undefined;
 	readonly store: DisposableStore;
 	readonly token: CancellationToken;
 	readonly historyStore: DisposableStore;
@@ -274,13 +275,14 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	async provideChatSessionContent(resource: URI, token: CancellationToken): Promise<IChatSession> {
 		let entry = this._sessions.get(resource);
 		if (!entry) {
+			const taskId = getCloudSandboxTaskId(this._config, resource);
 			const store = new DisposableStore();
 			const historyStore = store.add(new DisposableStore());
 			const entryToken = cancelOnDispose(store);
 			const historyToken = cancelOnDispose(historyStore);
 			const trace = store.add(new CloudSandboxSessionTrace(this._logService));
 			entry = {
-				resource, store, token: entryToken,
+				resource, taskId, store, token: entryToken,
 				historyStore, historyToken, trace,
 				ready: new DeferredPromise<PromotableCloudSandboxChatSession>(),
 				liveStore: store.add(new MutableDisposable<DisposableStore>()),
@@ -302,8 +304,8 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 				this._updateHistoryStatus(current);
 			}));
 			store.add(this._chatService.onDidSubmitRequest(event => {
-				if (isEqual(event.chatSessionResource, resource)) {
-					this._apiService.invalidateSessionHistory(this._config.taskId);
+				if (current.taskId && isEqual(event.chatSessionResource, resource)) {
+					this._apiService.invalidateSessionHistory(current.taskId);
 				}
 			}));
 			if (this._liveProvider) {
@@ -349,9 +351,9 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			source.dispose();
 			throw new Error('The sandbox content provider returned a different session resource.');
 		}
-		if (live) {
+		if (live && entry.taskId) {
 			const unchanged = entry.hasHistory && !!entry.session && equals(getChatSessionHistoryContent(entry.session.history), getChatSessionHistoryContent(source.history));
-			this._apiService.invalidateSessionHistory(this._config.taskId, unchanged);
+			this._apiService.invalidateSessionHistory(entry.taskId, unchanged);
 		}
 		if (entry.session) {
 			const session = entry.session;
@@ -364,7 +366,11 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			});
 			entry.trace.record('promoted', { source: kind, historyItems: source.history.length });
 		} else {
-			const session = entry.store.add(new PromotableCloudSandboxChatSession(source, () => this._apiService.invalidateSessionHistory(this._config.taskId), live));
+			const session = entry.store.add(new PromotableCloudSandboxChatSession(source, () => {
+				if (entry.taskId) {
+					this._apiService.invalidateSessionHistory(entry.taskId);
+				}
+			}, live));
 			entry.trace.associate(session);
 			entry.session = session;
 			entry.store.add(Event.once(session.onWillDispose)(() => {

@@ -47,7 +47,7 @@ export interface IChatMoveEligibility extends IChatMoveStructuralEligibility {
 	readonly workspaceless: boolean;
 	/** Its session is quarantined, or it or a descendant is changing its workspace ({@link AgentChatMoveRefusal.SessionQuarantined}, {@link AgentChatMoveRefusal.ConversionInProgress}). */
 	readonly converting: boolean;
-	/** It works in a worktree of its session ({@link AgentChatMoveRefusal.WorktreeFolder}). */
+	/** It works in an additional worktree recorded for it that a chat staying in its session also uses ({@link AgentChatMoveRefusal.WorktreeFolder}). */
 	readonly worktreeFolder: boolean;
 	/** It or a descendant runs Agent Merge for a folder of its session ({@link AgentChatMoveRefusal.AgentMergeOwner}). */
 	readonly agentMergeOwner: boolean;
@@ -109,6 +109,12 @@ export const enum AgentChatMoveRefusal {
 	NotSingleChat = 'notSingleChat',
 	/** A chat becomes its own session only once its first turn started, which is when every agent persists its conversation. */
 	NotStarted = 'notStarted',
+	/**
+	 * The chat's session and the destination session are sponsored by different credential owners, or only one of them is.
+	 * Credentials never cross owners, so such sessions can't be combined. Client text: "This chat uses a different account's
+	 * credentials than the destination session."
+	 */
+	DifferentCredentialOwner = 'differentCredentialOwner',
 }
 
 /** A chat move the host refused before changing anything. */

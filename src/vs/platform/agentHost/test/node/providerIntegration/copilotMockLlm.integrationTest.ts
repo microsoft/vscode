@@ -11,7 +11,7 @@ import assert from 'assert';
 import { existsSync } from 'fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,7 +19,7 @@ import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSche
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type RootState, type ToolDefinition } from '../../../common/state/sessionState.js';
+import { customizationId, CustomizationType, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ClientPluginCustomization, type ISessionWithDefaultChat, type PluginCustomization, type RootState, type ToolDefinition, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
 import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
@@ -44,6 +44,7 @@ const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
 const STEERING_RESPONSE_DELAY_MS = 10_000;
 const CANVAS_SCENARIO_ID = 'model-opened-canvas';
 const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
+const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -111,6 +112,26 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 					type: 'multi-turn',
 					turns: [{ kind: 'content', chunks: [{ content: 'Canvas-originated request completed.', delayMs: 0 }] }],
 				},
+			}, {
+				id: PLUGIN_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: {
+									name: 'plugin-sibling',
+									description: 'Run the plugin sibling',
+									prompt: 'Complete the delegated task.',
+									agent_type: 'plugin-sibling',
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_PARENT_DONE', delayMs: 0 }] },
+					],
+				},
 			}],
 		});
 	});
@@ -166,6 +187,106 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const markdownText = turn?.responseParts.map(p => p.kind === ResponsePartKind.Markdown ? p.content : '').join('\n') ?? ``;
 		assert.ok(markdownText.trim().length > 0, `expected non-empty assistant markdown; got: ${JSON.stringify(markdownText)}`);
 		assert.match(markdownText, new RegExp(`\\b${probeToken}\\b`, 'i'), `expected probe token in assistant markdown; got: ${JSON.stringify(markdownText)}`);
+	});
+
+	test('selected plugin agent delegates to a sibling from the same plugin', async function () {
+		this.timeout(180_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-plugin-subagents`);
+		tempDirs.push(workspaceDir);
+		const pluginDir = join(workspaceDir, 'plugin');
+		const parentAgentFile = join(pluginDir, 'agents', 'parent.agent.md');
+		const siblingAgentFile = join(pluginDir, 'agents', 'sibling.agent.md');
+		await Promise.all([
+			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
+			mkdir(join(pluginDir, 'agents'), { recursive: true }),
+		]);
+		await Promise.all([
+			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Plugin Delegation' })),
+			writeFile(parentAgentFile, '---\nname: plugin-parent\ndescription: Delegates plugin work\n---\nDelegate work to plugin-sibling.'),
+			writeFile(siblingAgentFile, '---\nname: plugin-sibling\ndescription: Completes plugin work\n---\nComplete the delegated task.'),
+		]);
+
+		const clientId = 'real-sdk-plugin-subagents';
+		const sessionUri = await createProviderSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspaceDir));
+		const pluginUri = URI.file(pluginDir).toString();
+		const pluginCustomization: ClientPluginCustomization = {
+			type: CustomizationType.Plugin,
+			id: customizationId(pluginUri),
+			uri: pluginUri as ProtocolURI,
+			name: 'Plugin Delegation',
+			nonce: '1',
+		};
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [pluginCustomization] },
+			},
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.SessionActiveClientSet)
+			&& getActionEnvelope(notification).channel === sessionUri,
+			30_000,
+		);
+		await retry(async () => {
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
+				customization.type === CustomizationType.Plugin && customization.uri === pluginUri
+			);
+			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-sibling']);
+		}, 100, 300);
+
+		client.clearReceived();
+		const chatUri = defaultChatChannel(sessionUri);
+		const taskStarted = client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatToolCallStart)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
+			90_000,
+		);
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 2,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-plugin-subagent',
+				startedAt: new Date().toISOString(),
+				message: {
+					text: `[scenario:${PLUGIN_SIBLING_SCENARIO_ID}] Delegate to the plugin sibling.`,
+					origin: { kind: MessageKind.User },
+					agent: { uri: URI.file(parentAgentFile).toString() },
+				},
+			},
+		});
+		const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
+		const completeNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatToolCallComplete)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
+			90_000,
+		);
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatTurnComplete)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === 'turn-plugin-subagent',
+			90_000,
+		);
+
+		const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+		const session = await fetchSessionWithChat(client, sessionUri);
+		const response = session.turns.find(turn => turn.id === 'turn-plugin-subagent')?.responseParts
+			.filter(part => part.kind === ResponsePartKind.Markdown)
+			.map(part => part.content)
+			.join('');
+		assert.deepStrictEqual({
+			taskSucceeded: completeAction.result.success,
+			parentResponse: response,
+		}, {
+			taskSucceeded: true,
+			parentResponse: 'PLUGIN_PARENT_DONE',
+		});
 	});
 
 	test('loads a project extension through the client-resolved SDK before the model opens its canvas and projects extension-started turns', async function () {

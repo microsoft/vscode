@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
-import { IObservable } from '../../base/common/observable.js';
+import { IObservable, IReader } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -165,7 +165,8 @@ export interface IAgentHostMcpServer {
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/**
 	 * Whether the host can move the session under another session of this provider (Block 4): the host moves sessions
-	 * (`vscode.sessionMove`) and says this one can move (its default chat is its only chat).
+	 * (`vscode.sessionMove`) and the session is unarchived with one chat. Answered from list data alone; the host
+	 * restores the session and refuses at move time when it can't move.
 	 */
 	canMoveSessionUnder(sessionId: string): boolean;
 	/**
@@ -387,9 +388,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
-	 * Returns the working directory for the session, if provided by the host.
+	 * Returns the host-provided working directory, tracking updates when a reader is supplied.
 	 */
-	getWorkingDirectory(sessionId: string): string | undefined;
+	getWorkingDirectory(sessionId: string, reader?: IReader): string | undefined;
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session

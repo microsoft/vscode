@@ -428,24 +428,24 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			unsupported: { checked: false, disabled: true }, supported: false,
 			writes: [[SESSION_ID, SessionConfigKey.SandboxEnabled, 'off']],
 		});
+	});
 
-		test('publishes sandbox apply failures to the permission picker', () => {
-			const { delegate, provider } = setup(store, makeActiveSession(), 'default');
-			provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
-			provider.sandboxStates.set(SESSION_ID, true);
-			provider.fireChange();
-			const beforeFailure = delegate.sandboxApplyFailed.get();
-			provider.sandboxChangeErrors.add(SESSION_ID);
-			provider.sandboxRejectedSelections.add(SESSION_ID);
-			provider.fireChange();
-			assert.deepStrictEqual({
-				beforeFailure,
-				afterFailure: delegate.sandboxApplyFailed.get(),
-				rejectedSelection: delegate.sandboxSelectionRejected.get(),
-				confirmed: delegate.sandboxConfirmedEnabled.get(),
-				requested: delegate.sandboxEnabled.get(),
-			}, { beforeFailure: false, afterFailure: true, rejectedSelection: true, confirmed: true, requested: false });
-		});
+	test('publishes sandbox apply failures to the permission picker', () => {
+		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
+		provider.sandboxStates.set(SESSION_ID, true);
+		provider.fireChange();
+		const beforeFailure = delegate.sandboxApplyFailed.get();
+		provider.sandboxChangeErrors.add(SESSION_ID);
+		provider.sandboxRejectedSelections.add(SESSION_ID);
+		provider.fireChange();
+		assert.deepStrictEqual({
+			beforeFailure,
+			afterFailure: delegate.sandboxApplyFailed.get(),
+			rejectedSelection: delegate.sandboxSelectionRejected.get(),
+			confirmed: delegate.sandboxConfirmedEnabled.get(),
+			requested: delegate.sandboxEnabled.get(),
+		}, { beforeFailure: false, afterFailure: true, rejectedSelection: true, confirmed: true, requested: false });
 	});
 
 	test('Dev Container drafts keep sandbox guidance on the sandbox toggle', () => {

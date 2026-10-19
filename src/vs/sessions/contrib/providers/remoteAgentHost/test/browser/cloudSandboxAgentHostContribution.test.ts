@@ -80,10 +80,13 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	disposed = false;
 	taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
 	taskArchiveHandler: { readonly rawId: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
+	readonly taskArchiveHandlers = new Map<string, (archived: boolean) => Promise<void>>();
+	readonly taskRenameHandlers = new Map<string, (title: string) => Promise<void>>();
 	readonly archiveUpdates: { rawId: string; archived: boolean }[] = [];
 
 	override setTaskArchiveHandler(rawId: string, setArchived: (archived: boolean) => Promise<void>): void {
 		this.taskArchiveHandler = { rawId, setArchived };
+		this.taskArchiveHandlers.set(rawId, setArchived);
 	}
 
 	override setSessionArchived(rawId: string, archived: boolean): void {
@@ -98,6 +101,12 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 
 	override setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
 		this.taskRenameHandler = { rawId, rename };
+		this.taskRenameHandlers.set(rawId, rename);
+	}
+
+	override removeTaskOwnership(rawId: string): void {
+		this.taskRenameHandlers.delete(rawId);
+		this.taskArchiveHandlers.delete(rawId);
 	}
 
 	override readonly id: string;
@@ -605,6 +614,114 @@ suite('CloudSandboxAgentHostContribution', () => {
 			rawId: 'sess-1', archivedTasks: [{ taskId: 'task-1', archived: true }], connectedTo: [], restoredArchived: true,
 		});
 	});
+
+	test('retains task routing for every session sharing an environment across reloads', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const sessions = [discoveredSession(), discoveredSession({ sessionId: 'sess-2', taskId: 'task-2', name: 'New task' })];
+		const harness = await createContribution(store, sessions, { storageService: storage, autoConnectOnOpen: false });
+		const address = cloudSandboxAddress('env-1');
+		const provider = harness.contribution.stubProviders.get(address)!;
+		await provider.taskArchiveHandlers.get('sess-1')!(true);
+		await provider.taskRenameHandlers.get('sess-1')!('Renamed first task');
+		await harness.activate('env-1');
+		const sessionType = harness.readOnlySessionTypes[0];
+		const handler = harness.contentProviders.get(sessionType)!;
+		for (const session of sessions) {
+			store.add(await handler.provideChatSessionContent(URI.from({ scheme: sessionType, path: `/${session.sessionId}` }), CancellationToken.None));
+		}
+		harness.contribution.dispose();
+		const restored = await createContribution(store, [], {
+			storageService: storage, autoConnectOnOpen: false, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		const restoredProvider = restored.contribution.stubProviders.get(address)!;
+		await restoredProvider.taskArchiveHandlers.get('sess-2')!(true);
+
+		assert.deepStrictEqual({
+			archived: [...harness.archivedTasks, ...restored.archivedTasks],
+			renamed: harness.renamedTasks,
+			history: harness.historyRequests,
+			restored: restoredProvider.seeded.map(meta => ({ id: AgentSession.id(meta.session), title: meta.summary })),
+			connected: [...harness.connectedTo, ...restored.connectedTo],
+		}, {
+			archived: [{ taskId: 'task-1', archived: true }, { taskId: 'task-2', archived: true }],
+			renamed: [{ taskId: 'task-1', title: 'Renamed first task' }],
+			history: ['task-1', 'task-2'],
+			restored: [{ id: 'sess-1', title: 'Renamed first task' }, { id: 'sess-2', title: 'New task' }],
+			connected: [],
+		});
+	});
+
+	test('opens a live-only session alongside multiple task-owned sessions', async () => {
+		const harness = await createContribution(store, [discoveredSession(), discoveredSession({ sessionId: 'sess-2', taskId: 'task-2' })], { autoConnectOnOpen: false });
+		await harness.activate('env-1');
+		const sessionType = harness.readOnlySessionTypes[0];
+		const liveResource = URI.from({ scheme: sessionType, path: '/live-only' });
+		const live = store.add(new ReadOnlyChatSession(liveResource, [], 'Live conversation', constObservable(false)));
+		store.add(harness.registerLiveProvider('env-1', { provideChatSessionContent: async () => live })!);
+		const opened = store.add(await harness.contentProviders.get(sessionType)!.provideChatSessionContent(liveResource, CancellationToken.None));
+		await waitForState(opened.isReadOnly!, value => !value);
+		assert.deepStrictEqual({ readOnly: opened.isReadOnly?.get(), title: opened.title, historyRequests: harness.historyRequests }, {
+			readOnly: false, title: 'Live conversation', historyRequests: [],
+		});
+	});
+
+	for (const removal of ['delete', 'discovery'] as const) {
+		test(`keeps sibling tasks available after a task is removed by ${removal}`, async () => {
+			const storage = store.add(new InMemoryStorageService());
+			const first = discoveredSession();
+			const second = discoveredSession({ sessionId: 'sess-2', taskId: 'task-2' });
+			const harness = await createContribution(store, [first, second], { storageService: storage });
+			const address = cloudSandboxAddress('env-1');
+			const provider = harness.contribution.stubProviders.get(address)!;
+			if (removal === 'delete') {
+				await provider.config.deleteSessionsOnDemand!.deleteSessions([URI.parse('ahp-session:/sess-2')]);
+			} else {
+				harness.discovered = [first];
+				await harness.runDiscovery();
+			}
+			await provider.taskArchiveHandlers.get('sess-1')!(true);
+			const beforeReload = { disposed: provider.disposed, sessions: provider.seeded.map(meta => AgentSession.id(meta.session)) };
+			harness.contribution.dispose();
+			const restored = await createContribution(store, [], {
+				storageService: storage, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+			});
+			assert.deepStrictEqual({
+				beforeReload,
+				restored: restored.contribution.stubProviders.get(address)!.seeded.map(meta => AgentSession.id(meta.session)),
+				deleted: harness.deletedTasks, archived: harness.archivedTasks,
+			}, {
+				beforeReload: { disposed: false, sessions: ['sess-1'] }, restored: ['sess-1'],
+				deleted: removal === 'delete' ? ['task-2'] : [], archived: [{ taskId: 'task-1', archived: true }],
+			});
+		});
+
+		test(`reconnects through the surviving task after the first task is removed by ${removal}`, async () => {
+			const first = discoveredSession();
+			const second = discoveredSession({ sessionId: 'sess-2', taskId: 'task-2' });
+			const harness = await createContribution(store, [first, second], { autoConnectOnOpen: false });
+			const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+			if (removal === 'delete') {
+				await provider.config.deleteSessionsOnDemand!.deleteSessions([URI.parse('ahp-session:/sess-1')]);
+			} else {
+				harness.discovered = [second];
+				await harness.runDiscovery();
+			}
+			const reconnectSessions: (string | undefined)[] = [];
+			harness.onConnect = async options => {
+				reconnectSessions.push(options.sessionId);
+				throw new Error('Sandbox unavailable');
+			};
+			await assert.rejects(provider.config.connectOnDemand!(), /Sandbox unavailable/);
+			// An explicit reconnect carrying an old URI must also preserve the surviving history route.
+			await assert.rejects(harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: first.name }), /Sandbox unavailable/);
+			const activated = await harness.activate('env-1');
+			const sessionType = harness.readOnlySessionTypes[0];
+			store.add(await harness.contentProviders.get(sessionType)!.provideChatSessionContent(URI.from({ scheme: sessionType, path: '/sess-2' }), CancellationToken.None));
+			assert.deepStrictEqual({ reconnectSessions, activated, history: harness.historyRequests, disposed: provider.disposed }, {
+				reconnectSessions: ['sess-2', 'sess-1'], activated: true, history: ['task-2'], disposed: false,
+			});
+		});
+	}
 
 	test('reconciles task archive and unarchive updates from another client without removing the provider', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
@@ -1543,6 +1660,34 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			connections: [...restored.connectedTo, ...next.connectedTo],
 			history: [...restored.historyRequests, ...next.historyRequests],
 		}, { removed: true, cached: [], restored: 0, connections: [], history: [] });
+	});
+
+	test('removes task-owned empty placeholders from restored inventory while retaining their shared environment sibling', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const real = discoveredSession();
+		const empty = ['empty-1', 'empty-2'].map(id => discoveredSession({
+			sessionId: id, taskId: `task-${id}`, name: 'New task', eventType: 'unknown', status: SessionStatus.Idle,
+		}));
+		const first = await createContribution(store, [real, ...empty], { storageService });
+		first.contribution.dispose();
+		let result: ICloudSandboxDiscoveryResult = { kind: 'failed', reason: 'offline' };
+		const restored = await createContribution(store, [], { storageService, listSessions: async () => result });
+		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))!;
+		result = { kind: 'incremental', sessions: [], removedTaskIds: empty.map(session => session.taskId) };
+		await restored.runDiscovery();
+		const remaining = provider.getSessions().map(session => AgentSession.id(session.resource));
+		restored.contribution.dispose();
+		const next = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+
+		assert.deepStrictEqual({
+			remaining,
+			inventory: readInventory(storageService).map(session => session.sessionId),
+			afterRestart: next.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))?.getSessions().map(session => AgentSession.id(session.resource)),
+			mutations: [...restored.deletedTasks, ...restored.archivedTasks],
+			connections: [...restored.connectedTo, ...next.connectedTo],
+		}, { remaining: [real.sessionId], inventory: [real.sessionId], afterRestart: [real.sessionId], mutations: [], connections: [] });
 	});
 
 	test('refreshes existing provider metadata and persists repository replacement and removal', async () => {

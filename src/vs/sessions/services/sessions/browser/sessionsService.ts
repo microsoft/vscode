@@ -806,7 +806,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				? this.sessionsManagementService.markRead(activeSession, {
 					preserveExplicitUnread: !activeChatChanged,
 				})
-				: this.sessionsManagementService.markChatRead(activeSession, chat);
+				: this.sessionsManagementService.markChatRead(activeSession, chat, {
+					preserveExplicitUnread: !activeChatChanged,
+				});
 			accepted.then(result => {
 				if (result === false && lastReadRequest === readRequest) {
 					lastReadRequest = undefined;

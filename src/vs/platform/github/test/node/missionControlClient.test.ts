@@ -386,7 +386,7 @@ suite('Mission Control client', () => {
 	test('retains only documented diagnostics and response metadata', async () => {
 		const response = { message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision' };
 		const { client, requests } = setup(() => Response.json({ ...response, internal: 'not-public' }, {
-			status: 409, headers: { 'x-github-request-id': 'request-1', 'retry-after': '2' },
+			status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '2' },
 		}));
 		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, signal()), error => {
 			assert.ok(error instanceof ApiRequestError);
@@ -394,7 +394,7 @@ suite('Mission Control client', () => {
 				status: error.statusCode, response: error.response, requestId: error.requestId,
 				retryAfterSeconds: error.retryAfterSeconds, rawBody: error.responseBody, outcome: error.outcome,
 				attempts: requests.length,
-			}, { status: 409, response, requestId: 'request-1', retryAfterSeconds: 2, rawBody: undefined, outcome: undefined, attempts: 1 });
+			}, { status: 409, response, requestId: 'ABCD:1234:5678:90AB:CDEF', retryAfterSeconds: 2, rawBody: undefined, outcome: undefined, attempts: 1 });
 			return true;
 		});
 	});
@@ -468,7 +468,7 @@ suite('Mission Control client', () => {
 		assert.deepStrictEqual(requests.map(request => new Headers(request.init.headers).get('If-None-Match')), [null, '"one"', null]);
 	});
 
-	for (const failure of ['network', 'body', 500, 501, 502, 503, 504] as const) {
+	for (const failure of ['network', 'body', 408, 500, 501, 502, 503, 504] as const) {
 		test(`ordinary reads retain one transient retry for ${failure}`, () => runWithFakedTimers({}, async () => {
 			let calls = 0;
 			const { service, client, requests } = setup(() => {
@@ -486,7 +486,7 @@ suite('Mission Control client', () => {
 			try {
 				const page = await client.automations.list(repository, signal());
 				const delay = requests[1].at - requests[0].at;
-				assert.deepStrictEqual({ data: page.data, attempts: requests.length, delayed: delay >= 100 && delay <= 300 }, {
+				assert.deepStrictEqual({ data: page.data, attempts: requests.length, delayed: delay >= 1000 && delay < 1250 }, {
 					data: emptyPage, attempts: 2, delayed: true,
 				});
 			} finally {
@@ -497,9 +497,9 @@ suite('Mission Control client', () => {
 
 	for (const refusal of [
 		{ status: 429, retryAfter: '2', delay: 2000 },
-		{ status: 429, retryAfter: undefined, delay: 60_000 },
-		{ status: 429, retryAfter: '0', delay: 60_000 },
-		{ status: 429, retryAfter: 'invalid', delay: 60_000 },
+		{ status: 429, retryAfter: undefined, delay: 5_000 },
+		{ status: 429, retryAfter: '0', delay: 5_000 },
+		{ status: 429, retryAfter: 'invalid', delay: 5_000 },
 		{ status: 403, retryAfter: '2', delay: 2000 },
 		{ status: 403, retryAfter: undefined, delay: 0 },
 		{ status: 503, retryAfter: 'Thu, 01 Jan 2026 00:00:02 GMT', delay: 2000 },
@@ -580,16 +580,112 @@ suite('Mission Control client', () => {
 	test('sensitive HTTP failures do not retain credentials in messages or diagnostics', async () => {
 		const secret = 'do-not-retain-this-credential';
 		const { client } = setup(() => Response.json({ message: secret, documentation_url: secret, access_token: secret }, {
-			status: 403, headers: { 'x-request-id': 'request-1' },
+			status: 403, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' },
 		}));
 		await assert.rejects(client.environments.connect('environment-1', signal()), error => {
 			assert.ok(error instanceof ApiRequestError);
 			assert.deepStrictEqual({
 				kind: error.kind, details: error.response, body: error.responseBody, requestId: error.requestId,
 				containsSecret: `${error.message}${JSON.stringify(error)}`.includes(secret),
-			}, { kind: 'authorization', details: undefined, body: undefined, requestId: 'request-1', containsSecret: false });
+			}, { kind: 'authorization', details: undefined, body: undefined, requestId: 'ABCD:1234:5678:90AB:CDEF', containsSecret: false });
 			return true;
 		});
+	});
+
+	for (const errorBody of [
+		{ error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' },
+		{ code: 'environment_compute_terminal' },
+		{ error_code: 'future_code' },
+	]) {
+		test(`sensitive requests retain safe codes without retaining response content: ${JSON.stringify(errorBody)}`, async () => {
+			const { client, requests } = setup(() => Response.json({ ...errorBody, message: 'private credential', access_token: 'private credential' }, {
+				status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' },
+			}));
+			await assert.rejects(client.environments.connect('environment-1', signal()), error => {
+				assert.ok(error instanceof ApiRequestError);
+				assert.deepStrictEqual({
+					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
+					privateContent: JSON.stringify(error).includes('private credential'), requests: requests.length,
+				}, {
+					code: errorBody.error_code ?? errorBody.code, limitedResource: errorBody.limited_resource,
+					requestId: 'ABCD:1234:5678:90AB:CDEF', privateContent: false, requests: 1,
+				});
+				return true;
+			});
+		});
+	}
+
+	test('a known unavailable capability is not retried even when its status is 501', async () => {
+		const { client, requests } = setup(request => request.url.pathname.endsWith('/tasks')
+			? Response.json({ error_code: 'not_implemented' }, { status: 501, headers: { 'retry-after': '300' } })
+			: Response.json(emptyPage));
+		await assert.rejects(client.tasks.list(signal()), { code: 'not_implemented', statusCode: 501 });
+		assert.strictEqual(requests.length, 1);
+		await client.automations.list(repository, signal());
+	});
+
+	for (const replacement of ['replacement', 'token-selected', 'token-second', undefined]) {
+		test(`a rejected credential retries only with a new grant for the same account: ${replacement}`, async () => {
+			let token: string | undefined = 'token-selected';
+			const { client, requests } = setup(() => {
+				token = replacement;
+				return requests.length === 1
+					? Response.json({ error_code: 'unauthenticated' }, { status: 401 })
+					: Response.json({ tasks: [] });
+			}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
+			if (replacement === 'replacement') {
+				await client.tasks.list(signal());
+			} else {
+				await assert.rejects(client.tasks.list(signal()), { statusCode: 401, code: 'unauthenticated' });
+			}
+			assert.strictEqual(requests.length, replacement === 'replacement' ? 2 : 1);
+		});
+	}
+
+	test('authentication recovery retries at most once when the replacement is also rejected', async () => {
+		let token = 'old';
+		const { client, requests } = setup(() => {
+			token = 'replacement';
+			return Response.json({ error_code: 'unauthenticated' }, { status: 401 });
+		}, clientOptions(), {
+			onDidChange: Event.None,
+			getToken: () => token,
+		});
+		await assert.rejects(client.tasks.list(signal()), { statusCode: 401, code: 'unauthenticated' });
+		assert.strictEqual(requests.length, 2);
+	});
+
+	test('a sandbox quota does not block unrelated Mission Control reads', () => runWithFakedTimers({}, async () => {
+		const { client, requests } = setup(request => request.url.pathname === '/agents/tasks' && request.init.method === 'POST'
+			? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'retry-after': '2' } })
+			: Response.json({ tasks: [] }));
+		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, signal()), { code: 'rate_limit_exceeded' });
+		await client.tasks.list(signal());
+		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, signal()), { code: 'rate_limit_exceeded' });
+		assert.deepStrictEqual(requests.map(request => request.at - requests[0].at), [0, 0, 2000]);
+	}));
+
+	test('a token-mint quota gates credential requests without blocking inventory reads', () => runWithFakedTimers({}, async () => {
+		let connections = 0;
+		const { client, requests } = setup(request => request.url.pathname.endsWith('/connect')
+			? ++connections === 1
+				? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, { status: 403, headers: { 'retry-after': '2' } })
+				: Response.json(connection)
+			: Response.json({ tasks: [] }));
+		await assert.rejects(client.environments.connect('environment-1', signal()), { kind: 'rateLimit', code: 'rate_limit_exceeded' });
+		await client.tasks.list(signal());
+		await client.environments.connect('environment-1', signal());
+		assert.deepStrictEqual(requests.map(request => request.at - requests[0].at), [0, 0, 2000]);
+	}));
+
+	test('credential replacement never automatically replays a mutation', async () => {
+		let token = 'old';
+		const { client, requests } = setup(() => {
+			token = 'replacement';
+			return Response.json({ error_code: 'unauthenticated' }, { status: 401 });
+		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
+		await assert.rejects(client.tasks.create({ prompt: 'test' }, signal()), { statusCode: 401, code: 'unauthenticated' });
+		assert.strictEqual(requests.length, 1);
 	});
 
 	test('reconnect validates the client identity and keeps credential requests uncacheable', async () => {
@@ -638,22 +734,24 @@ suite('Mission Control client', () => {
 
 	test('cancelling a queued mutation does not claim it was dispatched', async () => {
 		const started = new DeferredPromise<void>();
-		const response = new DeferredPromise<Response>();
-		const { client, requests } = setup(() => {
+		const response = new DeferredPromise<void>();
+		const { client, requests } = setup(async () => {
 			void started.complete();
-			return response.p;
+			await response.p;
+			return Response.json(emptyPage);
 		});
-		const read = client.automations.list(repository, signal());
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, name: `repo-${index}` }, signal()));
 		await started.p;
+		await timeout(0);
 		const controller = new AbortController();
 		const reason = new Error('cancel queued write');
 		const rejected = assert.rejects(client.automations.create(repository, automation, controller.signal), error => error === reason);
 		await timeout(0);
 		controller.abort(reason);
 		await rejected;
-		await response.complete(Response.json(emptyPage));
-		await read;
-		assert.strictEqual(requests.length, 1);
+		await response.complete();
+		await Promise.all(reads);
+		assert.strictEqual(requests.length, 8);
 	});
 
 	test('invalidates mapped caches and cancels in-flight work on credential replacement', async () => {
