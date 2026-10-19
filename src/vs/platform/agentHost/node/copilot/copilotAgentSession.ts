@@ -97,7 +97,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
-import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation } from './copilotRuntimeRestartTelemetry.js';
+import { reportCopilotRuntimeRestart, type CopilotRuntimeMutation, type CopilotRuntimeRestartEvent } from './copilotRuntimeRestartTelemetry.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
@@ -1774,6 +1774,10 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
 	private _runtimeMutation: { cause: CopilotRuntimeMutation; sequence: number } | undefined;
 	private readonly _mcpRestartStates = new Map<string, { sequence: number; running: boolean; connected: boolean; stopped: boolean }>();
+	/** The opening launch, whose MCP lifecycle reaches only its launch-time event callback until the wrapper subscribes. */
+	private _launchMcpRestartObserver: object | undefined;
+	/** Restarts observed before the first wrapper attaches; resumed history, which needs the wrapper, decides their first-turn state. */
+	private readonly _unattachedMcpRestarts: CopilotRuntimeRestartEvent[] = [];
 	private readonly _steeringMessagesInFlight = new Set<string>();
 	/**
 	 * Steering messages that have been accepted by the SDK but not yet
@@ -3999,6 +4003,8 @@ export class CopilotAgentSession extends Disposable {
 	private async _initializeSdkWrapper(token = CancellationToken.None): Promise<void> {
 		while (true) {
 			this._requiresRestartAfterTelemetryRevocation = false;
+			this._runtimeMutation = undefined;
+			this._mcpRestartStates.clear();
 			const launchCancellation = new CancellationTokenSource(this._lifetimeCts.token);
 			const cancellation = token.onCancellationRequested(() => launchCancellation.cancel());
 			let wrapper: CopilotSessionWrapper;
@@ -4025,8 +4031,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._wrapperDisposables.clear();
 			this._wrapper = this._wrapperDisposables.add(wrapper);
-			this._runtimeMutation = undefined;
-			this._mcpRestartStates.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
@@ -4054,6 +4058,10 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
 				}
 			});
+			this._launchMcpRestartObserver = undefined;
+			for (const event of this._unattachedMcpRestarts.splice(0)) {
+				void reportCopilotRuntimeRestart(this._telemetryService, event, this.completedTurnHistory);
+			}
 			this._subscribeToEvents(this._wrapperDisposables);
 			this._subscribeToSdkEvents(this._wrapperDisposables);
 			this._readCommittedAutoTier(wrapper);
@@ -4514,6 +4522,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _createRuntimeAdapter(cancellationToken: CancellationToken): ICopilotSessionRuntime {
+		const launch = {};
+		this._launchMcpRestartObserver = launch;
 		return {
 			cancellationToken,
 			setApprovalPolicy: (resolved, bridged) => {
@@ -4531,6 +4541,9 @@ export class CopilotAgentSession extends Disposable {
 							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
 						}
 						void this._managedSettingsResolved.complete();
+					}
+					if (this._launchMcpRestartObserver === launch && event.type === 'session.mcp_server_status_changed') {
+						this._observeMcpRestart(event.data.serverName, event.data.status);
 					}
 					this._recordSdkTiming(event);
 					this._onSessionEvent?.(event);
@@ -6452,13 +6465,18 @@ export class CopilotAgentSession extends Disposable {
 		const restarted = status === 'pending' && (previous?.stopped || previous?.connected);
 		if (restarted) {
 			const turn = this._currentTurn.value;
-			void reportCopilotRuntimeRestart(this._telemetryService, {
+			const event: CopilotRuntimeRestartEvent = {
 				...createCopilotFailureCorrelation(this.resourceUri, this._chatChannelUri, turn?.id, this.sessionId, turn?.clientContext),
 				kind: 'mcpServer',
 				cause: this._runtimeMutation && this._runtimeMutation.sequence > previous.sequence ? this._runtimeMutation.cause : 'runtime',
 				firstTurn: !this.hasCompletedTurn,
 				phase: !turn ? 'idle' : turn.activeSdkTurnId ? 'inTurn' : 'turnPrepare',
-			}, this.completedTurnHistory);
+			};
+			if (this._wrapper) {
+				void reportCopilotRuntimeRestart(this._telemetryService, event, this.completedTurnHistory);
+			} else {
+				this._unattachedMcpRestarts.push(event);
+			}
 		}
 		if (running) {
 			this._mcpRestartStates.set(serverName, { sequence: previous?.running && !restarted ? previous.sequence : sequence, running: true, connected: status === 'connected', stopped: false });
