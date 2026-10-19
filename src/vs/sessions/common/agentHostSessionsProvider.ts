@@ -108,6 +108,11 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	/** Optional Connector catalog name for presentation only. */
 	readonly displayName?: string;
+	/**
+	 * Canonical Copilot Connector that owns this server. Connector-owned servers authenticate with the
+	 * session's GitHub credential, so they are authorized through Copilot Connectors, not an MCP token.
+	 */
+	readonly connectorName?: string;
 	readonly source?: McpServerSource;
 	/**
 	 * Plugin the host reports as the source of this server's configuration. Unlike
