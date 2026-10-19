@@ -3150,8 +3150,6 @@ interface ISessionsListDndDelegate {
 	reorderSection(draggedId: string, targetId: string, position: 'before' | 'after', isWorkspace: boolean): void;
 	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
 	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
-	/** The chat rows the session shows under its row, in order; empty when it is collapsed. */
-	getChatRows(session: ISession): readonly IChat[];
 	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
@@ -3160,7 +3158,10 @@ interface ISessionsListDndDelegate {
 	moveSessionUnder(session: ISession, target: ISession, after: IChat | undefined): void;
 	/** Whether the session is in a section the user orders by hand: Pinned or a custom group. */
 	isInManuallyOrderedSection(session: ISession): boolean;
-	/** Whether the row is the last one its section shows: its last session's row, or that session's last chat row. */
+	/**
+	 * Whether the row is the last one its section shows (under a find filter, the last one that matches): its last
+	 * session's row, or that session's last chat row.
+	 */
 	isLastRowOfSection(element: ISession | ISessionChatItem): boolean;
 	/**
 	 * Shows the drop feedback for moving a chat or session rather than the list's other drags: `'move'` for a drop into
@@ -3427,9 +3428,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 		let target: ISessionsListChatDropTarget | undefined;
 		if (targetElement && isSessionChatItem(targetElement)) {
-			target = { session: targetElement.session, chat: targetElement.chat, chatRows: this.delegate.getChatRows(targetElement.session), position: sectorToPosition(targetSector) };
+			target = { session: targetElement.session, chat: targetElement.chat, position: sectorToPosition(targetSector) };
 		} else if (targetElement && isSessionItem(targetElement)) {
-			target = { session: targetElement, chat: undefined, chatRows: this.delegate.getChatRows(targetElement), position: 'before' };
+			target = { session: targetElement, chat: undefined, position: 'before' };
 		}
 		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
 		return drop ? { ...dragged, drop } : undefined;
@@ -3463,12 +3464,20 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		const drop = getSessionsListSessionDrop(dragged[0], {
 			session,
 			chat: chatItem?.chat,
-			chatRows: this.delegate.getChatRows(session),
 			quarter: targetSector,
-			manuallyOrdered: this.delegate.isInManuallyOrderedSection(session),
-			lastInSection: this.delegate.isLastRowOfSection(chatItem ?? session),
+			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
+			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
+			canPlace: position => this.canDropSessions(data, session, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
 		});
 		return drop ? { session: dragged[0], drop } : undefined;
+	}
+
+	/** Whether the list would pin, group, ungroup or reorder the dragged sessions here, without showing anything. */
+	private canDropSessions(data: IDragAndDropData, targetElement: SessionListItem, targetSector: ListViewTargetSector): boolean {
+		return !!this.resolvePinTarget(data, targetElement, targetSector)
+			|| !!this.resolveAddToGroupTarget(data, targetElement, targetSector)
+			|| !!this.resolveRemoveFromGroupTarget(data, targetElement, targetSector)
+			|| !!this.resolveReorderTarget(data, targetElement);
 	}
 
 	private onHeaderDragOver(draggedHeader: IDraggedHeader, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
@@ -3677,6 +3686,17 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+/** The last of `nodes` the tree shows (a find filter can hide some) whose element is a `T`, scanning from the end. */
+function findLastVisible<T extends SessionListItem>(nodes: readonly ITreeNode<SessionListItem | null, FuzzyScore>[], is: (element: SessionListItem) => element is T): T | undefined {
+	for (let i = nodes.length - 1; i >= 0; i--) {
+		const element = nodes[i].element;
+		if (nodes[i].visible && element && is(element)) {
+			return element;
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -4272,7 +4292,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
-					getChatRows: session => this.getDisplayedChatRows(session),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
@@ -5569,26 +5588,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return session && chat && this._sessionsManagementService.canMoveChat(session, chat) ? { session, chat } : undefined;
 	}
 
-	/** Whether `element` is the last row its section shows: its last session's row, or that session's last chat row. */
+	/**
+	 * Whether `element` is the last row its section shows: its last session's row, or that session's last chat row. Rows
+	 * a find filter hides don't count.
+	 */
 	private isLastRowOfSection(element: ISession | ISessionChatItem): boolean {
 		const session = isSessionChatItem(element) ? element.session : element;
 		if (!this.tree.hasElement(session)) {
 			return false;
 		}
-		const siblings = this.tree.getNode(this.tree.getParentElement(session)).children.map(child => child.element).filter((candidate): candidate is ISession => !!candidate && isSessionItem(candidate));
-		if (siblings.at(-1)?.sessionId !== session.sessionId) {
+		const lastSession = findLastVisible(this.tree.getNode(this.tree.getParentElement(session)).children, isSessionItem);
+		if (lastSession?.sessionId !== session.sessionId) {
 			return false;
 		}
-		const rows = this.getDisplayedChatRows(session);
-		return isSessionChatItem(element) ? rows.at(-1)?.resource.toString() === element.chat.resource.toString() : rows.length === 0;
-	}
-
-	/** The chats the list shows as rows under `session`, in order; none while it's collapsed. */
-	private getDisplayedChatRows(session: ISession): readonly IChat[] {
-		if (!this.tree.hasElement(session) || this.tree.isCollapsed(session)) {
-			return [];
-		}
-		return this.tree.getNode(session).children.map(child => child.element).filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element)).map(item => item.chat);
+		const lastChat = this.tree.isCollapsed(session) ? undefined : findLastVisible(this.tree.getNode(session).children, isSessionChatItem);
+		return isSessionChatItem(element) ? lastChat?.chat.resource.toString() === element.chat.resource.toString() : !lastChat;
 	}
 
 	private moveChatByDrop(session: ISession, chat: IChat, drop: SessionsListChatDrop): void {

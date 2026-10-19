@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 /**
@@ -27,11 +27,13 @@ export function isChatMoveDndEnabled(configurationService: IConfigurationService
 
 /**
  * Whether `target` can receive a chat (or a single-chat session) moved from `source`: another started, unarchived
- * session of the same provider that holds several chats.
+ * session of the same provider and agent (its session type: one provider can serve several agents, e.g. Copilot,
+ * Claude and Codex) that holds several chats.
  */
 export function canMoveIntoSession(source: ISession, target: ISession): boolean {
 	return target.sessionId !== source.sessionId
 		&& target.providerId === source.providerId
+		&& target.sessionType === source.sessionType
 		&& !target.isArchived.get()
 		&& target.status.get() !== SessionStatus.Untitled
 		&& target.capabilities.get().supportsMultipleChats;
@@ -70,27 +72,19 @@ export function changesChatOrder(session: ISession, chat: IChat, after: IChat | 
 	return reordered.some((candidate, index) => candidate !== ids[index]);
 }
 
-/** A chat reorder: the chat the dragged chat goes after (`undefined`: first) and the resulting order. */
-export interface IChatReorder {
-	readonly after: string | undefined;
-	readonly order: readonly string[];
-}
-
 /**
- * Reorders `dragged` to sit before the item at `insertIndex` (`order.length`: last) of `order`. `undefined` when
- * `dragged` is not in `order` or the drop would leave it where it is.
+ * The chat to place a moved chat after so that it lands right before `next` in the order of `session`'s chats
+ * (`undefined`: first), skipping `moved` itself and subagent and hidden chats, which can't anchor a move. The list may
+ * show the chats in another order (e.g. by update time), so a position among its rows is turned into one in that order.
  */
-export function getChatReorder(order: readonly string[], dragged: string, insertIndex: number): IChatReorder | undefined {
-	const draggedIndex = order.indexOf(dragged);
-	if (draggedIndex === -1 || insertIndex < 0 || insertIndex > order.length || insertIndex === draggedIndex || insertIndex === draggedIndex + 1) {
-		return undefined;
+export function getChatMoveAnchorBefore(session: ISession, next: IChat, moved?: IChat): IChat | undefined {
+	const chats = session.chats.get().filter(candidate => candidate.resource.toString() !== moved?.resource.toString());
+	for (let i = chats.findIndex(candidate => candidate.resource.toString() === next.resource.toString()) - 1; i >= 0; i--) {
+		if (chats[i].origin?.kind !== ChatOriginKind.Tool && chats[i].interactivity.get() !== ChatInteractivity.Hidden) {
+			return chats[i];
+		}
 	}
-	const rest = order.filter(id => id !== dragged);
-	const index = insertIndex > draggedIndex ? insertIndex - 1 : insertIndex;
-	return {
-		after: index === 0 ? undefined : rest[index - 1],
-		order: [...rest.slice(0, index), dragged, ...rest.slice(index)],
-	};
+	return undefined;
 }
 
 /**
@@ -100,8 +94,6 @@ export function getChatReorder(order: readonly string[], dragged: string, insert
 export interface ISessionsListChatDropTarget {
 	readonly session: ISession | undefined;
 	readonly chat: IChat | undefined;
-	/** The chat rows `session` shows under its row, in order; empty when collapsed. Its main chat is its own row. */
-	readonly chatRows: readonly IChat[];
 	/** The half of the nested chat row `chat` the pointer is over; ignored over a session's own row. */
 	readonly position: 'before' | 'after';
 }
@@ -122,6 +114,7 @@ export type SessionsListChatDrop =
  * - on the top or bottom half of a session's nested chat row: into that session before or after that row, which
  *   reorders it within its own session;
  * - anywhere else (empty space, a section or folder header): into a new session.
+ * Positions are anchored in the order of the session's chats, whatever order the list shows them in.
  */
 export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined): SessionsListChatDrop | undefined {
 	const session = target?.session;
@@ -141,44 +134,32 @@ export function getSessionsListChatDrop(source: ISession, chat: IChat, target: I
 		return { kind: 'session', session, after, position: 'over' };
 	}
 
-	const rows = [session.mainChat.get(), ...target.chatRows];
-	const index = rows.findIndex(row => row.resource.toString() === target.chat!.resource.toString());
-	if (index === -1) {
+	const next = target.chat;
+	if (next.resource.toString() === chat.resource.toString()) {
 		return undefined;
 	}
-	const insertIndex = target.position === 'before' ? index : index + 1;
-	const ids = rows.map(row => row.resource.toString());
-	const draggedId = chat.resource.toString();
-	let after: IChat | undefined;
-	if (isOwnSession && ids.includes(draggedId)) {
-		const reorder = getChatReorder(ids, draggedId, insertIndex);
-		if (!reorder) {
-			return undefined;
-		}
-		after = rows.find(row => row.resource.toString() === reorder.after);
-		if (!changesChatOrder(session, chat, after)) {
-			return undefined;
-		}
-	} else {
-		after = rows[insertIndex - 1];
+	const after = target.position === 'after' ? next : getChatMoveAnchorBefore(session, next, chat);
+	if (isOwnSession && !changesChatOrder(session, chat, after)) {
+		return undefined;
 	}
 	return { kind: 'session', session, after, position: target.position };
 }
 
 /**
  * Where the pointer is in the sessions list while dragging a whole session that can move under another session: over
- * the row of `session` (`chat` undefined) or over its nested chat row `chat`, in quarter `quarter` of the row.
+ * the row of `session` (`chat` undefined) or over its nested chat row `chat`, in quarter `quarter` of the row. The
+ * rest is asked only when needed, as it is asked on every drag over.
  */
 export interface ISessionsListSessionDropTarget {
 	readonly session: ISession;
 	readonly chat: IChat | undefined;
-	/** The chat rows `session` shows under its row, in order; empty when collapsed. Its main chat is its own row. */
-	readonly chatRows: readonly IChat[];
 	readonly quarter: ListViewTargetSector;
 	/** Whether `session` is in a section the user orders by hand: Pinned or a custom group. */
-	readonly manuallyOrdered: boolean;
+	isManuallyOrdered(): boolean;
 	/** Whether the row is the last one its section shows: its last session's row, or that session's last chat row. */
-	readonly lastInSection: boolean;
+	isLastInSection(): boolean;
+	/** Whether the list would place the dragged session before or after `session` (reordering, pinning or grouping it). */
+	canPlace(position: 'before' | 'after'): boolean;
 }
 
 /**
@@ -194,16 +175,18 @@ export type SessionsListSessionDrop =
  * What `source`, a session that can move under another session, does when dropped on `target`, or `undefined` when it
  * can't move there (the list then handles the drop as it does for any session). Like a folder in the Explorer:
  * - anywhere on a session's row: under that session, at its end;
- * - on the top or bottom half of a session's nested chat row: under that session, before or after that row.
+ * - on the top or bottom half of a session's nested chat row: under that session, before or after that row, anchored
+ *   in the order of the session's chats.
  * In Pinned and custom groups, whose sessions the user orders by hand, the top quarter of a session's row places it
- * before that session, and the bottom quarter of the section's last row places it after the section's last session.
+ * before that session, and the bottom quarter of the section's last row places it after the section's last session,
+ * where the list accepts that placement; otherwise these quarters nest too.
  */
 export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget): SessionsListSessionDrop | undefined {
 	const { session, chat, quarter } = target;
-	if (target.manuallyOrdered && !chat && quarter === ListViewTargetSector.TOP) {
+	if (!chat && quarter === ListViewTargetSector.TOP && target.isManuallyOrdered() && target.canPlace('before')) {
 		return { kind: 'place', session, position: 'before' };
 	}
-	if (target.manuallyOrdered && target.lastInSection && quarter === ListViewTargetSector.BOTTOM) {
+	if (quarter === ListViewTargetSector.BOTTOM && target.isManuallyOrdered() && target.isLastInSection() && target.canPlace('after')) {
 		return { kind: 'place', session, position: 'after' };
 	}
 	if (!canMoveIntoSession(source, session)) {
@@ -212,13 +195,11 @@ export function getSessionsListSessionDrop(source: ISession, target: ISessionsLi
 	if (!chat) {
 		return { kind: 'nest', session, after: getChatMoveAppendAnchor(session), position: 'over' };
 	}
-	const rows = [session.mainChat.get(), ...target.chatRows];
-	const index = rows.findIndex(row => row.resource.toString() === chat.resource.toString());
-	if (index <= 0) {
+	if (chat.resource.toString() === session.mainChat.get().resource.toString()) {
 		return undefined;
 	}
 	const position = quarter === ListViewTargetSector.TOP || quarter === ListViewTargetSector.CENTER_TOP ? 'before' : 'after';
-	return { kind: 'nest', session, after: rows[position === 'before' ? index - 1 : index], position };
+	return { kind: 'nest', session, after: position === 'after' ? chat : getChatMoveAnchorBefore(session, chat), position };
 }
 
 /** A move started by dropping in the sessions list: a chat to another place, or a single-chat session under another session. */
