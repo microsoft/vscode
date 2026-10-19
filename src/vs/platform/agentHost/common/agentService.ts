@@ -1450,6 +1450,8 @@ export interface IAgentConnection {
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
+	/** Counts regular-file bytes without following symlinks on local or remote hosts. Unsupported hosts must not fall back to per-file RPCs. */
+	measureWorktreeDiskUsage?(root: URI, token: CancellationToken): Promise<number | undefined>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;

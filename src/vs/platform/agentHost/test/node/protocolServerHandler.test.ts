@@ -636,6 +636,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpSessionUris': true,
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
+				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
@@ -1989,6 +1990,90 @@ suite('ProtocolServerHandler', () => {
 			id: 20,
 			error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack },
 		});
+	});
+
+	suite('worktree disk usage', () => {
+		let root: string;
+
+		setup(async () => {
+			root = await mkdtemp(join(process.cwd(), '.build', 'worktree-measurement-'));
+			await mkdir(join(root, 'node_modules'));
+			await writeFile(join(root, 'node_modules', 'package.json'), '1234567890');
+		});
+
+		teardown(async () => {
+			await rm(root, { recursive: true, force: true });
+		});
+
+		test('returns aggregate bytes without routing per-file resource requests', async () => {
+			const transport = connectClient('worktree-measurement');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: 10 } });
+		});
+
+		test('cancels an in-flight walk on the owning connection', async () => {
+			const transport = connectClient('worktree-cancel');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			const cancelled = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/cancelWorktreeDiskUsage', { requestId: 'measurement' }));
+			await cancelled;
+			assert.ok(hasKey(await response, { error: true }));
+		});
+
+		test('does not let a different connection cancel a walk', async () => {
+			const transport = connectClient('worktree-owner');
+			const other = connectClient('worktree-other');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			const cancelled = waitForResponse(other, 21);
+			other.simulateMessage(request(21, 'vscode/cancelWorktreeDiskUsage', { requestId: 'measurement' }));
+			await cancelled;
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: 10 } });
+		});
+
+		test('cancels measurements when their transport disconnects', async () => {
+			const transport = connectClient('worktree-disconnect');
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			transport.simulateClose();
+			await handler.whenIdle();
+			assert.strictEqual(findResponse(transport.sent, 20), undefined);
+		});
+
+		test('rejects duplicate active request ids', async () => {
+			const transport = connectClient('worktree-duplicate');
+			const first = waitForResponse(transport, 20);
+			const params = { uri: URI.file(root).toString(), requestId: 'measurement' };
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', params));
+			const duplicate = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/measureWorktreeDiskUsage', params));
+			const response = await duplicate;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+			await first;
+		});
+
+		for (const params of [
+			{}, { uri: 1, requestId: 'a' }, { uri: URI.file('/worktree').toString() },
+			{ uri: 'https://example.com/worktree', requestId: 'a' },
+			{ uri: 'file:relative', requestId: 'a' },
+		]) {
+			test(`rejects invalid measurement params (${JSON.stringify(params)})`, async () => {
+				const transport = connectClient('worktree-invalid');
+				const response = waitForResponse(transport, 20);
+				transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', params));
+				const result = await response;
+				assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+			});
+		}
 	});
 
 	test('routes stopping background work through the extension request', async () => {
