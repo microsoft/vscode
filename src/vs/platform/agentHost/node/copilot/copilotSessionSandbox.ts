@@ -46,10 +46,11 @@ interface ICopilotSessionSandboxOptions {
 	readonly ownerSession: URI;
 	/** The chat this SDK session runs; the sandbox selection and applied state are the chat's. */
 	readonly chat: URI;
+	readonly storage: URI;
 	/** Where a rejected selection is written back: the chat under its current owner, where the change came from. */
 	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
-	readonly getSession: () => CopilotSession;
+	readonly getSession: () => CopilotSession | undefined;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
 	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
@@ -57,6 +58,7 @@ interface ICopilotSessionSandboxOptions {
 	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
 	readonly shellManager: ShellManager | undefined;
+	readonly onDidChangeRuntimeConfig?: () => void;
 }
 
 /** Owns sandbox configuration, request-bound approvals, and diagnostics for one SDK session. */
@@ -68,6 +70,10 @@ export class CopilotSessionSandbox extends Disposable {
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
 	private _configUpdateDeferred = false;
 	private _disabledForSession = false;
+	private _launchSession: CopilotSession | undefined;
+	private _pendingSelection: 'on' | 'off' | 'default' | undefined;
+	/** Serialized config the SDK session last accepted; re-sending it can restart pending MCP servers. */
+	private _appliedConfig: string | undefined;
 
 	constructor(
 		private readonly _options: ICopilotSessionSandboxOptions,
@@ -145,7 +151,9 @@ export class CopilotSessionSandbox extends Disposable {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
 				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
-				const result = await this._options.getSession().rpc.sandbox.grantPathForRequest({
+				// The grant changes the runtime's live policy outside `options.update`.
+				this._appliedConfig = undefined;
+				const result = await this._options.getSession()!.rpc.sandbox.grantPathForRequest({
 					requestId,
 					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
 				});
@@ -184,12 +192,39 @@ export class CopilotSessionSandbox extends Disposable {
 		return { session: this._options.ownerSession.toString(), chat: this._options.chat.toString() };
 	}
 
+	applyLaunchConfig(session: CopilotSession): Promise<void> {
+		return this._configSequencer.queue(() => {
+			this._launchSession = session;
+			const requestedSelection = this._pendingSelection;
+			this._pendingSelection = undefined;
+			this._appliedConfig = undefined;
+			return this._updateConfig(true, requestedSelection, undefined, session, false);
+		});
+	}
+
+	/** The config {@link applyLaunchConfig} pushes, so it can also be applied when the SDK session opens; `undefined` when the launch uses the session command or pushes nothing. */
+	getLaunchConfig(): SandboxConfig | undefined {
+		return this._configForUpdate(this._pendingSelection, this._computeConfig());
+	}
+
+	private _configForUpdate(requestedSelection: 'on' | 'off' | 'default' | undefined, base: SandboxConfig | undefined): SandboxConfig | undefined {
+		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
+			return undefined;
+		}
+		if (!base && this._disabledForSession) {
+			// A bare disabled options.update does not preserve the runtime's managed sandbox floor.
+			return undefined;
+		}
+		const policy = this._configurationService.getSessionSandboxPolicy(this._target().session);
+		return requestedSelection === 'off' && policy?.failClosed ? { enabled: false } : base ?? { enabled: false };
+	}
+
 	private _computeConfig(): SandboxConfig | undefined {
 		const target = this._target();
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = getVSCodeSandboxReadRoots({
-			sessionDataDirectories: [this._options.ownerSession.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
+			sessionDataDirectories: [this._options.ownerSession.toString(), this._options.storage.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
@@ -277,7 +312,13 @@ export class CopilotSessionSandbox extends Disposable {
 		return (policy?.enabled === true && policy.allowBypass === true) || this._disabledForSession;
 	}
 
-	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
+	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true): Promise<void> {
+		if (!session) {
+			if (requestedSelection !== undefined) {
+				this._pendingSelection = requestedSelection;
+			}
+			return;
+		}
 		// Saving settings must not replace the live policy before the runtime accepts the pending grant.
 		if (this._pendingPathGrants.size && requestedSelection === undefined) {
 			this._configUpdateDeferred = true;
@@ -285,27 +326,31 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 		const base = this._computeConfig();
 		const target = this._target();
-		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		if (requestedSelection !== undefined && this._requiresSessionCommand()) {
 			const enabled = requestedSelection === 'on' || (requestedSelection === 'default' && base?.enabled === true);
-			const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => this._options.getSession().rpc.commands.invoke({ name: 'sandbox', input: `${enabled ? 'enable' : 'disable'} session` }));
+			this._options.onDidChangeRuntimeConfig?.();
+			const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => session.rpc.commands.invoke({ name: 'sandbox', input: `${enabled ? 'enable' : 'disable'} session` }));
 			if (result.kind !== 'text' || result.sandboxSessionChange !== (enabled ? 'restored' : 'disabled')) {
 				throw new Error(result.kind === 'text' && result.text.trim() ? result.text : localize('copilot.sandbox.changeRejected', "Copilot SDK did not confirm the sandbox change for this session."));
 			}
 			this._disabledForSession = !enabled;
+			this._appliedConfig = undefined;
 			this._configurationService.setChatSandboxEnabled(target, enabled);
 			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(enabled ? base : { enabled: false }));
 			return;
 		}
-		if (!base && this._disabledForSession) {
-			// A bare disabled options.update does not preserve the runtime's managed sandbox floor.
+		const sandboxConfig = this._configForUpdate(requestedSelection, base);
+		if (!sandboxConfig) {
 			return;
 		}
-		const sandboxConfig: SandboxConfig = requestedSelection === 'off' && policy?.failClosed
-			? { enabled: false }
-			: base ?? { enabled: false };
+		const serialized = JSON.stringify(sandboxConfig);
 		try {
-			if (await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(this._options.getSession(), sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
+			const unchanged = requestedSelection === undefined && serialized === this._appliedConfig;
+			if (!unchanged && reportMutation) {
+				this._options.onDidChangeRuntimeConfig?.();
+			}
+			if (unchanged || await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, requestedSelection !== undefined))) {
+				this._appliedConfig = serialized;
 				this._disabledForSession = false;
 				this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
 				await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
