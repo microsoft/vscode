@@ -14,6 +14,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { getCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -197,7 +198,8 @@ export class ChatSessionWorkingSet extends Disposable {
 				}
 				// Review in place, where each change can be kept or undone.
 				editorService.openEditor({ resource: entry.modifiedURI }).then(pane => {
-					if (pane) {
+					// Other editors, like custom editors, can't show the changes in place.
+					if (pane && getCodeEditor(pane.getControl())) {
 						entry.getEditorIntegration(pane).reveal(true);
 					}
 				});

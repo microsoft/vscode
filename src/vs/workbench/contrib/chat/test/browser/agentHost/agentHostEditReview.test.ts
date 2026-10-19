@@ -26,11 +26,14 @@ import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '..
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
+import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
 import { ChatEditingModifiedDocumentEntry } from '../../../browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 import { IChatExternalEdit, IChatService, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
@@ -53,9 +56,24 @@ suite('AgentHostEditReview', () => {
 	let encodings: ResourceMap<string>;
 	/** Runs while a before snapshot is read, as the user and other chats go on. */
 	let onSnapshotRead: ((resource: URI) => void) | undefined;
+	/** Runs while the existence of a file is checked. */
+	let onExists: ((resource: URI) => void) | undefined;
 	let onDidFilesChange: Emitter<FileChangesEvent>;
+	/** Other URIs of the same files, like on a case insensitive file system. */
+	let aliases: ResourceMap<URI>;
+	/** Files with unsaved changes in editors other than text editors. */
+	let dirtyWorkingCopies: ResourceMap<true>;
 	let instantiationService: TestInstantiationService;
 	const otherSessions = observableValue<readonly IChatEditReviewSession[]>('otherSessions', []);
+
+	function canonical(resource: URI): URI {
+		return aliases.get(resource) ?? resource;
+	}
+
+	/** Like a text file model, whose document has unsaved changes. */
+	function isDirty(resource: URI): boolean {
+		return models.has(resource) && getModel(resource).getValue() !== disk.get(resource);
+	}
 
 	function getModel(resource: URI): ITextModel {
 		let model = models.get(resource);
@@ -114,12 +132,16 @@ suite('AgentHostEditReview', () => {
 		deletes = [];
 		encodings = new ResourceMap<string>();
 		onSnapshotRead = undefined;
+		onExists = undefined;
 		onDidFilesChange = store.add(new Emitter<FileChangesEvent>());
+		aliases = new ResourceMap<URI>();
+		dirtyWorkingCopies = new ResourceMap<true>();
 		otherSessions.set([], undefined);
 
 		const collection = new ServiceCollection();
 		collection.set(ITextModelService, new class extends mock<ITextModelService>() {
 			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+				resource = canonical(resource);
 				// The review's own baseline models exist; files must exist on disk.
 				if (!disk.has(resource) && !models.has(resource) && !modelService.getModel(resource)) {
 					throw new Error(`File not found: ${resource}`);
@@ -145,7 +167,7 @@ suite('AgentHostEditReview', () => {
 				}
 			}();
 			override isDirty(resource: URI): boolean {
-				return models.has(resource) && getModel(resource).getValue() !== disk.get(resource);
+				return isDirty(resource);
 			}
 			override async save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 				saves.push(`${resource.path}${options?.skipSaveParticipants ? ' (no participants)' : ''}`);
@@ -164,7 +186,8 @@ suite('AgentHostEditReview', () => {
 				return Disposable.None;
 			}
 			override async exists(resource: URI): Promise<boolean> {
-				return disk.has(resource);
+				onExists?.(resource);
+				return disk.has(canonical(resource));
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				const content = snapshots.get(resource);
@@ -197,6 +220,22 @@ suite('AgentHostEditReview', () => {
 		collection.set(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
 			override handleCodeAccepted(): void { }
 			override handleCodeRejected(): void { }
+		}());
+		// Like the real services, these know documents only by their canonical URIs.
+		collection.set(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
+			override isDirty(resource: URI): boolean {
+				return isDirty(resource) || dirtyWorkingCopies.has(resource);
+			}
+		}());
+		collection.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			override asCanonicalUri(uri: URI): URI {
+				return canonical(uri);
+			}
+		}());
+		collection.set(INotebookService, new class extends mock<INotebookService>() {
+			override hasSupportedNotebooks(resource: URI): boolean {
+				return resource.path.endsWith('.ipynb');
+			}
 		}());
 
 		instantiationService = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
@@ -267,6 +306,28 @@ suite('AgentHostEditReview', () => {
 		await review.reject(uri);
 
 		assert.deepStrictEqual({ agentChanges, disk: disk.get(uri) }, { agentChanges: 1, disk: 'x = 3\nz = 0\ny = 1\n' });
+	});
+
+	test('keeps the whole agent change the user edits part of, so that undoing never mixes their text', async () => {
+		const uri = URI.file('/a.ts');
+		agentWrites(uri, 'bar(a, c)\nz = 0\ny = 2\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/a.ts', 'foo(a, b)\nz = 0\ny = 1\n')]);
+		await review.endTurn('turn-1');
+		const entry = getEntry('/a.ts');
+		await waitForState(entry.diffInfo.map(diff => diff.changes.length === 2 ? true : undefined));
+		const partsOfFirstChange = entry.diffInfo.get().changes[0].innerChanges?.length;
+
+		// The user rewrites one of the two values the agent changed on the first line.
+		getModel(uri).applyEdits([EditOperation.replace(new Range(1, 8, 1, 9), 'd')]);
+		await timeout(10);
+		const agentChanges = await changeCount(entry);
+		await review.reject(uri);
+
+		assert.deepStrictEqual(
+			{ partsOfFirstChange, agentChanges, disk: disk.get(uri) },
+			{ partsOfFirstChange: 2, agentChanges: 1, disk: 'bar(a, d)\nz = 0\ny = 1\n' },
+		);
 	});
 
 	test('stops reviewing a file once the user\'s edits leave nothing to decide', async () => {
@@ -350,17 +411,51 @@ suite('AgentHostEditReview', () => {
 		}, { typed: false, reviewsOfShared: 1 });
 	});
 
-	test('reviews only UTF-8 documents, because the agent host decodes its snapshots as UTF-8', async () => {
+	test('reviews only UTF-8 text, because the agent host decodes its snapshots as UTF-8', async () => {
 		agentWrites(URI.file('/bom.ts'), 'after\n');
 		agentWrites(URI.file('/latin1.ts'), 'after\n');
+		agentWrites(URI.file('/was-latin1.ts'), 'after\n');
+		agentWrites(URI.file('/was-utf16.ts'), 'after\n');
 		encodings.set(URI.file('/bom.ts'), 'utf8bom');
 		encodings.set(URI.file('/latin1.ts'), 'windows1252');
 
 		review.beginTurn('turn-1');
-		await review.addEdits('turn-1', [edit('/bom.ts', 'before\n'), edit('/latin1.ts', 'before\n')]);
+		// The agent rewrote files as UTF-8 whose content before could not be decoded as UTF-8.
+		await review.addEdits('turn-1', [edit('/bom.ts', 'before\n'), edit('/latin1.ts', 'before\n'), edit('/was-latin1.ts', 'caf\uFFFD\n'), edit('/was-utf16.ts', 'b\0e\0\n\0')]);
 		await review.endTurn('turn-1');
 
 		assert.deepStrictEqual(review.entries.get().map(entry => entry.modifiedURI.path), ['/bom.ts']);
+	});
+
+	test('does not review notebooks, or files with unsaved changes in other editors', async () => {
+		agentWrites(URI.file('/notebook.ipynb'), '{ "cells": [1] }\n');
+		agentWrites(URI.file('/drawing.svg'), 'after\n');
+		dirtyWorkingCopies.set(URI.file('/drawing.svg'), true);
+
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/notebook.ipynb', '{ "cells": [] }\n'), edit('/drawing.svg', 'before\n')]);
+		await review.endTurn('turn-1');
+
+		assert.deepStrictEqual(review.entries.get().map(entry => entry.modifiedURI.path), []);
+	});
+
+	test('reviews a file as the document the user has open, whatever casing the agent uses', async () => {
+		const opened = URI.file('/Opened.ts');
+		const dirty = URI.file('/Dirty.ts');
+		aliases.set(URI.file('/opened.ts'), opened);
+		aliases.set(URI.file('/dirty.ts'), dirty);
+		agentWrites(opened, 'after\n');
+		agentWrites(dirty, 'after\n');
+		getModel(dirty).setValue('unsaved text\n');
+
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/opened.ts', 'before\n'), edit('/dirty.ts', 'before\n')]);
+		await review.endTurn('turn-1');
+
+		assert.deepStrictEqual({
+			reviewed: review.entries.get().map(entry => entry.modifiedURI.path),
+			found: review.getEntry(opened) !== undefined,
+		}, { reviewed: ['/Opened.ts'], found: true });
 	});
 
 	test('keeping only moves the baseline, undoing writes the file back to disk', async () => {
@@ -515,6 +610,32 @@ suite('AgentHostEditReview', () => {
 		await review.endTurn('turn-1');
 
 		assert.deepStrictEqual(review.entries.get().length, 0);
+	});
+
+	test('attributes changes to the user after a turn, even when a file leaves the review while the turn ends', async () => {
+		agentWrites(URI.file('/a.ts'), 'A\n');
+		agentWrites(URI.file('/b.ts'), 'one\nTWO\nthree\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/a.ts', 'a\n'), edit('/b.ts', 'one\ntwo\nthree\n')]);
+		const b = getEntry('/b.ts');
+		await Promise.all([changeCount(getEntry('/a.ts')), changeCount(b)]);
+		// The first file is deleted while the turn ends.
+		onExists = resource => {
+			if (resource.path === '/a.ts') {
+				onExists = undefined;
+				onDidFilesChange.fire(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
+			}
+		};
+		await review.endTurn('turn-1');
+
+		// Between turns, the other file changes on disk, e.g. when the user switches branches.
+		agentWrites(URI.file('/b.ts'), 'one\nTWO\nTHREE\n');
+		await timeout(10);
+
+		assert.deepStrictEqual(
+			{ reviewed: review.entries.get().map(entry => entry.modifiedURI.path), agentChanges: await changeCount(b) },
+			{ reviewed: ['/b.ts'], agentChanges: 1 },
+		);
 	});
 
 	test('drops the review of a file the agent deletes or renames, or that is gone', async () => {

@@ -3855,14 +3855,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				publisher.publish([part]);
 			}
 		}
-		if (opts.subAgentInvocationId === undefined) {
-			// Subagent edits land in the parent chat's review, inside the parent's turn.
-			const review = this._getEditReview(opts.sessionResource);
-			if (review) {
-				review.beginTurn(opts.turnId);
-				store.add(toDisposable(() => review.endTurn(opts.turnId).catch(onUnexpectedError)));
-			}
-		}
 		const sessionKey = opts.backendSession.toString();
 		this._ensureTurnStopWatch(opts.chatURI, opts.turnId);
 		// `_ensureSessionSubscription` returns a process-shared, non-refcounted
@@ -3894,6 +3886,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				? state.activeTurn
 				: state.turns.find(t => t.id === opts.turnId);
 		});
+		const review = this._getEditReview(opts.sessionResource);
+		if (review && opts.subAgentInvocationId === undefined) {
+			this._reviewEditsOfTurn(review, opts.turnId, store);
+		} else if (review) {
+			// A subagent can run on after its parent's turn, e.g. in the
+			// background, so its edits are reviewed while its own turn runs.
+			// Turns restored from history never run, so they stay unreviewed.
+			let reviewing = false;
+			store.add(autorun(reader => {
+				if (!reviewing && mergedState$.read(reader)?.activeTurn?.id === opts.turnId) {
+					reviewing = true;
+					this._reviewEditsOfTurn(review, opts.turnId, store);
+				}
+			}));
+		}
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
 		store.add(autorun(reader => {
@@ -6112,6 +6119,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		const editingSession = this._chatService.getSession(sessionResource)?.editingSession;
 		return editingSession instanceof AgentHostSnapshotController ? editingSession.review : undefined;
+	}
+
+	/** Reviews the edits made while a turn runs, until its observation ends. */
+	private _reviewEditsOfTurn(review: AgentHostEditReview, turnId: string, store: DisposableStore): void {
+		review.beginTurn(turnId);
+		store.add(toDisposable(() => review.endTurn(turnId).catch(onUnexpectedError)));
 	}
 
 	/**

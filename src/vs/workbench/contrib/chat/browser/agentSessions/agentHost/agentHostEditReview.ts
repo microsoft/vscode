@@ -16,10 +16,13 @@ import { localize } from '../../../../../../nls.js';
 import { FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { UTF8, UTF8_with_bom } from '../../../../../services/textfile/common/encoding.js';
 import { isTextFileEditorModel, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { IChatExternalEdit, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatEditKind, getMultiDiffSourceUri, IChatEditingService, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
@@ -132,6 +135,9 @@ export class AgentHostEditReview extends Disposable {
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -210,7 +216,7 @@ export class AgentHostEditReview extends Disposable {
 			return Promise.resolve();
 		}
 		const epoch = this._epoch;
-		const work = Promise.all(edits.map(edit => this._editSequencer.queue(edit.uri.toString(), async () => {
+		const work = Promise.all(edits.map(edit => this._toCanonicalEdit(edit)).map(edit => this._editSequencer.queue(edit.uri.toString(), async () => {
 			try {
 				await this._addEdit(turnId, edit, epoch);
 			} catch (error) {
@@ -240,17 +246,26 @@ export class AgentHostEditReview extends Disposable {
 		if (this._store.isDisposed || this.isTurnActive) {
 			return;
 		}
-		for (const entry of [...this._entries.values()]) {
-			if (this._entries.get(entry.modifiedURI) !== entry) {
-				continue;
+		try {
+			for (const entry of [...this._entries.values()]) {
+				if (!this._isReviewing(entry)) {
+					continue;
+				}
+				const reviewable = await this._syncWithDisk(entry);
+				if (this.isTurnActive) {
+					return;
+				}
+				if (!reviewable || entry.originalModel.equalsTextBuffer(entry.modifiedModel.getTextBuffer())) {
+					// The file is gone, the agent reverted its own change, or the user already undid it.
+					this._removeEntry(entry);
+				}
 			}
-			const exists = await this._syncWithDisk(entry);
-			if (this.isTurnActive) {
-				return;
-			}
-			if (!exists || entry.originalModel.equalsTextBuffer(entry.modifiedModel.getTextBuffer())) {
-				// The file is gone, the agent reverted its own change, or the user already undid it.
-				this._removeEntry(entry);
+		} finally {
+			if (!this.isTurnActive) {
+				// Whatever happened above, changes are the user's again.
+				for (const entry of this._entries.values()) {
+					entry.stopExternalEdit();
+				}
 			}
 		}
 	}
@@ -304,7 +319,7 @@ export class AgentHostEditReview extends Disposable {
 
 		entry.startExternalEdit();
 		if (!this.isTurnActive && !await this._syncWithDisk(entry)) {
-			// The edit was reported after its turn ended, and the file is gone since.
+			// The edit was reported after its turn ended, and the file is gone or no longer reviewed since.
 			this._removeEntry(entry);
 		}
 	}
@@ -345,14 +360,19 @@ export class AgentHostEditReview extends Disposable {
 		entry.enableReviewModeUntilSettled();
 		// Undoing a file the agent created deletes it.
 		this._entryListeners.set(entry, entry.onDidDelete(() => this._removeEntry(entry)));
-		this._entries.set(edit.uri, entry);
+		this._entries.set(entry.modifiedURI, entry);
 		this._entriesObs.set([...this._entries.values()], undefined);
 		return entry;
 	}
 
 	/** Whether a file can be reviewed now. Checked again after reading it, because the user and other chats go on meanwhile. */
 	private _canReview(uri: URI): boolean {
-		if (this._textFileService.isDirty(uri)) {
+		if (this._notebookService.hasSupportedNotebooks(uri)) {
+			// Notebooks are edited through their own working copies, which a text review can't follow.
+			this._logService.info(`[AgentHostEditReview] Not reviewing ${uri} because it is a notebook`);
+			return false;
+		}
+		if (this._workingCopyService.isDirty(uri)) {
 			// Never present the user's unsaved text as the agent's change, nor discard it later.
 			this._logService.info(`[AgentHostEditReview] Not reviewing ${uri} because it has unsaved changes`);
 			return false;
@@ -383,23 +403,35 @@ export class AgentHostEditReview extends Disposable {
 			this._logService.warn(`[AgentHostEditReview] Not reviewing ${edit.uri} because its content before the edit is unknown`);
 			return undefined;
 		}
+		let content: string;
 		try {
-			return (await this._fileService.readFile(edit.beforeContentUri)).value.toString();
+			content = (await this._fileService.readFile(edit.beforeContentUri)).value.toString();
 		} catch (error) {
 			this._logService.warn(`[AgentHostEditReview] Not reviewing ${edit.uri} because its content before the edit could not be read`, error);
 			return undefined;
 		}
+		// The agent host decodes snapshots as UTF-8 and replaces what it can't
+		// decode, so restoring a file that wasn't UTF-8 text would corrupt it.
+		if (content.includes('\uFFFD') || content.includes('\0')) {
+			this._logService.info(`[AgentHostEditReview] Not reviewing ${edit.uri} because its content before the edit is not UTF-8 text`);
+			return undefined;
+		}
+		return content;
 	}
 
 	/**
 	 * Reloads a document from disk while its reloads are attributed to the
 	 * agent. Unsaved documents are left alone so the user's text is kept.
 	 *
-	 * @returns Whether the file still exists. A document whose file is gone
-	 * keeps its last text, which must not be reviewed any further.
+	 * @returns Whether the entry can still be reviewed. It can't when its file
+	 * is gone, which leaves its document with stale text, or when the review
+	 * dropped it meanwhile.
 	 */
 	private async _syncWithDisk(entry: AgentHostEditReviewEntry): Promise<boolean> {
 		const exists = await this._fileService.exists(entry.modifiedURI);
+		if (!this._isReviewing(entry)) {
+			return false;
+		}
 		if (exists && !this._textFileService.isDirty(entry.modifiedURI)) {
 			try {
 				await entry.revertToDisk();
@@ -410,11 +442,24 @@ export class AgentHostEditReview extends Disposable {
 		if (!this.isTurnActive) {
 			entry.stopExternalEdit();
 		}
-		return exists;
+		return exists && this._isReviewing(entry);
+	}
+
+	private _isReviewing(entry: AgentHostEditReviewEntry): boolean {
+		return this._entries.get(entry.modifiedURI) === entry;
+	}
+
+	/** Documents have canonical URIs, e.g. with the casing a file was first opened with. */
+	private _toCanonicalEdit(edit: IChatExternalEdit): IChatExternalEdit {
+		return {
+			...edit,
+			uri: this._uriIdentityService.asCanonicalUri(edit.uri),
+			originalUri: edit.originalUri && this._uriIdentityService.asCanonicalUri(edit.originalUri),
+		};
 	}
 
 	private _removeEntry(entry: AgentHostEditReviewEntry): void {
-		if (this._entries.get(entry.modifiedURI) !== entry) {
+		if (!this._isReviewing(entry)) {
 			return;
 		}
 		this._entries.delete(entry.modifiedURI);

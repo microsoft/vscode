@@ -5,12 +5,15 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../../../../editor/browser/editorBrowser.js';
+import { EditorType } from '../../../../../../../editor/common/editorCommon.js';
 import { IMenuService } from '../../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -18,7 +21,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../../common/editor.js';
+import { IEditorPane, isResourceDiffEditorInput, isResourceEditorInput, isResourceMultiDiffEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -26,12 +29,12 @@ import { ChatSessionWorkingSet, IChatSessionWorkingSetReview } from '../../../..
 import { AgentChatAccessibilityHelp } from '../../../../browser/actions/chatAccessibilityHelp.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
-import { emptySessionEntryDiff, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
+import { emptySessionEntryDiff, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, review?: IChatSessionWorkingSetReview) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, review?: IChatSessionWorkingSetReview, getPane?: (input: EditorInput | IUntypedEditorInput) => IEditorPane | undefined) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -51,7 +54,7 @@ suite('ChatSessionWorkingSet', () => {
 		instantiationService.stub(IEditorService, {
 			openEditor: async (input: EditorInput | IUntypedEditorInput) => {
 				opened.push(input);
-				return undefined;
+				return getPane?.(input) as ITextDiffEditorPane | undefined;
 			},
 		});
 		const diffs = observableValue('sessionDiffs', initialDiffs);
@@ -414,12 +417,31 @@ suite('ChatSessionWorkingSet', () => {
 			});
 		});
 
-		test('opens a file to review in place', () => {
-			const { review } = createReview([createEntry('/reviewed.ts')]);
-			const { workingSet, opened } = createWorkingSet(sessionDiffs, true, review);
-			workingSet.domNode.querySelectorAll('.chat-editing-session-list')[1].querySelector('.monaco-list-row')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		test('opens a file to review in place, when its editor can show the changes', async () => {
+			const revealed: string[] = [];
+			const withEditorIntegration = (entry: IModifiedFileEntry) => Object.assign(entry, {
+				getEditorIntegration: () => new class extends mock<IModifiedFileEntryEditorIntegration>() {
+					override reveal() {
+						revealed.push(entry.modifiedURI.path);
+					}
+				}(),
+			});
+			const { review } = createReview([withEditorIntegration(createEntry('/reviewed.ts')), withEditorIntegration(createEntry('/drawing.svg'))]);
+			// Text files open in code editors, others in custom editors.
+			const { workingSet, opened } = createWorkingSet(sessionDiffs, true, review, input => new class extends mock<IEditorPane>() {
+				override getControl() {
+					return isResourceEditorInput(input) && input.resource.path.endsWith('.ts') ? upcastPartial<ICodeEditor>({ getEditorType: () => EditorType.ICodeEditor }) : undefined;
+				}
+			}());
+			for (const row of workingSet.domNode.querySelectorAll('.chat-editing-session-list')[1].querySelectorAll('.monaco-list-row')) {
+				row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			}
+			await timeout(0);
 
-			assert.deepStrictEqual(opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined), ['file:///reviewed.ts']);
+			assert.deepStrictEqual({
+				opened: opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined),
+				revealed,
+			}, { opened: ['file:///reviewed.ts', 'file:///drawing.svg'], revealed: ['/reviewed.ts'] });
 		});
 	});
 });

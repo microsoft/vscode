@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
+import { groupAdjacentBy } from '../../../../../base/common/arrays.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -18,8 +19,9 @@ import { StringEdit, StringReplacement } from '../../../../../editor/common/core
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
+import { DetailedLineRangeMapping, getLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
@@ -417,25 +419,37 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	/**
 	 * Moves the agent changes that a user edit overlaps into the original
 	 * model, as if they were kept, and returns the user edit rebased onto the
-	 * new original. Undoing a hunk overlaps its own changes, which the rebased
-	 * edit then reverts in the original as well.
+	 * new original. Changes are kept whole, as the editor shows them, so that
+	 * undoing never mixes their text with the user's. Undoing a hunk overlaps
+	 * its own changes, which the rebased edit then reverts in the original as
+	 * well.
 	 */
 	private _keepAgentChangesEditedBy(userEdit: StringEdit): StringEdit | undefined {
 		const original = this.originalModel.getValue();
+		const originalText = new StringText(original);
+		const modifiedText = new StringText(this._originalToModifiedEdit.apply(original));
+		let modifiedDelta = 0;
+		const replacements = this._originalToModifiedEdit.replacements.map(replacement => {
+			const modifiedRange = OffsetRange.ofStartAndLength(replacement.replaceRange.start + modifiedDelta, replacement.newText.length);
+			modifiedDelta += replacement.newText.length - replacement.replaceRange.length;
+			// Rebasing onto the replacement alone fails exactly when the user edit overlaps it.
+			const inverse = new StringEdit([new StringReplacement(modifiedRange, replacement.replaceRange.substring(original))]);
+			const ranges = new RangeMapping(originalText.getTransformer().getRange(replacement.replaceRange), modifiedText.getTransformer().getRange(modifiedRange));
+			return { replacement, isEdited: userEdit.tryRebase(inverse) === undefined, lines: getLineRangeMapping(ranges, originalText, modifiedText) };
+		});
 		const kept: StringReplacement[] = [];
 		const remaining: StringReplacement[] = [];
-		let modifiedDelta = 0;
 		let keptDelta = 0;
-		for (const change of this._originalToModifiedEdit.replacements) {
-			const modifiedRange = OffsetRange.ofStartAndLength(change.replaceRange.start + modifiedDelta, change.newText.length);
-			modifiedDelta += change.newText.length - change.replaceRange.length;
-			// Rebasing onto the change alone fails exactly when the user edit overlaps it.
-			const inverse = new StringEdit([new StringReplacement(modifiedRange, change.replaceRange.substring(original))]);
-			if (userEdit.tryRebase(inverse) === undefined) {
-				kept.push(change);
-				keptDelta += change.newText.length - change.replaceRange.length;
-			} else {
-				remaining.push(new StringReplacement(change.replaceRange.delta(keptDelta), change.newText));
+		// Like the diff, a change joins the replacements on adjacent lines.
+		for (const change of groupAdjacentBy(replacements, (a, b) => a.lines.original.intersectsOrTouches(b.lines.original) || a.lines.modified.intersectsOrTouches(b.lines.modified))) {
+			const keep = change.some(({ isEdited }) => isEdited);
+			for (const { replacement } of change) {
+				if (keep) {
+					kept.push(replacement);
+					keptDelta += replacement.newText.length - replacement.replaceRange.length;
+				} else {
+					remaining.push(new StringReplacement(replacement.replaceRange.delta(keptDelta), replacement.newText));
+				}
 			}
 		}
 		if (kept.length === 0) {
