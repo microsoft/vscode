@@ -31,6 +31,10 @@ suite('Codex turn diff snapshots', () => {
 		database = disposables.add(await SessionDatabase.open(':memory:'));
 		fileService = disposables.add(new FileService(logService));
 		const provider = disposables.add(new InMemoryFileSystemProvider());
+		if (isWindows) {
+			// FileService assumes drive roots exist; seed this one using provider-native POSIX paths.
+			await provider.mkdir(URI.from({ scheme: 'inmemory', path: '/c:' }));
+		}
 		disposables.add(fileService.registerProvider('file', provider));
 	});
 

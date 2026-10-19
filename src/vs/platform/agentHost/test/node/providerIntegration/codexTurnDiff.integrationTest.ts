@@ -39,6 +39,8 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 	let options: Parameters<typeof startRealServer>[0];
 	let clientSeq: number;
 	let releaseResponse: DeferredPromise<void> | undefined;
+	// /rename exercises host-local history on Windows without depending on PTY command completion.
+	const localCommand = '/rename kept-local-command';
 
 	setup(function () {
 		if (!CODEX_SDK_ROOT) {
@@ -396,12 +398,13 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			'codex-diff-local-boundary': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
 		});
 		const local = generateUuid();
-		dispatchTurn(client, session, local, '!echo kept-local-command', ++clientSeq);
+		dispatchTurn(client, session, local, localCommand, ++clientSeq);
 		await waitForTurn(local);
 		await runTurn('codex-diff-local-boundary');
 		await truncate(local);
 		const restored = await restart();
-		assert.deepStrictEqual(restored.turns.map(turn => ({ id: turn.id, text: turn.message.text })), [{ id: local, text: '!echo kept-local-command' }]);
+		assert.deepStrictEqual(restored.turns.map(turn => ({ id: turn.id, text: turn.message.text })), [{ id: local, text: localCommand }]);
+		assert.deepStrictEqual(restored.turns[0].responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content), ['Renamed: kept-local-command']);
 	});
 
 	for (const reloadBeforeTruncation of [false, true]) {
@@ -412,7 +415,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			});
 			await runTurn('codex-diff-before-local');
 			const local = generateUuid();
-			dispatchTurn(client, session, local, '!echo kept-after-native', ++clientSeq);
+			dispatchTurn(client, session, local, localCommand, ++clientSeq);
 			await waitForTurn(local);
 			if (reloadBeforeTruncation) {
 				const restored = await restart();
@@ -421,7 +424,8 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			await runTurn('codex-diff-after-local');
 			await truncate(local);
 			const restored = await restart();
-			assert.deepStrictEqual(restored.turns.map(turn => turn.message.text), ['[scenario:codex-diff-before-local] Apply the patches.', '!echo kept-after-native']);
+			assert.deepStrictEqual(restored.turns.map(turn => turn.message.text), ['[scenario:codex-diff-before-local] Apply the patches.', localCommand]);
+			assert.deepStrictEqual(restored.turns[1].responseParts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content), ['Renamed: kept-local-command']);
 			assert.deepStrictEqual(await changes(), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'middle\n' } }]);
 		});
 	}

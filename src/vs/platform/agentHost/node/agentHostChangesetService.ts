@@ -900,7 +900,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				return { diffs: [], outcome: 'computed' };
 			}
-			await this._waitForTurnEdits(trackedSource.owner, turnId);
+			const pendingEdits = this._waitForTurnEdits(trackedSource.owner, turnId);
+			if (pendingEdits) {
+				await pendingEdits;
+			}
 			if (strategy === 'fileEditTracker') {
 				const folderScope = this._getTrackedEditFolderScope(trackedSource.owner, this._configurationService.getEffectiveWorkingDirectories(trackedSource.owner));
 				return { diffs: await computeTurnDiffs(trackedSource.storage, trackedSource.db, this._diffComputeService, turnId, folderScope), outcome: 'computed' };
@@ -911,13 +914,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	/** A host completion can precede native snapshot persistence after cancellation or steering. */
-	private async _waitForTurnEdits(owner: ProtocolURI, turnId: string): Promise<void> {
+	/** Returns a native persistence barrier without introducing a wait for providers that do not need one. */
+	private _waitForTurnEdits(owner: ProtocolURI, turnId: string): Promise<void> | undefined {
 		const session = this._containingSessionUri(owner);
 		const chat = this._chatOwnership.getChatOwner(owner) !== undefined ? owner : this._chatOwnership.getDefaultChat(session);
-		if (chat) {
-			await this._providerService.getProviderForSession(session)?.waitForTurnEdits?.(URI.parse(chat), turnId);
-		}
+		return chat ? this._providerService.getProviderForSession(session)?.waitForTurnEdits?.(URI.parse(chat), turnId) : undefined;
 	}
 
 	private async _computeTurnDiffsUsingGit(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<ITurnDiffResult> {
