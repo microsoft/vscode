@@ -888,6 +888,96 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.deepStrictEqual(fixture.page.getAccessibilityContent().match(/^mail-\d$/gm), ['mail-1', 'mail-2']);
 	});
 
+	test('groups a linked MCP search result under a promoted Copilot connector alias', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setSearchQuery('atlassian');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('atlassian-public-first'),
+				resource('atlassian-mcp', { connectorIds: ['githubcopilotatlassian'] }),
+				resource('atlassian-public-last'),
+				resource('atlassian-connector', {
+					sourceId: 'copilotConnectors',
+					connectorIds: ['atlassian-rovo', 'GitHubCopilotAtlassian'],
+					installation: { kind: 'copilotConnector', name: 'atlassian-rovo' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const connectedRows = [...fixture.container.querySelectorAll('.customization-discovery-result-content.linked-connector, .customization-discovery-result-content.linked-alternative')];
+		const disclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label');
+		assert.ok(disclosure);
+		const collapsed = {
+			order: fixture.page.getAccessibilityContent().match(/^atlassian-(?:public-(?:first|last)|connector|mcp)$/gm),
+			expanded: disclosure.getAttribute('aria-expanded'),
+			label: disclosure.textContent,
+			hasChevron: disclosure.querySelector('.codicon-chevron-right-compact') !== null,
+			connectedRows: connectedRows.map(row => row.textContent),
+		};
+		disclosure.click();
+		await timeout(0);
+		const expandedDisclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label');
+		assert.deepStrictEqual({
+			collapsed,
+			expandedOrder: fixture.page.getAccessibilityContent().match(/^atlassian-(?:public-(?:first|last)|connector|mcp)$/gm),
+			expanded: expandedDisclosure?.getAttribute('aria-expanded'),
+			expandedLabel: expandedDisclosure?.textContent,
+			hasExpandedChevron: expandedDisclosure?.querySelector('.codicon-chevron-down-compact') !== null,
+			expandedAlternativeContent: fixture.container.querySelector('.customization-discovery-result-content.linked-alternative')?.textContent,
+		}, {
+			collapsed: {
+				order: ['atlassian-connector', 'atlassian-public-first', 'atlassian-public-last'],
+				expanded: 'false',
+				label: '1 alternative customization',
+				hasChevron: true,
+				connectedRows: [
+					'atlassian-connectorMCP server · Copilot ConnectorsConnect',
+					'1 alternative customizationatlassian-mcpMCP server · GitHub FeedInstall',
+				],
+			},
+			expandedOrder: ['atlassian-connector', 'atlassian-mcp', 'atlassian-public-first', 'atlassian-public-last'],
+			expanded: 'true',
+			expandedLabel: '1 alternative customization',
+			hasExpandedChevron: true,
+			expandedAlternativeContent: '1 alternative customizationatlassian-mcpMCP server · GitHub FeedInstall',
+		});
+	});
+
+	test('prioritizes connectors, GitHub Feed MCP and plugins, GitHub Feed skills, then other sources', async () => {
+		const fixture = createPage(
+			['agentFinder', 'copilotConnectors', 'other', configuredMarketplaceSource.id],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers, AICustomizationManagementSection.Plugins]
+		);
+		fixture.page.setSearchQuery('marketplace');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('other-mcp', { sourceId: 'other', displayName: 'Marketplace Other MCP', mediaType: CustomizationMarketplaceMediaType.McpServer, score: 100 }),
+				resource('feed-skill', { displayName: 'Marketplace Feed Skill', mediaType: CustomizationMarketplaceMediaType.Skill, score: 100 }),
+				resource('feed-plugin', { displayName: 'Marketplace Feed Plugin', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, score: 10 }),
+				resource('linked-mcp', { displayName: 'Marketplace Linked MCP', connectorIds: ['connector-linked'], score: 5 }),
+				resource('connector-linked', {
+					sourceId: 'copilotConnectors',
+					displayName: 'Marketplace Linked Connector',
+					score: 0,
+					installation: { kind: 'copilotConnector', name: 'connector-linked' },
+				}),
+				resource('feed-mcp', { displayName: 'Marketplace Feed MCP', score: 1 }),
+				resource('other-plugin', { sourceId: configuredMarketplaceSource.id, displayName: 'Marketplace Other Plugin', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin, score: 100 }),
+			],
+		});
+		await timeout(0);
+		fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			fixture.page.getAccessibilityContent().match(/^Marketplace (?:Linked Connector|Linked MCP|Feed Plugin|Feed MCP|Feed Skill|Other MCP|Other Plugin)$/gm),
+			['Marketplace Linked Connector', 'Marketplace Linked MCP', 'Marketplace Feed Plugin', 'Marketplace Feed MCP', 'Marketplace Feed Skill', 'Marketplace Other MCP', 'Marketplace Other Plugin']
+		);
+	});
+
 	test('hiding during a continuation resumes paging when shown again', async () => {
 		const fixture = createPage();
 		fixture.page.setSearchQuery('mail');
@@ -1687,7 +1777,7 @@ suite('AICustomizationDiscoveryPage', () => {
 					prompt: [{ severity: Severity.Warning, message: 'Other Feed: Other Feed unavailable', choices: ['Retry'] }],
 				},
 				cursors: [undefined, undefined],
-				visible: query ? ['other-mail', 'public-mail'] : ['public-mail', 'other-mail'],
+				visible: ['public-mail', 'other-mail'],
 				warnings: 0,
 			});
 		});
@@ -2140,7 +2230,14 @@ suite('AICustomizationDiscoveryPage', () => {
 						if (failing) {
 							throw new Error('Connector catalog unavailable');
 						}
-						return { items: [resource('connector-mail', { score: 100 })], total: 1 };
+						return {
+							items: [resource('connector-mail', {
+								sourceId: 'copilotConnectors',
+								score: 100,
+								installation: { kind: 'copilotConnector', name: 'connector-mail' },
+							})],
+							total: 1,
+						};
 					}
 				},
 			]);
@@ -2177,7 +2274,7 @@ suite('AICustomizationDiscoveryPage', () => {
 					prompt: [{ severity: Severity.Warning, message: 'Copilot Connectors: Connector catalog unavailable', choices: ['Retry'] }],
 				},
 				cursors: [undefined, undefined],
-				order: query ? ['connector-mail', 'public-mail'] : ['public-mail', 'connector-mail'],
+				order: ['connector-mail', 'public-mail'],
 				warnings: 0,
 			});
 		});
