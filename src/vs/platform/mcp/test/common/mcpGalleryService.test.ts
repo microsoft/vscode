@@ -16,6 +16,10 @@ import { IRequestService } from '../../../request/common/request.js';
 import { IGalleryMcpServer, IMcpServerInput, McpGalleryResolveStatus } from '../../common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../common/mcpGalleryManifest.js';
 import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../common/mcpGalleryService.js';
+import { CustomizationMarketplaceService } from '../../../customizationMarketplace/common/customizationMarketplaceService.js';
+import { McpGalleryMarketplaceProvider } from '../../../customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../product/common/productService.js';
 
 const SERVERS_URL = 'https://registry.test/servers';
 const NAMED_TEMPLATE = 'https://registry.test/servers/{name}';
@@ -104,13 +108,13 @@ class StatusRequestService implements IRequestService {
 	readonly onDidCompleteRequest = Event.None;
 	readonly requests: IRequestOptions[] = [];
 
-	constructor(private readonly statusCode: number, private readonly body: string = '') { }
+	constructor(private readonly statusCode: number, private readonly body: string | ((options: IRequestOptions) => string) = '') { }
 
 	async request(options: IRequestOptions): Promise<IRequestContext> {
 		this.requests.push(options);
 		return {
 			res: { statusCode: this.statusCode, headers: {} },
-			stream: bufferToStream(VSBuffer.fromString(this.body)),
+			stream: bufferToStream(VSBuffer.fromString(typeof this.body === 'string' ? this.body : this.body(options))),
 		};
 	}
 
@@ -146,7 +150,7 @@ suite('McpGalleryService - marketplace pages', () => {
 	test('uses the gallery cursor and bounded page size without replaying the search text', async () => {
 		const requests = new StatusRequestService(200, JSON.stringify({
 			servers: [serverDocumentData('io.github.owner/server', ['npm'])],
-			metadata: { count: 2, nextCursor: 'opaque+/=' },
+			metadata: { count: 1, total: 2, nextCursor: 'opaque+/=' },
 		}));
 		const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
 		const first = await service.queryPage({ text: 'server', pageSize: 2 }, CancellationToken.None);
@@ -161,6 +165,69 @@ suite('McpGalleryService - marketplace pages', () => {
 			next: { names: ['io.github.owner/server'], cursor: 'opaque+/=' },
 		});
 	});
+
+	for (const total of [undefined, 491]) {
+		test(`composes 100-item browse pages from 99-item registry pages with ${total === undefined ? 'unknown' : 'explicit'} totals`, async () => {
+			const requests = new StatusRequestService(200, options => JSON.stringify({
+				servers: Array.from({ length: 99 }, (_, index) => serverDocumentData(`io.github.owner/server-${index}`, ['npm'])),
+				metadata: { count: 99, total, nextCursor: options.url?.includes('cursor=') ? undefined : 'next-page' },
+			}));
+			const manifests = createManifestService(manifest);
+			const gallery = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), manifests));
+			const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, new TestConfigurationService(), {} as IProductService);
+			const platform = new CustomizationMarketplaceService([provider]);
+			const workbench = new CustomizationMarketplaceService([{
+				id: 'platform.mcpGallery',
+				query: async (options, token) => {
+					const page = await platform.query({ ...options, sourceIds: ['mcpGallery'], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
+					return { ...page, nextCursor: page.nextCursor?.token };
+				},
+			}]);
+			const page = await workbench.query({ sourceIds: ['platform.mcpGallery'], pageSize: 100 }, CancellationToken.None);
+			const next = await workbench.query({ sourceIds: ['platform.mcpGallery'], pageSize: 100, cursor: page.nextCursor }, CancellationToken.None);
+			assert.deepStrictEqual({
+				requests: requests.requests.map(request => request.url),
+				items: page.items.length,
+				total: page.total,
+				hasNextCursor: !!page.nextCursor,
+				sourceErrors: page.sourceErrors,
+				next: { items: next.items.length, total: next.total, cursor: next.nextCursor },
+			}, {
+				requests: [`${SERVERS_URL}?limit=99&version=latest`, `${SERVERS_URL}?limit=99&version=latest&cursor=next-page`],
+				items: 100,
+				total,
+				hasNextCursor: true,
+				sourceErrors: undefined,
+				next: { items: 98, total, cursor: undefined },
+			});
+		});
+	}
+
+	for (const version of ['v0', 'v0.1']) {
+		for (const total of [undefined, 2]) {
+			test(`uses only explicit catalog totals for ${version} pages (${total ?? 'unknown'})`, async () => {
+				const requests = new StatusRequestService(200, JSON.stringify({
+					servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+					metadata: { count: 1, total },
+				}));
+				const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService({ ...manifest, version })));
+				const page = await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+				assert.deepStrictEqual({ items: page.items.length, total: page.total }, { items: 1, total });
+			});
+		}
+	}
+
+	for (const total of [-1, 0, 1.5, '2', Number.MAX_SAFE_INTEGER + 1]) {
+		test(`does not report an invalid registry total (${total})`, async () => {
+			const requests = new StatusRequestService(200, JSON.stringify({
+				servers: [serverDocumentData('io.github.owner/server', ['npm'])],
+				metadata: { count: 1, total },
+			}));
+			const service = disposables.add(new McpGalleryService(requests, {} as IFileService, new NullLogService(), createManifestService(manifest)));
+			const page = await service.queryPage({ pageSize: 2 }, CancellationToken.None);
+			assert.strictEqual(page.total, undefined);
+		});
+	}
 
 	test('pins marketplace pages to the supplied custom registry while legacy queries use the active manifest', async () => {
 		const requests = new StatusRequestService(200, JSON.stringify({ servers: [], metadata: { count: 0 } }));
