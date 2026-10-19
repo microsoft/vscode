@@ -403,6 +403,14 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
+              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Smoke
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -447,6 +455,14 @@ extends:
                     VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                     VSCODE_TEST_IDS:
                       - integration-electron
+                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: AgentHostE2E
+                    VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                    VSCODE_TEST_IDS:
+                      - integration-agent-host-e2e
                 - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                   parameters:
                     VSCODE_ARCH: x64
@@ -529,6 +545,14 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
+              - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
                 parameters:
                   NPM_ARCH: x64
@@ -629,6 +653,14 @@ extends:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
+              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Smoke
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -705,6 +737,13 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -792,6 +831,14 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
+              - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
                 parameters:
                   VSCODE_ARCH: arm64

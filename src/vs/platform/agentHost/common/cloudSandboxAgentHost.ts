@@ -20,6 +20,7 @@ import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
 import { SessionModelInfo } from './state/protocol/state.js';
+import { isRetryableMissionControlError, MissionControlErrorMetadata } from '../../github/common/missionControl/missionControlError.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -358,31 +359,25 @@ export class CloudSandboxNetworkError extends Error {
  * so callers can tell a failure that may clear on its own from one that never will.
  */
 export class CloudSandboxRequestError extends Error {
-	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number) {
+	readonly code: string | undefined;
+	readonly limitedResource: string | undefined;
+	readonly requestId: string | undefined;
+
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number, metadata?: MissionControlErrorMetadata) {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
+		this.code = metadata?.code;
+		this.limitedResource = metadata?.limitedResource;
+		this.requestId = metadata?.requestId;
 	}
 }
 
-/**
- * Whether re-issuing a failed request could plausibly succeed later. Callers that retry on a timer
- * MUST consult this, or one dead session becomes an unbounded stream of failed requests.
- *
- * Transport failures (no status), 5xx, 408 and 429 are transient; every other 4xx describes a
- * request Mission Control will reject identically however often it is repeated.
- *
- * This gates credential refresh for *live* connections, where a transient fault must not tear down
- * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
- * use it: only {@link CloudSandboxNetworkError} is retried there, and HTTP answers remain final.
- * {@link CloudSandboxAuthenticationRequiredError} is retryable here because it is raised before
- * any request goes out, so callers need their own ceiling.
- */
+/** Whether credential recovery can succeed without changing its inputs. Semantic codes override HTTP status. */
 export function isRetryableCloudSandboxError(error: unknown): boolean {
 	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {
 		return true;
 	}
-	const status = error.statusCode;
-	return status === 408 || status === 429 || status < 400 || status >= 500;
+	return isRetryableMissionControlError(error.statusCode, error.code);
 }
 
 export const ICloudSandboxAgentHostService = createDecorator<ICloudSandboxAgentHostService>('cloudSandboxAgentHostService');

@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -479,13 +479,14 @@ export interface ISessionsManagementService {
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded
 	 * with the source chat's history up to and including the given turn. Used
-	 * for the fork gesture on sessions that support multiple chats.
+	 * for the fork gesture on sessions that support forking.
 	 *
 	 * @param session The session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source

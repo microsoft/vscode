@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -96,6 +97,13 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+}
+
+/** Options for forking a chat within a session. */
+export interface IForkChatOptions {
+	/** Optional captured prompt and context for a host-owned fork-and-send operation. */
+	readonly initialMessage?: IChatSessionInitialMessage;
+	readonly title?: string;
 }
 
 /** Provider options applied when creating a new session draft. */
@@ -616,8 +624,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source

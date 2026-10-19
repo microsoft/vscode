@@ -1706,6 +1706,19 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
 	});
 
+	test('retains every discovered task sharing a connected environment when the host omits them', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.whenConnected;
+		h.state.hostSessions = [];
+		h.state.result = { kind: 'complete', sessions: [discovered, { ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
+		await h.refresh();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path).sort(), ['/later-session', '/original-session']);
+	});
+
 	for (const otherSession of [backendSession.with({ authority: 'other' }), backendSession.with({ query: 'revision=other' })]) {
 		test(`retains cloud history independently of a same-path resource (${otherSession.toString()})`, async () => {
 			const h = createHarness(store, { workspaceFolders: [] });

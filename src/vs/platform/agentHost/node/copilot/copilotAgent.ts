@@ -43,12 +43,12 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, withAgentModelFusionMeta, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, readAgentModelAutoTiersMeta, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type IAutoTierBillingPromo, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
@@ -58,7 +58,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel, isFusionNamedAutoModeTier, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -97,8 +97,12 @@ import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
+import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
+import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
+import { mapSessionEvents } from './mapSessionEvents.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
 import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin } from './copilotComputerUsePlugin.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
@@ -160,6 +164,49 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 	} else {
 		env['USE_TGREP'] = 'false';
 	}
+}
+
+function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
+	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
+	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
+	flags.add(flag);
+	env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
+}
+
+export type CopilotAutoTierMetadata = NonNullable<Awaited<ReturnType<CopilotClient['rpc']['models']['list']>>['auto']>;
+type CopilotAutoTierDescriptor = CopilotAutoTierMetadata['tiers'][number];
+
+/** The runtime rejects HydraFusion Max without HydraFusion plan v2. */
+function isRunnableAutoTier(tier: CopilotAutoTierDescriptor, hydraFusionV2: boolean): boolean {
+	return tier.status.enabled && isPickerAutoTierKind(tier, hydraFusionV2);
+}
+
+function isPickerAutoTierKind(tier: CopilotAutoTierDescriptor, hydraFusionV2: boolean): boolean {
+	return (tier.type === 'auto' || tier.type === 'fusion')
+		&& (tier.id !== COPILOT_HYDRA_FUSION_MAX_MODEL_ID || hydraFusionV2);
+}
+
+/** Includes unavailable tiers; hides `fast`, as the Copilot CLI does. See github/copilot-api#39882. */
+export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusionV2: boolean): CopilotAutoTierDescriptor[] {
+	return metadata.tiers.filter(tier => isPickerAutoTierKind(tier, hydraFusionV2) && tier.id !== 'fast' && isInAutoTierPicker(tier));
+}
+
+/** `/meta` `tier_picker_enabled`, which the SDK does not type yet (github/copilot-agent-runtime#27103). Absent means visible. */
+function isInAutoTierPicker(tier: CopilotAutoTierDescriptor): boolean {
+	return (tier.status as { readonly pickerVisible?: boolean }).pickerVisible !== false;
+}
+
+/** Intelligence would be a second High beside the provider's HydraFusion tier. */
+function isFusionTier(tier: string, offersHydraFusion: boolean): boolean {
+	return tier !== 'efficiency' && !(offersHydraFusion && tier === 'intelligence');
+}
+
+function getFusionTierLabel(tier: string, providerLabel: string | undefined): string {
+	return isFusionNamedAutoModeTier(tier) || !providerLabel ? getFusionAutoModeTierLabel(tier) : providerLabel;
+}
+
+function getProviderAutoTierLabel(tier: CopilotAutoTierDescriptor): string {
+	return tier.displayName || getAutoModeTierLabel(tier.id);
 }
 
 export async function getCopilotManagedSettingsDiagnostics(
@@ -926,7 +973,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _capiModels: readonly IAgentModelInfo[] = [];
 	private _managedModelPolicy: Parameters<typeof projectCopilotManagedModelConfiguration>[1] | undefined;
 	/** See {@link _getFallbackAutoModel}. */
-	private _fallbackAutoModel: IAgentModelInfo | undefined;
+	private readonly _fallbackAutoModels = new WeakSet<IAgentModelInfo>();
+	private readonly _fallbackAutoModelsByMetadata = new WeakMap<CopilotAutoTierMetadata, IAgentModelInfo>();
+	private _builtInFallbackAutoModel: IAgentModelInfo | undefined;
+	private _autoTierMetadata: CopilotAutoTierMetadata | undefined;
 	private _fusionExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
@@ -979,6 +1029,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _invalidatingModelRefresh: Promise<void> | undefined;
 
 	private _client: CopilotClient | undefined;
+	private readonly _sandboxCertificate: CopilotSandboxCertificate;
 	private readonly _customizationInstallations: CopilotCustomizationInstallations;
 	private readonly _extensionSdkPathByClient = new WeakMap<CopilotClient, string>();
 	private _computerUsePlugin: CopilotComputerUsePlugin | undefined;
@@ -1014,6 +1065,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _scopedClients = this._register(new DisposableMap<string, ScopedCopilotClient>());
 	private readonly _scopedClientStartup = new WeakMap<CopilotClient, { readonly config: CopilotAgentStartupConfig; readonly proxy: ICopilotClientProxyState }>();
 	private readonly _credentialSources = new Map<string, IAgentHostCredentialSource>();
+	private readonly _persistedChatHistory = new Map<string, { readonly identity: string; readonly result: Promise<Awaited<ReturnType<typeof mapSessionEvents>>> }>();
 	private readonly _credentialPins = new Map<string, IAgentHostScopedCredential>();
 	private readonly _preparedCredentials = new Map<string, { readonly turnId: string; readonly credential: IAgentHostScopedCredential }>();
 	readonly supportsScopedCredentials = true;
@@ -1207,6 +1259,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),
 			session => this._findSessionChat(session)?.sessionId,
@@ -1426,6 +1479,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.FusionHighUsesHydraFusion) === true;
 	}
 
+	private _isDynamicAutoTiersEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.DynamicAutoTiers) === true;
+	}
+
 	private _isLocalMemoryEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true
 			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
@@ -1515,6 +1572,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _captureChatCredential(context: IResolvedCopilotChatContext, turnId?: string, preparing = false): IAgentHostScopedCredential | undefined {
+		this._persistedChatHistory.delete(context.chatKey);
 		const source = context.credentials ?? this._credentialSources.get(context.chatKey);
 		if (!source) {
 			return undefined;
@@ -1683,6 +1741,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			readLocalModelRootConfig(this._configurationService).enabled,
 			this._isExecutionSubagentEnabled(),
 			this._getExecutionSubagentModel(),
+			this._isDynamicAutoTiersEnabled(),
 			this._isComputerUseEnabled(),
 		);
 	}
@@ -1912,7 +1971,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
 		// Until the refresh lands, keep publishing the last-known list: an empty
-		// one makes clients drop the conversation's selected model.
+		// one makes clients drop the conversation's selected model. A replacement
+		// without `DYNAMIC_AUTO_TIERS` rejects provider tiers.
+		if (!this._lastStartupConfig.dynamicAutoTiers) {
+			this._setAutoTierMetadata(undefined);
+		} else {
+			// HydraFusion v2 decides whether Max is accepted.
+			this._applyAdvertisedAutoModeTiers();
+		}
 		void this._scheduleModelRefresh();
 	}
 
@@ -2713,6 +2779,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async listSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]> {
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		// Automatic inventory must not activate an isolated chat just to display its history.
+		if (!context.target && context.credentials) {
+			return [];
+		}
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases');
 		return liveSession.listCanvases();
 	}
@@ -3350,12 +3421,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			const client = await this._ensureClient();
-			const models = await this._listModels(client, tokenAtRefreshStart);
+			const { models, autoTierMetadata } = await this._listModels(client, tokenAtRefreshStart);
 			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
 				return;
 			}
 			const modelPolicy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, tokenAtRefreshStart);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
+				this._setAutoTierMetadata(autoTierMetadata);
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
 				this._publishModels();
@@ -3398,6 +3470,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _publishModels(): void {
 		const fusion = this._isFusionEnabled();
+		const capiModels = this._capiModels
+			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
+			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
+			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
+			.map(model => this._asPresented(model, fusion));
+		if (this._capiModels.some(model => isAutoModel(model.id))) {
+			this._reportFusionExperimentTrigger();
+		}
+		// With `DYNAMIC_AUTO_TIERS` the runtime decides whether this account can run HydraFusion, so only what it lists is offered.
+		const hydraFusionModels = this._lastStartupConfig.dynamicAutoTiers ? [] : this._getUnlistedHydraFusionModels();
+		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
+		for (const entry of this._chatEntriesBySdkId.values()) {
+			entry.chatSession.refreshModelConfiguration();
+		}
+	}
+
+	/** HydraFusion rows the settings enable but the runtime's catalog omits, for runtimes that don't list HydraFusion themselves. */
+	private _getUnlistedHydraFusionModels(): IAgentModelInfo[] {
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		// HydraFusion runs on Copilot, so it can't be offered without a GitHub account.
 		const signedIn = !!this._githubCredentials.token;
@@ -3414,18 +3504,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				});
 			}
 		}
-		const capiModels = this._capiModels
-			.map(model => this._managedModelPolicy ? projectCopilotManagedModelConfiguration(model, this._managedModelPolicy, this._logService) : model)
-			// Fusion's tiers route through HydraFusion, so they only offer what its settings enable.
-			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
-			.map(model => this._asPresented(model, fusion));
-		if (this._capiModels.some(model => isAutoModel(model.id))) {
-			this._reportFusionExperimentTrigger();
-		}
-		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
-		for (const entry of this._chatEntriesBySdkId.values()) {
-			entry.chatSession.refreshModelConfiguration();
-		}
+		return hydraFusionModels;
 	}
 
 	private _withModelConfigAliases(model: IAgentModelInfo): IAgentModelInfo {
@@ -3464,7 +3543,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return model;
 		}
 		const tier = model.configSchema?.properties[AutoTierConfigKey];
-		const kept = (tier?.enum ?? []).flatMap((value, index) => value === 'efficiency' ? [] : [index]);
+		const offersHydraFusion = !!tier?.enum?.includes(COPILOT_HYDRA_FUSION_MODEL_ID);
+		const kept = (tier?.enum ?? []).flatMap((value, index) => isFusionTier(String(value), offersHydraFusion) ? [index] : []);
+		const keptValues = kept.map(index => tier!.enum![index]);
 		const configSchema = model.configSchema && tier?.enum ? {
 			...model.configSchema,
 			properties: {
@@ -3473,11 +3554,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					...tier,
 					// Fusion's tiers read as an effort level, like other models' effort setting.
 					title: localize('copilotAgent.fusionTier.title', "Effort Level"),
-					enum: kept.map(index => tier.enum![index]),
-					// Fusion names its tiers itself, so the provider's Auto labels would mislabel them.
-					enumLabels: kept.map(index => getFusionAutoModeTierLabel(String(tier.enum![index]))),
+					enum: keptValues,
+					enumLabels: kept.map(index => getFusionTierLabel(String(tier.enum![index]), tier.enumLabels?.[index])),
 					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
-					default: tier.default === 'efficiency' ? defaultAutoModeTier : tier.default,
+					default: keptValues.some(value => value === tier.default) ? tier.default : keptValues.includes(defaultAutoModeTier) ? defaultAutoModeTier : keptValues[0],
 				},
 			},
 		} : model.configSchema;
@@ -3485,9 +3565,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...model,
 			name: localize('copilotAgent.fusionModelName', "Fusion"),
 			configSchema,
-			// HydraFusion stays published either way, so sessions that already selected it keep working.
-			_meta: withAgentModelFusionMeta(model._meta, { balanceUsesHydraFusion: this._isFusionHighUsingHydraFusion() }),
+			// Without `DYNAMIC_AUTO_TIERS`, HydraFusion stays published either way, so sessions that already selected it keep working.
+			_meta: withAgentModelFusionMeta(this._asFusionAutoTiersMeta(model), { balanceUsesHydraFusion: this._isFusionHighUsingHydraFusion() }),
 		};
+	}
+
+	private _asFusionAutoTiersMeta(model: IAgentModelInfo): Record<string, unknown> | undefined {
+		const autoTiers = readAgentModelAutoTiersMeta(model);
+		const offersHydraFusion = !!autoTiers?.tiers.some(tier => tier.id === COPILOT_HYDRA_FUSION_MODEL_ID);
+		return autoTiers
+			? withAgentModelAutoTiersMeta(model._meta, { tiers: autoTiers.tiers.filter(tier => isFusionTier(tier.id, offersHydraFusion)).map(tier => ({ ...tier, label: getFusionTierLabel(tier.id, tier.label) })) })
+			: model._meta;
 	}
 
 	/**
@@ -3717,10 +3805,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// sandboxed shells. This becomes a no-op once the bundled CLI defaults the
 			// spawn backend on for all of Linux.
 			if (process.platform === 'linux') {
-				const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
-				const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
-				flags.add('SHELL_SPAWN_BACKEND');
-				env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] = [...flags].join(',');
+				addCopilotFeatureFlag(env, 'SHELL_SPAWN_BACKEND');
+			}
+
+			// Opt-in: this also moves the runtime's whole model catalog to CAPI `/meta`.
+			if (startupConfig.dynamicAutoTiers) {
+				addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
+				this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
 			}
 
 			// Identify VS Code's agent host traffic in CAPI
@@ -3950,14 +4041,34 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Synthesizes the Auto model's routing-profile picker, surfaced as the "Optimize for" button.
 	 */
-	private _createAutoTierConfigSchemaProperty(modelId: string): ConfigPropertySchema | undefined {
+	private _createAutoTierConfigSchemaProperty(modelId: string, metadata: CopilotAutoTierMetadata | undefined): ConfigPropertySchema | undefined {
 		if (!isAutoModel(modelId)) {
 			return undefined;
 		}
+		const title = localize('copilot.modelAutoTier.title', "Optimize for");
+		const description = localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to.");
+		if (metadata) {
+			// Unavailable tiers reach the picker through `_meta`.
+			const pickerTiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled());
+			if (!pickerTiers.length) {
+				return undefined;
+			}
+			const tiers = pickerTiers.filter(tier => tier.status.enabled);
+			const ids = tiers.map(tier => tier.id);
+			return {
+				type: 'string',
+				title,
+				description,
+				...(ids.length ? { default: ids.includes(metadata.defaultTier) ? metadata.defaultTier : ids[0] } : {}),
+				enum: ids,
+				enumLabels: tiers.map(tier => getProviderAutoTierLabel(tier)),
+				enumDescriptions: tiers.map(tier => tier.description || getAutoModeTierDescription(tier.id) || ''),
+			};
+		}
 		return {
 			type: 'string',
-			title: localize('copilot.modelAutoTier.title', "Optimize for"),
-			description: localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to."),
+			title,
+			description,
 			default: defaultAutoModeTier,
 			enum: [...autoModeTiers],
 			enumLabels: autoModeTiers.map(getAutoModeTierLabel),
@@ -3965,13 +4076,50 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined): Record<string, unknown> | undefined {
-		const pricing = createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
-		const notices = isAutoModel(modelInfo.id) ? undefined : createAgentModelNoticesMeta(modelInfo);
-		return pricing || notices ? { ...pricing, ...notices } : undefined;
+	/** Call only with the metadata of the catalog being published, so validation matches the picker. */
+	private _setAutoTierMetadata(metadata: CopilotAutoTierMetadata | undefined): void {
+		if (metadata === this._autoTierMetadata) {
+			return;
+		}
+		this._autoTierMetadata = metadata;
+		this._applyAdvertisedAutoModeTiers();
+		if (metadata) {
+			this._logService.info(`[Copilot] Provider Auto tiers: default '${metadata.defaultTier}'; ${metadata.tiers.map(tier => `${tier.id} (${tier.type}${tier.status.enabled ? '' : ', disabled'})`).join(', ')}`);
+		} else {
+			this._logService.info('[Copilot] No provider Auto tier metadata; using built-in Auto tiers');
+		}
 	}
 
-	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined): ConfigSchema | undefined {
+	private _applyAdvertisedAutoModeTiers(): void {
+		const hydraFusionV2 = this._isHydraFusionV2Enabled();
+		setAdvertisedAutoModeTiers(this._autoTierMetadata?.tiers.filter(tier => isRunnableAutoTier(tier, hydraFusionV2)).map(tier => tier.id));
+	}
+
+	private _createModelPickerMeta(modelInfo: CopilotModelInfo, billing: ICAPIModelBilling | undefined, autoTierMetadata: CopilotAutoTierMetadata | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): Record<string, unknown> | undefined {
+		const pricing = createPricingMetaFromBilling(billing, modelInfo.modelPickerPriceCategory, modelInfo.modelPickerCategory);
+		const isAuto = isAutoModel(modelInfo.id);
+		const notices = isAuto ? undefined : createAgentModelNoticesMeta(modelInfo);
+		const meta = pricing || notices ? { ...pricing, ...notices } : undefined;
+		return isAuto ? this._withAutoTiersMeta(meta, autoTierMetadata, promotions) : meta;
+	}
+
+	private _withAutoTiersMeta(meta: Record<string, unknown> | undefined, autoTierMetadata: CopilotAutoTierMetadata | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): Record<string, unknown> | undefined {
+		if (!autoTierMetadata) {
+			return meta;
+		}
+		meta = withAgentModelAutoTierPromotionsMeta(meta, promotions);
+		const tiers = getPickerAutoTiers(autoTierMetadata, this._isHydraFusionV2Enabled());
+		return withAgentModelAutoTiersMeta(meta, {
+			tiers: tiers.map(tier => ({
+				id: tier.id,
+				label: getProviderAutoTierLabel(tier),
+				enabled: tier.status.enabled,
+				...(!tier.status.enabled && tier.status.message ? { message: tier.status.message } : {}),
+			})),
+		});
+	}
+
+	private _createModelConfigSchema(m: CopilotModelInfo, billing: ICAPIModelBilling | undefined, autoTierMetadata: CopilotAutoTierMetadata | undefined): ConfigSchema | undefined {
 		const properties: ConfigSchema['properties'] = {};
 		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, undefined, m.id);
 		if (thinkingLevel) {
@@ -3981,7 +4129,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (contextSize) {
 			properties[ContextSizeConfigKey] = contextSize;
 		}
-		const autoTier = this._createAutoTierConfigSchemaProperty(m.id);
+		const autoTier = this._createAutoTierConfigSchemaProperty(m.id, autoTierMetadata);
 		if (autoTier) {
 			properties[AutoTierConfigKey] = autoTier;
 		}
@@ -4083,6 +4231,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			)) {
 				return undefined;
 			}
+			if (!metadata.workingDirectory && await this._isExtensionHostCliSession(s.sessionId)) {
+				return undefined;
+			}
 			let { project, resolved } = metadata;
 			if (!resolved) {
 				project = await this._resolveSessionProject(s.context, projectLimiter, projectByContext);
@@ -4165,6 +4316,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		return await this._findChatByUri(chat)?.stopBackgroundWork(id) ?? false;
+	}
+
+	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._withSandboxCertificateRefresh(chat, session => session.installSandboxCertificate(scopeId));
+	}
+
+	async rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._withSandboxCertificateRefresh(chat, session => session.rotateSandboxCertificate(scopeId));
+	}
+
+	async removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		await this._withSandboxCertificateRefresh(chat, session => session.removeSandboxCertificate(scopeId));
+	}
+
+	private async _withSandboxCertificateRefresh(chat: string, operation: (session: CopilotAgentSession) => Promise<void>): Promise<void> {
+		const session = this._findChatByUri(chat);
+		if (!session) {
+			throw new Error(localize('copilot.sandboxCertificate.chatUnavailable', "The chat is no longer running. Reopen it before changing sandbox certificate trust."));
+		}
+		try {
+			await operation(session);
+		} finally {
+			await Promise.all(this._allLiveSessions().map(live => live.refreshSandboxCertificate()));
+		}
 	}
 
 	private readonly _copilotChatDiscovery: CopilotChatDiscovery;
@@ -4547,6 +4722,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const resolvedContext = resolveAgentChatContext(context, chat);
+		if (resolvedContext.credentials) {
+			this._credentialSources.set(chat.toString(), resolvedContext.credentials);
+		}
 		// A chat stored in a session's database takes that session's SDK id, deferred-execution marker and stored
 		// metadata, whichever session owns it now; without its backing, only such a chat names a conversation.
 		const sessionStorage = resolveSessionBackedStorage(resolvedContext, chat);
@@ -4562,7 +4740,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// per-session RPC (also covers a session the bulk list transiently omitted).
 		const cache = this._prewarmedSessionMetadata;
 		const prewarmed = cache && cache.references > 0 ? cache.metadata.get(sessionId) : undefined;
-		const sessionMetadata = prewarmed ?? await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId));
+		const sessionMetadata = prewarmed ?? await (resolvedContext.credentials
+			? this._withChatStorageClient(chat.toString(), client => client.getSessionMetadata(sessionId))
+			: this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId)));
 		if (!sessionMetadata) {
 			const awaitingFirstSdkOperation = sessionStorage ? await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, sessionId, this._logService) : undefined;
 			if (!awaitingFirstSdkOperation) {
@@ -4582,12 +4762,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!storedMetadata?.resolved) {
 			const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(1);
 			project = await this._resolveSessionProject(sessionMetadata?.context, projectLimiter, new Map<string, Promise<IAgentSessionProjectInfo | undefined>>());
-			if (storedMetadata) {
+			if (storedMetadata?.workingDirectory) {
 				this._storeSessionProjectResolution(scope, project).catch(error => this._logService.warn(`[Copilot] Failed to persist project resolution for ${session.toString()}: ${error}`));
 			}
 		}
 
-		const marker = !storedMetadata ? await this._readExtensionHostCliMarker(sessionId) : undefined;
+		// Project resolution and an empty database do not establish native ownership; adoption requires a persisted cwd.
+		const marker = !storedMetadata?.workingDirectory ? await this._readExtensionHostCliMarker(sessionId) : undefined;
 		const adoptable = isExtensionHostCliMarker(marker);
 		const sdkCwd = typeof sessionMetadata?.context?.workingDirectory === 'string' ? sessionMetadata.context.workingDirectory : undefined;
 		let workingDirectories = storedMetadata?.workingDirectories;
@@ -4617,17 +4798,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<IAgentModelInfo[]> {
+	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
+	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<{ readonly models: IAgentModelInfo[]; readonly autoTierMetadata: CopilotAutoTierMetadata | undefined }> {
 		this._logService.info('[Copilot] Listing models...');
-		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		// `billing.promo` is not typed by the SDK yet (github/copilot-agent-runtime#27103).
+		const promotions = auto ? collectAutoTierPromotions(auto.tiers as readonly (CopilotAutoTierDescriptor & { readonly billing?: { readonly promo?: IAutoTierBillingPromo } })[]) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
-		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
+		if (!models.length && this._capiModels.some(model => !this._fallbackAutoModels.has(model))) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
 		}
 		this._freeLongContextModels.clear();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
-			const configSchema = this._createModelConfigSchema(m, billing);
+			const configSchema = this._createModelConfigSchema(m, billing, auto);
 			// Free long context: a larger long-context window at no surcharge. Defaults to the full window; picker keeps both.
 			const tokenPrices = billing?.tokenPrices;
 			const hasLargerLongContext = !!tokenPrices?.contextMax
@@ -4648,7 +4832,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				supportsVision: !!m.capabilities?.supports?.vision,
 				configSchema,
 				policyState: m.policy?.state as PolicyState | undefined,
-				_meta: this._createModelPickerMeta(m, billing),
+				_meta: this._createModelPickerMeta(m, billing, auto, promotions),
 			};
 		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
@@ -4656,24 +4840,32 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Plans such as Copilot Free and Student can list nothing. Offer Auto rather than an
 			// empty picker, as the Copilot CLI integration does.
 			this._logService.info('[Copilot] No models listed; offering Auto');
-			result.push(this._getFallbackAutoModel());
+			result.push(this._getFallbackAutoModel(auto, promotions));
 		}
-		return result;
+		return { models: result, autoTierMetadata: auto };
 	}
 
 	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
-	private _getFallbackAutoModel(): IAgentModelInfo {
-		if (!this._fallbackAutoModel) {
-			const tier = this._createAutoTierConfigSchemaProperty(AUTO_MODEL_ID);
-			this._fallbackAutoModel = {
+	private _getFallbackAutoModel(autoTierMetadata: CopilotAutoTierMetadata | undefined, promotions: readonly IAgentModelAutoTierPromotion[]): IAgentModelInfo {
+		let model = autoTierMetadata ? this._fallbackAutoModelsByMetadata.get(autoTierMetadata) : this._builtInFallbackAutoModel;
+		if (!model) {
+			const tier = this._createAutoTierConfigSchemaProperty(AUTO_MODEL_ID, autoTierMetadata);
+			model = {
 				provider: this.id,
 				id: AUTO_MODEL_ID,
 				name: localize('copilotAgent.autoModelName', "Auto"),
 				supportsVision: false,
 				configSchema: tier ? { type: 'object', properties: { [AutoTierConfigKey]: tier } } : undefined,
+				_meta: this._withAutoTiersMeta(undefined, autoTierMetadata, promotions),
 			};
+			this._fallbackAutoModels.add(model);
+			if (autoTierMetadata) {
+				this._fallbackAutoModelsByMetadata.set(autoTierMetadata, model);
+			} else {
+				this._builtInFallbackAutoModel = model;
+			}
 		}
-		return this._fallbackAutoModel;
+		return model;
 	}
 
 	/**
@@ -5095,6 +5287,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// operation that follows it fails (e.g. `_resumeSession` records one
 		// unconditionally before resuming) — drop any such ghost entry.
 		this._chatBackings.delete(chatKey);
+		this._persistedChatHistory.delete(chatKey);
 		this._credentialSources.delete(chatKey);
 		this._credentialPins.delete(chatKey);
 		this._preparedCredentials.delete(chatKey);
@@ -5242,6 +5435,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const credential = this._captureChatCredential(beforePin, turnId);
 			await this._applyChatCredentialBoundary(beforePin, credential, turnId);
 			const current = this._resolveChatContext(chat, operationContext);
+			this._getOrCreateActiveClient(current.ownerSession, undefined).setPreferredClient(current.chatKey, senderClientId);
 			const cachedEntry = current.target;
 			let entry = cachedEntry ?? await this._ensureResolvedChatSession(current);
 			if (!entry) {
@@ -6620,6 +6814,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const credential = this._captureChatCredential(beforePin, turnId);
 			await this._applyChatCredentialBoundary(beforePin, credential, turnId);
 			const current = this._resolveSendChatContext(chat, operationContext);
+			this._getOrCreateActiveClient(current.ownerSession, undefined).setPreferredClient(current.chatKey, senderClientId);
 			let entry: CopilotAgentSession | undefined = current.target;
 			const hadCachedEntry = !!entry;
 			stageRecorder?.mark('refresh');
@@ -6783,6 +6978,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
+	withdrawSteeringMessage(chat: URI, messageId: string): void {
+		void this._findChatByUri(chat)?.withdrawSteering(messageId);
+	}
+
 	private async _getChatMessages(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<readonly Turn[]> {
 		if (this._isShuttingDown) {
 			return [];
@@ -6795,6 +6994,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveChatContext(chat, sessionOrContext);
 		if (this._provisionalSessions.get(context.provisionalKey)?.sdkSessionId === context.sdkSessionId) {
 			return [];
+		}
+		if (!context.target && context.credentials && context.sdkSessionId) {
+			return (await this._readPersistedChatHistory(context, context.sdkSessionId)).turns;
 		}
 		const entry = await this._queueChat(context.lifetimeId, context.sequencerKey, 'getChatMessages', async () => {
 			const resolved = this._resolveChatContext(chat, sessionOrContext);
@@ -6818,6 +7020,68 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return entry.getMessages();
 	}
 
+	/** Reads an isolated chat's journal without acquiring execution credentials or starting its extensions. */
+	private _readPersistedChatHistory(context: IResolvedCopilotChatContext, sdkSessionId: string): Promise<Awaited<ReturnType<typeof mapSessionEvents>>> {
+		const identity = JSON.stringify([sdkSessionId, context.ownerSession.toString(), context.resource.toString(), context.ownerRef.getSubagentChatUriFormat()]);
+		const existing = this._persistedChatHistory.get(context.chatKey);
+		if (existing?.identity === identity) {
+			return existing.result;
+		}
+		const result = this._doReadPersistedChatHistory(context, sdkSessionId);
+		this._persistedChatHistory.set(context.chatKey, { identity, result });
+		result.catch(() => {
+			if (this._persistedChatHistory.get(context.chatKey)?.result === result) {
+				this._persistedChatHistory.delete(context.chatKey);
+			}
+		});
+		return result;
+	}
+
+	private async _doReadPersistedChatHistory(context: IResolvedCopilotChatContext, sdkSessionId: string): Promise<Awaited<ReturnType<typeof mapSessionEvents>>> {
+		const lifetime = this._getOrCreateSessionLifetime(context.lifetimeId);
+		const lease = await lifetime?.acquire();
+		if (!lease) {
+			throw new CancellationError();
+		}
+		try {
+			if (context.credentials) {
+				this._credentialSources.set(context.chatKey, context.credentials);
+			}
+			const [events, metadata] = await Promise.all([
+				this._withChatStorageClient(context.chatKey, client => readCopilotSessionEvents(cursor =>
+					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None)),
+				this._readSessionMetadata({ storage: context.resource, owner: context.ownerSession }),
+			]);
+			if (this._isShuttingDown) {
+				throw new CancellationError();
+			}
+			const reference = this._sessionDataService.openDatabase(context.resource);
+			try {
+				const backing = this._chatBackings.get(context.chatKey);
+				const result = await mapSessionEvents(context.resource, reference.object, events, context.chat, context.ownerSession, {
+					workingDirectory: metadata.workingDirectory,
+					clientToolNames: new Set(this._activeClients.get(context.ownerSession)?.toolSet.merged().map(tool => tool.name) ?? []),
+					model: backing?.model ?? metadata.model,
+					agent: backing?.agent ?? metadata.agent,
+					interruptedTurnError: {
+						errorType: 'executionInterrupted',
+						message: localize('copilotAgent.interruptedTurn', "The agent was interrupted before this request finished."),
+					},
+				});
+				await restoreStoredShellOutputsForChat(result.turns, context.resource, context.ownerSession, context.chat, reference.object);
+				for (const [toolCallId, turns] of result.subagentTurnsByToolCallId) {
+					const child = URI.parse(subagentChatUri(context.ownerRef.getSubagentChatUriFormat(), context.ownerSession.toString(), context.chatKey, toolCallId));
+					await restoreStoredShellOutputsForChat(turns, context.resource, context.ownerSession, child, reference.object);
+				}
+				return result;
+			} finally {
+				reference.dispose();
+			}
+		} finally {
+			lease.dispose();
+		}
+	}
+
 	/** Reconstructs a subagent transcript from the parent chat named by the host-supplied tool origin. */
 	private async _getSubagentChatMessages(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<readonly Turn[]> {
 		const spawnedFrom = resolveSubagentChatParent(sessionOrContext);
@@ -6835,6 +7099,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: parentStorage });
+		if (!parentContext.target && parentContext.credentials && parentContext.sdkSessionId) {
+			const history = await this._readPersistedChatHistory(parentContext, parentContext.sdkSessionId);
+			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
+		}
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);
 			return undefined;
@@ -6975,6 +7243,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The database copy lands in the storage scope Agent Host chose for
 			// this chat, which is also the scope its runtime reads and writes.
 			const storageScope = context.resource;
+			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
+			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
 
 			// Forking: mint the new chat's backing by forking the source chat's
 			// SDK conversation at the requested turn (copying its database into
@@ -7005,6 +7275,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(chat),
+					workspaceless,
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
 					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
@@ -7022,6 +7293,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					activeClientToolSet: activeClient.toolSet,
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(chat),
+					workspaceless,
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
@@ -7233,6 +7505,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			this._canvasHandoffs.delete(chat);
 			this._chatBackings.delete(chatKey);
+			this._persistedChatHistory.delete(chatKey);
 			this._chatOwners.delete(chatKey);
 			this._chatStorageScopes.delete(chatKey);
 
@@ -7328,6 +7601,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		await lifetime.release(async () => {
+			this._persistedChatHistory.delete(initial.chatKey);
 			const target = this._resolveChatContext(chat, operationContext).target;
 			if (!target || target.hasActiveTurn) {
 				return;
@@ -7649,6 +7923,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				activeClientToolSet: activeClient.toolSet,
 				shellManager,
 				githubCredentials: this._getGitHubSessionCredentials(chat),
+				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
@@ -7781,7 +8056,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
 		// A runtime that listed nothing, leaving only the fallback Auto, counts as empty
 		// whatever HydraFusion or BYOK models are published beside it.
-		if (this._capiModels.includes(this._getFallbackAutoModel())) {
+		if (this._capiModels.some(candidate => this._fallbackAutoModels.has(candidate))) {
 			return;
 		}
 		const models = this._models.get();
@@ -7908,6 +8183,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await Promise.all([...this._scopedClients.values()].map(client => client.stop()));
 				this._scopedClients.clearAndDisposeAll();
 				this._credentialSources.clear();
+				this._persistedChatHistory.clear();
 				this._credentialPins.clear();
 				this._preparedCredentials.clear();
 				this._sessionLifetimes.clear();
@@ -8139,6 +8415,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 				},
 				sessionLauncher: this._sessionLauncher,
+				sandboxCertificate: this._sandboxCertificate,
 				launchPlan: localModelProvider ? { ...launchPlan, localModelProvider } : launchPlan,
 				shellManager: launchPlan.shellManager,
 				workingDirectory: launchPlan.workingDirectory,
@@ -8246,6 +8523,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _registerLiveChat(chat: URI, session: CopilotAgentSession, activeClient: ActiveClient): void {
+		this._persistedChatHistory.delete(chat.toString());
 		const current = this._chatBackings.get(chat.toString());
 		// Created before the previous entry is released so a shared anchor set is not torn down and rediscovered.
 		const entry = this._createChatEntry(session, activeClient);
@@ -8253,6 +8531,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatEntriesBySdkId.set(session.sessionId, entry);
 		this._chatBackings.set(chat.toString(), { ...current, sdkSessionId: session.sessionId });
 		this._backgroundWorkWatches.get(chat)?.attach(session);
+		if (session.usesScopedGitHubCredentials) {
+			session.publishCanvases();
+		}
 	}
 
 	watchChatBackgroundWork(chat: URI, published: () => readonly BackgroundWork[]): IDisposable {
@@ -8732,10 +9013,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/** Reads chat metadata, preferring the host's workspaceless state over legacy provider storage. */
 	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; workspaceless?: boolean }> {
+		const workspaceless = this._sessionSettings.get(scope.owner)?.workspaceless;
 		const ref = await this._openMetadata(scope);
 		if (!ref) {
-			return {};
+			return { workspaceless };
 		}
 		try {
 			const m = await ref.reader.getMetadataObject({
@@ -8755,7 +9038,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				workingDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_CWDS], workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
-				workspaceless: m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
+				workspaceless: workspaceless ?? m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 			};
 		} finally {
 			ref.dispose();
@@ -9829,7 +10112,7 @@ class SessionPluginController extends Disposable {
 	 *   session listener yet; the session-state snapshot picks up the
 	 *   final view directly when the session materializes.
 	 */
-	public async sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean }) {
+	public async sync(clientId: string, customizations: ClientPluginCustomization[], options?: { quiet?: boolean; force?: boolean }) {
 		if (!this._isEnablementReady) {
 			await this._enablementReady;
 		}
@@ -9838,13 +10121,14 @@ class SessionPluginController extends Disposable {
 		if (!client) {
 			client = { revision: 0, customizations: [], sync: Promise.resolve([]), inputs: [] };
 			this._clients.set(clientId, client);
-		} else if (equals(client.inputs, customizations) && !client.customizations.some(item => item.customization.load?.kind === CustomizationLoadStatus.Error)) {
+		} else if (!options?.force && equals(client.inputs, customizations)) {
 			// No-op re-sync: a window re-subscribing (e.g. navigating away from
-			// and back to a session) re-publishes healthy customizations. Skip
+			// and back to a session) re-publishes customizations. Skip
 			// the revision bump, the `SessionCustomizationsChanged` emit, and the
 			// redundant plugin-manager re-sync (which otherwise re-parses plugins
-			// from disk on every navigation). Genuine changes still publish, and
-			// `_projectForPublish` keeps live MCP state intact across those.
+			// from disk on every navigation). Failed inputs are retried explicitly
+			// before an operation; genuine changes still publish, and `_projectForPublish`
+			// keeps live MCP state intact across those.
 			return client.sync.then(results => results.map(item => ({
 				customization: this._resolveCustomizationForPublish(item.customization),
 				...(item.pluginDir ? { pluginDir: item.pluginDir } : {}),
@@ -9962,7 +10246,7 @@ class SessionPluginController extends Disposable {
 			}
 			const inputs = [...client.inputs];
 			this._logService.info(`[Copilot:SessionPluginController] Retrying ${errored.length} previously-failed client customization(s) for ${clientId}`);
-			await raceCancellationError(this.sync(clientId, inputs).catch(err => {
+			await raceCancellationError(this.sync(clientId, inputs, { force: true }).catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Retried client customization sync failed', err);
 			}), token);
 		}
@@ -10191,6 +10475,8 @@ class ActiveClient extends Disposable {
 	/** Chats with authoritative membership; unknown chats are treated separately from "no contributors". */
 	private readonly _knownChats = new Set<string>();
 
+	private readonly _preferredClientByChat = new Map<string, string>();
+
 	constructor(
 		private readonly _sessionUri: URI,
 		pluginController: SessionPluginController,
@@ -10239,6 +10525,7 @@ class ActiveClient extends Disposable {
 
 	/** Removes `chat` from every client, dropping clients left with no remaining chats. */
 	removeChat(chat: URI): void {
+		this._preferredClientByChat.delete(chat.toString());
 		for (const clientId of [...this._chatsByClient.keys()]) {
 			if (this.removeClientChat(clientId, chat)) {
 				this.removeClient(clientId);
@@ -10256,22 +10543,18 @@ class ActiveClient extends Disposable {
 		return !this._knownChats.has(chatKey) || this._chatsByClient.get(clientId)?.has(chatKey) === true;
 	}
 
-	/** Chat-scoped tool union; duplicate names keep the first contributor's definition. */
-	toolsForChat(chatKey: string): readonly ToolDefinition[] {
-		const seen = new Set<string>();
-		const result: ToolDefinition[] = [];
-		for (const clientId of this.toolSet.clientIds()) {
-			if (!this.contributesTo(clientId, chatKey)) {
-				continue;
-			}
-			for (const tool of this.toolSet.get(clientId)) {
-				if (!seen.has(tool.name)) {
-					seen.add(tool.name);
-					result.push(tool);
-				}
-			}
+	/** Selects client tools for subsequent launches of this chat, without changing an in-flight snapshot. */
+	setPreferredClient(chatKey: string, clientId: string | undefined): void {
+		if (clientId) {
+			this._preferredClientByChat.set(chatKey, clientId);
+		} else {
+			this._preferredClientByChat.delete(chatKey);
 		}
-		return result;
+	}
+
+	/** Client collisions prefer the chat's message sender; launch wiring resolves host collisions. */
+	toolsForChat(chatKey?: string): readonly ToolDefinition[] {
+		return this.toolSet.merged(chatKey === undefined ? undefined : this._preferredClientByChat.get(chatKey), clientId => chatKey === undefined || this.contributesTo(clientId, chatKey));
 	}
 
 	private _reindexKnownChats(): void {
@@ -10310,7 +10593,7 @@ class ActiveClient extends Disposable {
 	 */
 	async snapshot(chatKey?: string, anchor?: CustomizationAnchor, selectedAgentUri?: string): Promise<IActiveClientSnapshot> {
 		return {
-			tools: chatKey === undefined ? this.toolSet.merged() : this.toolsForChat(chatKey),
+			tools: this.toolsForChat(chatKey),
 			plugins: await this.pluginController.withSelectedAgent(await this.pluginController.getAppliedPlugins(anchor), anchor, selectedAgentUri),
 			mcpServers: await this._getMcpServers(),
 		};

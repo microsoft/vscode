@@ -120,7 +120,7 @@ esac`,
 			holderDetails: result.stderr.split('\n').filter(line => line.includes('12345') && !line.includes('.c..m')),
 			diagnosticCalls: result.calls.slice(2),
 		}, {
-			status: 1,
+			status: 3,
 			errorReported: true,
 			directoryRetained: true,
 			holdersReported: true,
@@ -178,10 +178,23 @@ esac`,
 			unmountFailureReported: result.stderr.includes('Failed to unmount'),
 			diagnosticFailureReported: result.stderr.includes('holder diagnostics exited with status 29'),
 		}, {
-			status: 1,
+			status: 3,
 			directoryRetained: true,
 			unmountFailureReported: true,
 			diagnosticFailureReported: true,
+		});
+	});
+
+	(isWindows ? test.skip : test)('unmount failure keeps a failing test exit code', () => {
+		const result = run('umount', 7);
+		assert.deepStrictEqual({
+			status: result.status,
+			unmountFailureReported: result.stderr.includes('Failed to unmount'),
+			directoryRetained: existsSync(result.mountDirectory),
+		}, {
+			status: 7,
+			unmountFailureReported: true,
+			directoryRetained: true,
 		});
 	});
 
