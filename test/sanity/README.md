@@ -59,7 +59,7 @@ there is no update service metadata to compare against.
 
 ### Timeouts
 
-Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
+Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run. On x64, setup first installs the pinned WSL release, including its WSL2 kernel.
 
 Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
@@ -73,7 +73,7 @@ Platform-specific scripts are provided in the `scripts/` directory to set up the
 
 |Script|Platform|Description|
 |--------|----------|-------------|
-|`run-win32.cmd`|Windows|Runs tests using Edge as the Playwright browser|
+|`run-win32.cmd`|Windows|On x64, installs the WSL release pinned in `build/checksums/wsl.txt` and imports Ubuntu into WSL2, then runs tests using Edge as the Playwright browser|
 |`run-macOS.sh`|macOS|Installs Playwright WebKit and runs tests|
 |`run-ubuntu.sh`|Ubuntu|Sets up X11, Chromium, and Snap daemon, then runs tests|
 |`run-docker.sh`|Linux (Docker)|Builds and runs tests inside a Docker container|

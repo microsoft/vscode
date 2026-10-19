@@ -120,6 +120,8 @@ export function setup(context: TestContext) {
 				}
 
 				const url = context.getWebServerUrl(port, token, wslWorkspaceDir).toString();
+				// WSL2 forwards localhost to the distribution with a short delay after the server starts listening.
+				await context.fetchNoErrors(new URL('version', context.getWebServerUrl(port)).toString());
 				const browser = await context.launchBrowser();
 				try {
 					const page = await context.getPage(browser.newPage());
@@ -153,12 +155,13 @@ export function setup(context: TestContext) {
 		const args = [
 			'--extensions-dir', context.createTempDir(),
 			'--user-data-dir', test.userDataDir,
-			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,
 		];
 		const crashDumpsDir = context.getCrashDumpsDir();
 		if (crashDumpsDir) {
 			args.push('--crash-reporter-directory', crashDumpsDir);
 		}
+		// Must be last: on Windows, Electron exits with -1 when any argument follows a URL (CVE-2018-1000006 mitigation).
+		args.push('--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`);
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
@@ -172,7 +175,11 @@ export function setup(context: TestContext) {
 				await window.getByRole('button', { name: 'Install and Reload' }).click();
 
 				context.log('Waiting for WSL connection');
-				await window.getByText(/WSL/).waitFor();
+				// The remote indicator shows "Opening Remote..." or "Disconnected from WSL" until the connection is established,
+				// which can take minutes while the WSL extension installs the server in the distribution.
+				const remoteIndicator = window.locator('.statusbar-item[id="status.host"]', { hasText: /^\s*WSL: / });
+				await remoteIndicator.waitFor();
+				context.log(`Connected: ${await remoteIndicator.textContent()}`);
 			} catch (error) {
 				await context.captureScreenshot(window);
 				throw error;
