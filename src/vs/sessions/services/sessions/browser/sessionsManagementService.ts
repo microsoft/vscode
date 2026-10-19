@@ -713,7 +713,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
-			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+			// Reuse only a draft using the requested harness; a different harness needs a chat of its own.
+			const requestedHarness = options?.harness ?? session.harness;
+			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled && (c.harness ?? session.harness) === requestedHarness);
 			if (existingUntitled) {
 				return existingUntitled;
 			}

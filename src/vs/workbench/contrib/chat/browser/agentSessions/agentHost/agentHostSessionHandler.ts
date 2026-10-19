@@ -6823,6 +6823,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return languageModelIdentifier.substring(prefix.length);
 			}
 		}
+		// A peer chat backed by another agent of this host selects from that agent's models.
+		const targetSessionType = this._languageModelsService.lookupLanguageModel(languageModelIdentifier)?.targetChatSessionType;
+		if (targetSessionType && languageModelIdentifier.startsWith(targetSessionType + ':')) {
+			return languageModelIdentifier.substring(targetSessionType.length + 1);
+		}
 		if (languageModelIdentifier.includes('/')) {
 			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
 			return undefined;
