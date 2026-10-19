@@ -112,8 +112,8 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
-	max-width: calc(100% - var(--vscode-spacing-size120));
-	margin-inline: var(--vscode-spacing-size60);
+	max-width: calc(100% - 2 * (var(--vscode-spacing-size100) + var(--vscode-strokeThickness)));
+	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
 	padding-inline: 0;
 }
 

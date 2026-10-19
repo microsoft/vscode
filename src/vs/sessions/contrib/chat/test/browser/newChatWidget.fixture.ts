@@ -814,16 +814,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
 				'The phone workspace picker must retain its centered layout.');
 		} else {
-			const workspaceIcon = optionsTray.querySelector<HTMLElement>('.sessions-workspace-category-picker-slot .codicon');
-			const attachButton = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button');
-			assert(!!workspaceIcon && !!attachButton);
-			const iconBounds = workspaceIcon.getBoundingClientRect();
-			const attachBounds = attachButton.getBoundingClientRect();
+			const inputEditor = inputArea.querySelector<HTMLElement>('.sessions-chat-editor');
+			const attachIcon = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button .codicon');
+			assert(!!inputEditor && !!attachIcon);
 			assert(trayBounds.left > promptBounds.left
 				&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
 				'The tray must retain its inset when expanded or collapsed.');
-			assert(Math.abs(iconBounds.left + iconBounds.width / 2 - attachBounds.left - attachBounds.width / 2) < 1,
-				'The workspace icon must align with the center of the attach context action.');
+			assert(Math.abs(trayBounds.left - inputEditor.getBoundingClientRect().left) < 1
+				&& Math.abs(trayBounds.left - attachIcon.getBoundingClientRect().left) <= 1,
+				'The tray edge must align with the placeholder text and attach context icon.');
 		}
 		const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
 		assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',
