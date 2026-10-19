@@ -697,6 +697,7 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({
 			title: item && (typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			group: item?.group,
+			order: item?.order,
 			shown: {
 				enabled: shownWhen(enabled),
 				settingOff: shownWhen({ ...enabled, 'config.chat.agentHost.moveChats.enabled': false }),
@@ -707,7 +708,8 @@ suite('Sessions list context menus', () => {
 			events,
 		}, {
 			title: 'Promote to Session',
-			group: '1_chat',
+			group: '1_move',
+			order: 1,
 			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
 			results: [true, false, false, false, false],
 			events: [

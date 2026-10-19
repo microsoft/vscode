@@ -757,8 +757,9 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 			f1: false,
 			menu: [{
 				id: Menus.SessionChatItemContext,
-				group: '1_chat',
-				order: 4,
+				// Its own group, between the chat's actions and Delete.
+				group: '1_move',
+				order: 1,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext),
 			}],
 		});
