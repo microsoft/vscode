@@ -1096,7 +1096,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}),
 			startSession: (session, message) => this._startAutomationMessage(session, message),
 			cancelSession: session => this._cancelAutomationSession(session),
-			resumeTurn: (session, turnId) => this._resumeAutomationTurn(session, turnId),
 		}));
 		this._register(this._providerService.registerProviderInitializer(provider => this._initializeProvider(provider)));
 		this._register(this._providerService.onDidRegisterProvider(provider => this._onDidRegisterProvider(provider)));
@@ -2196,22 +2195,6 @@ export class AgentService extends Disposable implements IAgentService {
 		const action = { type: ActionType.ChatTurnCancelled, turnId: activeTurn.id, duration } as const;
 		this._stateManager.dispatchServerAction(chat, action);
 		this._sideEffects.handleAction(chat, action);
-		return true;
-	}
-
-	private async _resumeAutomationTurn(session: URI, turnId: string): Promise<boolean> {
-		const chat = this._defaultChat(session);
-		if (chat === undefined) {
-			return false;
-		}
-		const { turn, rejection } = this._getResumableTurn(chat, session.toString(), turnId);
-		if (rejection !== undefined) {
-			this._logService.info(`[AgentService] Cannot resume automation turn: chat=${chat}, turnId=${turnId}, reason=${rejection}`);
-			return false;
-		}
-		const action = { type: ActionType.ChatTurnResume, turnId } as const;
-		this._stateManager.dispatchServerAction(chat, action);
-		this._sideEffects.handleAction(chat, action, undefined, AgentHostClientType.Unknown, turn);
 		return true;
 	}
 
@@ -11204,35 +11187,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return (action.type === ActionType.ChatIsReadChanged || action.type === ActionType.ChatIsArchivedChanged) && this._chatOwnership.getChatOwner(chat) !== undefined;
 	}
 
-	/** Returns the latest errored turn of a chat if `chat/turnResume` may restart it, or why it may not. */
-	private _getResumableTurn(channel: string, sessionChannel: string, turnId: string): { readonly turn: Turn; readonly rejection?: undefined } | { readonly turn?: undefined; readonly rejection: string } {
-		if (!isAhpChatChannel(channel)) {
-			return { rejection: 'Turn resume requires a chat channel.' };
-		}
-		if (this._workspaceConversionService.isPending(channel)) {
-			return { rejection: 'Cannot resume while workspace setup is pending or blocked.' };
-		}
-		const chatState = this._stateManager.getChatState(channel);
-		const sessionState = this._stateManager.getSessionState(sessionChannel);
-		const sessionArchived = ((sessionState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
-		const turn = chatState?.turns.at(-1);
-		const errorPart = getErrorResponsePart(turn);
-		const provider = this._providerService.getProviderForSession(sessionChannel);
-		if (chatState?.activeTurn) {
-			return { rejection: 'Cannot resume while a turn is active.' };
-		}
-		if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
-			return { rejection: 'Cannot resume a read-only or archived chat.' };
-		}
-		if (!turn || turn.id !== turnId || turn.state !== TurnState.Error || errorPart?.resumable !== true) {
-			return { rejection: 'The requested turn is not the latest resumable errored turn.' };
-		}
-		if (!provider?.chats.resumeTurn) {
-			return { rejection: 'The session provider does not support turn resume.' };
-		}
-		return { turn };
-	}
-
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void {
 		const origin = { clientId, clientSeq };
 		if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved) {
@@ -11282,9 +11236,34 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		let resumedTurn: Turn | undefined;
 		if (action.type === ActionType.ChatTurnResume) {
-			const { turn, rejection } = this._getResumableTurn(channel, sessionChannel, action.turnId);
-			if (rejection !== undefined) {
-				this._stateManager.rejectClientAction(channel, action, origin, rejection);
+			if (!isAhpChatChannel(channel)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Turn resume requires a chat channel.');
+				return;
+			}
+			if (this._workspaceConversionService.isPending(channel)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot resume while workspace setup is pending or blocked.');
+				return;
+			}
+			const chatState = this._stateManager.getChatState(channel);
+			const sessionState = this._stateManager.getSessionState(sessionChannel);
+			const sessionArchived = ((sessionState?.status ?? 0) & SessionStatus.IsArchived) === SessionStatus.IsArchived;
+			const turn = chatState?.turns.at(-1);
+			const errorPart = getErrorResponsePart(turn);
+			const provider = this._providerService.getProviderForSession(sessionChannel);
+			if (chatState?.activeTurn) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot resume while a turn is active.');
+				return;
+			}
+			if (isChatReadOnly(chatState?.interactivity, sessionArchived)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot resume a read-only or archived chat.');
+				return;
+			}
+			if (!turn || turn.id !== action.turnId || turn.state !== TurnState.Error || errorPart?.resumable !== true) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'The requested turn is not the latest resumable errored turn.');
+				return;
+			}
+			if (!provider?.chats.resumeTurn) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'The session provider does not support turn resume.');
 				return;
 			}
 			resumedTurn = turn;
