@@ -59,6 +59,17 @@ export interface ISessionChangesetOperationInvokedEvent {
 }
 
 /**
+ * Why a chat or session move was refused, in a message for the user (e.g. "Chats can't be moved into or out of an
+ * archived session."). Moves reject with it for refusals they can explain; anything else is an unexpected failure,
+ * whose message isn't meant for the user.
+ */
+export class SessionMoveRefusedError extends Error {
+	constructor(message: string) {
+		super(message);
+	}
+}
+
+/**
  * Where {@link ISessionsProvider.moveChat} moves a chat: after `after` (a chat of the session `sessionId`, or first
  * when `undefined`) in that session, which may be the chat's own session to reorder it, or into a new session.
  */
@@ -306,7 +317,7 @@ export interface ISessionsProvider {
 
 	/**
 	 * Moves the chat of session `sessionId` within its session, into another session of this provider, or into a new
-	 * session. Rejects, with a user-facing message, when the move is refused (always, for providers whose chats never
+	 * session. Rejects with a {@link SessionMoveRefusedError} when the move is refused (always, for providers whose chats never
 	 * move); nothing changes then.
 	 */
 	moveChat(sessionId: string, chatUri: URI, destination: ISessionChatMoveDestination): Promise<void>;
@@ -319,7 +330,7 @@ export interface ISessionsProvider {
 
 	/**
 	 * Moves the session under `destinationSessionId`, placing its chat after `after` (`undefined`: first); the session
-	 * ends. Rejects, with a user-facing message, when the move is refused (always, for providers whose sessions never move).
+	 * ends. Rejects with a {@link SessionMoveRefusedError} when the move is refused (always, for providers whose sessions never move).
 	 */
 	moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void>;
 

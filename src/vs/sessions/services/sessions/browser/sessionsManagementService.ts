@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -1467,7 +1467,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!provider || (destination.kind === 'session' && destination.session.providerId !== session.providerId)) {
-			throw new Error(localize('sessions.moveChat.unsupported', "This chat can't be moved there."));
+			throw new SessionMoveRefusedError(localize('sessions.moveChat.unsupported', "This chat can't be moved there."));
 		}
 		await provider.moveChat(session.sessionId, chat.resource, destination.kind === 'session'
 			? { kind: 'session', sessionId: destination.session.sessionId, after: destination.after?.resource }
@@ -1481,7 +1481,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!provider || destination.providerId !== session.providerId || destination.sessionId === session.sessionId) {
-			throw new Error(localize('sessions.moveSession.unsupported', "This session can't be moved there."));
+			throw new SessionMoveRefusedError(localize('sessions.moveSession.unsupported', "This session can't be moved there."));
 		}
 		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
 	}

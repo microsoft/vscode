@@ -776,7 +776,7 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 		const revealMoved = getSessionsList(accessor)?.watchMoveForReveal(move);
 		let moved = false;
 		try {
-			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(IDialogService), configurationService, accessor.get(INotificationService));
+			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(IDialogService), configurationService, accessor.get(INotificationService), accessor.get(ILogService));
 		} finally {
 			revealMoved?.(moved);
 		}

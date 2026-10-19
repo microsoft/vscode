@@ -6,6 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const refusals: ReadonlySet<string> = new Set<string>([
 	AgentChatMoveRefusal.Disabled,
@@ -90,8 +91,8 @@ export function getChatMoveRefusalMessage(reason: AgentChatMoveRefusal): string 
 	}
 }
 
-/** Replaces a host refusal by an error carrying its user-facing explanation; other errors are returned unchanged. */
+/** Replaces a host refusal by a {@link SessionMoveRefusedError} explaining it; other errors are returned unchanged. */
 export function toChatMoveError(error: unknown): unknown {
 	const reason = getChatMoveRefusal(error);
-	return reason === undefined ? error : new Error(getChatMoveRefusalMessage(reason));
+	return reason === undefined ? error : new SessionMoveRefusedError(getChatMoveRefusalMessage(reason));
 }

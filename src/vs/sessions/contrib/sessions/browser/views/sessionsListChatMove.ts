@@ -5,16 +5,17 @@
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 
 /**
  * Whether dragging chats and sessions to move them is on: the Move Chats setting is enabled and AI features are not
@@ -226,8 +227,16 @@ export function getSessionsListMoveConfirmation(move: SessionsListMove): string 
 	return localize('sessionsMove.confirmChat', "Are you sure you want to move '{0}' into '{1}'?", move.chat.title.get(), move.destination.session.title.get());
 }
 
-/** What the sessions list says when `move` failed or was refused for `reason`. */
-export function getSessionsListMoveFailure(move: SessionsListMove, reason: string): string {
+/**
+ * What the sessions list says when `move` was refused for `reason`, or failed unexpectedly (`reason` undefined): the
+ * details of an unexpected failure (e.g. a host's stack trace) aren't meant for the user.
+ */
+export function getSessionsListMoveFailure(move: SessionsListMove, reason: string | undefined): string {
+	if (reason === undefined) {
+		return move.kind === 'session'
+			? localize('sessionsMove.sessionFailedUnexpectedly', "Could not move session '{0}'.", move.session.title.get())
+			: localize('sessionsMove.chatFailedUnexpectedly', "Could not move '{0}'.", move.chat.title.get());
+	}
 	return move.kind === 'session'
 		? localize('sessionsMove.sessionFailed', "Could not move session '{0}'. {1}", move.session.title.get(), reason)
 		: localize('sessionsMove.chatFailed', "Could not move '{0}'. {1}", move.chat.title.get(), reason);
@@ -252,8 +261,8 @@ function getSessionsListMoveSuccess(move: SessionsListMove): string {
 /**
  * Runs a move dropped in the sessions list. Unless it reorders a chat within its session, it first asks for
  * confirmation while {@link ChatMoveSettingId.ConfirmDragAndDrop} is on; "Do not ask me again" turns that off. A move
- * that fails or is refused shows why; a move that succeeds shows nothing (the list shows the result) and is only
- * announced to screen readers. Resolves whether it moved.
+ * that is refused shows why; one that fails unexpectedly says only that it failed and logs the details. A move that
+ * succeeds shows nothing (the list shows the result) and is only announced to screen readers. Resolves whether it moved.
  */
 export async function runSessionsListMove(
 	move: SessionsListMove,
@@ -261,6 +270,7 @@ export async function runSessionsListMove(
 	dialogService: IDialogService,
 	configurationService: IConfigurationService,
 	notificationService: INotificationService,
+	logService: ILogService,
 ): Promise<boolean> {
 	const confirmation = configurationService.getValue<boolean>(ChatMoveSettingId.ConfirmDragAndDrop) !== false ? getSessionsListMoveConfirmation(move) : undefined;
 	if (confirmation) {
@@ -288,7 +298,12 @@ export async function runSessionsListMove(
 			await sessionsManagementService.moveChat(move.session, move.chat, move.destination);
 		}
 	} catch (error) {
-		notificationService.warn(getSessionsListMoveFailure(move, toErrorMessage(error)));
+		if (error instanceof SessionMoveRefusedError) {
+			notificationService.warn(getSessionsListMoveFailure(move, error.message));
+		} else {
+			logService.error(`[sessionsList] Moving ${move.kind === 'session' ? 'a session' : 'a chat'} failed`, error);
+			notificationService.warn(getSessionsListMoveFailure(move, undefined));
+		}
 		return false;
 	}
 	status(getSessionsListMoveSuccess(move));

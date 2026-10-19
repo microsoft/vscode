@@ -97,7 +97,7 @@ import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { toChatMoveError } from './agentHostChatMoveErrors.js';
@@ -6855,11 +6855,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const destination = this._sessionCache.get(this._sessionKeyFromChatId(destinationSessionId) ?? '');
 		const connection = this.connection;
 		if (!source || !destination || !connection || !this.canMoveSessionUnder(sessionId)) {
-			throw new Error(localize('moveSessionUnavailable', "This session can't be moved."));
+			throw new SessionMoveRefusedError(localize('moveSessionUnavailable', "This session can't be moved."));
 		}
 		const backendAfter = after === undefined ? undefined : destination.getBackendChatResource(after);
 		if (after !== undefined && !backendAfter) {
-			throw new Error(localize('moveSessionAnchorNotFound', "The chat to place the session after could not be found."));
+			throw new SessionMoveRefusedError(localize('moveSessionAnchorNotFound', "The chat to place the session after could not be found."));
 		}
 		// The chat's views follow it to the destination once both catalogs reflect the move (onDidMoveChat).
 		try {
@@ -6880,17 +6880,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		const backendChat = source?.getBackendChatResource(chatUri);
 		if (!source || !backendChat || !connection || !source.isChatMovable(chatUri)) {
-			throw new Error(localize('moveChatUnavailable', "This chat can't be moved."));
+			throw new SessionMoveRefusedError(localize('moveChatUnavailable', "This chat can't be moved."));
 		}
 		let backendDestination: AgentChatMoveDestination;
 		if (destination.kind === 'session') {
 			const target = this._sessionCache.get(this._sessionKeyFromChatId(destination.sessionId) ?? '');
 			if (!target) {
-				throw new Error(localize('moveChatDestinationNotFound', "The destination session is not available."));
+				throw new SessionMoveRefusedError(localize('moveChatDestinationNotFound', "The destination session is not available."));
 			}
 			const backendAfter = destination.after === undefined ? undefined : target.getBackendChatResource(destination.after);
 			if (destination.after !== undefined && !backendAfter) {
-				throw new Error(localize('moveChatAnchorNotFound', "The chat to place the moved chat after could not be found."));
+				throw new SessionMoveRefusedError(localize('moveChatAnchorNotFound', "The chat to place the moved chat after could not be found."));
 			}
 			backendDestination = { kind: 'session', session: target.backendUri, after: backendAfter };
 		} else {

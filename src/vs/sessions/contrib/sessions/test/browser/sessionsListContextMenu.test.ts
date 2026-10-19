@@ -43,6 +43,7 @@ import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/v
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
@@ -679,7 +680,7 @@ suite('Sessions list context menus', () => {
 				override canMoveChat(_session: ISession, chat: IChat): boolean { return chat === peer; }
 				override async moveChat(_session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 					if (refusal) {
-						throw new Error(refusal);
+						throw new SessionMoveRefusedError(refusal);
 					}
 					events.push(`move ${chat.title.get()} -> ${destination.kind}`);
 				}

@@ -17,7 +17,8 @@ import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChatMovedEvent, ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChangeEvent, SessionMoveRefusedError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { canMoveIntoSession, getChatMoveAnchorBefore, getChatMoveAppendAnchor, getSessionsListChatDrop, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
 import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -223,7 +224,7 @@ suite('Move Chats Drag and Drop', () => {
 	suite('running a dropped move', () => {
 
 		/** Runs `moves` in turn, answering confirmations with `answer`, and records what the user saw and what moved. */
-		async function run(moves: readonly SessionsListMove[], options?: { readonly answer?: IConfirmationResult; readonly confirm?: boolean; readonly refuse?: string; readonly failSettingWrite?: boolean }) {
+		async function run(moves: readonly SessionsListMove[], options?: { readonly answer?: IConfirmationResult; readonly confirm?: boolean; readonly refuse?: string; readonly fail?: Error; readonly failSettingWrite?: boolean }) {
 			const shown: string[] = [];
 			const calls: string[] = [];
 			const configurationService = new class extends TestConfigurationService {
@@ -247,7 +248,10 @@ suite('Move Chats Drag and Drop', () => {
 			const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 				override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 					if (options?.refuse) {
-						throw new Error(options.refuse);
+						throw new SessionMoveRefusedError(options.refuse);
+					}
+					if (options?.fail) {
+						throw options.fail;
 					}
 					calls.push(`moveChat ${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
 				}
@@ -255,11 +259,15 @@ suite('Move Chats Drag and Drop', () => {
 					calls.push(`moveSessionUnder ${session.title.get()} -> ${destination.title.get()} after ${after?.title.get() ?? '(first)'}`);
 				}
 			}();
+			const logged: unknown[][] = [];
+			const logService = new class extends NullLogService {
+				override error(message: string | Error, ...args: unknown[]): void { logged.push([message, ...args]); }
+			}();
 			const results: boolean[] = [];
 			for (const move of moves) {
-				results.push(await runSessionsListMove(move, sessionsManagementService, dialogService, configurationService, notificationService));
+				results.push(await runSessionsListMove(move, sessionsManagementService, dialogService, configurationService, notificationService, logService));
 			}
-			return { results, shown, calls, confirmSetting: configurationService.getValue(ChatMoveSettingId.ConfirmDragAndDrop) };
+			return { results, shown, calls, logged, confirmSetting: configurationService.getValue(ChatMoveSettingId.ConfirmDragAndDrop) };
 		}
 
 		const own = multiChatSession('Own', { chats: [chat('main'), chat('a', ChatOriginKind.User)] }).session;
@@ -287,6 +295,7 @@ suite('Move Chats Drag and Drop', () => {
 					'moveSessionUnder Single -> Target after target main',
 				],
 				confirmSetting: undefined,
+				logged: [],
 			});
 		});
 
@@ -300,6 +309,7 @@ suite('Move Chats Drag and Drop', () => {
 				calls: [],
 				// "Do not ask me again" counts only when the move is confirmed.
 				confirmSetting: undefined,
+				logged: [],
 			});
 		});
 
@@ -349,6 +359,17 @@ suite('Move Chats Drag and Drop', () => {
 				'Moved \'Chat\' to a new session',
 				'Moved session \'Single\' into \'Target\'',
 			]);
+		});
+
+		test('an unexpected failure says only that the move failed, and logs the details', async () => {
+			// E.g. a host error whose message is a stack trace.
+			const failure = new Error('SessionWorkingDirectoryMissingError: missing\n    at WorktreeIsolation._resolveWorkingDirectoryForResume (file:///host/worktreeIsolation.js:1:2)');
+			const result = await run([moveInto, moveSession], { confirm: false, fail: failure });
+			assert.deepStrictEqual({ results: result.results, shown: result.shown, logged: result.logged }, {
+				results: [false, true],
+				shown: ['warn: Could not move \'Chat\'.'],
+				logged: [['[sessionsList] Moving a chat failed', failure]],
+			});
 		});
 
 		test('a refused move says why; a successful move shows nothing', async () => {

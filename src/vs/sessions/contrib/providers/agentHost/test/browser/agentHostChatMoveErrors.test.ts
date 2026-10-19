@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { getChatMoveRefusal, toChatMoveError } from '../../browser/agentHostChatMoveErrors.js';
+import { SessionMoveRefusedError } from '../../../../../services/sessions/common/sessionsProvider.js';
 
 suite('Agent Host Chat Move Errors', () => {
 
@@ -24,6 +25,8 @@ suite('Agent Host Chat Move Errors', () => {
 		assert.deepStrictEqual({
 			reasons: [archived, notStarted, credentials, unknownReason, failure].map(getChatMoveRefusal),
 			messages: [archived, notStarted, credentials, unknownReason, failure].map(error => message(toChatMoveError(error))),
+			// Only refusals become errors the sessions list shows as they are.
+			refused: [archived, notStarted, credentials, unknownReason, failure].map(error => toChatMoveError(error) instanceof SessionMoveRefusedError),
 		}, {
 			reasons: [AgentChatMoveRefusal.SessionArchived, AgentChatMoveRefusal.NotStarted, AgentChatMoveRefusal.DifferentCredentialOwner, undefined, undefined],
 			messages: [
@@ -34,6 +37,7 @@ suite('Agent Host Chat Move Errors', () => {
 				'Bad params',
 				'Connection closed',
 			],
+			refused: [true, true, true, false, false],
 		});
 	});
 });
