@@ -28,6 +28,8 @@ import { authenticationAccountMeta } from '../../common/meta/agentAuthentication
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
+import { ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
+import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
@@ -2307,6 +2309,27 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}));
 	}
+
+	test('initialize offers the current protocol version first only while chats may use their own agents', async () => {
+		const offer = async (enabled: boolean) => {
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: enabled }));
+			const connectPromise = client.connect();
+			transport.connectDeferred.complete();
+			while (transport.sentMessages.length === 0) {
+				await Promise.resolve();
+			}
+			const sent = transport.sentMessages[0] as JsonRpcRequest;
+			const offered = (sent.params as { protocolVersions: string[] }).protocolVersions;
+			transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: { protocolVersion: negotiateAgentHostProtocolVersion(offered)!, serverSeq: 0, snapshots: [] } });
+			await connectPromise;
+			return { offered, negotiated: negotiateAgentHostProtocolVersion(offered) };
+		};
+		assert.deepStrictEqual({ off: await offer(false), on: await offer(true) }, {
+			off: { offered: ['1.0.0', '0.10.0', '0.9.0'], negotiated: '1.0.0' },
+			on: { offered: [PROTOCOL_VERSION, '1.0.0', '0.10.0', '0.9.0'], negotiated: PROTOCOL_VERSION },
+		});
+	});
 
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));

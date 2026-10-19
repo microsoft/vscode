@@ -48,6 +48,7 @@ import type { InvokeChangesetOperationParams } from '../../common/state/protocol
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { rootReducer } from '../../common/state/sessionReducers.js';
+import { getAgentHostClientProtocolVersions } from '../../common/agentHostProtocolCompatibility.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type Message, type RootState, type SessionState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
@@ -7775,6 +7776,22 @@ suite('ProtocolServerHandler', () => {
 				off: { advertised: undefined, hasKey: false },
 				on: { advertised: {}, hasKey: true },
 				older: { advertised: undefined, hasKey: false },
+			});
+		});
+
+		test('the offer a client makes advertises multipleChatProviders only with the client setting on (regression: the default offer never reached 1.1.0)', () => {
+			agentService.multipleChatProvidersEnabled = true;
+			const advertised = (clientId: string, clientSetting: boolean) => {
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions: getAgentHostClientProtocolVersions(clientSetting), clientId }));
+				const resp = findResponse(transport.sent, 1);
+				const result = resp && hasKey(resp, { result: true }) ? resp.result as InitializeResult : undefined;
+				return { negotiated: result?.protocolVersion, multipleChatProviders: result?.multipleChatProviders };
+			};
+			assert.deepStrictEqual({ off: advertised('offer-off', false), on: advertised('offer-on', true) }, {
+				off: { negotiated: '1.0.0', multipleChatProviders: undefined },
+				on: { negotiated: PROTOCOL_VERSION, multipleChatProviders: {} },
 			});
 		});
 

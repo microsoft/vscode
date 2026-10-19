@@ -47,7 +47,8 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
-import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
+import { getAgentHostClientProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
+import { ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -475,6 +476,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * react as advertised capabilities (telemetry, `completionTriggerCharacters`,
 	 * `terminalCommandPrefix`, ...) arrive.
 	 */
+	/** The versions offered in `initialize`; read on every connection, so the setting applies from the next one. */
+	private _offeredProtocolVersions(): string[] {
+		return getAgentHostClientProtocolVersions(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true);
+	}
+
 	get initializeResult(): IObservable<InitializeResult | undefined> {
 		return this._initializeResult;
 	}
@@ -774,7 +780,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: getAgentHostSupportedProtocolVersions(),
+				protocolVersions: this._offeredProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -1147,7 +1153,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: getAgentHostSupportedProtocolVersions(),
+			protocolVersions: this._offeredProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
