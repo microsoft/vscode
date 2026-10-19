@@ -372,6 +372,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._visibleStandaloneView?.focusHarnessPicker();
 	}
 
+	openModelComparison(): void {
+		this._visibleStandaloneView?.openModelComparison();
+	}
+
 	/**
 	 * Starts an inline rename of the session title in the header. Returns
 	 * `false` when the header cannot host it (e.g. this view is hidden or the

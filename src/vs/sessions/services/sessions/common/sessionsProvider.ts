@@ -463,10 +463,10 @@ export interface ISessionsProvider {
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
-	 * Get selectable models before creating a session.
+	 * Get selectable models before creating a session, with no workspace URI for a quick chat.
 	 * Providers apply the same availability, visibility, and identifier-resolution rules as {@link getModelsSnapshot}.
 	 */
-	getModelsSnapshotForCreation?(workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
+	getModelsSnapshotForCreation?(workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the

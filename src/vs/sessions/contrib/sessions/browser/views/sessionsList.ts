@@ -4625,19 +4625,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 					continue;
 				}
 				const comparisonSessions = getComparisonSessions(comparison, this._sessionsManagementService);
-				const workspaceLabel = comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
-					?? this.labelService.getWorkspaceLabel(comparison.workspace);
+				const workspaceLabel = comparison.workspace
+					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
+					?? this.labelService.getWorkspaceLabel(comparison.workspace)
+					: localize('chatsSection', "Chats");
 				let workspaceGroups = comparisonGroupsByWorkspaceLabel.get(workspaceLabel);
 				if (!workspaceGroups) {
 					workspaceGroups = [];
 					comparisonGroupsByWorkspaceLabel.set(workspaceLabel, workspaceGroups);
 				}
 				workspaceGroups.push(groupItem);
-				let workspaceSection = sections.find(section => section.id === `workspace:${workspaceLabel}`);
+				const sectionId = comparison.workspace ? `workspace:${workspaceLabel}` : QUICK_CHATS_SECTION_ID;
+				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
 					workspaceSection = {
-						id: `workspace:${workspaceLabel}`,
-						collapseStateId: `workspace:${comparison.workspace.toString()}`,
+						id: sectionId,
+						collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
 						label: workspaceLabel,
 						sessions: [],
 					};
@@ -4874,7 +4877,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the workspace/date groups) in both grouping modes.
 		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
 		if (quickChatsSection) {
-			children.push(renderSection(quickChatsSection));
+			children.push(grouping === SessionsGrouping.Workspace ? renderWorkspaceSection(quickChatsSection) : renderSection(quickChatsSection));
 		}
 
 		const renderGroupById = (id: string): void => {

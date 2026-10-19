@@ -1595,7 +1595,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	getModelsSnapshotForCreation(_workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
+	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
 			return { models: [], desiredModelResolution: resolveModelIdentifier([], desiredModelId, true), modelTarget: undefined };
 		}
