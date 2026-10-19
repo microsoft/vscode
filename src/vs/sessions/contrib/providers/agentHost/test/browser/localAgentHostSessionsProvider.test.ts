@@ -891,6 +891,20 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
+/**
+ * Waits for a draft's eager `createSession`. A draft whose isolation schema is
+ * not cached yet is created only after its first config resolution, because
+ * it is created in the picked folder under the schema's isolation key.
+ */
+async function waitForEagerCreate(agentHost: MockAgentHostService): Promise<URI> {
+	for (let attempt = 0; attempt < 100 && agentHost.createdSessionUris.length === 0; attempt++) {
+		await timeout(0);
+	}
+	const created = agentHost.createdSessionUris.at(-1);
+	assert.ok(created, 'draft was eagerly created');
+	return created;
+}
+
 function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = opts?.resource ?? AgentSession.uri(provider, rawId);
@@ -7386,7 +7400,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'feature');
-		const backendUri = agentHost.createdSessionUris.at(-1)!;
+		const backendUri = await waitForEagerCreate(agentHost);
 		agentHost.setSessionState(AgentSession.id(backendUri), provider.sessionTypes[0].id, {
 			provider: provider.sessionTypes[0].id,
 			title: '',
@@ -7524,7 +7538,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, () => !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'feature' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
-		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const rawId = AgentSession.id(await waitForEagerCreate(agentHost));
 		agentHost.setSessionState(rawId, sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -7608,7 +7622,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, () => !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
-		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const rawId = AgentSession.id(await waitForEagerCreate(agentHost));
 		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -7663,7 +7677,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, () => !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
-		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const rawId = AgentSession.id(await waitForEagerCreate(agentHost));
 		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -8081,10 +8095,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
 			sentConfig,
 		}, {
-			createdWith: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			// The draft is created in the picked folder; the worktree is picked at Send.
+			createdWith: { isolation: 'folder', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
 			sentConfig: { isolation: 'worktree', worktreeBranchPrefix: 'folder/', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
 		});
 	});
+
+	for (const sendIsolation of ['worktree', 'folder'] as const) {
+		test(`a worktree draft is created in the picked folder so it can pre-warm, and Send picks the isolation (send=${sendIsolation})`, async () => {
+			agentHost.resolveSessionConfigResult = {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { isolation: 'worktree', branch: 'origin/main' },
+			};
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				openSession: true,
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+			await waitForEagerCreate(agentHost);
+			if (sendIsolation === 'folder') {
+				agentHost.resolveSessionConfigResult = {
+					schema: createVSCodeSessionConfigSchema(),
+					values: { isolation: 'folder', branch: 'feature' },
+				};
+				await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
+			}
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+			assert.deepStrictEqual({
+				created: agentHost.createSessionConfigs.map(created => created.config),
+				sent: { isolation: sentConfig?.[SessionConfigKey.Isolation], branch: sentConfig?.[SessionConfigKey.Branch] },
+			}, {
+				created: [{ isolation: 'folder' }],
+				sent: sendIsolation === 'worktree'
+					? { isolation: 'worktree', branch: 'origin/main' }
+					: { isolation: 'folder', branch: 'feature' },
+			});
+		});
+	}
 
 	test('Automation drafts merge derived worktree settings with saved provider configuration after discovery', async () => {
 		const configService = new TestConfigurationService();
