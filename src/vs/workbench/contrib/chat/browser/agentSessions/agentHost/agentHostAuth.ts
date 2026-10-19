@@ -13,6 +13,7 @@ import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHo
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
+import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -910,6 +911,30 @@ async function forceAuthenticationInteractively(
 	}
 }
 
+/**
+ * Whether an MCP authentication requirement belongs to a Copilot Connector. Connector-owned servers authenticate
+ * with the session's GitHub credential, so their challenge asks for the Connector authorization scope and a
+ * per-server MCP token never satisfies it.
+ */
+export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly string[] | undefined): boolean {
+	return requiredScopes?.includes(copilotConnectorsScope) === true;
+}
+
+/**
+ * Forwards the GitHub Copilot credential without prompting, preferring an already-authorized session that also
+ * grants the Connector scope. Connector-owned servers use this credential, so this is how an authorization of
+ * the account reaches them.
+ */
+export function authenticateCopilotConnectorCredential(
+	accessor: ServicesAccessor,
+	authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>,
+): Promise<boolean> {
+	return authenticateProtectedResource(accessor, gitHubCopilotResource(deriveGitHubEndpoints(undefined)), {
+		logPrefix: '[AgentHost]',
+		authenticate,
+	});
+}
+
 /** Supplies a previously authorized MCP token without creating sessions or prompting for access. */
 export function autoAuthenticateMcpServer(
 	accessor: ServicesAccessor,
@@ -942,6 +967,11 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
+	if (isCopilotConnectorMcpAuthentication(options.scopes)) {
+		// A narrow token would be ignored for the Connector and retried indefinitely; Connector authorization owns this.
+		logService.info(`${options.logPrefix} Not forwarding an MCP token for Connector-owned server ${options.mcpServerName}; it requires Copilot Connector authorization`);
+		return false;
+	}
 	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
 	if (!authorizationServerMetadataFetcher) {
 		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);
@@ -1128,5 +1158,5 @@ async function authenticateMcpSession(
 		authenticationMcpService.updateAccountPreference(options.mcpServerId, providerId, session.account);
 	}
 	authenticationMcpUsageService.addAccountUsage(providerId, session.account.label, scopes, options.mcpServerId, options.mcpServerName);
-	logService.info(`${options.logPrefix} MCP authentication succeeded for ${options.mcpServerName}`);
+	logService.info(`${options.logPrefix} MCP authentication token forwarded for ${options.mcpServerName}; awaiting the server's reconnection`);
 }

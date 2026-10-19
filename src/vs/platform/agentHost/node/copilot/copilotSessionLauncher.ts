@@ -43,7 +43,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
-import { reconcileCopilotConnectors } from './copilotConnectors.js';
+import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { toSdkClientToolName, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
@@ -244,7 +244,7 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
-	setMcpServerDisplayNames(displayNames: ReadonlyMap<string, string>): void;
+	setCopilotConnectorServers(connectorServers: ICopilotConnectorServers): void;
 	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
@@ -1024,8 +1024,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await sandboxConfig(raw);
 			if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
 				const result = await reconcileCopilotConnectors(raw, this._logService);
-				if (result.displayNames) {
-					runtime.setMcpServerDisplayNames(result.displayNames);
+				if (result.connectorServers) {
+					runtime.setCopilotConnectorServers(result.connectorServers);
 				}
 			}
 			await this._configureExecutionSubagentTool(raw, config);

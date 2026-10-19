@@ -175,6 +175,11 @@ export interface ICopilotConnectorsService {
 	signIn(token: CancellationToken): Promise<void>;
 	/** Signs in if needed, then requests connector consent after an explicit user action. */
 	authorize(token: CancellationToken): Promise<void>;
+	/**
+	 * Reconciles live Agent Host sessions with the current Connector authorization. A named Connector also
+	 * restarts its servers, so they use the session credential rebound by {@link authorize}.
+	 */
+	refreshAgentHostSessions(forceConnectorName?: string): Promise<void>;
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	/** Reads the catalog and its source/account validity token atomically. */
 	getConnectorsSnapshot(token: CancellationToken): Promise<ICopilotConnectorsSnapshot>;
@@ -289,7 +294,9 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!authentication) {
 			throw connectorSignInRequired();
 		}
-		if (authentication.sessions.some(session => hasConnectorScope(session, false))) {
+		// Connector-owned Agent Host servers use the Copilot session credential, so only a session that also keeps
+		// the default session's scopes authorizes them; a narrow Connector-only session is not enough.
+		if (authentication.sessions.some(session => hasConnectorScope(session, false) && authentication.session.scopes.every(scope => session.scopes.includes(scope)))) {
 			this._authorizationRequired = false;
 			return;
 		}
@@ -708,6 +715,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this._connectionStateKnown = connectionStateKnown;
 		this._onDidChange.fire();
 		return connectedMembershipChanged;
+	}
+
+	refreshAgentHostSessions(forceConnectorName?: string): Promise<void> {
+		return this.refreshAgentHostConnectorSessions(forceConnectorName);
 	}
 
 	private async refreshAgentHostConnectorSessions(forceConnectorName?: string): Promise<void> {

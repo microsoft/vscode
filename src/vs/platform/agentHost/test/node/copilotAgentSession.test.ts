@@ -46,7 +46,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
-import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -26955,6 +26955,85 @@ Use the attached image as context.
 				});
 			});
 
+			test('does not resolve a Connector upscope request with an MCP token and releases it after a forced reconcile', async () => {
+				const serverUrl = 'https://api.github.com/copilot-connectors/api/v1/connectors/workiqmcp/mcp';
+				const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables, {
+					rootValues,
+					configureMockSession: mock => {
+						mock.connectorStatus = {
+							...mock.connectorStatus,
+							catalog: { revision: 1, refreshedAtMs: 1, connectors: [{ name: 'workiqmcp', displayName: 'Work IQ', status: 'connected', runtimeServerIds: ['connector-workiq'] }] },
+							runtimeServers: [{ connectorName: 'workiqmcp', runtimeServerId: 'connector-workiq', status: 'needs_auth' }],
+						};
+						mock.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'needs-auth', source: 'managed', url: serverUrl }] };
+					},
+				});
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+
+				let settled = false;
+				const auth = runtime.handleMcpAuthRequest({
+					requestId: 'workiq-auth',
+					serverName: 'connector-workiq',
+					serverUrl,
+					reason: 'upscope',
+					wwwAuthenticateParams: { scope: 'write:plugin_gateway_connections', error: 'insufficient_scope' },
+				}, { sessionId: mockSession.sessionId });
+				void auth.then(() => { settled = true; });
+				await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+				const resolved = await session.resolveMcpAuthentication({ resource: serverUrl, scopes: ['write:plugin_gateway_connections'], token: 'narrow-token' });
+				const afterToken = { resolved, settled, state: session.topLevelMcpCustomizations()[0].state.kind };
+
+				const statesDuringReconcile: McpServerStatus[] = [];
+				mockSession.onConnectorReconcile = async () => {
+					statesDuringReconcile.push(session.topLevelMcpCustomizations()[0].state.kind);
+					mockSession.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'pending', source: 'managed', url: serverUrl }] };
+				};
+				session.markConnectorConfigurationChanged('workiqmcp');
+				await session.refreshConnectors();
+
+				assert.deepStrictEqual({
+					afterToken,
+					statesDuringReconcile,
+					auth: await auth,
+					connectorName: readMcpServerConnectorName(session.topLevelMcpCustomizations()[0]),
+					calls: mockSession.connectorReconcileCalls.map(call => call.forceConnectorName),
+				}, {
+					afterToken: { resolved: false, settled: false, state: McpServerStatus.AuthRequired },
+					statesDuringReconcile: [McpServerStatus.Starting],
+					auth: { kind: 'cancelled' },
+					connectorName: 'workiqmcp',
+					calls: [undefined, 'workiqmcp'],
+				});
+			});
+
+			test('reports a Connector authorization requirement for a Connector-owned server that needs authentication', async () => {
+				const serverUrl = 'https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp';
+				const { session } = await createAgentSession(disposables, {
+					rootValues,
+					configureMockSession: mock => {
+						mock.connectorStatus = {
+							...mock.connectorStatus,
+							authorizationRequirement: { accountId: 'session-account', scope: 'write_plugin_gateway_connections' },
+							runtimeServers: [{ connectorName: 'kusto', runtimeServerId: 'connector-kusto', status: 'needs_auth' }],
+						};
+						mock.mcpListResult = { servers: [{ name: 'connector-kusto', status: 'needs-auth', source: 'managed', url: serverUrl }] };
+					},
+				});
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+
+				assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({ name: server.name, state: server.state })), [{
+					name: 'connector-kusto',
+					state: {
+						kind: McpServerStatus.AuthRequired,
+						reason: McpAuthRequiredReason.InsufficientScope,
+						resource: { resource: serverUrl, resource_name: 'kusto', scopes_supported: ['write:plugin_gateway_connections'] },
+						requiredScopes: ['write:plugin_gateway_connections'],
+					},
+				}]);
+			});
+
 			test('coalesces queued requests and retains concurrent changes, including distinct named reconnects', async () => {
 				const { session, mockSession } = await createAgentSession(disposables, { rootValues });
 				const started = new DeferredPromise<void>();
@@ -27240,33 +27319,42 @@ Use the attached image as context.
 			}
 		});
 
-		test('republishes pending connector authentication when display names become available', async () => {
+		test('republishes pending connector authentication when Connector ownership becomes available, without accepting an MCP token', async () => {
 			const runtimeServerId = 'github-copilot-connector-94d26095770df60673dd';
 			const resource = 'https://api.github.com';
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
+			let settled = false;
 			const authPromise = runtime.handleMcpAuthRequest({
 				requestId: 'auth-connector',
 				serverName: runtimeServerId,
 				serverUrl: resource,
 				reason: 'upscope',
 			}, { sessionId: 'test-session-1' });
+			void authPromise.then(() => { settled = true; });
 			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
 			const beforeDisplayName = readMcpServerDisplayName(session.topLevelMcpCustomizations()[0]);
-			runtime.setMcpServerDisplayNames(new Map([[runtimeServerId, 'GitHub']]));
+			runtime.setCopilotConnectorServers({ servers: new Map([[runtimeServerId, { connectorName: 'github', displayName: 'GitHub' }]]), authorizationRequired: false });
 			const [server] = session.topLevelMcpCustomizations();
-			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
+			const resolved = await session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
+			session.cancelMcpServerAuthentication(server.id);
 
 			assert.deepStrictEqual({
 				beforeDisplayName,
 				name: server.name,
 				displayName: readMcpServerDisplayName(server),
+				connectorName: readMcpServerConnectorName(server),
+				resolved,
+				settledByToken: settled,
 				result: await authPromise,
 			}, {
 				beforeDisplayName: undefined,
 				name: runtimeServerId,
 				displayName: 'GitHub',
-				result: { kind: 'token', accessToken: 'connector-token' },
+				connectorName: 'github',
+				resolved: false,
+				settledByToken: false,
+				result: { kind: 'cancelled' },
 			});
 		});
 
