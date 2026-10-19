@@ -14,7 +14,15 @@ export function isOfflineError(error: unknown): boolean {
 	if (error instanceof OfflineError) {
 		return true;
 	}
-	return error instanceof Error && error.name === offlineName && error.message === offlineName;
+	if (error instanceof Error) {
+		if (error.name === offlineName && error.message === offlineName) {
+			return true;
+		}
+		if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+			return true;
+		}
+	}
+	return false;
 }
 
 export class OfflineError extends Error {

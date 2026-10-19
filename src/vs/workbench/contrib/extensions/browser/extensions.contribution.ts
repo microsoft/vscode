@@ -5,7 +5,7 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
@@ -13,6 +13,7 @@ import { Disposable, DisposableStore, IDisposable, isDisposable } from '../../..
 import { Schemas } from '../../../../base/common/network.js';
 import { isNative, isWeb } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { isOfflineError } from '../../../../base/parts/request/common/request.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { MultiCommand } from '../../../../editor/browser/editorExtensions.js';
 import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
@@ -26,7 +27,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../p
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IExtensionGalleryAccountService } from '../../../services/extensionManagement/common/extensionGalleryAccount.js';
-import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionGalleryError, ExtensionInstallSource, ExtensionManagementError, ExtensionRequestsTimeoutConfigKey, ExtensionsLocalizedLabel, FilterType, IExtensionGalleryService, IExtensionManagementService, PreferencesLocalizedLabel, SortBy, VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
 import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
@@ -524,7 +525,9 @@ CommandsRegistry.registerCommand({
 				await extensionsWorkbenchService.install(vsix, { installGivenVersion: true });
 			}
 		} catch (e) {
-			onUnexpectedError(e);
+			if (!isCancellationError(e) && !isOfflineError(e) && !(e instanceof ExtensionManagementError) && !(e instanceof ExtensionGalleryError)) {
+				onUnexpectedError(e);
+			}
 			throw e;
 		}
 	}
@@ -560,7 +563,9 @@ CommandsRegistry.registerCommand({
 		try {
 			await extensionManagementService.uninstall(extensionToUninstall);
 		} catch (e) {
-			onUnexpectedError(e);
+			if (!isCancellationError(e) && !isOfflineError(e) && !(e instanceof ExtensionManagementError) && !(e instanceof ExtensionGalleryError)) {
+				onUnexpectedError(e);
+			}
 			throw e;
 		}
 	}
