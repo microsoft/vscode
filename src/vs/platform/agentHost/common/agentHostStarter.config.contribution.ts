@@ -223,6 +223,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentHost: { key: ChatMoveConfigKey.Enabled },
 		},
+		[ChatMoveSettingId.ConfirmDragAndDrop]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.moveChats.confirmDragAndDrop', "Controls whether the Agents window asks for confirmation before moving a chat or session to another session or into a new session via drag and drop. Reordering chats within a session is never confirmed."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {

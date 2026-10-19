@@ -104,6 +104,7 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { canMoveIntoSession, getSessionsListChatDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop } from './sessionsListChatMove.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
@@ -3894,6 +3895,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
@@ -5506,11 +5508,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private moveChatByDrop(session: ISession, chat: IChat, drop: SessionsListChatDrop): void {
 		const destination = drop.kind === 'session' ? { kind: 'session' as const, session: drop.session, after: drop.after } : { kind: 'newSession' as const };
-		runSessionsListMove({ kind: 'chat', session, chat, destination }, this._sessionsManagementService, this.notificationService).catch(onUnexpectedError);
+		runSessionsListMove({ kind: 'chat', session, chat, destination }, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService).catch(onUnexpectedError);
 	}
 
 	private moveSessionUnderByDrop(session: ISession, target: ISession): void {
-		runSessionsListMove({ kind: 'session', session, destination: target }, this._sessionsManagementService, this.notificationService).catch(onUnexpectedError);
+		runSessionsListMove({ kind: 'session', session, destination: target }, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService).catch(onUnexpectedError);
 	}
 
 	/**

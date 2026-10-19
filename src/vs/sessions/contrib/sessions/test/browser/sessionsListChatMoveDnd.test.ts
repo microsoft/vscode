@@ -8,9 +8,12 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { canMoveIntoSession, getChatMoveAppendAnchor, getChatReorder, getSessionsListChatDrop, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
 import { createTestSession, ITestSession } from './sessionsListTestUtils.js';
 
@@ -182,31 +185,109 @@ suite('Move Chats Drag and Drop', () => {
 		});
 	});
 
-	test('a refused move says why; a successful move shows nothing', async () => {
-		const shown: string[] = [];
-		const notificationService = new class extends mock<INotificationService>() {
-			override warn(message: string) { shown.push(`warn: ${message}`); return undefined!; }
-			override info(message: string) { shown.push(`info: ${message}`); return undefined!; }
-		}();
-		const moves = (refuse?: string) => new class extends mock<ISessionsManagementService>() {
-			override async moveChat(): Promise<void> {
-				if (refuse) {
-					throw new Error(refuse);
-				}
+	suite('running a dropped move', () => {
+
+		/** Runs `moves` in turn, answering confirmations with `answer`, and records what the user saw and what moved. */
+		async function run(moves: readonly SessionsListMove[], options?: { readonly answer?: IConfirmationResult; readonly confirm?: boolean; readonly refuse?: string }) {
+			const shown: string[] = [];
+			const calls: string[] = [];
+			const configurationService = new class extends TestConfigurationService {
+				override updateValue(key: string, value: unknown): Promise<void> { return this.setUserConfiguration(key, value); }
+			}();
+			if (options?.confirm !== undefined) {
+				await configurationService.setUserConfiguration(ChatMoveSettingId.ConfirmDragAndDrop, options.confirm);
 			}
-		}();
-		const own = multiChatSession('Own').session;
-		const target = multiChatSession('Target').session;
-		const move: SessionsListMove = { kind: 'chat', session: own, chat: chat('Chat'), destination: { kind: 'session', session: target, after: undefined } };
+			const dialogService = new class extends mock<IDialogService>() {
+				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+					shown.push(`confirm: ${confirmation.message} [${confirmation.primaryButton}${confirmation.checkbox ? ', ' + confirmation.checkbox.label : ''}]`);
+					return options?.answer ?? { confirmed: true };
+				}
+			}();
+			const notificationService = new class extends mock<INotificationService>() {
+				override warn(message: string) { shown.push(`warn: ${message}`); return undefined!; }
+				override info(message: string) { shown.push(`info: ${message}`); return undefined!; }
+			}();
+			const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+				override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
+					if (options?.refuse) {
+						throw new Error(options.refuse);
+					}
+					calls.push(`moveChat ${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
+				}
+				override async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
+					calls.push(`moveSessionUnder ${session.title.get()} -> ${destination.title.get()} after ${after?.title.get() ?? '(first)'}`);
+				}
+			}();
+			const results: boolean[] = [];
+			for (const move of moves) {
+				results.push(await runSessionsListMove(move, sessionsManagementService, dialogService, configurationService, notificationService));
+			}
+			return { results, shown, calls, confirmSetting: configurationService.getValue(ChatMoveSettingId.ConfirmDragAndDrop) };
+		}
 
-		const results = [
-			await runSessionsListMove(move, moves('Chats can\'t be moved into or out of an archived session.'), notificationService),
-			await runSessionsListMove(move, moves(), notificationService),
-		];
+		const own = multiChatSession('Own', { chats: [chat('main'), chat('a', ChatOriginKind.User)] }).session;
+		const target = multiChatSession('Target', { chats: [chat('target main')] }).session;
+		const single = createTestSession('Single').session;
+		const moved = chat('Chat');
+		const reorder: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'session', session: own, after: undefined } };
+		const moveInto: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'session', session: target, after: undefined } };
+		const promote: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'newSession' } };
+		const moveSession: SessionsListMove = { kind: 'session', session: single, destination: target };
 
-		assert.deepStrictEqual({ results, shown }, {
-			results: [false, true],
-			shown: ['warn: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.'],
+		test('confirms moves into another session, promotions and session moves, but not reorders within a session', async () => {
+			assert.deepStrictEqual(await run([reorder, moveInto, promote, moveSession]), {
+				results: [true, true, true, true],
+				shown: [
+					'confirm: Are you sure you want to move \'Chat\' into \'Target\'? [&&Move, Do not ask me again]',
+					'confirm: Are you sure you want to move \'Chat\' to a new session? [&&Move, Do not ask me again]',
+					'confirm: Are you sure you want to move session \'Single\' into \'Target\'? [&&Move, Do not ask me again]',
+				],
+				calls: [
+					'moveChat Chat -> Own after (first)',
+					'moveChat Chat -> Target after (first)',
+					'moveChat Chat -> new session',
+					// A session is appended after the destination's last chat.
+					'moveSessionUnder Single -> Target after target main',
+				],
+				confirmSetting: undefined,
+			});
+		});
+
+		test('cancelling the confirmation moves nothing', async () => {
+			assert.deepStrictEqual(await run([moveInto, moveSession], { answer: { confirmed: false, checkboxChecked: true } }), {
+				results: [false, false],
+				shown: [
+					'confirm: Are you sure you want to move \'Chat\' into \'Target\'? [&&Move, Do not ask me again]',
+					'confirm: Are you sure you want to move session \'Single\' into \'Target\'? [&&Move, Do not ask me again]',
+				],
+				calls: [],
+				// "Do not ask me again" counts only when the move is confirmed.
+				confirmSetting: undefined,
+			});
+		});
+
+		test('"Do not ask me again" turns the confirmation off, so later moves are not confirmed', async () => {
+			const asked = await run([promote, moveInto], { answer: { confirmed: true, checkboxChecked: true } });
+			const off = await run([moveInto, promote, moveSession], { confirm: false });
+			assert.deepStrictEqual({ asked: { shown: asked.shown, confirmSetting: asked.confirmSetting }, off: { shown: off.shown, calls: off.calls.length } }, {
+				asked: { shown: ['confirm: Are you sure you want to move \'Chat\' to a new session? [&&Move, Do not ask me again]'], confirmSetting: false },
+				off: { shown: [], calls: 3 },
+			});
+		});
+
+		test('a refused move says why; a successful move shows nothing', async () => {
+			const refused = await run([moveInto, reorder], { confirm: false, refuse: 'Chats can\'t be moved into or out of an archived session.' });
+			const succeeded = await run([moveInto, reorder], { confirm: false });
+			assert.deepStrictEqual({ refused: { results: refused.results, shown: refused.shown }, succeeded: { results: succeeded.results, shown: succeeded.shown } }, {
+				refused: {
+					results: [false, false],
+					shown: [
+						'warn: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.',
+						'warn: Could not move \'Chat\'. Chats can\'t be moved into or out of an archived session.',
+					],
+				},
+				succeeded: { results: [true, true], shown: [] },
+			});
 		});
 	});
 
