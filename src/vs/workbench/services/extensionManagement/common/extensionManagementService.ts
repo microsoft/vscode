@@ -48,7 +48,7 @@ import { createCommandUri, IMarkdownString, MarkdownString } from '../../../../b
 import { verifiedPublisherIcon } from './extensionsIcons.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { CommontExtensionManagementService } from '../../../../platform/extensionManagement/common/abstractExtensionManagementService.js';
+import { CommontExtensionManagementService, toExtensionManagementError } from '../../../../platform/extensionManagement/common/abstractExtensionManagementService.js';
 
 const TrustedPublishersStorageKey = 'extensions.trustedPublishers';
 
@@ -510,39 +510,43 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 	}
 
 	async installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions, servers?: IExtensionManagementServer[]): Promise<ILocalExtension> {
-		const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
-		if (!manifest) {
-			throw new Error(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name));
-		}
-
-		if (installOptions?.context?.[EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT] !== true) {
-			await this.checkForTrustedPublishers([{ extension: gallery, manifest, checkForPackAndDependencies: !installOptions?.donotIncludePackAndDependencies }],);
-		}
-
-		if (installOptions?.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] !== ExtensionInstallSource.SETTINGS_SYNC) {
-
-			await this.checkForWorkspaceTrust(manifest, false);
-
-			if (!installOptions?.donotIncludePackAndDependencies) {
-				await this.checkInstallingExtensionOnWeb(gallery, manifest);
+		try {
+			const manifest = await this.extensionGalleryService.getManifest(gallery, CancellationToken.None);
+			if (!manifest) {
+				throw new ExtensionManagementError(localize('Manifest is not found', "Installing Extension {0} failed: Manifest is not found.", gallery.displayName || gallery.name), ExtensionManagementErrorCode.NotFound);
 			}
-		}
 
-		servers = servers?.length ? this.validServers(gallery, manifest, servers) : await this.getExtensionManagementServersToInstall(gallery, manifest);
-		if (!installOptions || isUndefined(installOptions.isMachineScoped)) {
-			const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
-			installOptions = { ...(installOptions || {}), isMachineScoped };
-		}
-
-		if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
-			if (this.extensionManagementServerService.localExtensionManagementServer
-				&& !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)
-				&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery) === true) {
-				servers.push(this.extensionManagementServerService.localExtensionManagementServer);
+			if (installOptions?.context?.[EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT] !== true) {
+				await this.checkForTrustedPublishers([{ extension: gallery, manifest, checkForPackAndDependencies: !installOptions?.donotIncludePackAndDependencies }],);
 			}
-		}
 
-		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+			if (installOptions?.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] !== ExtensionInstallSource.SETTINGS_SYNC) {
+
+				await this.checkForWorkspaceTrust(manifest, false);
+
+				if (!installOptions?.donotIncludePackAndDependencies) {
+					await this.checkInstallingExtensionOnWeb(gallery, manifest);
+				}
+			}
+
+			servers = servers?.length ? this.validServers(gallery, manifest, servers) : await this.getExtensionManagementServersToInstall(gallery, manifest);
+			if (!installOptions || isUndefined(installOptions.isMachineScoped)) {
+				const isMachineScoped = await this.hasToFlagExtensionsMachineScoped([gallery]);
+				installOptions = { ...(installOptions || {}), isMachineScoped };
+			}
+
+			if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
+				if (this.extensionManagementServerService.localExtensionManagementServer
+					&& !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)
+					&& await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery) === true) {
+					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
+				}
+			}
+
+			return await Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
+		} catch (error) {
+			throw toExtensionManagementError(error);
+		}
 	}
 
 	async getExtensions(locations: URI[]): Promise<IResourceExtension[]> {
