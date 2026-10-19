@@ -102,7 +102,7 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
-import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
+import { IModelPickerComparison, ModelComparisonAvailableContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -769,7 +769,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Scopes the notice focus command to this composer. Tracked on the whole
 		// container rather than the editor, so the command can also toggle focus
 		// back out of a notice once it is in one.
-		const composerFocusKey = ChatContextKeys.inChatComposer.bindTo(this._register(this.contextKeyService.createScoped(chatInputContainer)));
+		const composerContext = this._register(this.contextKeyService.createScoped(chatInputContainer));
+		const composerFocusKey = ChatContextKeys.inChatComposer.bindTo(composerContext);
+		const comparisonAvailable = ModelComparisonAvailableContext.bindTo(composerContext);
+		this._register(autorun(reader => comparisonAvailable.set(this.options.modelPickerComparison?.available.read(reader) ?? false)));
 		const composerFocusTracker = this._register(dom.trackFocus(chatInputContainer));
 		this._register(composerFocusTracker.onDidFocus(() => composerFocusKey.set(true)));
 		this._register(composerFocusTracker.onDidBlur(() => composerFocusKey.set(false)));
@@ -875,7 +878,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 		})).addOverlay(root, root);
 
-		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
+		this._createEditor(inputArea, editorOverflowWidgetsDomNode, composerContext);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
 		this._register(this.chatPetWidgetService.register(this, {
 			parent: chatInputContainer,
@@ -1096,14 +1099,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		});
 	}
 
-	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
+	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement, composerContext: IContextKeyService): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		const minHeight = this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT;
 		editorContainer.style.height = `${minHeight}px`;
 
 		// Create scoped context key service and register history navigation
 		// BEFORE creating the editor, so the editor's context key scope is a child
-		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
+		const inputScopedContextKeyService = this._register(composerContext.createScoped(container));
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
 		this._historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this._historyNavigationForwardsEnablement = historyNavigationForwardsEnablement;

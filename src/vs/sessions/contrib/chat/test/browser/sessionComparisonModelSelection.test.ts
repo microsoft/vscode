@@ -60,6 +60,26 @@ suite('SessionComparisonModelSelection', () => {
 		assert.deepStrictEqual(selection.attemptModelIds.get(), Array.from({ length: 10 }, (_, index) => `model-${index}`));
 	});
 
+	test('folderless comparisons finish after Attempts without offering review steps', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true), constObservable(false), undefined, constObservable(false)));
+		selection.start();
+		selectAttempts(selection, 'first', 'second');
+		const state = selection.state.get();
+		assert.throws(() => selection.next(), /not ready/);
+		selection.finish();
+		assert.deepStrictEqual({
+			canFinish: state?.canFinish,
+			canGoNext: state?.canGoNext,
+			hasNextStep: state?.hasNextStep,
+			attempts: selection.attemptModelIds.get(),
+			judge: selection.judgeModelId.get(),
+			synthesizer: selection.synthesizerModelId.get(),
+		}, {
+			canFinish: true, canGoNext: false, hasNextStep: false,
+			attempts: ['first', 'second'], judge: undefined, synthesizer: undefined,
+		});
+	});
+
 	test('a selected model can add variant attempts at other configurations, counted toward Done/Next and run alongside the default attempt', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();

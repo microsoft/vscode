@@ -8,6 +8,7 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IConnectionDiagnosticEvent, traceConnectionOperation } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
@@ -22,6 +23,7 @@ import {
 	CloudSandboxFirstSessionRequestClassification,
 	CloudSandboxProvisioningOutcomeClassification,
 	CloudSandboxTelemetryService,
+	UserLocalRelaySessionOpenClassification,
 	getCloudSandboxConnectionSurface,
 	requestOutcomeForStatus,
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
@@ -251,7 +253,7 @@ suite('cloudSandbox telemetry', () => {
 					preparationMs: 70, connectionMs: 185,
 					credentialRequests: 3, wakingResponses: 1, transportAttempts: 2,
 					credentialsMs: 70, relayMs: 25, protocolMs: 30, authenticationMs: 40, restorationMs: 50,
-					firstFailurePhase: 'transport.connect', relayFailures: 1,
+					firstFailurePhase: 'transport.connect', firstFailureCategory: 'unknown', relayFailures: 1,
 				},
 			},
 			{
@@ -356,6 +358,7 @@ suite('cloudSandbox telemetry', () => {
 					preparationMs: 10, connectionMs: 10,
 					credentialsMs: 10, protocolMs: 10,
 					firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams,
+					firstFailureCategory: 'protocol',
 					credentialFailures: 1, protocolFailures: 1,
 				},
 			}]);
@@ -384,12 +387,12 @@ suite('cloudSandbox telemetry', () => {
 			{
 				...connectionDetails, operation: 'recover', outcome: 'success', stage: 'protocol', durationMs: 0,
 				environmentOperation: 'recover',
-				firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
+				firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, firstFailureCategory: 'protocol', protocolFailures: 1,
 			},
 			{
 				...connectionDetails, operation: 'recover', outcome: 'success', stage: 'protocol', durationMs: 0,
 				environmentOperation: 'recover',
-				firstFailurePhase: 'protocol.reconnect', firstFailureCode: AhpErrorCodes.AuthRequired, protocolFailures: 1,
+				firstFailurePhase: 'protocol.reconnect', firstFailureCode: AhpErrorCodes.AuthRequired, firstFailureCategory: 'authentication', protocolFailures: 1,
 			},
 		]);
 	}));
@@ -415,7 +418,7 @@ suite('cloudSandbox telemetry', () => {
 			JsonRpcErrorCodes.InvalidParams, AhpErrorCodes.AuthRequired, undefined, undefined, undefined,
 		].map(firstFailureCode => ({
 			...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'protocol', durationMs: 0,
-			firstFailurePhase: 'protocol.reconnect', firstFailureCode, protocolFailures: 1,
+			firstFailurePhase: 'protocol.reconnect', firstFailureCode, firstFailureCategory: firstFailureCode === AhpErrorCodes.AuthRequired ? 'authentication' : firstFailureCode === JsonRpcErrorCodes.InvalidParams ? 'protocol' : 'unknown', protocolFailures: 1,
 		})));
 	}));
 
@@ -543,6 +546,89 @@ suite('cloudSandbox telemetry', () => {
 				}]);
 			}));
 		}
+	}
+
+	test('reports one user-local session snapshot outcome per ready cycle and ignores duplicate or stale diagnostics', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsWeb', 'existing', { environmentKind: 'user-local' }));
+		const attemptId = generateUuid();
+		const observe = (operationId: string, outcome: IConnectionDiagnosticEvent['outcome'], connectionOperation: 'connect' | 'recover' = 'connect') =>
+			connection.recordConnectionDiagnostic({
+				operationId, phase: 'protocol.sessionOpen', outcome, timestamp: Date.now(), attemptId, requestKind: 'subscribeSession', connectionOperation,
+				detail: 'private detail', error: outcome === 'failed' ? { name: 'private name', message: '/Users/alice/private', code: String(AhpErrorCodes.PermissionDenied), requestId: 'private request' } : undefined,
+			});
+		connection.onConnectionStateChange('connected');
+		observe('first', 'started');
+		await timeout(25);
+		observe('first', 'failed');
+		for (let index = 0; index < 100; index++) {
+			observe(`duplicate-${index}`, 'started');
+			observe(`duplicate-${index}`, 'succeeded');
+		}
+		connection.onConnectionStateChange('reconnecting');
+		connection.onConnectionStateChange('connected');
+		observe('second', 'started', 'recover');
+		observe('first', 'succeeded');
+		await timeout(15);
+		observe('second', 'succeeded', 'recover');
+		connection.dispose();
+		service.dispose();
+
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
+		const failure: ClassifiedSample<UserLocalRelaySessionOpenClassification> = {
+			environmentKind: 'user-local', surface: 'agentsWeb', source: 'existing', outcome: 'failure', durationMs: 25,
+			requestKind: 'subscribeSession', connectionOperation: 'connect', attemptId, errorCategory: 'authorization', errorCode: AhpErrorCodes.PermissionDenied,
+		};
+		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'userLocalRelaySessionOpen'), [
+			{ eventName: 'userLocalRelaySessionOpen', data: failure },
+			{ eventName: 'userLocalRelaySessionOpen', data: { environmentKind: 'user-local', surface: 'agentsWeb', source: 'existing', outcome: 'success', durationMs: 15, requestKind: 'subscribeSession', connectionOperation: 'recover', attemptId } },
+		]);
+	}));
+
+	test('classifies first session request failures without exporting diagnostic content', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsWeb', 'existing', { environmentKind: 'user-local' }));
+		connection.onConnectionStateChange('connected');
+		const event = {
+			operationId: 'request', phase: 'protocol.firstSessionRequest', timestamp: Date.now(), requestKind: 'subscribeRoot' as const,
+			connectionOperation: 'connect' as const, attemptId: 'private invalid identifier', detail: 'private-detail',
+			error: { name: 'private-name', message: 'private-message', code: 'private-code', requestId: 'private-request', cause: { name: 'Error', message: 'private-cause', status: 401 } },
+		};
+		connection.recordConnectionDiagnostic({ ...event, outcome: 'started' });
+		await timeout(10);
+		connection.recordConnectionDiagnostic({ ...event, outcome: 'failed' });
+		connection.recordConnectionDiagnostic({ ...event, outcome: 'failed' });
+		service.dispose();
+		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName.endsWith('FirstSessionRequest')), [{
+			eventName: 'userLocalRelayFirstSessionRequest', data: {
+				environmentKind: 'user-local', surface: 'agentsWeb', source: 'existing', outcome: 'failure', durationMs: 10,
+				requestKind: 'subscribeRoot', connectionOperation: 'connect', errorCategory: 'authentication', statusCode: 401,
+			},
+		}]);
+	}));
+
+	for (const state of ['reconnecting', 'failed', 'disposed'] as const) {
+		test(`settles a pending session snapshot once when ${state}, without counting later completion`, () => runWithFakedTimers({}, async () => {
+			const telemetry = new TestTelemetryService();
+			const service = store.add(new CloudSandboxTelemetryService(telemetry));
+			const connection = store.add(service.trackConnection('connection', 'unknown', 'existing', { environmentKind: 'user-local' }));
+			connection.onConnectionStateChange('connected');
+			const event = { operationId: 'open', phase: 'protocol.sessionOpen', timestamp: Date.now() };
+			connection.recordConnectionDiagnostic({ ...event, outcome: 'started' });
+			await timeout(10);
+			connection.onConnectionStateChange(state);
+			connection.recordConnectionDiagnostic({ ...event, outcome: 'succeeded' });
+			service.dispose();
+			assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'userLocalRelaySessionOpen'), [{
+				eventName: 'userLocalRelaySessionOpen', data: {
+					environmentKind: 'user-local', surface: 'unknown', source: 'existing', durationMs: 10,
+					outcome: state === 'disposed' ? 'cancelled' : 'failure',
+					...(state === 'disposed' ? {} : { errorCategory: 'connectionClosed' }),
+				},
+			}]);
+		}));
 	}
 
 	test('requestOutcomeForStatus buckets every response kind', () => {
@@ -840,6 +926,8 @@ suite('cloudSandbox telemetry', () => {
 			await timeout(300_001);
 			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
 			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
+			connection.recordConnectionDiagnostic({ operationId: 'open', phase: 'protocol.sessionOpen', outcome: 'started', timestamp: Date.now() });
+			connection.recordConnectionDiagnostic({ operationId: 'open', phase: 'protocol.sessionOpen', outcome: 'succeeded', timestamp: Date.now() });
 			connection.onConnectionStateChange('reconnecting');
 			connection.onConnectionStateChange('failed');
 			service.dispose();
@@ -849,11 +937,11 @@ suite('cloudSandbox telemetry', () => {
 
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
 		test(`${environmentKind} classification marks every numeric payload field, and no string field, as a measurement`, () => runWithFakedTimers({}, async () => {
-			type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+			type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
 			const outcome: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
 				...connectionDetails, environmentKind, environmentOperation: environmentKind === 'user-local' ? 'attach' : 'resume',
 				operation: 'connect', outcome: 'success', stage: 'protocol', durationMs: 2000, readinessMs: 2000, connectionMs: 2000,
-				firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
+				firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, firstFailureCategory: 'protocol', protocolFailures: 1,
 			};
 			const provisioning: ClassifiedSample<CloudSandboxProvisioningOutcomeClassification> = { outcome: 'success', durationMs: 1000 };
 			const firstRequest: ClassifiedSample<CloudSandboxFirstSessionRequestClassification> = { environmentKind, surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 3000 };
