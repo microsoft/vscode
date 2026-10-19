@@ -86,7 +86,7 @@ import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
-import { ActiveClientToolSet } from '../activeClientState.js';
+import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -95,7 +95,8 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, parseSpilledShellCompletion, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
@@ -634,6 +635,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
 	readonly launchPlan: CopilotSessionLaunchPlan;
+	readonly sandboxCertificate: CopilotSandboxCertificate;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
@@ -1020,6 +1022,10 @@ class CopilotTurn extends Disposable {
 interface IPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly sender: IAgentPendingMessageSender | undefined;
+	/** Set once the message is handed to the SDK; identifies it for withdrawal. */
+	sdkSend?: { readonly prompt: string; readonly messageId: Promise<string> };
+	/** The SDK's id for the message once `send` returns; its `user.message` echo carries the same id. */
+	sdkMessageId?: string;
 }
 
 /** Where a transient chat activity comes from; see `CopilotAgentSession._publishActivity` for the precedence. */
@@ -1284,6 +1290,23 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get hasActiveSubagents(): boolean { return this._subagents.hasActiveAgents; }
 	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
+
+	installSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.installCertificate(scopeId);
+	}
+
+	rotateSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.rotateCertificate(scopeId);
+	}
+
+	removeSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.removeCertificate(scopeId);
+	}
+
+	refreshSandboxCertificate(): Promise<void> {
+		return this._sandbox.refreshCertificateDiagnostics();
+	}
+
 	get usesScopedGitHubCredentials(): boolean { return this._launchPlan.githubCredentials.usesScopedCredential; }
 
 	assertScopedCredential(credential: IAgentHostScopedCredential): void {
@@ -1648,7 +1671,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Whether a client's host-published membership includes this chat. */
 	private readonly _clientReachesChat: (clientId: string, chat: URI) => boolean;
 	/** Tool names that are client-provided, derived from snapshot. */
-	private readonly _clientToolNames: ReadonlySet<string>;
+	private _clientToolNames: ReadonlySet<string>;
 	/** Tool-search decision supplied by the launcher that built this SDK session. */
 	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
@@ -1883,6 +1906,10 @@ export class CopilotAgentSession extends Disposable {
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
+			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
+			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			shellManager: options.shellManager,
 		}));
@@ -1928,7 +1955,9 @@ export class CopilotAgentSession extends Disposable {
 		));
 		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
 		// Routing keeps the unfiltered set — the runtime is the enforcement point.
-		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
+		const serverToolNames = new Set(this._getServerToolDefinitions().map(tool => tool.name));
+		this._clientToolNames = new Set([...clientToolNamesFromSnapshot(this._appliedSnapshot)]
+			.filter(name => !serverToolNames.has(name)));
 		// Share the agent's live ActiveClientToolSet when provided so client
 		// contributions (and owner identity) are observed at stamp time.
 		// Standalone / test construction uses a fresh empty registry, which
@@ -2286,20 +2315,34 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Pops the buffered steering message whose text is contained in the SDK
-	 * `user.message` content we just observed. Matching by content (rather
-	 * than just popping FIFO) keeps us robust against the SDK reordering
-	 * or coalescing entries — concurrent steering messages with different
-	 * texts are still matched to the correct one. Returns `undefined` if
-	 * no buffered entry matches; the caller treats the `user.message` as
-	 * an ordinary echo and skips the turn flip.
+	 * Pops the buffered steering message delivered by the SDK `user.message`
+	 * we just observed. The echo carries the id `send` returned, so an exact
+	 * id match wins; that keeps identical texts apart, e.g. one being
+	 * withdrawn while the other is delivered. Otherwise matches by content,
+	 * skipping entries the SDK already identified as a different message.
+	 * Matching by content (rather than just popping FIFO) keeps us robust
+	 * against the SDK reordering or coalescing entries — concurrent steering
+	 * messages with different texts are still matched to the correct one.
+	 * Returns `undefined` if no buffered entry matches; the caller treats the
+	 * `user.message` as an ordinary echo and skips the turn flip.
 	 */
-	private _takeMatchingPendingSteering(content: string): IPendingSteering | undefined {
+	private _takeMatchingPendingSteering(content: string, messageId: string | undefined): IPendingSteering | undefined {
 		if (this._pendingSteeringFlips.size === 0) {
 			return undefined;
 		}
+		if (messageId) {
+			for (const [id, pending] of this._pendingSteeringFlips) {
+				if (pending.sdkMessageId === messageId) {
+					this._pendingSteeringFlips.delete(id);
+					return pending;
+				}
+			}
+		}
 		let substringMatch: [string, IPendingSteering] | undefined;
 		for (const [id, pending] of this._pendingSteeringFlips) {
+			if (messageId && pending.sdkMessageId) {
+				continue;
+			}
 			if (pending.pendingMessage.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
 				return pending;
@@ -2824,7 +2867,9 @@ export class CopilotAgentSession extends Disposable {
 	/** Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership. */
 	private _resolveClientToolOwner(toolName: string): string | undefined {
 		const chat = this._chatChannelUri;
-		const provides = (clientId: string) => this._activeClientToolSet.get(clientId).some(tool => tool.name === toolName);
+		const applied = this._appliedSnapshot.tools.find(tool => tool.name === toolName);
+		const provides = (clientId: string) => !!applied && this._activeClientToolSet.get(clientId)
+			.some(tool => tool.name === toolName && structuralToolsEqual([applied], [tool]));
 		const preferred = this._currentTurn.value?.senderClientId;
 		if (preferred && this._clientReachesChat(preferred, chat) && provides(preferred)) {
 			return preferred;
@@ -3379,9 +3424,12 @@ export class CopilotAgentSession extends Disposable {
 	 * `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createClientSdkTools(toolSearchActive: boolean): Tool<any>[] {
+	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[] {
 		this._toolSearchActive = toolSearchActive;
-		const tools = this._appliedSnapshot.tools;
+		if (hostToolNames) {
+			this._clientToolNames = new Set([...this._clientToolNames].filter(name => !hostToolNames.has(name)));
+		}
+		const tools = this._appliedSnapshot.tools.filter(tool => this._clientToolNames.has(tool.name));
 		if (tools.length === 0) {
 			return [];
 		}
@@ -3659,6 +3707,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _getServerToolDefinitions(): readonly IAgentServerToolDefinition[] {
+		return (this._serverToolHost?.getDefinitionsForSession(this.launchOwner.toString()) ?? [])
+			.filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions);
+	}
+
 	/**
 	 * Builds SDK tool handlers for the agent host's server tools. Each handler
 	 * executes the tool against this session's state via the
@@ -3667,18 +3720,16 @@ export class CopilotAgentSession extends Disposable {
 	 * construction).
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createServerSdkTools(): Tool<any>[] {
+	private _createServerSdkTools(toolSearchActive = this._isToolSearchActive()): Tool<any>[] {
 		const host = this._serverToolHost;
 		if (!host) {
 			return [];
 		}
-		// Server tools are registered with the SDK at launch: the launch owner's.
-		const sessionUri = this.launchOwner.toString();
-		return host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
+		return this._getServerToolDefinitions().map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
+			defer: def.deferLoading !== false && toolSearchActive ? 'auto' as const : 'never' as const,
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
@@ -4349,8 +4400,8 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('unsandboxedConfirmation');
 				return measureAgentProviderOperation(recorder, 'unsandboxedConfirmation', () => this._requestUnsandboxedCommandConfirmation(request));
 			}, false, 'unsandboxed-command-confirmation'),
-			createClientSdkTools: toolSearchActive => this._createClientSdkTools(toolSearchActive),
-			createServerSdkTools: () => this._createServerSdkTools(),
+			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
+			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
@@ -5567,8 +5618,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const steeringTurn = this._currentTurn.value;
 		const abortToken = this._abortToken;
+		const pending: IPendingSteering = { pendingMessage: steeringMessage, sender };
 		this._steeringMessagesInFlight.add(steeringMessage.id);
-		this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
+		this._pendingSteeringFlips.set(steeringMessage.id, pending);
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
@@ -5583,15 +5635,25 @@ export class CopilotAgentSession extends Disposable {
 				: steeringMessage.message.text;
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
-					prompt: steeringPrompt,
-					attachments: sdkAttachments?.length ? sdkAttachments : undefined,
-					mode: 'immediate',
-				})),
+				async () => {
+					if (this._pendingSteeringFlips.get(steeringMessage.id) !== pending) {
+						this._logService.info(`[Copilot:${this.sessionId}] Steering message was withdrawn or cleared before it was sent: id=${steeringMessage.id}`);
+						return undefined;
+					}
+					const messageId = this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
+						prompt: steeringPrompt,
+						attachments: sdkAttachments?.length ? sdkAttachments : undefined,
+						mode: 'immediate',
+					}));
+					pending.sdkSend = { prompt: steeringPrompt, messageId };
+					return messageId;
+				},
 				steeringTurn, abortToken,
 			);
 			if (execution.kind === 'skipped' && this._pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(steeringMessage.id);
+			} else if (execution.kind === 'executed' && execution.value !== undefined) {
+				pending.sdkMessageId = execution.value;
 			}
 		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
@@ -5600,6 +5662,37 @@ export class CopilotAgentSession extends Disposable {
 			}
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
+		}
+	}
+
+	/**
+	 * Withdraws a steering message the user removed. A message still being prepared is never sent; one
+	 * the SDK holds is withdrawn from its steering queue. If the SDK already delivered it to the model,
+	 * the entry is kept so its `user.message` echo still shows it as its own turn.
+	 */
+	async withdrawSteering(id: string): Promise<void> {
+		const pending = this._pendingSteeringFlips.get(id);
+		if (!pending) {
+			return;
+		}
+		if (!pending.sdkSend) {
+			this._pendingSteeringFlips.delete(id);
+			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message before sending it: id=${id}`);
+			return;
+		}
+		try {
+			const messageId = await pending.sdkSend.messageId;
+			const result = await this._wrapper.session.rpc.queue.withdrawMessage({ messageId, expectedPrompt: pending.sdkSend.prompt });
+			if (!result.removed) {
+				this._logService.info(`[Copilot:${this.sessionId}] Steering message was already delivered and could not be withdrawn: id=${id}`);
+				return;
+			}
+			if (this._pendingSteeringFlips.get(id) === pending) {
+				this._pendingSteeringFlips.delete(id);
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message: id=${id}`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to withdraw steering message: id=${id}: ${getErrorMessage(err)}`);
 		}
 	}
 
@@ -6586,7 +6679,7 @@ export class CopilotAgentSession extends Disposable {
 
 			const serverToolHost = this._serverToolHost;
 			const serverToolName = request.kind === 'custom-tool' && typeof request.toolName === 'string'
-				&& serverToolHost?.toolNames.includes(request.toolName)
+				&& this._getServerToolDefinitions().some(tool => tool.name === request.toolName)
 				? request.toolName
 				: undefined;
 			if (serverToolHost && serverToolName) {
@@ -7827,7 +7920,7 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
-			const steering = this._takeMatchingPendingSteering(e.data.content);
+			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
 			if (steering) {
 				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
@@ -8235,7 +8328,7 @@ export class CopilotAgentSession extends Disposable {
 			// ourselves and drop the active-tool entry so the SDK's own
 			// tool.execution_complete for this id is suppressed.
 			if (isClientTool && !contributor && !isToolSearch) {
-				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
+				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client matching its advertised definition; failing it immediately.`);
 				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 				this._toolApprovalRecords.delete(e.data.toolCallId);
 				this._activeToolCalls.delete(e.data.toolCallId);
@@ -8257,13 +8350,13 @@ export class CopilotAgentSession extends Disposable {
 					result: {
 						success: false,
 						pastTenseMessage: `${displayName} failed`,
-						error: { message: `No client was connected to run ${displayName}` },
+						error: { message: `No client with the advertised tool definition was connected to run ${displayName}` },
 					},
 				}, parentToolCallId);
 				this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
-					textResultForLlm: `No client was connected to run ${displayName}.`,
+					textResultForLlm: `No client with the advertised tool definition was connected to run ${displayName}.`,
 					resultType: 'failure',
-					error: 'No client connected',
+					error: 'No matching client connected',
 				});
 				return;
 			}

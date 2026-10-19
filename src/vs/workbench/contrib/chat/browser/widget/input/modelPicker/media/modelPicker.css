@@ -612,6 +612,44 @@
 	min-width: 0;
 }
 
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.separator.has-label.has-detail {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+	gap: var(--vscode-spacing-size40);
+	border-top: none;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.separator.has-detail > span {
+	display: block;
+	height: auto;
+	line-height: 1.4;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.separator.has-detail .detail {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-fusion-tier .detail {
+	padding-left: var(--vscode-spacing-size200);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	opacity: 1;
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list-row.action.chat-model-picker-fusion-tier > .codicon:first-child {
+	height: var(--vscode-spacing-size160);
+}
+
+.action-widget .chat-model-picker-tabbed .monaco-list .monaco-list-row.action.chat-model-picker-fusion-tier > .title {
+	line-height: 1.5;
+}
+
 .action-widget .chat-model-picker-tabbed .monaco-list-row .action-list-item-toolbar .actions-container {
 	gap: var(--vscode-spacing-size20);
 }

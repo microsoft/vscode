@@ -25,6 +25,7 @@ import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMetho
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
+import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -42,7 +43,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
@@ -1236,6 +1237,157 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	suite('sandbox certificate transport', () => {
+		test('rotation uses its own capability and forwards the exact chat and scope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sandboxCertificate.rotate': true });
+			const rotating = client.rotateSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/rotateSandboxCertificate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await rotating;
+			assert.deepStrictEqual({
+				supported: client.sandboxCertificateRotationSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+		});
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer rotation support from installation when rotation capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.rotate': capability });
+				await assert.rejects(client.rotateSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRotationSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/rotateSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
+		test('removal uses its own capability and forwards the exact chat and scope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sandboxCertificate.remove': true });
+			const removing = client.removeSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/removeSandboxCertificate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await removing;
+			assert.deepStrictEqual({
+				supported: client.sandboxCertificateRemovalSupported.get(), installationSupported: client.sandboxCertificateInstallationSupported.get(), params: request.params,
+			}, { supported: true, installationSupported: false, params: { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' } });
+		});
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not infer removal support from installation when removal capability is ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true, 'vscode.sandboxCertificate.remove': capability });
+				await assert.rejects(client.removeSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.deepStrictEqual({
+					supported: client.sandboxCertificateRemovalSupported.get(),
+					sent: transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/removeSandboxCertificate'),
+				}, { supported: false, sent: false });
+			});
+		}
+
+		test('installation requires explicit capability and sends only the chat identity and runtime scope', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.sandboxCertificate.install': true });
+			assert.strictEqual(client.sandboxCertificateInstallationSupported.get(), true);
+			const installing = client.installSandboxCertificate('conversation://tenant/a%2Fb?revision%3D2#entry', 'runtime');
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'vscode/installSandboxCertificate');
+			assert.ok(request);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await installing;
+			assert.deepStrictEqual(request.params, { chat: 'conversation://tenant/a%2Fb?revision%3D2#entry', scopeId: 'runtime' });
+		});
+
+		for (const capability of [undefined, false, 'true']) {
+			test(`does not send installation requests for capability ${capability}`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.sandboxCertificate.install': capability });
+				assert.strictEqual(client.sandboxCertificateInstallationSupported.get(), false);
+				await assert.rejects(client.installSandboxCertificate('conversation://tenant/opaque', 'runtime'), /does not support/);
+				assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'vscode/installSandboxCertificate'), false);
+			});
+		}
+
+		const session = 'session-store://tenant/sessions/certificate?generation%3D2';
+		const chat = 'conversation://tenant/history/certificate?revision%3D3#entry';
+		const peer = 'conversation://tenant/independent-peer';
+		const certificate: IAgentSandboxCertificateStatus = {
+			scopeId: 'remote-runtime', state: 'notInstalled', canInstall: true, requiresRotation: false,
+		};
+
+		async function subscribe(meta?: Record<string, unknown>) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const ref = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(session), 'certificate-test'));
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+			assert.ok(request);
+			const state: SessionState = {
+				...createSessionState({
+					resource: session, provider: 'third-party', title: 'Certificate transport', status: SessionStatus.Idle,
+					createdAt: '2026-10-15T00:00:00.000Z', modifiedAt: '2026-10-15T00:00:00.000Z', _meta: meta,
+				}),
+				defaultChat: chat,
+				chats: [chat, peer].map(resource => ({ resource, title: 'Chat', status: SessionStatus.Idle, modifiedAt: '2026-10-15T00:00:00.000Z' })),
+			};
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot: { resource: session, fromSeq: 0, state } } });
+			await flushMicrotasks();
+			const read = () => {
+				const current = ref.object.value;
+				assert.ok(current && !(current instanceof Error));
+				return {
+					subscription: request.params,
+					chat: current.defaultChat,
+					certificate: readAgentSandboxCertificate(current, chat),
+					peer: readAgentSandboxCertificate(current, peer),
+					unrelated: current._meta?.unrelated,
+				};
+			};
+			return { transport, ref, read };
+		}
+
+		test('hydrates opaque host identities and pushes status changes without polling', async () => {
+			const peerStatus: IAgentSandboxCertificateStatus = { ...certificate, state: 'error', canInstall: false, detail: 'Peer check failed' };
+			const initialMeta = withAgentSandboxCertificate(withAgentSandboxCertificate({ unrelated: 'preserved' }, chat, certificate), peer, peerStatus);
+			const { transport, ref, read } = await subscribe(initialMeta);
+			const initial = read();
+			const requestsBefore = transport.sentMessages.length;
+			const updates: ReturnType<typeof read>[] = [];
+			disposables.add(ref.object.onDidChange(() => updates.push(read())));
+			const installed: IAgentSandboxCertificateStatus = { ...certificate, state: 'installed' };
+			const updatedMeta = withAgentSandboxCertificate(initialMeta, chat, installed);
+			for (const [index, meta] of [updatedMeta, withAgentSandboxCertificate(updatedMeta, chat, undefined)].entries()) {
+				const envelope: ActionEnvelope = {
+					channel: session, serverSeq: index + 1, origin: undefined, action: { type: ActionType.SessionMetaChanged, _meta: meta },
+				};
+				transport.fireMessage({ jsonrpc: '2.0', method: 'action', params: envelope });
+				await flushMicrotasks();
+			}
+			const expected = { subscription: { channel: session }, chat, peer: peerStatus, unrelated: 'preserved' };
+			assert.deepStrictEqual({ initial, updates, extraRequests: transport.sentMessages.length - requestsBefore }, {
+				initial: { ...expected, certificate },
+				updates: [{ ...expected, certificate: installed }, { ...expected, certificate: undefined }],
+				extraRequests: 0,
+			});
+		});
+
+		for (const [name, meta] of [
+			['absent', undefined],
+			['malformed', { 'vscode.sandboxCertificate': { version: 1, chats: { [chat]: { ...certificate, canInstall: 'yes' } } } }],
+			['future', { 'vscode.sandboxCertificate': { version: 2, chats: { [chat]: certificate } } }],
+		] as const) {
+			test(`treats ${name} optional metadata as unavailable without failing the subscription`, async () => {
+				const { read } = await subscribe(meta);
+				assert.deepStrictEqual(read(), { subscription: { channel: session }, chat, certificate: undefined, peer: undefined, unrelated: undefined });
+			});
+		}
+	});
+
 	test('chat read-state actions require AHP 0.9', () => {
 		const action = { type: ActionType.ChatIsReadChanged, isRead: true } as const;
 		assert.deepStrictEqual({
@@ -1544,11 +1696,12 @@ suite('AgentHostProtocolClient', () => {
 		const sourceUri = URI.parse('ahp-session:/test/chat-0');
 		const workingDirectory = toAgentHostUri(URI.file('/workspace'), agentHostAuthority('test.example:1234'));
 
-		test('forwards a fork source and ignores its working directories', async () => {
+		test('forwards an exact title and fork source while ignoring working directories', async () => {
 			const { client, transport } = createClient();
 
 			const resultPromise = client.createChat(sessionUri, chatUri, {
 				fork: { source: sourceUri, turnId: 'turn-1' },
+				title: '  Exact title  ',
 				workingDirectories: [workingDirectory],
 			});
 
@@ -1559,12 +1712,102 @@ suite('AgentHostProtocolClient', () => {
 				params: {
 					channel: sessionUri.toString(),
 					chat: chatUri.toString(),
+					title: '  Exact title  ',
 					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
 				},
 			});
 
 			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
 			await resultPromise;
+		});
+
+		test('forwards the initial message snapshot and inherits missing message selections', async () => {
+			const { client, transport } = createClient();
+			const initialMessage: Message = {
+				text: 'Summarize the attached image',
+				origin: { kind: MessageKind.User },
+				attachments: [{
+					type: MessageAttachmentKind.Resource,
+					uri: 'file:///workspace/screenshot.png',
+					label: 'screenshot.png',
+				}],
+				model: { id: 'message-model' },
+			};
+
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				fork: { source: sourceUri, turnId: 'turn-1' },
+				title: 'Fork title',
+				model: { id: 'request-model' },
+				agent: { uri: 'agent://test/reviewer' },
+				initialMessage,
+			});
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					title: 'Fork title',
+					initialMessage: {
+						...initialMessage,
+						agent: { uri: 'agent://test/reviewer' },
+					},
+					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('inherits a request model when the initial message has none', async () => {
+			const { client, transport } = createClient();
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				model: { id: 'request-model' },
+				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					initialMessage: {
+						text: 'Continue',
+						origin: { kind: MessageKind.User },
+						model: { id: 'request-model' },
+					},
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('preserves chat creation failure data', async () => {
+			const { client, transport } = createClient();
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+			const data = {
+				chat: chatUri.toString(),
+			};
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: 1,
+				error: { code: AhpErrorCodes.AlreadyExists, message: 'Chat already exists', data },
+			});
+
+			await assertRemoteProtocolError(resultPromise, {
+				code: AhpErrorCodes.AlreadyExists,
+				message: 'Chat already exists',
+				data,
+			});
 		});
 
 		test('forwards a side chat source and maps its working directories', async () => {
@@ -4231,16 +4474,90 @@ suite('AgentHostProtocolClient', () => {
 			client.dispose();
 
 			assert.deepStrictEqual({
-				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs })),
+				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs, requestKind: event.requestKind, connectionOperation: event.connectionOperation })),
 				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
 			}, {
 				diagnostics: [
-					{ outcome: 'started', durationMs: undefined }, { outcome: 'succeeded', durationMs: 10 },
-					{ outcome: 'started', durationMs: undefined }, { outcome: 'failed', durationMs: 15 },
+					{ outcome: 'started', durationMs: undefined, requestKind: 'listSessions', connectionOperation: 'connect' }, { outcome: 'succeeded', durationMs: 10, requestKind: 'listSessions', connectionOperation: 'connect' },
+					{ outcome: 'started', durationMs: undefined, requestKind: 'listSessions', connectionOperation: 'recover' }, { outcome: 'failed', durationMs: 15, requestKind: 'listSessions', connectionOperation: 'recover' },
 				],
 				requests: 3,
 			});
 		}));
+
+		test('samples a real session snapshot independently of listing and only once per ready cycle', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.sessionOpen') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			const listing = client.listSessions();
+			const list = await waitForRequestAtWithin(transports[0], 'listSessions', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: list.id, result: { items: [] } });
+			await listing;
+
+			for (const [index, kind] of [StateComponents.Chat, StateComponents.Session, StateComponents.Session].entries()) {
+				const resource = URI.parse(`other-host-resource:/opaque-${index}`);
+				disposables.add(client.getSubscription(kind, resource, 'test'));
+				const request = await waitForRequestAtWithin(transports[0], 'subscribe', index);
+				await timeout(10);
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: {
+						snapshot: {
+							resource: resource.toString(), fromSeq: 0,
+							state: kind === StateComponents.Chat
+								? createChatState({ resource: resource.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() })
+								: createSessionState({ resource: resource.toString(), provider: 'other', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }),
+						},
+					},
+				});
+				await flushMicrotasks();
+			}
+			const { transport, request } = await beginRecovery(client, transports);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			disposables.add(client.getSubscription(StateComponents.Session, URI.parse('other-host-resource:/missing'), 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			await timeout(15);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: {} });
+			await flushMicrotasks();
+			client.dispose();
+
+			assert.deepStrictEqual(diagnostics.map(event => ({
+				outcome: event.outcome, duration: event.durationMs, kind: event.requestKind, operation: event.connectionOperation,
+			})), [
+				{ outcome: 'started', duration: undefined, kind: 'subscribeSession', operation: 'connect' },
+				{ outcome: 'succeeded', duration: 10, kind: 'subscribeSession', operation: 'connect' },
+				{ outcome: 'started', duration: undefined, kind: 'subscribeSession', operation: 'recover' },
+				{ outcome: 'failed', duration: 15, kind: 'subscribeSession', operation: 'recover' },
+			]);
+		}));
+
+		test('classifies an opaque managed chat as the first post-readiness request', async () => {
+			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.firstSessionRequest') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			const resource = URI.parse('other-host-resource:/opaque-chat');
+			disposables.add(client.getSubscription(StateComponents.Chat, resource, 'test'));
+			const request = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { snapshot: { resource: resource.toString(), fromSeq: 0, state: createChatState({ resource: resource.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }) } },
+			});
+			await flushMicrotasks();
+			assert.deepStrictEqual(diagnostics.map(event => [event.outcome, event.requestKind, event.connectionOperation]), [
+				['started', 'subscribeChat', 'connect'], ['succeeded', 'subscribeChat', 'connect'],
+			]);
+		});
 
 		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
 			test(`the recovery deadline bounds a stalled ${stage}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4810,18 +5127,24 @@ suite('AgentHostProtocolClient', () => {
 				await Promise.resolve();
 			}
 
+			const listing = client.listSessions();
+			const listRequest = await waitForRequest(reconnectTransport, 'listSessions');
+			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: listRequest.id, result: { items: [] } });
+			await listing;
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
 				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
 				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
 				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
+				firstRequestOperations: diagnostics.filter(event => event.phase === 'protocol.firstSessionRequest').map(event => event.connectionOperation),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
 				transportFailure: 'initial transport failed',
 				handshakeMode: 'mode=freshInitialize',
 				retrySucceeded: true,
+				firstRequestOperations: ['connect', 'connect'],
 			});
 		});
 
@@ -6694,6 +7017,53 @@ suite('AgentHostProtocolClient', () => {
 				]);
 			});
 		});
+
+		for (const recovery of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+			test(`sandbox certificate status is refreshed by ${recovery} reconnect recovery`, async function () {
+				this.timeout(10_000);
+				return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+					const { client, transports } = createFactoryClient();
+					await completeHandshake(transports[0], client.connect());
+					const resource = 'session-store://tenant/certificate-reconnect';
+					const chat = 'conversation://tenant/certificate-reconnect';
+					const initial: IAgentSandboxCertificateStatus = {
+						scopeId: 'remote-runtime', state: 'notInstalled', canInstall: true, requiresRotation: false,
+					};
+					const state = createSessionState({
+						resource, provider: 'third-party', title: 'Certificate', status: SessionStatus.Idle,
+						createdAt: '2026-10-15T00:00:00.000Z', modifiedAt: '2026-10-15T00:00:00.000Z',
+						_meta: withAgentSandboxCertificate(undefined, chat, initial),
+					});
+					const ref = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(resource), 'certificate-reconnect'));
+					const request = await waitForRequest(transports[0], 'subscribe');
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot: { resource, state, fromSeq: 1 } } });
+					await flushMicrotasks();
+					const before = ref.object.value;
+					assert.ok(before && !(before instanceof Error));
+					const beforeStatus = readAgentSandboxCertificate(before, chat);
+
+					transports[0].fireClose();
+					await waitForReconnecting(client);
+					const replacement = await waitForTransport(transports, 1);
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequest(replacement, 'reconnect');
+					const installed: IAgentSandboxCertificateStatus = { ...initial, state: 'installed' };
+					const meta = withAgentSandboxCertificate(undefined, chat, installed);
+					const envelope: ActionEnvelope = { channel: resource, serverSeq: 2, origin: undefined, action: { type: ActionType.SessionMetaChanged, _meta: meta } };
+					replacement.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: recovery === ReconnectResultType.Replay
+							? { type: recovery, actions: [envelope], missing: [] }
+							: { type: recovery, snapshots: [{ resource, fromSeq: 2, state: { ...state, _meta: meta } }] },
+					});
+					await flushMicrotasks();
+					const after = ref.object.value;
+					assert.ok(after && !(after instanceof Error));
+					assert.deepStrictEqual([beforeStatus, readAgentSandboxCertificate(after, chat)], [initial, installed]);
+					client.dispose();
+				});
+			});
+		}
 
 		test('snapshot reconnect result reseats the root state', async function () {
 			this.timeout(10_000);

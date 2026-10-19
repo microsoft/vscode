@@ -11,6 +11,9 @@ fi
 
 TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/agent-host-e2e-tmpfs.XXXXXX")
 MOUNTED=false
+# Exit status when the command succeeded but the tmpfs could not be cleaned up, so the
+# caller can tell a cleanup failure apart from a test failure.
+CLEANUP_FAILED_STATUS=3
 
 # Describes each holder so it can be traced to the test that leaked it: its parent and process group, its age (match it
 # against the test log's timestamps), its full command line, and what it holds open on the mount. Each probe has the
@@ -61,6 +64,14 @@ reap_orphaned_codex_sandboxes() {
 	return 1
 }
 
+cleanup_failure_status() {
+	if [[ "$1" -eq 0 ]]; then
+		echo "$CLEANUP_FAILED_STATUS"
+	else
+		echo "$1"
+	fi
+}
+
 cleanup() {
 	local status=$?
 	trap - EXIT
@@ -78,12 +89,12 @@ cleanup() {
 			fi
 			# shellcheck disable=SC2086 # One argument per PID.
 			describe_holders $holders
-			exit 1
+			exit "$(cleanup_failure_status "$status")"
 		fi
 	fi
 	if ! rmdir -- "$TEST_TMPDIR"; then
 		echo "Failed to remove Agent Host tmpfs mount directory: $TEST_TMPDIR" >&2
-		exit 1
+		exit "$(cleanup_failure_status "$status")"
 	fi
 	exit "$status"
 }

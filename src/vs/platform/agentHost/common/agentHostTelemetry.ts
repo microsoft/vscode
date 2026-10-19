@@ -139,6 +139,11 @@ export interface IAgentHostClientTelemetryContext {
 	readonly devDeviceId?: string;
 }
 
+export interface IAgentHostSessionSubscribeTelemetryContext extends IAgentHostClientTelemetryContext {
+	readonly clientId: string;
+	readonly isReconnect: boolean;
+}
+
 /** Bounded account context at Codex turn admission, independent of the turn's model provider. */
 export interface ICodexAccountTelemetryContext {
 	readonly chatgptAccountState: 'signedIn' | 'signedOut' | 'unknown';

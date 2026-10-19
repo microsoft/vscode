@@ -557,6 +557,20 @@ suite('AgentHostCatalogSourceResolver', () => {
 		assert.strictEqual(result.data.chats[0].summary, 'Live chat');
 	});
 
+	for (const adopted of [false, true]) {
+		test(`projects legacy archive state until adoption rather than a partial host mirror (adopted: ${adopted})`, async () => {
+			const state = { ...sourceState(), status: SessionStatus.Idle | SessionStatus.IsArchived };
+			const result = await createResolver({
+				[AH_META_IS_ARCHIVED_DB_KEY]: '',
+				...(adopted ? { [AH_META_EHCLI_ADOPTED_DB_KEY]: 'true' } : {}),
+			}).buildCatalogSyncRequest(session, state, {}, true);
+			assert.deepStrictEqual({
+				archived: result.data.isArchived,
+				mirror: result.legacyMetadata[AH_META_IS_ARCHIVED_DB_KEY],
+			}, { archived: !adopted, mirror: adopted ? '' : 'true' });
+		});
+	}
+
 	test('projects chat change aggregates from live state or the persisted chat key', async () => {
 		const live = { additions: 1, deletions: 0, files: 1 };
 		const persisted = { additions: 7, deletions: 3, files: 2 };

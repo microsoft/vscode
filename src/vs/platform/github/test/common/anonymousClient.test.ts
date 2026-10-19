@@ -260,7 +260,7 @@ suite('GitHub anonymous clients', () => {
 	});
 
 	test('anonymous and authenticated requests share process admission', async () => {
-		const gates = Array.from({ length: 3 }, () => new DeferredPromise<Response>());
+		const gates = Array.from({ length: 13 }, () => new DeferredPromise<Response>());
 		const requests: boolean[] = [];
 		const service = create({
 			credentialProvider: { onDidChange: Event.None, getToken: () => 'token' },
@@ -274,8 +274,10 @@ suite('GitHub anonymous clients', () => {
 		const authenticated = store.add(service.acquireClient(authorizedOptions)).object;
 		const pending = [
 			read(anonymous, '/public', signal()),
-			getGitHubClientInternals(authenticated).transport.rest(account, 'token', { method: 'GET', url: `${apiBaseUri}/first` }, signal()),
-			getGitHubClientInternals(authenticated).transport.rest({ ...account, accountId: '202' }, 'other', { method: 'GET', url: `${apiBaseUri}/second` }, signal()),
+			...Array.from({ length: 12 }, (_, index) => getGitHubClientInternals(authenticated).transport.rest(
+				{ ...account, accountId: String(index) }, 'token',
+				{ method: 'GET', url: `${apiBaseUri}/request-${index}`, caller: `caller-${index}` }, signal(),
+			)),
 		];
 		await timeout(0);
 		const initiallyStarted = requests.length;
@@ -283,27 +285,33 @@ suite('GitHub anonymous clients', () => {
 			await gate.complete(Response.json({}));
 		}
 		await Promise.all(pending);
-		assert.deepStrictEqual({ initiallyStarted, requests }, { initiallyStarted: 2, requests: [false, true, true] });
+		assert.deepStrictEqual({
+			initiallyStarted,
+			anonymousRequests: requests.filter(authenticated => !authenticated).length,
+			authenticatedRequests: requests.filter(authenticated => authenticated).length,
+		}, { initiallyStarted: 12, anonymousRequests: 1, authenticatedRequests: 12 });
 	});
 
 	test('separate anonymous leases cannot multiply concurrency', async () => {
-		const gate = new DeferredPromise<Response>();
+		const gate = new DeferredPromise<void>();
 		const requests: string[] = [];
 		const service = create({
 			fetch: async input => {
 				requests.push(String(input));
-				return requests.length === 1 ? gate.p : Response.json({});
+				await gate.p;
+				return Response.json({});
 			},
 		});
 		const first = store.add(service.acquireAnonymousRequestProviders()).object.rest;
 		const second = store.add(service.acquireAnonymousRequestProviders()).object.rest;
-		const pending = [read(first, '/first', signal()), read(second, '/second', signal())];
+		const paths = Array.from({ length: 12 }, (_, index) => `/request-${index}`);
+		const pending = paths.map((path, index) => read(index % 2 ? first : second, path, signal(), { caller: `caller-${index % 2}` }));
 		await timeout(0);
 		const initiallyStarted = requests.length;
-		await gate.complete(Response.json({}));
+		await gate.complete();
 		await Promise.all(pending);
-		assert.deepStrictEqual({ initiallyStarted, requests }, {
-			initiallyStarted: 1, requests: [`${apiBaseUri}/first`, `${apiBaseUri}/second`],
+		assert.deepStrictEqual({ initiallyStarted, requests: requests.sort() }, {
+			initiallyStarted: 10, requests: paths.map(path => `${apiBaseUri}${path}`).sort(),
 		});
 	});
 
