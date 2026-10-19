@@ -1119,6 +1119,8 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
+// filesExplorer.paste コマンドから呼ばれる入口。accessor は VS Code が渡すサービス取得用の引数。
+// fileList は OS の貼り付けイベントから渡されるファイル一覧で、省略される場合もある。
 export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1130,10 +1132,13 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const dialogService = accessor.get(IDialogService);
 	const hostService = accessor.get(IHostService);
 
+	// 1. エクスプローラーで選択されている項目を取得する。
 	const context = explorerService.getContext(false);
 	const hasNativeFilesToPaste = fileList && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
+	// 2. 貼り付け対象のファイルを取得する。await で取得の完了を待ってから次へ進む。
+	// 現状はファイルを対象としており、クリップボードのテキストは読み取らない。
 	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);
 
 	if (confirmPasteNative && toPaste.files.length >= 1) {
@@ -1172,6 +1177,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			await configurationService.updateValue('explorer.confirmPasteNative', false);
 		}
 	}
+	// 3. 選択項目を貼り付け先の基準にする。未選択ならワークスペースの先頭のルートを使う。
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
@@ -1184,6 +1190,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	try {
 		let targets: URI[] = [];
 
+		// 4. ディスク上のファイルならコピー／移動し、ファイルデータなら新しいファイルを作る。
+		// 各分岐の findValidPasteFileTarget が、同名ファイルの扱いも含めて保存先を決める。
 		if (toPaste.type === 'paths') { // Pasting from files on disk
 
 			// Check if target is ancestor of pasted folder
@@ -1265,6 +1273,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			targets = targetAndEdits.map(pair => pair.target);
 		}
 
+		// 5. 貼り付け先を一覧で選択する。対象が1つで、フォルダでなければエディターで開く。
 		if (targets.length) {
 			const firstTarget = targets[0];
 			await explorerService.select(firstTarget);

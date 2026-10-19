@@ -116,8 +116,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const PASTE_FILE_ID = 'filesExplorer.paste';
 
+// コマンド名と関数を結びつける。ここでは実行せず、実行時に呼ぶ関数を登録する。
 CommandsRegistry.registerCommand(PASTE_FILE_ID, pasteFileHandler);
 
+// エクスプローラーにフォーカスがあり書き込み可能なとき、⌘V（Windows/Linux は Ctrl+V）に割り当てる。
 KeybindingsRegistry.registerKeybindingRule({
 	id: `^${PASTE_FILE_ID}`, // the `^` enables pasting files into the explorer by preventing default bubble up
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
