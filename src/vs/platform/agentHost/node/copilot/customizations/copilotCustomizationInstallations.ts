@@ -186,27 +186,30 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return operation?.approved && operation.validatesConfirmation(request) ? 'confirm' : 'cancel';
 	};
 
+	/**
+	 * @param createPolicySession Creates the hidden policy session that binds
+	 * every SDK catalog, inventory, and installation request. The runtime admits
+	 * these requests only when the policy session's GitHub credential was
+	 * verified through `gitHubAuth.setCredentials`; chat sessions only receive
+	 * a credential at creation, which the runtime never verifies, so they must
+	 * not be used as the policy session.
+	 */
 	constructor(
 		private readonly getClient: () => Promise<ICopilotCustomizationInstallationClient>,
-		private readonly getPolicySessionId: (session: URI) => string | undefined,
-		private readonly createPolicySession?: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
+		private readonly createPolicySession: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
 	) {
 		super();
 	}
 
-	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+	async search(request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
 		if (!request.query.trim()) {
 			if (request.mediaType && request.mediaType !== copilotPluginMediaType) {
 				return { kind: 'page', items: [] };
 			}
 			return this.browseFeaturedPlugins(await this.getClient(), request);
 		}
-		const visiblePolicySessionId = this.getPolicySessionId(session);
-		if (!visiblePolicySessionId && !this.createPolicySession) {
-			return { kind: 'unavailable', reason: 'session' };
-		}
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
 		const retainedCursor = request.cursor ? this.catalogCursors.deleteAndLeak(request.cursor) : undefined;
 		if (request.cursor && (!retainedCursor || retainedCursor.client !== client || retainedCursor.policySessionId !== policySessionId)) {
 			retainedCursor?.dispose();
@@ -291,10 +294,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 		};
 	}
 
-	async list(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
+	async list(): Promise<readonly IAgentCustomizationInstallation[]> {
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
 		const [listedSkills, listedMcp, configured] = await Promise.all([
 			client.rpc.skills.installations.list({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.list({ contract: mcpInstallationContract, policySessionId }),
@@ -314,10 +316,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 		];
 	}
 
-	async recover(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
+	async recover(): Promise<readonly IAgentCustomizationInstallation[]> {
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
 		const [skills, mcp, configured] = await Promise.all([
 			client.rpc.skills.installations.recover({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.recover({ contract: mcpInstallationContract, policySessionId }),
@@ -336,10 +337,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 		await client.rpc.mcp.config.add({ name, config: toCopilotMcpServerConfiguration(config) });
 	}
 
-	async prepare(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
-		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
+	async prepare(request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
 		return hasKey(request, { installationId: true })
 			? this.prepareUninstall(client, policySessionId, request.installationId)
 			: this.prepareInstall(client, policySessionId, request);
@@ -909,17 +909,6 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.operations.set(operation.id, operation);
 	}
 
-	private getVisiblePolicySessionId(session: URI): string | undefined {
-		const policySessionId = this.getPolicySessionId(session);
-		if (policySessionId) {
-			return policySessionId;
-		}
-		if (!this.createPolicySession) {
-			throw new Error(localize('copilot.customizationInstallation.sessionRequired', "Start a Copilot agent session before managing SDK installations."));
-		}
-		return undefined;
-	}
-
 	private async getOrCreatePolicySessionId(client: ICopilotCustomizationInstallationClient): Promise<string> {
 		let current = this.policySession;
 		if (current?.client === client) {
@@ -934,7 +923,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			const generation = ++this.policySessionGeneration;
 			const sessionId = generateUuid();
 			this.policySessionIds.add(sessionId);
-			creating = this.createPolicySession!(client, sessionId).then(async created => {
+			creating = this.createPolicySession(client, sessionId).then(async created => {
 				if (created.sessionId !== sessionId || generation !== this.policySessionGeneration) {
 					try {
 						await created.dispose();
