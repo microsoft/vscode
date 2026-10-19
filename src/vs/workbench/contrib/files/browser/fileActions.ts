@@ -1138,7 +1138,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
 	// 2. 貼り付け対象のファイルを取得する。await で取得の完了を待ってから次へ進む。
-	// 現状はファイルを対象としており、クリップボードのテキストは読み取らない。
+	// ファイルがなければ、後でクリップボードのテキストを読み取る。
 	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);
 
 	if (confirmPasteNative && toPaste.files.length >= 1) {
@@ -1189,6 +1189,32 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 
 	try {
 		let targets: URI[] = [];
+
+		// ファイルのコピーが優先。テキストだけの場合は、選択フォルダに UTF-8 のファイルを作る。
+		if (toPaste.files.length === 0 && !hasNativeFilesToPaste) {
+			if (!element || !element.isDirectory) {
+				return;
+			}
+			const text = await clipboardService.readText();
+			if (!text) {
+				return;
+			}
+
+			// 既存ファイルは上書きせず、clipboard.txt、clipboard.1.txt、… と命名する。
+			let name = 'clipboard.txt';
+			let target = resources.joinPath(element.resource, name);
+			while (await fileService.exists(target)) {
+				name = incrementFileName(name, false, 'smart');
+				target = resources.joinPath(element.resource, name);
+			}
+			await applyCopyResourceEdit([target], [new ResourceFileEdit(undefined, target, {
+				contents: Promise.resolve(VSBuffer.fromString(text)),
+				overwrite: false
+			})]);
+			await explorerService.select(target);
+			await editorService.openEditor({ resource: target, options: { pinned: true } });
+			return;
+		}
 
 		// 4. ディスク上のファイルならコピー／移動し、ファイルデータなら新しいファイルを作る。
 		// 各分岐の findValidPasteFileTarget が、同名ファイルの扱いも含めて保存先を決める。
