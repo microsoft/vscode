@@ -7058,7 +7058,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (dirs === undefined) {
 			return undefined;
 		}
-		return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+		// Share client-space scope identities with the sessions provider.
+		return dirs.map(directory => this._config.connection.resourceUris.fromAgentHost(typeof directory === 'string' ? URI.parse(directory) : directory));
 	}
 
 	/**
