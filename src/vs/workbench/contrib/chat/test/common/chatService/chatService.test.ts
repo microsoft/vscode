@@ -171,6 +171,7 @@ suite('ChatService', () => {
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
+	let slashCommandService: ChatSlashCommandService;
 	let editingSessionState: ISettableObservable<ChatEditingSessionState>;
 
 	let chatAgentService: IChatAgentService;
@@ -218,7 +219,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		instantiationService.stub(IChatService, new MockChatService());
@@ -276,6 +278,52 @@ suite('ChatService', () => {
 		['permissions.defaultMode', 'manual'],
 		['permissions.allow', '[]'],
 		['sandbox.enabled', true],
+		['sandbox.allowBypass', false],
+		['sandbox.userPolicy.network.allowedHosts', '[]'],
+	] as const) {
+		test(`${policyKey} preserves Local sending, queueing, retry and restored history across refresh and removal`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let value: string | boolean | undefined;
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => key === policyKey ? value : undefined,
+				getManagedSettings: () => value === undefined ? {} : { [policyKey]: value },
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const initial = await service.sendRequest(model.sessionResource, 'history');
+			ChatSendResult.assertSent(initial);
+			await initial.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			value = policyValue;
+			changes.fire();
+			const existing = await service.sendRequest(model.sessionResource, 'continue Local');
+			ChatSendResult.assertSent(existing);
+			await existing.data.responseCompletePromise;
+			const queued = await service.sendRequest(model.sessionResource, 'queue Local', { queue: ChatRequestQueueKind.Queued });
+			assert.ok(ChatSendResult.isQueued(queued));
+			const sent = await queued.deferred;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			await service.resendRequest(model.getRequests()[0]);
+			await waitForState(model.requestInProgress, inProgress => !inProgress);
+			const restoredService = createChatService();
+			const restored = testDisposables.add(restoredService.loadSessionFromData(history)).object;
+			const resumed = await restoredService.sendRequest(restored.sessionResource, 'restore Local');
+			ChatSendResult.assertSent(resumed);
+			await resumed.data.responseCompletePromise;
+			const beforeRemoval = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
+			value = undefined;
+			changes.fire();
+			assert.deepStrictEqual({
+				beforeRemoval,
+				afterRemoval: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
+				restoredHistory: restored.getRequests().length,
+			}, { beforeRemoval: [false, false], afterRemoval: [false, false], restoredHistory: 2 });
+		});
+	}
+
+	for (const [policyKey, policyValue] of [
 		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
 	] as const) {
 		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
@@ -313,7 +361,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
-				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
+				getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const model = startSessionModel(service).object;
@@ -350,7 +398,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
-				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
+				getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const activate = spy(service, 'activateDefaultAgent');
@@ -457,7 +505,7 @@ suite('ChatService', () => {
 				instantiationService.stub(IManagedSettingsService, {
 					_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 					getManagedSettingValue: key => key === policyKey ? rules : undefined,
-					getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
+					getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
 				});
 				const extensionService = new TestExtensionService();
 				const activate = stub(extensionService, 'activateByEvent').callsFake(async () => {
@@ -755,6 +803,64 @@ suite('ChatService', () => {
 		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, URI.from({ scheme: 'remote', path: '/session' }), CancellationToken.None);
 
 		assert.deepStrictEqual(executions, ['local', 'remote']);
+	});
+
+	test('runs silent slash completion only after fork command success', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let completed = 0;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: 'Fork',
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			started.complete();
+			await gate.p;
+		}));
+
+		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+			onDidExecuteSlashCommand: () => completed++,
+		});
+		await started.p;
+		assert.strictEqual(completed, 0, 'the source draft must remain while the fork command is unresolved');
+		gate.complete();
+		const result = await sending;
+		assert.ok(result?.kind === 'sent');
+		await result.data.responseCompletePromise;
+		assert.strictEqual(completed, 1);
+	});
+
+	test('does not run silent slash completion when fork command rejects', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let completed = 0;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: 'Fork',
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			started.complete();
+			await gate.p;
+		}));
+
+		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+			onDidExecuteSlashCommand: () => completed++,
+		});
+		await started.p;
+		assert.strictEqual(completed, 0);
+		gate.error(new Error('fork rejected'));
+		const result = await sending;
+		assert.ok(result?.kind === 'sent');
+		await result.data.responseCompletePromise;
+		assert.strictEqual(completed, 0, 'a rejected fork must retain the source draft');
 	});
 
 	test('slash commands reject overlapping session types for the same id', () => {
@@ -4722,6 +4828,8 @@ suite('ChatService', () => {
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
 				const service = createChatService();
+				// A clock that never advances fits every history update into one slice, so each is applied before the snapshots below are taken.
+				service.setRemoteHistoryScheduler(createManualHistoryReplayClock().scheduler);
 				const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 				const model = ref.object;
 				const request = model.getRequests()[0];

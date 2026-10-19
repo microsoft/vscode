@@ -17,6 +17,7 @@ export class NotificationsClient implements INotificationsClient {
 	async list(signal: AbortSignal, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'notifications',
 			method: 'GET',
 			path: withQuery('/notifications', { ...query }),
 			authentication: 'required',
@@ -28,6 +29,7 @@ export class NotificationsClient implements INotificationsClient {
 	async listForRepository(repository: RepositoryRef, signal: AbortSignal, options?: ListNotificationsOptions): Promise<readonly NotificationThread[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'notifications',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/notifications`, { ...query }),
 			authentication: 'required',
@@ -38,6 +40,7 @@ export class NotificationsClient implements INotificationsClient {
 
 	async get(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NotificationThread> {
 		return this._client.request({
+			domain: 'notifications',
 			method: 'GET',
 			path: notificationPath(threadId),
 			authentication: 'required',
@@ -48,6 +51,7 @@ export class NotificationsClient implements INotificationsClient {
 
 	async markRead(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'notifications',
 			method: 'PATCH',
 			path: notificationPath(threadId),
 			authentication: 'required',
@@ -59,6 +63,7 @@ export class NotificationsClient implements INotificationsClient {
 
 	async markDone(threadId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'notifications',
 			method: 'DELETE',
 			path: notificationPath(threadId),
 			authentication: 'required',

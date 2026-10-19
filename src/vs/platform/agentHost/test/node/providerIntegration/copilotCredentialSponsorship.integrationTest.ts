@@ -16,13 +16,14 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
-import { AgentSession, fixedChatOwnerRef, type AgentSignal, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentSession, fixedChatOwnerRef, type AgentSignal, type IAgentChatContext, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { captureCredentialSource } from '../../../common/agentHostCredentials.js';
+import { subagentChatUri } from '../../../common/agentHostChatMinting.js';
 import { AgentHostMcpConnectorsEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ToolResultContentType } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatOriginKind, MessageKind, ToolResultContentType, type Turn } from '../../../common/state/sessionState.js';
 import { AgentHostAuthenticationScope } from '../../../node/agentHostAuthenticationScope.js';
 import { getAppNodeModulesUri } from '../../../node/appNodeModules.js';
 import { resolveCopilotRuntimePaths } from '../../../node/copilot/copilotRuntimePaths.js';
@@ -64,6 +65,13 @@ suite('Copilot Agent credential sponsorship', function () {
 	let unexpectedRequests: string[];
 	let originalEnvironment: Map<string, string | undefined>;
 	const signals: AgentSignal[] = [];
+
+	function onProgress(signal: AgentSignal): void {
+		signals.push(signal);
+		if (signal.kind === 'pending_confirmation') {
+			agent.respondToPermissionRequest(signal.state.toolCallId, true);
+		}
+	}
 
 	setup(async () => {
 		originalEnvironment = new Map(Object.entries(process.env).filter(([key]) =>
@@ -175,7 +183,9 @@ suite('Copilot Agent credential sponsorship', function () {
 					},
 				];
 				const calls = modelTraffic.filter(traffic => traffic.probe === probe).length;
-				const operation = probe.includes('-') ? undefined : operations[calls - 1];
+				const operation = probe === 'A-DELEGATED' && calls === 1
+					? { name: 'task', arguments: { name: 'fixture-child', agent_type: 'explore', model: 'gpt-4o', description: 'Read-only fixture child', prompt: 'CREDENTIAL_PROBE:A-CHILD. Reply briefly without using tools.' } }
+					: probe.includes('-') ? undefined : operations[calls - 1];
 				if (operation && !tools.includes(operation.name)) {
 					unexpectedRequests.push(`Unavailable coding tool: ${probe}:${operation.name}`);
 				}
@@ -213,12 +223,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		assert.ok(address && typeof address !== 'string');
 		endpoint = `http://127.0.0.1:${address.port}`;
 		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
-		store.add(agent.onDidChatProgress(signal => {
-			signals.push(signal);
-			if (signal.kind === 'pending_confirmation') {
-				agent.respondToPermissionRequest(signal.state.toolCallId, true);
-			}
-		}));
+		store.add(agent.onDidChatProgress(onProgress));
 	});
 
 	teardown(async () => {
@@ -264,7 +269,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		};
 	}
 
-	async function createChat(name: string, scope?: AgentHostAuthenticationScope): Promise<void> {
+	async function createChat(name: string, scope?: AgentHostAuthenticationScope): Promise<IAgentCreateChatResult> {
 		const workspace = join(directory, name);
 		await mkdir(workspace);
 		// The nested repository bounds instruction discovery to synthetic files.
@@ -277,10 +282,12 @@ suite('Copilot Agent credential sponsorship', function () {
 		await mkdir(skill, { recursive: true });
 		await writeFile(join(skill, 'SKILL.md'), '---\nname: sponsorship-workspace-skill\ndescription: Synthetic workspace discovery proof\n---\nSynthetic skill for credential parity tests.\n');
 		const chatContext = context(name, scope);
-		await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
+		const created = await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
 			deferBacking: true, model: { id: 'gpt-4o' }, workingDirectories: [URI.file(workspace)],
 			config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 		});
+		assert.ok(created);
+		return created;
 	}
 
 	async function send(probe: string, scope?: AgentHostAuthenticationScope): Promise<void> {
@@ -301,6 +308,96 @@ suite('Copilot Agent credential sponsorship', function () {
 			listener.dispose();
 		}
 	}
+
+	test('after restart, isolated history matches live history without authentication, activation or network traffic', async () => {
+		const scope = await createScope('scope-a');
+		const created = await createChat('A', scope);
+		await send('A', scope);
+		await send('A-DELEGATED', scope);
+		const original = context('A', scope);
+		const chat = URI.parse(buildDefaultChatUri(original.resource));
+		const live = await agent.chats.getMessages(chat, original);
+		const child = URI.parse(subagentChatUri('shaped', original.resource.toString(), chat.toString(), 'call-A-DELEGATED-1'));
+		const childContext = { ...original, origin: { kind: ChatOriginKind.Tool as const, chat: chat.toString(), toolCallId: 'call-A-DELEGATED-1' } };
+		const liveChild = await agent.chats.getMessages(child, childContext);
+		assert.ok(liveChild.length > 0, `The fixture must generate a real child transcript: ${JSON.stringify({
+			probes: modelTraffic.map(request => request.probe),
+			task: signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'call-A-DELEGATED-1'),
+		})}`);
+		await agent.chats.releaseChat(chat, original);
+		await agent.shutdown();
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+		store.add(agent.onDidChatProgress(onProgress));
+		const observing = {
+			...original,
+			credentials: { getCredential: () => { assert.fail('History must not acquire execution credentials'); } },
+		};
+		const beforeRead = { github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length, clients: agent.clients.length };
+		const metadata = await agent.getChatMetadata(chat, observing, created.providerData);
+		assert.ok(metadata);
+		await agent.materializeChat(chat, observing, created.providerData);
+		const [restored, restoredChild] = await Promise.all([
+			agent.chats.getMessages(chat, observing),
+			agent.chats.getMessages(child, { ...childContext, credentials: observing.credentials }),
+		]);
+		const canvases = await agent.listSessionCanvases(original.resource, chat, observing);
+		const transcript = (turns: readonly Turn[]) => turns.map(turn => ({
+			...turn,
+			id: turn.message.origin.kind === MessageKind.Tool ? 'generated-tool-turn' : turn.id,
+			responseParts: turn.responseParts.map(part => {
+				if (!hasKey(part, { id: true })) {
+					return part;
+				}
+				const { id, ...content } = part;
+				return content;
+			}),
+		}));
+		assert.deepStrictEqual({
+			history: transcript(restored),
+			child: transcript(restoredChild),
+			canvases,
+			traffic: { github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length },
+			clients: agent.clients.slice(beforeRead.clients).map(entry => ({
+				mode: entry.options.mode, token: entry.options.gitHubToken, stops: entry.client.stopCount, errors: entry.client.stopErrorCount,
+			})),
+			unexpectedRequests,
+		}, {
+			history: transcript(live),
+			child: transcript(liveChild),
+			canvases: [],
+			traffic: { github: beforeRead.github, model: beforeRead.model, connectors: beforeRead.connectors },
+			clients: [0, 1].map(() => ({ mode: 'empty', token: undefined, stops: 1, errors: 0 })),
+			unexpectedRequests: [],
+		});
+		await agent.chats.releaseChat(chat, observing);
+		const snapshotStarted = new DeferredPromise<void>();
+		const snapshotGate = new DeferredPromise<void>();
+		agent.onClientStarted = (client, options) => {
+			if (options.mode === 'empty') {
+				const read = client.rpc.sessions.readPersistedEvents;
+				client.rpc.sessions.readPersistedEvents = async params => {
+					const page = await read(params);
+					snapshotStarted.complete();
+					await snapshotGate.p;
+					return page;
+				};
+			}
+		};
+		const snapshot = agent.chats.getMessages(chat, observing);
+		try {
+			await Promise.race([snapshotStarted.p, snapshot]);
+			await send('A-CONTINUED', scope);
+		} finally {
+			snapshotGate.complete();
+			agent.onClientStarted = undefined;
+		}
+		assert.deepStrictEqual(transcript(await snapshot), transcript(restored));
+		await agent.chats.releaseChat(chat, original);
+		const afterContinuation = await agent.chats.getMessages(chat, observing);
+		assert.deepStrictEqual(afterContinuation.map(turn => turn.message.text), [
+			...restored.map(turn => turn.message.text), 'CREDENTIAL_PROBE:A-CONTINUED',
+		]);
+	});
 
 	test('real Agent startup preserves coding tools and separates A, B and legacy credentials through idle rotation', async () => {
 		const [a, b] = await Promise.all([createScope('scope-a'), createScope('scope-b')]);

@@ -11,6 +11,7 @@ export const INewChatModelPickerService = createDecorator<INewChatModelPickerSer
 export interface INewChatModelPicker {
 	getDomNode(): HTMLElement | undefined;
 	readonly open: () => void;
+	readonly openComparison?: () => void;
 	readonly switchToModel: (modelIdentifier: string) => boolean;
 }
 

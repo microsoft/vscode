@@ -50,6 +50,7 @@ interface IAzureAPICenterInfo {
 
 interface IRawGalleryMcpServersMetadata {
 	readonly count: number;
+	readonly total?: number;
 	readonly nextCursor?: string;
 }
 
@@ -341,6 +342,7 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 	interface RawGalleryMcpServersResult {
 		readonly metadata: {
 			readonly count: number;
+			readonly total?: number;
 			readonly next_cursor?: string;
 		};
 		readonly servers: readonly RawGalleryMcpServer[];
@@ -383,6 +385,7 @@ namespace McpServerSchemaVersion_v2025_07_09 {
 			return {
 				metadata: {
 					count: from.metadata.count ?? 0,
+					total: from.metadata.total,
 					nextCursor: from.metadata?.next_cursor
 				},
 				servers
@@ -659,6 +662,7 @@ namespace McpServerSchemaVersion_v0_1 {
 	interface RawGalleryMcpServersResult {
 		readonly metadata: {
 			readonly count: number;
+			readonly total?: number;
 			readonly nextCursor?: string;
 		};
 		readonly servers: readonly RawGalleryMcpServerInfo[];
@@ -755,7 +759,7 @@ namespace McpServerSchemaVersion_v0 {
 			if (!Array.isArray(candidate.servers) || !isObject(candidate.metadata)) {
 				return undefined;
 			}
-			const metadata = candidate.metadata as { readonly count?: unknown; readonly nextCursor?: unknown; readonly next_cursor?: unknown };
+			const metadata = candidate.metadata as { readonly count?: unknown; readonly total?: unknown; readonly nextCursor?: unknown; readonly next_cursor?: unknown };
 			if (metadata.count !== undefined && typeof metadata.count !== 'number') {
 				return undefined;
 			}
@@ -770,6 +774,7 @@ namespace McpServerSchemaVersion_v0 {
 			return {
 				metadata: {
 					count: metadata.count ?? 0,
+					total: typeof metadata.total === 'number' ? metadata.total : undefined,
 					nextCursor: isString(metadata.nextCursor) ? metadata.nextCursor : isString(metadata.next_cursor) ? metadata.next_cursor : undefined,
 				},
 				servers,
@@ -850,7 +855,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			.withPage(options.cursor ?? '', options.pageSize)
 			.withSearchText(options.cursor ? undefined : options.text?.trim());
 		const { servers, metadata } = await this.queryGalleryMcpServers(query, manifest, token, true);
-		return { items: servers, total: metadata.count >= servers.length ? metadata.count : undefined, nextCursor: metadata.nextCursor };
+		const total = metadata.total;
+		return { items: servers, total: total !== undefined && Number.isSafeInteger(total) && total >= servers.length ? total : undefined, nextCursor: metadata.nextCursor };
 	}
 
 	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IGalleryMcpServer>> {

@@ -268,13 +268,13 @@ suite('changesetUri', () => {
 		}, {
 			creatingSession: [],
 			creatingChat: [{
-				label: 'Uncommitted Changes',
+				label: 'Uncommitted',
 				description: 'Show uncommitted changes in this session',
 				uriTemplate: buildUncommittedChangesetUri(defaultChatUri),
 				changeKind: ChangesetKind.Uncommitted,
 			}],
 			readySession: [{
-				label: 'Session Changes',
+				label: 'Session',
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(sessionUri),
 				changeKind: ChangesetKind.Session,
@@ -286,7 +286,7 @@ suite('changesetUri', () => {
 				changeKind: ChangesetKind.Turn,
 			}],
 			readyPeerChat: [{
-				label: 'Session Changes',
+				label: 'Session',
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(peerChatUri),
 				changeKind: ChangesetKind.Session,
@@ -376,13 +376,13 @@ suite('changesetUri', () => {
 		const catalogue = buildDefaultChangesetCatalog(peerChatUri, false, readyState, sessionUri);
 
 		assert.deepStrictEqual(
-			catalogue.map(changeset => ({ kind: changeset.changeKind, uri: changeset.uriTemplate })),
+			catalogue.map(changeset => ({ kind: changeset.changeKind, label: changeset.label, uri: changeset.uriTemplate })),
 			[
-				{ kind: ChangesetKind.Branch, uri: buildBranchChangesetUri(sessionUri) },
-				{ kind: ChangesetKind.Uncommitted, uri: buildUncommittedChangesetUri(peerChatUri) },
-				{ kind: ChangesetKind.Session, uri: buildSessionChangesetUri(peerChatUri) },
-				{ kind: ChangesetKind.Turn, uri: buildTurnChangesetUriTemplate(peerChatUri) },
-				{ kind: ChangesetKind.Compare, uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
+				{ kind: ChangesetKind.Branch, label: 'Branch', uri: buildBranchChangesetUri(sessionUri) },
+				{ kind: ChangesetKind.Uncommitted, label: 'Uncommitted', uri: buildUncommittedChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Session, label: 'Session', uri: buildSessionChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Turn, label: 'This Turn', uri: buildTurnChangesetUriTemplate(peerChatUri) },
+				{ kind: ChangesetKind.Compare, label: 'Compare Turns', uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
 			],
 		);
 	});
@@ -470,7 +470,7 @@ suite('changesetUri', () => {
 		}, {
 			session: undefined,
 			peerChat: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(peerChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
@@ -478,25 +478,25 @@ suite('changesetUri', () => {
 			neverEnabled: undefined,
 			configuredWhileDisabled: undefined,
 			enabled: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			disabledAfterEnable: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			restoredFromRepairTurn: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			restoredFromEnabledNotice: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
