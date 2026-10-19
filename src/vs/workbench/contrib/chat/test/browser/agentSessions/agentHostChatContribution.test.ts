@@ -6560,6 +6560,20 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(capturedRoots.at(-1), [primary.toString(), secondary.toString()]);
 		});
 
+		test('an existing remote session maps its advertised customization scope roots to client URIs', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary, secondary] });
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('remote-host');
+			const capturedRoots = captureScopeRoots(instantiationService);
+			const workingDirectories = [URI.file('/srv/agent/checkouts/session-42'), URI.file('/srv/shared/context')];
+			const sessionResource = seedExistingSession(agentHostService, 'remote-scope', workingDirectories);
+
+			capturedRoots.length = 0;
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(capturedRoots.at(-1), workingDirectories.map(root => agentHostService.resourceUris.fromAgentHost(root).toString()));
+		});
+
 		test('an existing workspace-less session does not inherit the workspace folders', async () => {
 			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary, secondary] });
 			agentHostService.setRootState({

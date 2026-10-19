@@ -22723,7 +22723,7 @@ suite('CopilotAgent', () => {
 		type TestActiveClient = {
 			readonly toolSet: { ownerOf(toolName: string): string | undefined };
 			snapshot(): Promise<IActiveClientSnapshot>;
-			getRestartReason(snap: IActiveClientSnapshot): Promise<string | undefined>;
+			getRestartReason(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot): Promise<string | undefined>;
 		};
 
 		function getActiveClient(agent: CopilotAgent, session: URI): TestActiveClient {
@@ -22734,6 +22734,37 @@ suite('CopilotAgent', () => {
 		}
 
 		const tools: ToolDefinition[] = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
+
+		test('identical client plugin content under a different URI does not require a restart', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'relocated-plugin-session');
+				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
+				const activeClient = getActiveClient(agent, session);
+				const snapshot = (root: string, nonce = 'same-content'): IActiveClientSnapshot => ({
+					tools: [],
+					mcpServers: {},
+					plugins: [{
+						format: PluginFormat.Copilot,
+						pluginDir: URI.file(root),
+						sourceUri: URI.file(root),
+						nonce,
+						hooks: [],
+						mcpServers: [],
+						skills: [{ uri: URI.file(`${root}/skills/a/SKILL.md`), name: 'a', customization: { type: CustomizationType.Skill, id: 'skill:a', uri: 'file:///skill', name: 'a' } }],
+						agents: [],
+						instructions: [],
+					}],
+				});
+				const applied = snapshot('/cache/old');
+				assert.deepStrictEqual([
+					await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new')),
+					await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new', 'changed-content')),
+				], [undefined, 'clientPluginsChanged']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('clientId-only change (reload) does NOT require a restart and updates the live owner', async () => {
 			const agent = createTestAgent(disposables);
@@ -22900,6 +22931,33 @@ suite('CopilotAgent', () => {
 				resetTurnState() { },
 			};
 		}
+
+		test('reports the bounded SDK session refresh reason during turn preparation', async () => {
+			const telemetryService = new RecordingTelemetryService();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
+			const sessionId = 'config-refresh-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const chat = defaultChatUri(session);
+			const previousSession = { ...refreshSessionStub([]), requiresRestartAfterWorkingDirectoryChange: true };
+			const replacement = refreshSessionStub([]);
+			const internals = agent as unknown as {
+				_resumeSession: (id: string, chatChannelUri?: URI, workingDirectories?: readonly URI[]) => Promise<CopilotAgentSession>;
+			};
+			setDefaultSessionStub(agent, sessionId, previousSession);
+			internals._resumeSession = async () => {
+				setDefaultSessionStub(agent, sessionId, replacement);
+				return replacement as unknown as CopilotAgentSession;
+			};
+			try {
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'refresh-turn');
+				assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.copilot.runtimeRestart').map(event => {
+					const { kind, cause, firstTurn, phase } = event.data as { kind: string; cause: string; firstTurn: boolean; phase: string };
+					return { kind, cause, firstTurn, phase };
+				}), [{ kind: 'sdkSession', cause: 'workingDirectoryChanged', firstTurn: true, phase: 'turnPrepare' }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('relaunches a runtime at the next send after its chat changed owner, and only then', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/owner-change-relaunch-`);
