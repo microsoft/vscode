@@ -8,6 +8,7 @@ import { $, append } from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { ResolvedKeybinding } from '../../../../../../../../base/common/keybindings.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
@@ -68,7 +69,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. By default the
 	 * name has no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly minimal?: boolean; readonly comparison?: IModelPickerComparison; readonly comparisonKeybindingLabel?: string; readonly itemWidth?: number; readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[]; readonly showModelIcon?: boolean; readonly configurationService?: TestConfigurationService } = {}) {
 		const models = options.models ? [...options.models] : [model];
 		let modelReads = 0;
 		const modelsChanged = disposables.add(new Emitter<string>());
@@ -115,7 +116,13 @@ suite('ModelPickerActionItem', () => {
 			{ compact, minimal: constObservable(options.minimal ?? false) },
 			instantiationService,
 			new MockContextKeyService(),
-			new MockKeybindingService(),
+			new class extends MockKeybindingService {
+				override lookupKeybinding(commandId: string): ResolvedKeybinding | undefined {
+					return options.comparisonKeybindingLabel && commandId === options.comparison?.startCommandId
+						? upcastPartial<ResolvedKeybinding>({ getLabel: () => options.comparisonKeybindingLabel! })
+						: undefined;
+				}
+			}(),
 		));
 
 		const session = append(mainWindow.document.body, $('.interactive-session'));
@@ -387,11 +394,28 @@ suite('ModelPickerActionItem', () => {
 				available: constObservable(true),
 				summary: constObservable('3 Attempts'),
 				state: constObservable(undefined),
+				label: 'Compare Models',
+				startCommandId: 'test.compareModels',
 			}),
+			comparisonKeybindingLabel: 'Ctrl+Alt+M',
 		});
 
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
-		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts');
+		assert.strictEqual(item['_getHoverContents'](), 'Models • 3 Attempts\n\nCompare Models (Ctrl+Alt+M)');
+	});
+
+	test('hover advertises comparison without a shortcut when the command is unbound', () => {
+		const { getHoverContents } = renderPicker(createModel('First'), {
+			comparison: upcastPartial<IModelPickerComparison>({
+				available: constObservable(true),
+				summary: constObservable(undefined),
+				state: constObservable(undefined),
+				label: 'Compare Models',
+				startCommandId: 'test.compareModels',
+			}),
+		});
+
+		assert.strictEqual(getHoverContents(), 'Models • First\n\nCompare Models');
 	});
 
 	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {
