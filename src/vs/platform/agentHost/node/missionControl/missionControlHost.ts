@@ -23,7 +23,7 @@ import type { AgentHostClientFileSystemProvider } from '../../common/agentHostCl
 import { parseAnnotationsUri } from '../../common/annotationsUri.js';
 import { changesetSession, parseChangesetUri } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { isAhpChatChannel } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, readSessionExternal } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
@@ -400,6 +400,7 @@ export class MissionControlHost extends Disposable {
 				ahpLogDirectory: this._ahpLogDirectory,
 				advertisedModelProviders: ['copilotcli'],
 				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				sessionSummaryFilter: summary => !readSessionExternal(summary._meta),
 				sessionListAdapter: toMissionControlSessionList,
 				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
@@ -447,7 +448,7 @@ export class MissionControlHost extends Disposable {
 					: changeset ? changesetSession(changeset, getChatOwner) : parseAnnotationsUri(envelope.channel)?.sessionUri ?? envelope.channel;
 				const session = channel !== undefined ? this._stateManager.getSessionSummary(channel) : undefined;
 				// Mirroring a provisional draft would create a persistent task before its first message.
-				if (!session || this._stateManager.isIdleProvisionalSession(session.resource)) {
+				if (!session || readSessionExternal(session._meta) || this._stateManager.isIdleProvisionalSession(session.resource)) {
 					return;
 				}
 				try {

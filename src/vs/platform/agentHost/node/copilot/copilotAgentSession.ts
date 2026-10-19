@@ -1022,6 +1022,10 @@ class CopilotTurn extends Disposable {
 interface IPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly sender: IAgentPendingMessageSender | undefined;
+	/** Set once the message is handed to the SDK; identifies it for withdrawal. */
+	sdkSend?: { readonly prompt: string; readonly messageId: Promise<string> };
+	/** The SDK's id for the message once `send` returns; its `user.message` echo carries the same id. */
+	sdkMessageId?: string;
 }
 
 /** Where a transient chat activity comes from; see `CopilotAgentSession._publishActivity` for the precedence. */
@@ -2309,20 +2313,34 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Pops the buffered steering message whose text is contained in the SDK
-	 * `user.message` content we just observed. Matching by content (rather
-	 * than just popping FIFO) keeps us robust against the SDK reordering
-	 * or coalescing entries — concurrent steering messages with different
-	 * texts are still matched to the correct one. Returns `undefined` if
-	 * no buffered entry matches; the caller treats the `user.message` as
-	 * an ordinary echo and skips the turn flip.
+	 * Pops the buffered steering message delivered by the SDK `user.message`
+	 * we just observed. The echo carries the id `send` returned, so an exact
+	 * id match wins; that keeps identical texts apart, e.g. one being
+	 * withdrawn while the other is delivered. Otherwise matches by content,
+	 * skipping entries the SDK already identified as a different message.
+	 * Matching by content (rather than just popping FIFO) keeps us robust
+	 * against the SDK reordering or coalescing entries — concurrent steering
+	 * messages with different texts are still matched to the correct one.
+	 * Returns `undefined` if no buffered entry matches; the caller treats the
+	 * `user.message` as an ordinary echo and skips the turn flip.
 	 */
-	private _takeMatchingPendingSteering(content: string): IPendingSteering | undefined {
+	private _takeMatchingPendingSteering(content: string, messageId: string | undefined): IPendingSteering | undefined {
 		if (this._pendingSteeringFlips.size === 0) {
 			return undefined;
 		}
+		if (messageId) {
+			for (const [id, pending] of this._pendingSteeringFlips) {
+				if (pending.sdkMessageId === messageId) {
+					this._pendingSteeringFlips.delete(id);
+					return pending;
+				}
+			}
+		}
 		let substringMatch: [string, IPendingSteering] | undefined;
 		for (const [id, pending] of this._pendingSteeringFlips) {
+			if (messageId && pending.sdkMessageId) {
+				continue;
+			}
 			if (pending.pendingMessage.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
 				return pending;
@@ -3701,7 +3719,7 @@ export class CopilotAgentSession extends Disposable {
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
+			defer: def.deferLoading !== false && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
@@ -5590,8 +5608,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const steeringTurn = this._currentTurn.value;
 		const abortToken = this._abortToken;
+		const pending: IPendingSteering = { pendingMessage: steeringMessage, sender };
 		this._steeringMessagesInFlight.add(steeringMessage.id);
-		this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
+		this._pendingSteeringFlips.set(steeringMessage.id, pending);
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
@@ -5606,15 +5625,25 @@ export class CopilotAgentSession extends Disposable {
 				: steeringMessage.message.text;
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
-					prompt: steeringPrompt,
-					attachments: sdkAttachments?.length ? sdkAttachments : undefined,
-					mode: 'immediate',
-				})),
+				async () => {
+					if (this._pendingSteeringFlips.get(steeringMessage.id) !== pending) {
+						this._logService.info(`[Copilot:${this.sessionId}] Steering message was withdrawn or cleared before it was sent: id=${steeringMessage.id}`);
+						return undefined;
+					}
+					const messageId = this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
+						prompt: steeringPrompt,
+						attachments: sdkAttachments?.length ? sdkAttachments : undefined,
+						mode: 'immediate',
+					}));
+					pending.sdkSend = { prompt: steeringPrompt, messageId };
+					return messageId;
+				},
 				steeringTurn, abortToken,
 			);
 			if (execution.kind === 'skipped' && this._pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(steeringMessage.id);
+			} else if (execution.kind === 'executed' && execution.value !== undefined) {
+				pending.sdkMessageId = execution.value;
 			}
 		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
@@ -5623,6 +5652,37 @@ export class CopilotAgentSession extends Disposable {
 			}
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
+		}
+	}
+
+	/**
+	 * Withdraws a steering message the user removed. A message still being prepared is never sent; one
+	 * the SDK holds is withdrawn from its steering queue. If the SDK already delivered it to the model,
+	 * the entry is kept so its `user.message` echo still shows it as its own turn.
+	 */
+	async withdrawSteering(id: string): Promise<void> {
+		const pending = this._pendingSteeringFlips.get(id);
+		if (!pending) {
+			return;
+		}
+		if (!pending.sdkSend) {
+			this._pendingSteeringFlips.delete(id);
+			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message before sending it: id=${id}`);
+			return;
+		}
+		try {
+			const messageId = await pending.sdkSend.messageId;
+			const result = await this._wrapper.session.rpc.queue.withdrawMessage({ messageId, expectedPrompt: pending.sdkSend.prompt });
+			if (!result.removed) {
+				this._logService.info(`[Copilot:${this.sessionId}] Steering message was already delivered and could not be withdrawn: id=${id}`);
+				return;
+			}
+			if (this._pendingSteeringFlips.get(id) === pending) {
+				this._pendingSteeringFlips.delete(id);
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message: id=${id}`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to withdraw steering message: id=${id}: ${getErrorMessage(err)}`);
 		}
 	}
 
@@ -7850,7 +7910,7 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
-			const steering = this._takeMatchingPendingSteering(e.data.content);
+			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
 			if (steering) {
 				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {

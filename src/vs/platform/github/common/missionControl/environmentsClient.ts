@@ -15,6 +15,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	list(signal: AbortSignal, options?: ListEnvironmentsOptions): Promise<readonly Environment[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: withQuery('/environments', { ...query }),
 			expectedStatus: 200,
@@ -25,6 +26,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 
 	get(environmentId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Environment> {
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: environmentPath(environmentId),
 			expectedStatus: 200,
@@ -42,6 +44,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	connect(environmentId: string, signal: AbortSignal, options?: ConnectEnvironmentOptions): Promise<EnvironmentConnectResult> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: withQuery(`${environmentPath(environmentId)}/connect`, { ...query }),
 			expectedStatus: [200, 202],
@@ -53,6 +56,7 @@ export class EnvironmentsClient implements IEnvironmentsClient {
 	reconnect(environmentId: string, clientId: string, signal: AbortSignal, options?: EnvironmentConnectionOptions): Promise<EnvironmentConnectResult> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'environments',
 			method: 'GET',
 			path: withQuery(`${environmentPath(environmentId)}/reconnect`, { ...query, client_id: clientId }),
 			expectedStatus: [200, 202],

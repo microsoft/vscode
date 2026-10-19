@@ -32,6 +32,7 @@ import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoMode
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -1404,7 +1405,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
 			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
-			tools: undefined,
+			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],
