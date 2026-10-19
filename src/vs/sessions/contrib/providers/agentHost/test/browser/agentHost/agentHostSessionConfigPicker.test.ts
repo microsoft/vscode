@@ -384,6 +384,7 @@ function setupServices(
 		override readonly resource = SESSION_RESOURCE;
 		override readonly workspace = workspace;
 		override readonly activeChat = constObservable(activeChat);
+		override readonly mainChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService, notificationErrors };

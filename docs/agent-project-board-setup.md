@@ -227,6 +227,8 @@ Replace the lint target with the files you changed. Run `npm run valid-layers-ch
 
 After rebasing provider or embedded-list integration, also include `agentHostAgentPickerTarget`, `localAgentHostSessionsProvider` and `sessionsList` in the browser/Electron selectors. Keep picker fixtures aligned with the current constructor services without weakening their exact-child targeting assertions; policy-disabled sessions must still reject agent changes made through a scoped chat.
 
+For chat-scoped configuration changes, include `agentHostSessionConfigPicker` and verify both visible active chats and isolated drafts' main chats. Pass the card's exact chat resource to `getSessionConfig`. For chat-opening changes, include `chatEditor` and retain upstream diagnostics, provider-registration events and transcript-paint waits in test fixtures; rejected opens must still report the intended model-loading error.
+
 Code baseline `5c1baeb024497351be92d41224d226185ced61f9` passed **217 Chromium / 222 Electron tests** for the cumulative selector above, plus typechecks, lint and Windows native validation. Treat those as recorded baseline results, not a substitute for testing your revision.
 
 ## 6. Native interaction gate

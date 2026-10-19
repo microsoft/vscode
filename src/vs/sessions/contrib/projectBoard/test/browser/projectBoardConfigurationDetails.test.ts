@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -31,6 +32,7 @@ suite('ProjectBoardConfigurationDetails', () => {
 	};
 	const card = new class extends mock<IProjectBoardCard>() {
 		override readonly chat = new class extends mock<IChat>() {
+			override readonly resource = URI.parse('agenthost-chat:owner/represented-peer');
 			override readonly modelId = observableValue<string | undefined>('modelId', 'model-a');
 			override readonly mode = observableValue('mode', { id: 'agent', kind: 'agent' });
 		}();
@@ -51,8 +53,9 @@ suite('ProjectBoardConfigurationDetails', () => {
 			assert.strictEqual(desiredModelId, 'model-a');
 			return { models: [model], desiredModelResolution: { kind: 'available' as const, model }, modelTarget: 'agent-host-copilotcli' };
 		}
-		override getSessionConfig(sessionId: string) {
+		override getSessionConfig(sessionId: string, chat: URI) {
 			assert.strictEqual(sessionId, 'owner');
+			assert.strictEqual(chat, card.chat.resource);
 			return {
 				schema: { type: 'object' as const, properties: {
 					mode: { title: 'Mode', type: 'string' as const, enum: ['interactive', 'autopilot'], enumLabels: ['Interactive', 'Autopilot'] },

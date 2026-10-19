@@ -48,7 +48,7 @@ export function getProjectBoardConfigurationDetails(
 	const access = { getModelConfiguration: () => matchingInput ? input?.modelConfiguration : undefined };
 	const effort = matchingInput ? getModelConfigProperty(model, access, MODEL_CONFIG_GROUP_EFFORT) : undefined;
 	const context = matchingInput ? getModelConfigProperty(model, access, MODEL_CONFIG_GROUP_CONTEXT) : undefined;
-	const config = provider && isAgentHostProvider(provider) ? provider.getSessionConfig(card.session.sessionId) : undefined;
+	const config = provider && isAgentHostProvider(provider) ? provider.getSessionConfig(card.session.sessionId, card.chat.resource) : undefined;
 	const mode = card.chat.mode.read(reader) ?? input?.mode;
 	const permission = configLabel(config, CodexSessionConfigKey.PermissionsPreset)
 		?? configLabel(config, ClaudeSessionConfigKey.PermissionMode)

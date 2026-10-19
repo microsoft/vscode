@@ -131,6 +131,7 @@ suite('ProjectBoardChatSidePanel', () => {
 			override clear = sinon.spy();
 			override readonly showLoading = sinon.spy();
 			override renderLoading = sinon.stub().resolves();
+			override waitForTranscriptPaint = sinon.stub().resolves();
 			override focus = sinon.spy();
 			override hasChatFocus = sinon.stub().returns(true);
 			override hasLoadedChat = sinon.stub().returns(true);

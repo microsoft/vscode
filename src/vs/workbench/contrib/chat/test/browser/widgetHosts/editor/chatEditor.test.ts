@@ -22,6 +22,7 @@ import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { ChatEditor } from '../../../../browser/widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, ChatEditorModel } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../common/chatSessionsService.js';
+import { IChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 
 suite('ChatEditor loading feedback', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,7 +41,10 @@ suite('ChatEditor loading feedback', () => {
 				unlockFromCodingAgent() { }, getViewState: () => ({ scrollTop: 0 }), dispose() { },
 			});
 			instantiation.stubInstance(AgentHostSessionInputPills, { dispose() { } });
-			instantiation.stub(IChatSessionsService, { canResolveChatSession: async () => true, getAllChatSessionContributions: () => [] });
+			instantiation.stub(IChatSessionsService, { canResolveChatSession: async () => true, getAllChatSessionContributions: () => [], onDidChangeContentProviderSchemes: Event.None });
+			instantiation.stub(IChatOpenDiagnosticsService, {
+				startOpen: () => ({ mark() { }, complete() { }, fail() { }, end() { }, dispose() { } }),
+			});
 			const group = new class extends mock<IEditorGroup>() {
 				override readonly id = 1;
 				override readonly windowId = mainWindow.vscodeWindowId;
@@ -67,7 +71,7 @@ suite('ChatEditor loading feedback', () => {
 				busy: container.getAttribute('aria-busy'),
 			}, { message: scenario.loading ? 'Loading...' : undefined, busy: scenario.loading ? 'true' : null });
 			await resolved.complete(null);
-			await assert.rejects(opening);
+			await assert.rejects(opening, /Failed to get model for chat editor/);
 			assert.deepStrictEqual({ overlay: container.querySelector('.chat-loading-overlay'), busy: container.getAttribute('aria-busy') }, { overlay: null, busy: null });
 		});
 	}

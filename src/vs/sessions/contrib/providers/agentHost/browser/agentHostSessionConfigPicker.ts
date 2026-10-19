@@ -1924,15 +1924,16 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		const visibleSessions = this._sessionsService.visibleSessions.get();
 		const drafts = [...this._sessionsManagementService.sessionDrafts.get()].filter(draft =>
 			!visibleSessions.some(visible => visible?.providerId === draft.providerId && visible.sessionId === draft.sessionId));
-		for (const session of [...visibleSessions, ...drafts]) {
-			if (!session) {
-				continue;
-			}
+		const targets = [
+			...visibleSessions.flatMap(session => session ? [{ session, chat: session.activeChat.get() }] : []),
+			...drafts.map(session => ({ session, chat: session.mainChat.get() })),
+		];
+		for (const { session, chat } of targets) {
 			const provider = this._sessionsProvidersService.getProvider(session.providerId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, session.activeChat.get().resource);
+			const config = provider.getSessionConfig(session.sessionId, chat.resource);
 			if (!config) {
 				continue;
 			}

@@ -6,6 +6,7 @@
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
@@ -13,13 +14,17 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry } from '../../../../workbench/browser/chatDropdownPill.js';
 import { ChatPillsWidget, IChatPill, IChatPillSection, getChatPillLocationHover, getChatPillResourceLocation } from '../../../../workbench/browser/chatPills.js';
+import { downloadFile } from '../../../../workbench/browser/download.js';
 import { sessionPullRequestsPillOptions, sessionReferencesPillOptions } from '../../../../workbench/contrib/chat/browser/sessionChatPillOptions.js';
 import { chatArtifactPillOptions } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
@@ -85,6 +90,9 @@ export class ProjectBoardContextPills extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IFileService private readonly fileService: IFileService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 		this.element = document.adoptNode(mainWindow.document.createElement('div'));
@@ -131,6 +139,13 @@ export class ProjectBoardContextPills extends Disposable {
 			openExternal: uri => { void this.open(uri, true); },
 			openResource: uri => { void this.open(uri, false); },
 			openImages: (images, index) => { void this.open(images[index].uri, false); },
+			downloadImage: async (uri, name) => {
+				try {
+					await downloadFile(uri, name, this.fileService, this.fileDialogService, this.webContentExtractorService);
+				} catch (error) {
+					this.notificationService.error(localize('projectBoard.downloadImageFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));
+				}
+			},
 			copy: text => { void this.copy(text); },
 		};
 		const references: ISessionArtifact[] = context.references.map(item => item.artifact ?? {

@@ -31,6 +31,8 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -50,6 +52,7 @@ suite('ProjectBoardNewSession', () => {
 
 	function setup() {
 		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
 		const frame = mainWindow.document.createElement('iframe');
 		mainWindow.document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
