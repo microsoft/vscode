@@ -17,7 +17,7 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
-/** The Local-only harness control does not contribute governance for other features or providers. */
+/** The temporary harness control does not contribute general presence-based governance. */
 export function isManagedSettingGovernanceActive(key: string): boolean {
 	return key !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY && !key.startsWith(`${COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY}.`);
 }
@@ -77,7 +77,7 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
 /** Enterprise escape hatch for automatic Copilot harness routing in VS Code. */
 export const COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY = 'vscode.temporaryDefaultToLocalHarness';
 
-/** Temporary managed permission for the Local chat harness; only false prohibits it. */
+/** Temporary managed permission for Local, Claude, and Codex harnesses; only false prohibits them. */
 export const COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY = 'vscode.temporaryAllowLocalHarness';
 
 /** Policy-only configuration projection of the Local harness escape hatch. */
@@ -362,14 +362,15 @@ export function managedSettingsDisabledValue(policyData: IPolicyData): boolean |
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
  * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
- * or when the user is governed by managed settings at all.
+ * when the user is governed by managed settings, or when Local harnesses are explicitly prohibited.
  *
  * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
  * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
  * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
-	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
+	return policyData.chat_preview_features_enabled === false || policyData.managedSettings?.[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY] === false
+		? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');

@@ -81,7 +81,7 @@ suite('ChatConfiguration defaults', () => {
 				visible: isVisibleEditorChatSessionType(localChatSessionType, configuration, sessions, workspace, false, enabled, true),
 			})));
 		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({
-			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: false,
+			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: true,
 		})));
 	});
 
@@ -175,7 +175,7 @@ suite('ChatConfiguration defaults', () => {
 				results: Array.from({ length: 4 }, () => ({
 					computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot,
 					remembered: SessionType.AgentHostCopilot, current: SessionType.AgentHostCopilot,
-					usable: false, visible: false,
+					usable: false, visible: true,
 				})),
 				stored: localChatSessionType,
 			});
