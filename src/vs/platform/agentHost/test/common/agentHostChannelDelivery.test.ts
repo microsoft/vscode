@@ -141,6 +141,32 @@ suite('AgentHostChannelDelivery', () => {
 		}
 	});
 
+	test('a paced sender stays within the peer receive budget when delivery is bunched', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			// The receiver checks controls when they arrive. A busy peer or congested
+			// transport can deliver a second of paced controls from 256 streams at once.
+			const receiver = fixture();
+			const queued: string[] = [];
+			const sender = fixture();
+			sender.route(text => queued.push(text));
+			for (let ms = 0; ms < 1000; ms++) {
+				for (let i = 0; i < 16; i++) {
+					sender.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: `test:/${(ms * 16 + i) % 256}`, consumedBytes: ms } });
+				}
+				await clock.tickAsync(1);
+			}
+			for (const text of queued.splice(0)) {
+				const message = parseProtocolMessage(text);
+				assert.ok(isJsonRpcNotification(message));
+				receiver.scheduler.acceptMessage(message);
+			}
+			assert.deepStrictEqual({ senderErrors: sender.errors, receiverErrors: receiver.errors }, { senderErrors: [], receiverErrors: [] });
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('bounds aggregate control bytes independently of the message count', () => {
 		const clock = sinon.useFakeTimers();
 		try {
@@ -184,13 +210,14 @@ suite('AgentHostChannelDelivery', () => {
 		const clock = sinon.useFakeTimers();
 		try {
 			const h = fixture();
-			for (let i = 0; i < 4097; i++) {
+			// Controls are paced at half the peer's receive budget.
+			for (let i = 0; i < 2049; i++) {
 				h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: i } });
 			}
-			assert.strictEqual(h.sent.length, 4096);
+			assert.strictEqual(h.sent.length, 2048);
 			await clock.tickAsync(25);
-			assert.strictEqual(h.sent.length, 4097);
-			assert.deepStrictEqual(h.sent.at(-1)?.params, { channel, consumedBytes: 4096 });
+			assert.strictEqual(h.sent.length, 2049);
+			assert.deepStrictEqual(h.sent.at(-1)?.params, { channel, consumedBytes: 2048 });
 			assert.deepStrictEqual(h.errors, []);
 
 			const congested = fixture();
@@ -409,6 +436,30 @@ suite('AgentHostChannelDelivery', () => {
 		accept(notification('', 'tcp/reset'));
 		assert.deepStrictEqual(h.received.map(message => message.method), ['tcp/reset']);
 		assert.deepStrictEqual(h.errors, []);
+	});
+
+	test('credits a quarter of the window promptly and coalesces smaller releases', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture({ release: true });
+			const message = notification('data');
+			const bytes = JSON.stringify(message).length * 2;
+			const credits = () => h.sent.filter(sent => sent.method === 'channel/credit').map(sent => (sent.params as { consumedBytes: number }).consumedBytes);
+			h.delivery.accept(message, bytes);
+			h.delivery.accept(message, bytes);
+			await clock.tickAsync(0);
+			const small = credits();
+			await clock.tickAsync(10);
+			const coalesced = credits();
+			const count = Math.ceil(limits.windowBytes / 4 / bytes);
+			for (let i = 0; i < count; i++) {
+				h.delivery.accept(message, bytes);
+			}
+			await clock.tickAsync(0);
+			assert.deepStrictEqual({ small, coalesced, prompt: credits() }, { small: [], coalesced: [bytes * 2], prompt: [bytes * 2, bytes * (2 + count)] });
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('release receipts credit only the contiguous consumed prefix', () => {

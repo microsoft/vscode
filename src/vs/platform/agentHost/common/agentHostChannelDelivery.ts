@@ -23,18 +23,32 @@ const maximumControlBytes = 16 * 1024;
 const maximumControlQueueBytes = 64 * 1024;
 const controlMessagesPerSecond = 4096;
 const controlBytesPerSecond = 1024 * 1024;
+/**
+ * Controls are sent at a fraction of the peer's receive budget. The peer
+ * measures arrival, and a congested transport or busy peer can deliver up to a
+ * second of paced controls at once.
+ */
+const controlSendFraction = 0.5;
+/** Release smaller than this share of the receive window is credited after {@link creditDelay}. */
+const creditWindowFraction = 0.25;
+const creditDelay = 10;
 
 class ControlBudget {
-	private _messages = controlMessagesPerSecond;
-	private _bytes = controlBytesPerSecond;
+	private _messages: number;
+	private _bytes: number;
 	private _updatedAt = Date.now();
+
+	constructor(private readonly _messagesPerSecond: number, private readonly _bytesPerSecond: number) {
+		this._messages = _messagesPerSecond;
+		this._bytes = _bytesPerSecond;
+	}
 
 	take(bytes: number): boolean {
 		const now = Date.now();
 		const elapsed = Math.max(0, now - this._updatedAt) / 1000;
 		this._updatedAt = Math.max(now, this._updatedAt);
-		this._messages = Math.min(controlMessagesPerSecond, this._messages + elapsed * controlMessagesPerSecond);
-		this._bytes = Math.min(controlBytesPerSecond, this._bytes + elapsed * controlBytesPerSecond);
+		this._messages = Math.min(this._messagesPerSecond, this._messages + elapsed * this._messagesPerSecond);
+		this._bytes = Math.min(this._bytesPerSecond, this._bytes + elapsed * this._bytesPerSecond);
 		if (this._messages < 1 || this._bytes < bytes) {
 			return false;
 		}
@@ -68,8 +82,8 @@ export function readChannelFlowControl(value: unknown): ChannelFlowControl {
 export class AgentHostChannelScheduler extends Disposable {
 	private readonly _channels = new Map<string, AgentHostChannelDelivery>();
 	private readonly _controls = new Map<string, IOutgoingControl>();
-	private readonly _receiveControlBudget = new ControlBudget();
-	private readonly _sendControlBudget = new ControlBudget();
+	private readonly _receiveControlBudget = new ControlBudget(controlMessagesPerSecond, controlBytesPerSecond);
+	private readonly _sendControlBudget = new ControlBudget(controlMessagesPerSecond * controlSendFraction, controlBytesPerSecond * controlSendFraction);
 	private _controlBytes = 0;
 	private _controlTimer: ReturnType<typeof setTimeout> | undefined;
 	private _sendingControls = false;
@@ -307,6 +321,7 @@ export class AgentHostChannelDelivery extends Disposable {
 	private _fragments = '';
 	private _error: Error | undefined;
 	private _creditTimer: ReturnType<typeof setTimeout> | undefined;
+	private _creditPrompt = false;
 
 	constructor(
 		readonly channel: string,
@@ -532,16 +547,22 @@ export class AgentHostChannelDelivery extends Disposable {
 		while (this._received[0]?.released) {
 			this._consumedBytes = this._received.shift()!.end;
 		}
-		if (this._creditTimer === undefined) {
-			this._creditTimer = setTimeout(() => {
-				this._creditTimer = undefined;
-				try {
-					this.flushCredit();
-				} catch (error) {
-					this.fail(error instanceof Error ? error : new Error(String(error)));
-				}
-			}, 0);
+		// Credit bulk transfers promptly but coalesce small releases, so busy
+		// channels do not spend the control budget on one credit per frame.
+		const prompt = this._consumedBytes - this._creditedBytes >= this._receiveLimits.windowBytes * creditWindowFraction;
+		if (this._creditTimer !== undefined && (!prompt || this._creditPrompt)) {
+			return;
 		}
+		clearTimeout(this._creditTimer);
+		this._creditPrompt = prompt;
+		this._creditTimer = setTimeout(() => {
+			this._creditTimer = undefined;
+			try {
+				this.flushCredit();
+			} catch (error) {
+				this.fail(error instanceof Error ? error : new Error(String(error)));
+			}
+		}, prompt ? 0 : creditDelay);
 	}
 
 	flushCredit(): void {
