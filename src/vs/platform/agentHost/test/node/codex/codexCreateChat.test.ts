@@ -5315,9 +5315,9 @@ suite('CodexAgent live approvals', () => {
 		let appTurnId = '';
 		const select = (value: CodexPermissionsPreset) => stateManager.dispatchClientAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { [CodexSessionConfigKey.PermissionsPreset]: value } }, { clientId: 'test-client', clientSeq: ++sequence });
 		const notifyTurn = (status: 'inProgress' | 'completed') => peer.push({ method: status === 'inProgress' ? 'turn/started' : 'turn/completed', params: { threadId, turn: { id: appTurnId, items: [], itemsView: 'full', status, error: null, startedAt: 1, completedAt: status === 'completed' ? 2 : null, durationMs: null } } });
-		const start = async (suffix: string, notify = true) => {
+		const start = async (suffix: string, { notify = true, agentMergeTurn = false }: { notify?: boolean; agentMergeTurn?: boolean } = {}) => {
 			appTurnId = `app-${suffix}`;
-			const sending = agent.chats.sendMessage(chat, 'Continue', [folder], undefined, `host-${suffix}`, undefined, undefined, context);
+			const sending = agent.chats.sendMessage(chat, 'Continue', [folder], undefined, `host-${suffix}`, undefined, undefined, { ...context, agentMergeTurn });
 			for (; ;) {
 				const request = await readNextRequest(peer.outbound);
 				peer.push({ id: request.id, result: request.method === 'thread/start' || request.method === 'thread/resume' ? { thread: { id: threadId, cwd: folder.fsPath } } : {} });
@@ -5351,11 +5351,27 @@ suite('CodexAgent live approvals', () => {
 			harness.peer.push({ id: request.id, result: { status: 'applied' } });
 			assert.deepStrictEqual({ method: request.method, params: request.params }, { method: 'turn/settings/update', params: { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: reviewer } });
 		});
+
+		test(`changes ${initial} to ${selected} during Agent Merge with networking enabled`, async () => {
+			const harness = await setup(initial);
+			const config = { [CodexSessionConfigKey.PermissionsPreset]: initial, [CodexSessionConfigKey.NetworkAccessEnabled]: true };
+			harness.stateManager.setSessionConfig(harness.session.toString(), await harness.agent.resolveChatConfig({ config }));
+			const turn = await harness.start('first', { agentMergeTurn: true });
+			const next = readNextRequest(harness.peer.outbound);
+			harness.select(selected);
+			const request = await next;
+			harness.peer.push({ id: request.id, result: { status: 'applied' } });
+			assert.deepStrictEqual({ permissions: turn.params.permissions, method: request.method, params: request.params }, {
+				permissions: 'vscode-workspace',
+				method: 'turn/settings/update',
+				params: { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: reviewer },
+			});
+		});
 	}
 
 	test('applies a selection made before the native turn-start notification', async () => {
 		const harness = await setup();
-		await harness.start('first', false);
+		await harness.start('first', { notify: false });
 		harness.select('auto-review');
 		const next = readNextRequest(harness.peer.outbound);
 		harness.notifyTurn('inProgress');

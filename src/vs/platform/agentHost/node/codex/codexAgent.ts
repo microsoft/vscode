@@ -2003,7 +2003,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const resolved = this._resolveSessionPermissions(owner, session.chatChannel);
 		const requested = {
 			approvalPolicy: resolved.approvalPolicy,
-			permissions: this._permissionProfile(this._readSessionConfig(owner, session.chatChannel), resolved.sandboxMode),
+			permissions: this._permissionProfile(this._readSessionConfig(owner, session.chatChannel), resolved.sandboxMode, session.agentMergeTurn ? false : undefined),
 			approvalsReviewer: resolved.approvalsReviewer,
 		};
 		const isCurrent = () => !session.disposed && session.turnPermissions === turn
