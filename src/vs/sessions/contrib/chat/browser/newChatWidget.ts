@@ -1319,7 +1319,9 @@ export class NewChatWidget extends Disposable {
 		if (!provider || !isAgentHostProvider(provider) || !provider.preferDevContainer) {
 			return;
 		}
-		provider.preferDevContainer(session.sessionId, this._environment.get()?.kind === 'container' ? { required: true } : undefined);
+		if (this._environment.get()?.kind !== 'container') {
+			provider.preferDevContainer(session.sessionId);
+		}
 		this._preferredDevContainerFolderUri = undefined;
 	}
 
@@ -1339,6 +1341,7 @@ export class NewChatWidget extends Disposable {
 			return await this.sessionsService.openNewSession({
 				folderUri,
 				preserveNavigation: true,
+				...(environment?.kind === 'container' ? { requireDevContainer: true } : undefined),
 				...(preferredPick
 					? { providerId: preferredPick.providerId, sessionTypeId: preferredPick.sessionTypeId }
 					: fallbackProviderId
@@ -2191,6 +2194,7 @@ export class NewChatWidget extends Disposable {
 		}));
 		try {
 			if (folderUri) {
+				this._reconcileWorkspaceEnvironment(options);
 				const result = await this._createNewSession(folderUri, this._newChatInput.sessionTypePicker.getUserPickedSessionType(), {
 					token: cancellation.token, providerId: options.providerId, preferDevContainer: options.preferDevContainer,
 				});
@@ -2216,6 +2220,19 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
+	private _reconcileWorkspaceEnvironment(options: ISelectWorkspaceOptions): void {
+		const providerId = options.providerId;
+		if (!providerId || !this._environment.get()) {
+			return;
+		}
+		const environment = this._environments.get().find(environment => environment.kind !== 'container' && environment.providerIds.includes(providerId));
+		if (environment) {
+			this._pickedEnvironment.set(options.preferDevContainer
+				? { ...environment, id: `container:${environment.id}`, kind: 'container', label: localize('environmentPicker.container', "Dev Container"), icon: Codicon.remote }
+				: environment, undefined);
+		}
+	}
+
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		if (options?.isDefault) {
 			if (this._newSessionCreation.value) {
@@ -2231,6 +2248,9 @@ export class NewChatWidget extends Disposable {
 				|| selection.origin === WorkspaceSelectionOrigin.Programmatic) {
 				return 'preserved';
 			}
+		}
+		if (options) {
+			this._reconcileWorkspaceEnvironment(options);
 		}
 		this._preferredDevContainerFolderUri = options?.preferDevContainer ? folderUri : undefined;
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId: options?.providerId, preferDevContainer: options?.preferDevContainer, origin: options?.selectionOrigin });

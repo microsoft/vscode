@@ -995,7 +995,8 @@ export class WorkspacePicker extends Disposable {
 			if (!folderUri || generation !== this._selectionGeneration) {
 				return false;
 			}
-			if (!await this._canSelectWorkspace(folderUri, selection.providerId)) {
+			const attachesContext = selection.action?.attachesContext === true || item.attachAsContext === true;
+			if (!await this._canSelectWorkspace(folderUri, selection.providerId, attachesContext)) {
 				return false;
 			}
 			if (generation !== this._selectionGeneration) {
@@ -1012,7 +1013,7 @@ export class WorkspacePicker extends Disposable {
 					this._updateTriggerLabel();
 				}
 				this._onDidSelectContext.fire(selection.workspace);
-				if (this._selectedFolderUri) {
+				if (this._selectedFolderUri || this.options.environment?.get()) {
 					return true;
 				}
 			}
@@ -1465,7 +1466,7 @@ export class WorkspacePicker extends Disposable {
 		return undefined;
 	}
 
-	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined): Promise<boolean> {
+	private async _canSelectWorkspace(folderUri: URI, providerId: string | undefined, attachesContext = false): Promise<boolean> {
 		if (folderUri.scheme === Schemas.file && this.fileService.hasProvider(folderUri)) {
 			const generation = this._selectionGeneration;
 			const exists = await this.fileService.exists(folderUri);
@@ -1481,7 +1482,7 @@ export class WorkspacePicker extends Disposable {
 				return false;
 			}
 		}
-		const environment = this._getEnvironment();
+		const environment = attachesContext ? undefined : this._getEnvironment();
 		if (environment) {
 			const provider = getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri);
 			if (!provider) {

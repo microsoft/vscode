@@ -464,6 +464,7 @@ suite('NewChatWidget', () => {
 	suite('environment transitions', () => {
 		const local: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] };
 		const cloud: ISessionCreationEnvironment = { id: 'cloud', kind: 'cloud', label: 'Cloud', icon: Codicon.cloud, providerIds: ['cloud'] };
+		const container: ISessionCreationEnvironment = { ...local, id: 'container:local', kind: 'container' };
 		const folder = URI.file('/project');
 
 		function createHarness(compatible: boolean, onSelect: () => Promise<void> = async () => { }) {
@@ -541,6 +542,83 @@ suite('NewChatWidget', () => {
 				environment: harness._pickedEnvironment.get()?.id,
 				announcements: calls.filter(call => call.startsWith('Environment:')),
 			}, { environment: 'local', announcements: ['Environment: This Computer'] });
+		});
+
+		for (const initial of [undefined, local, cloud, container]) {
+			test(`reconciles a provider-targeted workspace before harness selection with ${initial?.id ?? 'a restored local draft'}`, async () => {
+				const remote: ISessionCreationEnvironment = { id: 'agenthost-remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['agenthost-remote'] };
+				const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', initial);
+				const environment = derived(reader => picked.read(reader) ?? local);
+				const remoteFolder = URI.parse('vscode-remote://ssh-remote+host/project');
+				const requests: IOpenNewSessionOptions[] = [];
+				let creation: Promise<IOpenNewSessionResult> | undefined;
+				const harness = {
+					_environment: environment,
+					_environments: constObservable([local, cloud, remote]),
+					_pickedEnvironment: picked,
+					_session: constObservable({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }),
+					uriIdentityService: { extUri },
+					sessionsManagementService: {
+						getSessionTypesForFolder: () => [{ providerId: remote.providerIds[0], sessionType: { id: 'copilot' } }],
+					},
+					agentHostFilterService: { selectedHost: { sessionCreationProviderId: remote.providerIds[0] } },
+					_isPreferredServable: (folderUri: URI, pick: IPreferredSessionType): boolean => isPreferredServable.call(harness, folderUri, pick),
+					_newChatInput: {
+						sessionTypePicker: {
+							getPreferredSessionType: () => ({ providerId: environment.get().providerIds[0], sessionTypeId: 'copilot' }),
+						},
+					},
+					sessionsService: {
+						openNewSession: async (options: IOpenNewSessionOptions) => {
+							requests.push(options);
+							return { session: undefined, trustDeclined: false };
+						},
+					},
+					logService: { trace: () => { }, error: () => assert.fail('unexpected creation error') },
+					_workspacePicker: {
+						selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID },
+						selectionSnapshot: { state: 'selected', folderUri: remoteFolder },
+						setSelectedWorkspace: () => {
+							creation = createSessionNow.call(harness, remoteFolder, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }, CancellationToken.None);
+						},
+					},
+				};
+				const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), harness);
+				const result = widget.selectWorkspace(remoteFolder, { providerId: remote.providerIds[0] });
+				await creation;
+				assert.deepStrictEqual({ result, environment: picked.get()?.id, requests }, {
+					result: 'applied', environment: remote.id,
+					requests: [{ folderUri: remoteFolder, preserveNavigation: true, providerId: remote.providerIds[0], sessionTypeId: 'copilot' }],
+				});
+			});
+		}
+
+		test('reconciles a container draft handoff before creation and applies its input only afterwards', async () => {
+			const picked = observableValue<ISessionCreationEnvironment | undefined>('pickedEnvironment', cloud);
+			const calls: string[] = [];
+			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+				_store: disposables.add(new DisposableStore()),
+				_environment: derived(reader => picked.read(reader)),
+				_environments: constObservable([local, cloud]),
+				_pickedEnvironment: picked,
+				_feedbackItems: constObservable([]),
+				_newChatInput: {
+					isInputReady: true, hasInput: false, onDidChangeInput: Event.None,
+					sessionTypePicker: { getUserPickedSessionType: () => undefined },
+					applyDraft: (draft: IChatDraft) => { calls.push(`input:${draft.inputText}`); return true; },
+				},
+				_createNewSession: async () => {
+					calls.push(`create:${picked.get()?.id}`);
+					return { session: upcastPartial<IActiveSession>({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID }), trustDeclined: false };
+				},
+				_workspacePicker: { setSelectedWorkspace: () => calls.push('workspace') },
+			});
+			const result = await widget.applyDraft(serializeChatDraft({ inputText: 'Keep this prompt', attachments: [] }), folder, {
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true,
+			}, CancellationToken.None);
+			assert.deepStrictEqual({ result, environment: picked.get()?.id, calls }, {
+				result: 'applied', environment: container.id, calls: ['create:container:local', 'workspace', 'input:Keep this prompt'],
+			});
 		});
 	});
 
@@ -1754,19 +1832,28 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('requires container execution for an explicitly selected Dev Container environment', () => {
+	test('requires container execution for every draft after harness changes and provider discovery', async () => {
 		const folder = URI.file('/project');
-		const preferences: { required?: boolean }[] = [];
-		const harness = {
+		const requests: IOpenNewSessionOptions[] = [];
+		const harness: ICreateSessionNowHarness = {
 			_environment: constObservable<ISessionCreationEnvironment>({ id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }),
-			_preferredDevContainerFolderUri: folder,
-			uriIdentityService: { extUri },
-			sessionsProvidersService: {
-				getProvider: () => ({ id: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: (_id: string, options?: { required?: boolean }) => preferences.push(options ?? {}) }),
+			_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => ({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilot' }) } },
+			_workspacePicker: { selectedResolved: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID } },
+			sessionsService: {
+				openNewSession: async options => {
+					requests.push(options);
+					return { session: undefined, trustDeclined: false };
+				},
 			},
+			_isPreferredServable: () => true,
+			logService: { error: () => assert.fail('unexpected creation error') },
 		};
-		applyPreferredDevContainer.call(harness, upcastPartial<ISession>({ sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID }), folder);
-		assert.deepStrictEqual(preferences, [{ required: true }]);
+		for (const sessionTypeId of ['copilot', 'claude', 'copilot']) {
+			await createSessionNow.call(harness, folder, { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId }, CancellationToken.None);
+		}
+		assert.deepStrictEqual(requests, ['copilot', 'claude', 'copilot'].map(sessionTypeId => ({
+			folderUri: folder, preserveNavigation: true, requireDevContainer: true, providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId,
+		})));
 	});
 
 	test('resynchronizes Dev Container mode with the selection origin when updating and restoring a draft', () => {
@@ -2475,6 +2562,7 @@ suite('NewChatWidget', () => {
 		let selection: Pick<IWorkspaceSelectionSnapshot, 'folderUri' | 'state'> = { folderUri: folder, state: 'unresolved' };
 		const forwarded: Parameters<WorkspacePicker['setSelectedWorkspace']>[1][] = [];
 		const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
+			_environment: constObservable(undefined),
 			uriIdentityService: { extUri },
 			_workspacePicker: {
 				get selectionSnapshot() { return selection; },
@@ -3258,6 +3346,7 @@ suite('NewChatWidget', () => {
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
 				_store: disposables.add(new DisposableStore()),
 				_feedbackItems: constObservable([]),
+				_environment: constObservable(undefined),
 				_newChatInput: {
 					isInputReady: true,
 					get hasInput() { return !!content.inputText || content.attachments.length > 0; },
