@@ -323,7 +323,7 @@ suite('Product test checkpoint templates', () => {
 		assert.deepStrictEqual({
 			testIdsType: ci.parameters?.find(parameter => parameter.name === 'VSCODE_TEST_IDS')?.type,
 			jobDisplayName: job?.displayName,
-			displayNames: jobs.filter(job => ['Smoke', 'Integration', 'AgentHostE2E', 'Unit', 'BrowserRemote'].includes(job.name))
+			displayNames: jobs.filter(job => ['Smoke', 'Integration', 'AgentHostE2E', 'Unit', 'UnitElectron', 'BrowserRemote'].includes(job.name))
 				.map(job => ({ name: job.name, displayName: job.displayName })),
 			sameJobsInEachPipeline: jobsByPipeline.every(pipelineJobs => JSON.stringify(pipelineJobs) === JSON.stringify(jobs)),
 			uniqueJobNames: new Set(jobs.map(job => job.name)).size === jobs.length,
@@ -350,6 +350,7 @@ suite('Product test checkpoint templates', () => {
 			jobDisplayName: '${{ parameters.VSCODE_JOB_DISPLAY_NAME }}',
 			displayNames: [
 				{ name: 'Unit', displayName: 'Unit Tests' },
+				{ name: 'UnitElectron', displayName: 'Unit Tests (Electron)' },
 				{ name: 'BrowserRemote', displayName: 'Browser & Remote Tests' },
 				{ name: 'Integration', displayName: 'Integration Tests (Electron)' },
 				{ name: 'AgentHostE2E', displayName: 'Agent Host E2E Tests (Electron)' },
@@ -398,7 +399,7 @@ suite('Product test checkpoint templates', () => {
 		});
 	});
 
-	test('Linux and macOS CI assign every test ID to one of five jobs', () => {
+	test('Linux and macOS CI assign every test ID to one of six jobs', () => {
 		const pipelineFiles = ['product-build.yml', 'product-build-ado-ci.yml', 'product-build-template.yml'];
 		const observed = ([
 			{ platform: 'linux', testFile: linuxTestFile, jobPrefix: 'Linux' },
@@ -465,7 +466,7 @@ suite('Product test checkpoint templates', () => {
 					.map(parameter => parameter.name).filter(name => /^VSCODE_RUN_\w+_TESTS$/.test(name)),
 			};
 		});
-		const jobDisplayNames = ['Unit Tests', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)'];
+		const jobDisplayNames = ['Unit Tests', 'Unit Tests (Electron)', 'Browser & Remote Tests', 'Integration Tests (Electron)', 'Agent Host E2E Tests (Electron)', 'Smoke Tests (Electron)'];
 		const copilotCondition = '${{ if containsValue(parameters.VSCODE_TEST_IDS, \'copilot\') }}';
 		const remoteNodeCondition = '${{ if or(containsValue(parameters.VSCODE_TEST_IDS, \'integration-remote\'), containsValue(parameters.VSCODE_TEST_IDS, \'smoke-remote\')) }}';
 		const runTests = '${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}';
