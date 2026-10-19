@@ -1483,7 +1483,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _getSearchSubagentModel(): string {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagentModel) ?? '';
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagentModel)?.trim() ?? '';
 	}
 
 	private _getCopilotSdkLogLevelSetting(): CopilotSdkLogLevelSetting {
