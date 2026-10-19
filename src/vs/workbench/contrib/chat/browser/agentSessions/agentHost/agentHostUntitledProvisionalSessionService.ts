@@ -68,7 +68,7 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { areSessionWorkingDirectoriesEqual } from '../../../../../../platform/agentHost/common/state/sessionWorkingDirectories.js';
-import { StateComponents, withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { StateComponents, withSessionMultiRootMetadata, type ModelSelection } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -283,11 +283,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private _resolvedConfigRequestSequence = 0;
 	private readonly _sessionCreationMetadata = new ResourceMap<Record<string, unknown>>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
-	// URIs that were the source of a successful `tryRebind`. The chat widget
-	// briefly reattaches to the old untitled URI before its viewModel switches
-	// to the new real URI; without this tombstone the picker would call
-	// `getOrCreate` again and spin up an orphan provisional session on the agent.
-	private readonly _rebound = new ResourceSet();
+	// Untitled URIs that were the source of a successful `tryRebind` or whose
+	// chat model was disposed. The chat widget briefly reattaches to such a URI
+	// before its viewModel switches to the next one; without this tombstone the
+	// picker would call `getOrCreate` again and spin up an orphan provisional
+	// session on the agent.
+	private readonly _retired = new ResourceSet();
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _onDidChange = this._register(new Emitter<URI>());
 	readonly onDidChange = this._onDidChange.event;
@@ -296,7 +297,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatService chatService: IChatService,
+		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -313,8 +314,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// without ever sending a message). Without this, untitled chats the
 		// user opens and abandons leak in-memory state-manager entries on
 		// the agent host.
-		this._register(chatService.onDidDisposeSession(e => {
+		this._register(_chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
+				// The chat view releases a chat's model before its widget shows the
+				// next one, so the chips can still reattach to this draft. Retire it
+				// first so they cannot recreate a backend that nothing disposes.
+				if (isUntitledChatSession(sessionResource)) {
+					this._retired.add(sessionResource);
+				}
 				if (this._entries.has(sessionResource)) {
 					void this.disposeSession(sessionResource);
 				}
@@ -322,9 +329,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._resolvedConfigRequestSeq.delete(sessionResource);
 				this._resolvedConfigConnections.delete(sessionResource);
 				this._sessionCreationMetadata.delete(sessionResource);
-				// Drop any tombstone for the abandoned untitled URI so the
-				// set doesn't grow unbounded across the workbench lifetime.
-				this._rebound.delete(sessionResource);
 			}
 		}));
 
@@ -526,7 +530,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (existing) {
 			return Promise.resolve(existing);
 		}
-		if (this._rebound.has(sessionResource)) {
+		if (this._retired.has(sessionResource)) {
 			return Promise.resolve(undefined);
 		}
 		const inflight = this._pending.get(sessionResource);
@@ -552,7 +556,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (existing) {
 			return existing;
 		}
-		if (this._rebound.has(sessionResource)) {
+		if (this._retired.has(sessionResource)) {
 			return undefined;
 		}
 		const entry = this._createEntry(provider, { ...(this._getInitialConfig() ?? {}) }, 0, workingDirectory);
@@ -687,10 +691,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					continue;
 				}
 				entry.config = { ...config };
+				// A pre-warmed launch is fixed to this model, and the first send
+				// discards it when it selects another one.
+				const model = this._getSelectedModel(sessionResource);
 				created = await this._agentHostService.createSession({
 					provider: entry.provider,
 					session: candidate,
 					_meta: metadata,
+					...(model ? { model } : {}),
 					workingDirectories,
 					config,
 					progressToken: generateUuid(),
@@ -721,6 +729,20 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return created;
 		}
 		return undefined;
+	}
+
+	/** The model selected in the chat input, as its first send carries it. */
+	private _getSelectedModel(sessionResource: URI): ModelSelection | undefined {
+		const state = this._chatService.getSession(sessionResource)?.inputModel.state.get();
+		const identifier = state?.selectedModel?.identifier;
+		const prefix = `${sessionResource.scheme}:`;
+		const id = identifier?.startsWith(prefix) ? identifier.substring(prefix.length) : identifier;
+		if (!id || id.includes('/')) {
+			return undefined;
+		}
+		const config = Object.fromEntries(Object.entries(state?.modelConfiguration ?? {})
+			.filter((entry): entry is [string, string | number | boolean | null] => entry[1] === null || ['string', 'number', 'boolean'].includes(typeof entry[1])));
+		return Object.keys(config).length > 0 ? { id, config } : { id };
 	}
 
 	private async _retireGeneration(sessionResource: URI, entry: IEntry): Promise<void> {
@@ -907,7 +929,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				oldEntry.lifetime.dispose();
 				this._resolvedConfigs.delete(oldSessionResource);
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
-				this._rebound.add(oldSessionResource);
+				this._retired.add(oldSessionResource);
 				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
 				this._onDidChange.fire(boundResource);
 
@@ -1034,7 +1056,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._resolvedConfigRequestSeq.clear();
 		this._resolvedConfigConnections.clear();
 		this._sessionCreationMetadata.clear();
-		this._rebound.clear();
+		this._retired.clear();
 		super.dispose();
 	}
 

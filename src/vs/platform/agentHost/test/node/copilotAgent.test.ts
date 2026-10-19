@@ -19273,6 +19273,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a first send that selects the model the draft was created with claims the warm launch', async () => {
+			// Every first send selects its model before it runs (`chat/turnStarted`), including an unchanged one.
+			const model = { id: 'claude-sonnet', config: { thinkingLevel: 'high' } };
+			const h = await createWarmableAgent('warm-same-model', undefined, { model });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.changeModel(h.chat, { ...model, config: { ...model.config } }, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
 		test('a model option change before the first send starts it cold instead of applying it live', async () => {
 			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
 			try {
@@ -25132,8 +25147,10 @@ suite('CopilotAgent', () => {
 
 		const tools: ToolDefinition[] = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
 
-		test('identical client plugin content under a different URI does not require a restart', async () => {
-			const agent = createTestAgent(disposables);
+		test('identical client plugin content under a different URI does not require a restart while the applied root exists', async () => {
+			const { agent, fileService } = createTestAgentContext(disposables);
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await fileService.createFolder(URI.file('/cache/old'));
 			try {
 				const session = AgentSession.uri('copilotcli', 'relocated-plugin-session');
 				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
@@ -25154,10 +25171,14 @@ suite('CopilotAgent', () => {
 					}],
 				});
 				const applied = snapshot('/cache/old');
+				const relocated = await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new'));
+				const changed = await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new', 'changed-content'));
+				await fileService.del(URI.file('/cache/old'), { recursive: true });
 				assert.deepStrictEqual([
+					relocated,
+					changed,
 					await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new')),
-					await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new', 'changed-content')),
-				], [undefined, 'clientPluginsChanged']);
+				], [undefined, 'clientPluginsChanged', 'clientPluginsChanged']);
 			} finally {
 				await disposeAgent(agent);
 			}

@@ -242,6 +242,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					tags: [],
 					capabilities: [],
 					representativeQueries: [],
+					connectorIds: item.connectorIds,
 					version: item.version,
 					repository: item.repository ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${item.repository}` }) : undefined,
 					publisher: item.publisher,
