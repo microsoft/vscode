@@ -1228,7 +1228,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					return true;
 				}
 				const marketplace = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, marketplaceInstallations)?.resource;
-				const pluginMarketplaceReference = item.pluginDetail?.plugin.fromMarketplace?.marketplaceReference;
+				const pluginMarketplaceReference = item.pluginDetail?.kind === AgentPluginItemKind.Installed
+					? item.pluginDetail.plugin.fromMarketplace?.marketplaceReference
+					: undefined;
 				const sourceId = marketplace?.sourceId ?? (pluginMarketplaceReference ? getPluginCustomizationMarketplaceSourceId(pluginMarketplaceReference) : undefined);
 				return sourceId === this.selectedSourceId;
 			})
