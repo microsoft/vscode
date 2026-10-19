@@ -188,27 +188,33 @@ suite('CloudSandboxIdentityTokenProvider', () => {
 		test(`preserves long HTTP ${status} rate limits across calls and credential rotation`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			let accessToken = 'first';
 			let requests = 0;
-			const retries: (number | undefined)[] = [];
 			const provider = createProvider(async () => {
 				if (++requests === 1) {
 					throw new CloudSandboxRequestError(status, 'rate limited', 60);
 				}
 				return { token: 'identity', expires_in: 120 };
 			}, async () => ({ accountKey, session: { ...session, accessToken } }));
-			const isRateLimit = (error: unknown) => {
-				if (!(error instanceof CloudSandboxRequestError) || error.statusCode !== status) {
-					return false;
+			const readRateLimit = async () => {
+				try {
+					await provider.getIdentityToken(accountKey, CancellationToken.None);
+				} catch (error) {
+					assert.ok(error instanceof CloudSandboxRequestError);
+					return { statusCode: error.statusCode, retryAfterSeconds: error.retryAfterSeconds };
 				}
-				retries.push(error.retryAfterSeconds);
-				return true;
+				assert.fail('Expected identity-token acquisition to be rate limited.');
 			};
-			await assert.rejects(provider.getIdentityToken(accountKey, CancellationToken.None), isRateLimit);
+			const beforeRotation = await readRateLimit();
 			accessToken = 'second';
 			provider.clear();
-			await assert.rejects(provider.getIdentityToken(accountKey, CancellationToken.None), isRateLimit);
+			const afterRotation = await readRateLimit();
 			await timeout(60_000);
 			const identity = await provider.getIdentityToken(accountKey, CancellationToken.None);
-			assert.deepStrictEqual({ token: identity.token, retries, requests }, { token: 'identity', retries: [60, 60], requests: 2 });
+			assert.deepStrictEqual({ token: identity.token, beforeRotation, afterRotation, requests }, {
+				token: 'identity',
+				beforeRotation: { statusCode: status, retryAfterSeconds: 60 },
+				afterRotation: { statusCode: status, retryAfterSeconds: 60 },
+				requests: 2,
+			});
 		}));
 	}
 
