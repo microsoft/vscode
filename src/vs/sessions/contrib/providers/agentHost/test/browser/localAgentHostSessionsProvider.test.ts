@@ -14710,23 +14710,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('moves a session under another only when the host moves sessions and says this one can move (Block 4)', async () => {
-		agentHost.addSession(createSession('move-single', { _meta: { 'vscode.movable': true } }));
+	test('offers a session the nest drop from list data alone: one unarchived chat, with the host able to move sessions (Block 4)', async () => {
+		const chatsOf = (rawId: string, kinds: readonly ('default' | 'peer')[]) => kinds.map((kind, index) => ({ chat: URI.parse(index === 0 ? buildDefaultChatUri(`copilotcli:/${rawId}`) : `${buildDefaultChatUri(`copilotcli:/${rawId}`)}-${index}`), kind }));
+		agentHost.addSession(createSession('move-single', { chats: chatsOf('move-single', ['default']) }));
 		agentHost.addSession(createSession('move-target'));
+		agentHost.addSession(createSession('move-multi', { chats: chatsOf('move-multi', ['default', 'peer']) }));
+		agentHost.addSession(createSession('move-archived', { status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived }));
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
-		const [single, target] = ['move-single', 'move-target'].map(rawId => provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!);
-		const before = [provider.canMoveSessionUnder(single.sessionId), provider.canMoveSessionUnder(target.sessionId)];
-		await assert.rejects(() => provider.moveSessionUnder(single.sessionId, target.sessionId, undefined), /can't be moved/);
+		const rawIds = ['move-single', 'move-target', 'move-multi', 'move-archived'];
+		const sessions = rawIds.map(rawId => provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!);
+		const answers = () => sessions.map(session => provider.canMoveSessionUnder(session.sessionId));
+		const wireOpsBefore = agentHost.wireOps.length;
+		const before = answers();
+		await assert.rejects(() => provider.moveSessionUnder(sessions[0].sessionId, sessions[1].sessionId, undefined), /can't be moved/);
 		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, 'vscode.sessionMove': true } }, undefined);
-		const after = [provider.canMoveSessionUnder(single.sessionId), provider.canMoveSessionUnder(target.sessionId)];
+		const after = answers();
+		const wireOpsAfterAnswering = agentHost.wireOps.length;
 
-		await provider.moveSessionUnder(single.sessionId, target.sessionId, undefined);
+		await provider.moveSessionUnder(sessions[0].sessionId, sessions[1].sessionId, undefined);
 
-		assert.deepStrictEqual({ before, after, moved: agentHost.movedSessions }, {
-			before: [false, false],
-			// Only a session the host says can move.
-			after: [true, false],
+		assert.deepStrictEqual({ before, after, nothingLoadedToAnswer: wireOpsAfterAnswering === wireOpsBefore, moved: agentHost.movedSessions }, {
+			before: [false, false, false, false],
+			// Without `vscode.movable`: any single-chat, unarchived session.
+			after: [true, true, false, false],
+			nothingLoadedToAnswer: true,
 			moved: [{ session: AgentSession.uri('copilotcli', 'move-single').toString(), destination: AgentSession.uri('copilotcli', 'move-target').toString(), after: undefined }],
 		});
 	});

@@ -2802,6 +2802,10 @@ export class CopilotAgentSession extends Disposable {
 
 	private _toBackgroundWork(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number]): BackgroundWork | undefined {
 		if (task.type === 'shell' && task.executionMode !== 'sync' && (task.status === 'running' || task.status === 'idle')) {
+			const id = `shell:${task.id}`;
+			// A detached shell restored after a client restart can be listed without its description or command.
+			const shown = this._backgroundWork.get(id);
+			const shownShell = shown?.kind === BackgroundWorkKind.Shell ? shown : undefined;
 			const terminal = this._nonPtyShellTerminals.getBackgroundShellTerminal(task.id);
 			const attachment = task.attachmentMode === 'detached' ? 'detached' : 'attached';
 			// Attached shells can always be stopped. Detached shells are stopped through
@@ -2809,9 +2813,9 @@ export class CopilotAgentSession extends Disposable {
 			const stoppable = attachment === 'attached' || task.pid !== undefined;
 			return {
 				kind: BackgroundWorkKind.Shell,
-				id: `shell:${task.id}`,
-				label: task.description,
-				command: task.command,
+				id,
+				label: task.description || shownShell?.label || '',
+				command: task.command || shownShell?.command || '',
 				startedAt: task.startedAt,
 				...(terminal ? { terminal } : {}),
 				_meta: { ...toCopilotBackgroundShellMeta(task.id, attachment), ...(stoppable ? toStoppableBackgroundWorkMeta() : {}) },

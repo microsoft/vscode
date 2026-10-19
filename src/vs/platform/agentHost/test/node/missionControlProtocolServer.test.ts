@@ -1813,7 +1813,7 @@ suite('Mission Control WPS', () => {
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
-				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
 				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
@@ -1846,7 +1846,7 @@ suite('Mission Control WPS', () => {
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
-				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; useLocalCredentials?: boolean; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
 				let projectUpdates = 0;
 				let signingKeyRequests = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
@@ -1903,8 +1903,8 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory) => {
-						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, rootMeta: server.rootMeta, server });
+					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => {
+						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, useLocalCredentials, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
 					updateProjects: async () => { projectUpdates++; },
@@ -2612,6 +2612,23 @@ suite('Mission Control WPS', () => {
 					beforeDeadline: 1,
 					heartbeats: [{ time: 0, status: 'online' }, { time: 300_000, status: 'online' }],
 					sockets: 1, errors: [],
+				});
+			});
+		});
+
+		test('reconnects relay lanes when local credential delegation changes and preserves the default', async () => {
+			await withEnvironment([], async ({ service, options, sockets, attachments, errors }) => {
+				await service.configure({ ...options, useLocalCredentials: true });
+				await service.configure({ ...options, useLocalCredentials: true });
+				await service.configure({ ...options, useLocalCredentials: false });
+				assert.deepStrictEqual({
+					delegation: attachments.map(attachment => attachment.useLocalCredentials),
+					closed: sockets.map(socket => socket.closed),
+					errors,
+				}, {
+					delegation: [false, true, false],
+					closed: [true, true, false],
+					errors: [],
 				});
 			});
 		});

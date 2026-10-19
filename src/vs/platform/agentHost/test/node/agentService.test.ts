@@ -109,7 +109,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
 import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
@@ -1706,6 +1706,32 @@ suite('AgentService (node dispatcher)', () => {
 				queueReads: reads.callCount > steeringReads,
 				currentToken: getTestAgentServiceComposition(scopedService).authenticationService.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource }),
 			}, { steering: 'steer', queued: ['queued'], steeringReads: 0, queueReads: true, currentToken: 'first' });
+		});
+
+		test('a sponsored chat moved to another session keeps resolving its credentials after the previous session is removed', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(scopedService, disposables.add(new ScopedAgent('copilot')));
+			const authentication = getTestAgentServiceComposition(scopedService).authenticationService;
+			const original = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'original' }, original);
+			const sourceSession = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: original });
+			const targetSession = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const chat = hostDefaultChat(scopedService, sourceSession);
+			const resolve = () => {
+				try {
+					return authentication.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+				} catch (error) {
+					return (error as ProtocolError).code;
+				}
+			};
+			const before = resolve();
+			getStateManager(scopedService).reassignChatOwner(chat, targetSession.toString());
+			getStateManager(scopedService).removeSession(sourceSession.toString());
+			assert.deepStrictEqual({ before, after: resolve() }, { before: 'original', after: 'original' });
 		});
 
 		for (const canvasFirst of [false, true]) {
@@ -6468,9 +6494,8 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					const echo = clientEcho(svc, 1);
 					const dispatched = svc.dispatchAction(peer, { type: ActionType.ChatIsReadChanged, isRead }, 'test-client', 1);
-					for (let i = 0; i < 100 && agent.historyHits === 0; i++) {
-						await timeout(1);
-					}
+					// Wait for the restore to reach the held history, or to settle without loading it; the mid-write restore starts during the dispatch.
+					await Promise.race([agent.historyReached.p, Promise.resolve(dispatched).then(() => restore)]);
 					const historyHits = agent.historyHits;
 					agent.historyGate.complete();
 					agent.historyGate = undefined;
@@ -6958,9 +6983,8 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				const echo = clientEcho(svc, 1);
 				const dispatched = svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'test-client', 1);
-				for (let i = 0; i < 100 && agent.historyHits === 0; i++) {
-					await timeout(1);
-				}
+				// Wait for the restore to reach the held history, or to settle without loading it; the mid-write restore starts during the dispatch.
+				await Promise.race([agent.historyReached.p, Promise.resolve(dispatched).then(() => restore)]);
 				const historyHits = agent.historyHits;
 				agent.historyGate.complete();
 				agent.historyGate = undefined;
@@ -35010,6 +35034,246 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			suite('credential owners', () => {
+				class SponsoredAgent extends MovingAgent {
+					readonly supportsScopedCredentials = true;
+				}
+
+				/** Sessions sponsored by the given GitHub users (`undefined` for an unsponsored one), `source` with a peer chat. */
+				async function setupCredentials(owners: { readonly source: string | undefined; readonly target: string | undefined }) {
+					const data = createPerSessionDataService();
+					const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestrator));
+					const agent = disposables.add(new SponsoredAgent('copilot'));
+					registerTestAgentProvider(service, agent);
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const sponsor = async (userId: string | undefined, token: string) => {
+						if (userId === undefined) {
+							return undefined;
+						}
+						const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId }));
+						await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token }, scope);
+						return scope;
+					};
+					const folder = URI.file('/repo');
+					const sourceScope = await sponsor(owners.source, 'source-token');
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder], credentials: sourceScope });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [folder], credentials: await sponsor(owners.target, 'target-token') });
+					const peer = URI.parse(buildChatUri(source, 'mover'));
+					await service.createChat(source, peer, undefined, sourceScope);
+					await timeout(0);
+					const authentication = getTestAgentServiceComposition(service).authenticationService;
+					const token = (chat: string) => {
+						try {
+							return authentication.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+						} catch (error) {
+							return (error as ProtocolError).code;
+						}
+					};
+					const principal = (session: URI | string) => authentication.getSessionCredentialPrincipal(session.toString())?.userId;
+					const owner = (chat: URI | string) => getStateManager(service).getChatOwner(chat.toString());
+					const defaultChat = (session: URI) => getStateManager(service).getDefaultChat(session.toString())!;
+					return { data, orchestrator, agent, service, source, target, peer, token, principal, owner, defaultChat, authentication };
+				}
+
+				for (const [name, owners] of [
+					['a different credential owner', { source: '1', target: '2' }],
+					['an unsponsored session from a sponsored one', { source: '1', target: undefined }],
+					['a sponsored session from an unsponsored one', { source: undefined, target: '1' }],
+				] as const) {
+					test(`refuses to move a chat into ${name} and changes nothing`, async () => {
+						const env = await setupCredentials(owners);
+						const footprint = () => ({ peerOwner: env.owner(env.peer), source: env.principal(env.source), target: env.principal(env.target), targetToken: env.token(env.defaultChat(env.target)) });
+						const before = footprint();
+						const reason = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined }));
+						assert.deepStrictEqual({ reason, footprint: footprint() }, { reason: AgentChatMoveRefusal.DifferentCredentialOwner, footprint: before });
+					});
+
+					test(`refuses to move a session under ${name}`, async () => {
+						const env = await setupCredentials(owners);
+						await env.service.disposeChat(env.source, env.peer);
+						const before = { owner: env.owner(env.defaultChat(env.source)), token: env.token(env.defaultChat(env.source)) };
+						const reason = await refusalOf(env.service.moveSession(env.source, env.target, undefined));
+						assert.deepStrictEqual({ reason, owner: env.owner(env.defaultChat(env.source)), token: env.token(env.defaultChat(env.source)) }, { reason: AgentChatMoveRefusal.DifferentCredentialOwner, ...before });
+					});
+				}
+
+				test('a chat moved between sessions of the same credential owner keeps its credentials and leaves the destination\'s chats alone', async () => {
+					const env = await setupCredentials({ source: '1', target: '1' });
+					const targetDefault = env.defaultChat(env.target);
+					await env.service.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined });
+					getStateManager(env.service).removeSession(env.source.toString());
+					assert.deepStrictEqual({ peerOwner: env.owner(env.peer), peer: env.principal(env.peer), target: env.principal(env.target), targetToken: env.token(targetDefault) }, {
+						peerOwner: env.target.toString(), peer: '1', target: '1', targetToken: 'target-token',
+					});
+				});
+
+				test('a session moved under another of the same credential owner keeps resolving its credentials after it ends', async () => {
+					const env = await setupCredentials({ source: '1', target: '1' });
+					await env.service.disposeChat(env.source, env.peer);
+					const movedChat = env.defaultChat(env.source);
+					await env.service.moveSession(env.source, env.target, undefined);
+					getStateManager(env.service).removeSession(env.source.toString());
+					assert.deepStrictEqual({ owner: env.owner(movedChat), token: env.token(movedChat), principal: env.principal(env.target) }, { owner: env.target.toString(), token: 'source-token', principal: '1' });
+				});
+
+				test('a promoted chat gets a new session sponsored by the same credential owner', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					completeTurn(env.service, env.peer);
+					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
+					getStateManager(env.service).removeSession(env.source.toString());
+					assert.deepStrictEqual({ owner: env.owner(env.peer), principal: env.principal(promoted), peer: env.principal(env.peer) }, { owner: promoted.toString(), principal: '1', peer: '1' });
+				});
+
+				const restartedHost = (env: Awaited<ReturnType<typeof setupCredentials>>, orchestrator: AgentHostDatabase) => {
+					const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, env.data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestrator));
+					registerTestAgentProvider(restarted, env.agent);
+					return restarted;
+				};
+				const resolveAfterRestore = async (restarted: AgentService, session: URI, chat: string) => {
+					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
+					await restarted.restoreSession(session);
+					const authentication = getTestAgentServiceComposition(restarted).authenticationService;
+					let resolved: string | number | undefined;
+					try {
+						resolved = authentication.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+					} catch (error) {
+						resolved = (error as ProtocolError).code;
+					}
+					return { principal: authentication.getSessionCredentialPrincipal(session.toString())?.userId, resolved };
+				};
+
+				test('upgrade: an imported session whose principal only exists in session.db (written by an older build) keeps it after a restart', async () => {
+					const env = await setupCredentials({ source: undefined, target: undefined });
+					await env.data.database(env.source).setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify({ apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' }) });
+					const restarted = restartedHost(env, env.orchestrator);
+					assert.deepStrictEqual(await resolveAfterRestore(restarted, env.source, env.defaultChat(env.source)), { principal: '1', resolved: AhpErrorCodes.AuthRequired });
+				});
+
+				test('upgrade: a session that was never imported centrally keeps the principal of its session.db after a restart', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					const restarted = restartedHost(env, disposables.add(new AgentHostDatabase(':memory:')));
+					assert.deepStrictEqual(await resolveAfterRestore(restarted, env.source, env.defaultChat(env.source)), { principal: '1', resolved: AhpErrorCodes.AuthRequired });
+				});
+
+				const principalOf = (userId: string) => ({ apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId });
+
+				test('a promoted session has its principal in its session.db when the promotion returns (older builds read it there) and a restarted host restores it, never the ambient token', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					completeTurn(env.service, env.peer);
+					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
+					const stored = await env.data.database(promoted).getMetadata(SESSION_CREDENTIAL_PRINCIPAL_KEY);
+					const restarted = restartedHost(env, env.orchestrator);
+					assert.deepStrictEqual({ stored: stored && JSON.parse(stored), restored: await resolveAfterRestore(restarted, promoted, env.peer.toString()) }, {
+						stored: principalOf('1'),
+						restored: { principal: '1', resolved: AhpErrorCodes.AuthRequired },
+					});
+				});
+
+				test('promoting a chat of a restored sponsored session, whose chat has no credential context yet, still gives the new session its principal', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					const restarted = restartedHost(env, env.orchestrator);
+					env.agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
+					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
+					await restarted.restoreSession(env.source);
+					getConfigurationService(restarted).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					await getStateManager(restarted).resolveChatState(env.peer.toString());
+					completeTurn(restarted, env.peer);
+					const promoted = await restarted.moveChat(env.source, env.peer, { kind: 'newSession' });
+					getStateManager(restarted).removeSession(env.source.toString());
+					const authentication = getTestAgentServiceComposition(restarted).authenticationService;
+					let resolved: string | number | undefined;
+					try {
+						resolved = authentication.getAuthToken({ session: env.peer.toString(), resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+					} catch (error) {
+						resolved = (error as ProtocolError).code;
+					}
+					const stored = await env.data.database(promoted).getMetadata(SESSION_CREDENTIAL_PRINCIPAL_KEY);
+					assert.deepStrictEqual({ stored: stored && JSON.parse(stored), principal: authentication.getSessionCredentialPrincipal(promoted.toString())?.userId, resolved }, {
+						stored: principalOf('1'), principal: '1', resolved: AhpErrorCodes.AuthRequired,
+					});
+				});
+
+				test('a persisted principal is restored for a session a move holds, while binding a new one is refused', async () => {
+					const env = await setupCredentials({ source: undefined, target: undefined });
+					const hold = env.authentication.holdSessionCredentialOwners([env.target.toString()]);
+					const outcome = (run: () => void) => {
+						try {
+							run();
+							return 'allowed';
+						} catch (error) {
+							return String((error as ProtocolError).code);
+						}
+					};
+					const restored = outcome(() => env.authentication.restorePersistedCredentialPrincipal(env.target.toString(), principalOf('1')));
+					env.authentication.releaseSessionCredentials(env.target.toString());
+					const bound = outcome(() => env.authentication.restoreSessionCredentialPrincipal(env.target.toString(), principalOf('1')));
+					hold.dispose();
+					assert.deepStrictEqual({ restored, bound }, { restored: 'allowed', bound: String(AhpErrorCodes.PermissionDenied) });
+				});
+
+				test('a promotion whose principal cannot be saved is refused, and the chat keeps resolving under its source', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					completeTurn(env.service, env.peer);
+					const openDatabase = env.data.service.openDatabase.bind(env.data.service);
+					env.data.service.openDatabase = session => {
+						const reference = openDatabase(session);
+						const setMetadataValues = reference.object.setMetadataValues.bind(reference.object);
+						reference.object.setMetadataValues = async values => {
+							if (values[SESSION_CREDENTIAL_PRINCIPAL_KEY] !== undefined && session.toString() !== env.source.toString()) {
+								throw new Error('disk full');
+							}
+							return setMetadataValues(values);
+						};
+						return reference;
+					};
+					const footprint = async () => ({ owner: env.owner(env.peer), sessions: (await env.service.listSessions()).length, source: env.principal(env.source), token: env.token(env.peer.toString()) });
+					const before = await footprint();
+					const reason = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'newSession' }));
+					assert.deepStrictEqual({ reason, footprint: await footprint() }, { reason: AgentChatMoveRefusal.Conflict, footprint: before });
+				});
+
+				test('a malformed persisted principal fails closed: the session does not load, so nothing resolves to the ambient token', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					await env.data.database(env.source).setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: '{"userId":"0"}' });
+					const restarted = restartedHost(env, disposables.add(new AgentHostDatabase(':memory:')));
+					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
+					const restored = await restarted.restoreSession(env.source).then(() => 'loaded', () => 'rejected');
+					assert.deepStrictEqual({ restored, principal: getTestAgentServiceComposition(restarted).authenticationService.getSessionCredentialPrincipal(env.source.toString()), state: getStateManager(restarted).getSessionState(env.source.toString()) }, { restored: 'rejected', principal: undefined, state: undefined });
+				});
+
+				test('a credential owner cannot be set on a session while a move into it is committing', async () => {
+					const env = await setupCredentials({ source: undefined, target: undefined });
+					const internals = env.service as unknown as IMoveInternals;
+					const moveChat = internals._sessionStateStore.moveChat.bind(internals._sessionStateStore);
+					const attempts: (string | undefined)[] = [];
+					const bind = () => {
+						try {
+							env.authentication.restoreSessionCredentialPrincipal(env.target.toString(), { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '2' });
+							return undefined;
+						} catch (error) {
+							return String((error as ProtocolError).code);
+						}
+					};
+					internals._sessionStateStore.moveChat = async move => {
+						attempts.push(bind());
+						return moveChat(move);
+					};
+					await env.service.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined });
+					attempts.push(bind());
+					assert.deepStrictEqual({ attempts, owner: env.owner(env.peer) }, { attempts: [String(AhpErrorCodes.PermissionDenied), undefined], owner: env.target.toString() });
+				});
+
+				test('a chat that changes owner across different credential owners anyway resolves under its new owner, never the ambient token', async () => {
+					const env = await setupCredentials({ source: '1', target: '2' });
+					const chat = env.defaultChat(env.source);
+					const before = env.token(chat);
+					getStateManager(env.service).reassignChatOwner(chat, env.target.toString());
+					getStateManager(env.service).removeSession(env.source.toString());
+					assert.deepStrictEqual({ before, after: env.token(chat), principal: env.principal(chat) }, { before: 'source-token', after: AhpErrorCodes.AuthRequired, principal: '2' });
+				});
+			});
+
 			test('refuses to promote a chat without a recorded conversation of its own', async () => {
 				const db = new TestSessionDatabase();
 				const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -35075,13 +35339,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			suite('moving a single-chat session under another (Block 4, VS Code-internal)', () => {
 				async function setupSessionMove() {
-					const { createService, contentsOf, seed, orchestratorDatabase } = createDeletingServices();
+					const { createService, contentsOf, seed, orchestratorDatabase, agent } = createDeletingServices();
 					const service = createService();
 					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					await timeout(0);
 					const chat = URI.parse(getStateManager(service).getSessionState(source.toString())!.defaultChat!);
-					return { createService, contentsOf, seed, orchestratorDatabase, service, source, target, chat };
+					return { createService, contentsOf, seed, orchestratorDatabase, agent, service, source, target, chat };
 				}
 
 				test('a moved session\'s chat promoted out again stores in the first session\'s database: deleting its session cold deletes that', async () => {
@@ -35235,6 +35499,93 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual({ reasons, disabled, owner: getStateManager(service).getChatOwner(chat.toString()) }, {
 						reasons: { notSingleChat: AgentChatMoveRefusal.NotSingleChat, underItself: AgentChatMoveRefusal.DestinationNotFound },
 						disabled: { reason: AgentChatMoveRefusal.Disabled, movable: false },
+						owner: source.toString(),
+					});
+				});
+
+				test('a session the host has not loaded since it restarted moves: the source and destination are restored first', async () => {
+					const { createService, agent, service, source, target, chat } = await setupSessionMove();
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
+					const restarted = createService();
+					const stateManager = getStateManager(restarted);
+					const loadedBefore = [source, target].map(session => !!stateManager.getSessionState(session.toString()));
+					const result = await restarted.moveSession(source, target, undefined);
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						loadedBefore,
+						result: result.toString(),
+						owner: stateManager.getChatOwner(chat.toString()),
+						targetChats: stateManager.getSessionState(target.toString())?.chats.map(candidate => candidate.resource).sort(),
+					}, {
+						loadedBefore: [false, false],
+						result: target.toString(),
+						owner: target.toString(),
+						targetChats: [stateManager.getSessionState(target.toString())!.defaultChat!, chat.toString()].sort(),
+					});
+				});
+
+				test('a session the host has not loaded that has other chats is refused after it is restored, and nothing changes', async () => {
+					const { createService, service, source, target, chat } = await setupSessionMove();
+					await service.createChat(source, URI.parse(buildChatUri(source, 'peer')));
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					const restarted = createService();
+					const reason = await refusalOf(restarted.moveSession(source, target, undefined));
+
+					assert.deepStrictEqual({ reason, owner: getStateManager(restarted).getChatOwner(chat.toString()) }, {
+						reason: AgentChatMoveRefusal.NotSingleChat,
+						owner: source.toString(),
+					});
+				});
+
+				test('a source the host has not loaded and cannot restore is refused as not movable, and nothing changes', async () => {
+					const { createService, service, source, target, chat } = await setupSessionMove();
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					const restarted = createService();
+					const missing = URI.from({ scheme: 'copilot', path: `/${generateUuid()}` });
+					const stateManager = getStateManager(restarted);
+					const reasons = [
+						await refusalOf(restarted.moveSession(missing, target, undefined)),
+						await refusalOf(restarted.moveChat(missing, chat, { kind: 'session', session: target, after: undefined })),
+					];
+
+					assert.deepStrictEqual({ reasons, loaded: [missing, source, target].map(session => stateManager.getSessionState(session.toString()) !== undefined) }, {
+						reasons: [AgentChatMoveRefusal.NotMovable, AgentChatMoveRefusal.SessionNotReady],
+						loaded: [false, false, false],
+					});
+				});
+
+				test('a nested session whose working directory is gone is refused as not ready before anything changes, like promoting it', async () => {
+					const { createService, agent, service, source, target } = await setupSessionMove();
+					const peer = URI.parse(buildChatUri(source, 'peer'));
+					await service.createChat(source, peer);
+					completeTurn(service, peer);
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
+					const getSessionMessages = agent.getSessionMessages.bind(agent);
+					agent.getSessionMessages = async chat => {
+						if (chat.toString() === peer.toString()) {
+							throw new SessionWorkingDirectoryMissingError(URI.file('/gone'));
+						}
+						return getSessionMessages(chat);
+					};
+					const restarted = createService();
+					const reasons = [
+						await refusalOf(restarted.moveChat(source, peer, { kind: 'session', session: target, after: undefined })),
+						await refusalOf(restarted.moveChat(source, peer, { kind: 'newSession' })),
+					];
+
+					assert.deepStrictEqual({ reasons, owner: getStateManager(restarted).getChatOwner(peer.toString()) }, {
+						reasons: [AgentChatMoveRefusal.SessionNotReady, AgentChatMoveRefusal.SessionNotReady],
 						owner: source.toString(),
 					});
 				});

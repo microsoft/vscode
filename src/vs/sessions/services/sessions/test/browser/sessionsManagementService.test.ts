@@ -46,7 +46,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -1857,6 +1857,25 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('forwards changeset operation invocations while their provider is registered', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidInvokeChangesetOperation = disposables.add(new Emitter<ISessionChangesetOperationInvokedEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidInvokeChangesetOperation = onDidInvokeChangesetOperation.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const invocations: ISessionChangesetOperationInvokedEvent[] = [];
+			disposables.add(service.onDidInvokeChangesetOperation(e => invocations.push(e)));
+			const registration = disposables.add(providersService.registerProvider(provider));
+
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'commit' });
+			registration.dispose();
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'sync' });
+
+			assert.deepStrictEqual(invocations, [{ session, operationId: 'commit' }]);
+		});
+
 		test('seeds cached sessions before subscribing to reentrant provider changes', () => {
 			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
 			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -2534,6 +2553,48 @@ suite('SessionsManagementService', () => {
 			}]);
 		});
 
+		test('marks only the targeted nested chat read and unread through its provider', async () => {
+			const peerIsRead = observableValue('peerIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:/peer'), isRead: peerIsRead };
+			const session = stubSession({
+				sessionId: 'nested-read',
+				providerId: 'test',
+				isRead: constObservable(false),
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const changes: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, resource: URI, isRead: boolean): Promise<void> {
+					changes.push({ sessionId, chat: resource.toString(), isRead });
+					peerIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatRead(session, peer);
+			const afterRead = peerIsRead.get();
+			await service.markChatUnread(session, peer);
+
+			assert.deepStrictEqual({
+				afterRead,
+				afterUnread: peerIsRead.get(),
+				mainIsRead: main.isRead.get(),
+				sessionIsRead: session.isRead.get(),
+				changes,
+			}, {
+				afterRead: true,
+				afterUnread: false,
+				mainIsRead: true,
+				sessionIsRead: false,
+				changes: [
+					{ sessionId: 'nested-read', chat: 'test:/peer', isRead: true },
+					{ sessionId: 'nested-read', chat: 'test:/peer', isRead: false },
+				],
+			});
+		});
+
 		test('falls back to individual chat read changes when batching is unsupported', async () => {
 			const first = { ...stubChat, resource: URI.parse('test:///first') };
 			const second = { ...stubChat, resource: URI.parse('test:///second') };
@@ -2645,6 +2706,40 @@ suite('SessionsManagementService', () => {
 				tool: false,
 				readChanges: ['chat:test:/main:true'],
 			});
+		});
+
+		test('preserves explicit unread on an already-read active nested chat until a new turn', async () => {
+			const peerIsRead = observableValue('peerIsRead', true);
+			const peerUpdatedAt = observableValue<Date | undefined>('peerUpdatedAt', new Date(1));
+			const main = { ...stubChat, resource: URI.parse('test:/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:/peer'), isRead: peerIsRead, updatedAt: peerUpdatedAt };
+			const session = stubSession({
+				sessionId: 'active-nested-unread',
+				providerId: 'test',
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const changes: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, resource: URI, isRead: boolean): Promise<void> {
+					assert.strictEqual(resource.toString(), peer.resource.toString());
+					changes.push(isRead);
+					peerIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			await view.openChat(session, peer.resource);
+
+			await service.markChatUnread(session, peer);
+			const afterUnread = peerIsRead.get();
+			peerUpdatedAt.set(new Date(2), undefined);
+
+			assert.deepStrictEqual({
+				afterUnread,
+				afterNewTurn: peerIsRead.get(),
+				mainIsRead: main.isRead.get(),
+				changes,
+			}, { afterUnread: false, afterNewTurn: true, mainIsRead: true, changes: [false, true] });
 		});
 
 		test('marks the active peer chat as read once through its provider', async () => {

@@ -5242,6 +5242,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.tree.getFocus().find((item): item is ISessionChatItem => !!item && isSessionChatItem(item));
 	}
 
+	getFocusedChatItems(): readonly ISessionChatItem[] {
+		const focused = this.getFocusedChatItem();
+		if (!focused) {
+			return [];
+		}
+		const selected = this.tree.getSelection().filter((item): item is ISessionChatItem => !!item && isSessionChatItem(item));
+		return selected.includes(focused) ? selected : [focused];
+	}
+
 	setVisible(visible: boolean): void {
 		if (this.visible === visible) {
 			return;
