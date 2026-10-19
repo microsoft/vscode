@@ -741,7 +741,7 @@ export class TabbedModelPicker extends Disposable {
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
-				icon: Codicon.layers,
+				icon: Codicon.trophy,
 				tooltip: comparison.label,
 				alignEnd: true,
 				useManagedHover: true,

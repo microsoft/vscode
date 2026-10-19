@@ -649,6 +649,7 @@ suite('TabbedModelPicker', () => {
 				ariaLabel: comparisonAction.getAttribute('aria-label'),
 				htmlTitle: comparisonAction.getAttribute('title'),
 				pressed: comparisonAction.getAttribute('aria-pressed'),
+				trophy: !!comparisonAction.querySelector('.codicon-trophy'),
 				alignedWithSearch: comparisonAction.classList.contains('align-end'),
 			},
 			search: {
@@ -662,6 +663,7 @@ suite('TabbedModelPicker', () => {
 				ariaLabel: 'Compare Models',
 				htmlTitle: null,
 				pressed: 'false',
+				trophy: true,
 				alignedWithSearch: true,
 			},
 			search: {
@@ -671,6 +673,7 @@ suite('TabbedModelPicker', () => {
 			},
 		});
 		comparisonAction.click();
+		assert.strictEqual(comparisonAction.getAttribute('aria-pressed'), 'true');
 		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-comparison-actions .monaco-button')].filter(button => button.style.display !== 'none');
 		/** Each footer button's label, with `(disabled)` when it is shown but cannot be used. */
 		const buttons = () => footerButtons().map(button => `${button.getAttribute('aria-label') ?? button.textContent?.trim()}${button.classList.contains('disabled') ? ' (disabled)' : ''}`);
