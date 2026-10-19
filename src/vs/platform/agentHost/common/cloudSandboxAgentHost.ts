@@ -259,6 +259,13 @@ export interface ICloudSandboxModelCatalog {
 	readonly defaultModel?: string;
 }
 
+/** An identity-only credential for sandbox host authentication; never persist it or send it unsealed. */
+export interface ICloudSandboxIdentityToken {
+	readonly token: string;
+	/** Expiry in Unix milliseconds, absent when the issuer supplies no lifetime. */
+	readonly expiresAt?: number;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -268,6 +275,9 @@ export interface ICloudSandboxApiService {
 
 	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
 	getAccountKey(): Promise<string | undefined>;
+
+	/** Acquire an identity credential for the expected account, sharing requests and optionally replacing the cached token. */
+	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxIdentityToken>;
 
 	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
 	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;

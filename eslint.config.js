@@ -1770,6 +1770,16 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'src/vs/platform/agentHost/common/missionControlCredentialSealing.ts',
+					'layer': 'common',
+					'restrictions': [
+						'vs/base/~',
+						'vs/platform/*/~',
+						'@hpke/core', // shared crypto types; environment-specific adapters load the implementation
+						'libsodium-wrappers'
+					]
+				},
+				{
 					'target': 'src/vs/platform/agentHost/~',
 					'restrictions': [
 						'vs/base/~',

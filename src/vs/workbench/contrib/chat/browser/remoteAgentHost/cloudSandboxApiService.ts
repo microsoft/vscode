@@ -29,6 +29,7 @@ import {
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
+	ICloudSandboxIdentityToken,
 	IMissionControlEnvironment,
 	ICloudSandboxModelCatalog,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -45,6 +46,8 @@ import { asText, IRequestService } from '../../../../../platform/request/common/
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
+import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
+import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retryAfterSeconds } from './cloudSandboxRateLimit.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
 type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
@@ -181,29 +184,6 @@ const STALLED_SESSION_GRACE_MS = 60 * 60_000;
 /** HTTP status GitHub answers a rate-limited request with. */
 const HTTP_TOO_MANY_REQUESTS = 429;
 
-/** How many times a rate-limited discovery read is re-issued before it is given up on. */
-const RATE_LIMIT_MAX_RETRIES = 3;
-
-/** First backoff step (ms) for a rate-limited read whose response names no `Retry-After`. */
-const RATE_LIMIT_BASE_DELAY_MS = 1_000;
-
-/**
- * Cap (ms) on a backoff this client computes for itself. It deliberately does not apply to a
- * server-supplied `Retry-After`: shortening that would re-issue the request inside the window the
- * server just asked us to stay out of, earning another 429 and adding to the very traffic that
- * caused it.
- */
-const RATE_LIMIT_MAX_BACKOFF_MS = 8_000;
-
-/**
- * Total time (ms) a single read may spend waiting out rate limits before it gives up.
- *
- * Bounds the pass without ever shortening a wait: a `Retry-After` longer than what is left is not
- * trimmed to fit, it ends the retries. The read then reports its 429 and leaves the scan `partial`,
- * so the caller keeps the sessions it could not resolve and a later pass picks them up.
- */
-const RATE_LIMIT_WAIT_BUDGET_MS = 15_000;
-
 /** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
 const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
 
@@ -217,6 +197,8 @@ const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
  */
 export class CloudSandboxApiService extends Disposable implements ICloudSandboxApiService {
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _identityTokenProvider: CloudSandboxIdentityTokenProvider;
 
 	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
 	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
@@ -237,6 +219,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		@ICloudSandboxTelemetryService private readonly _telemetry: ICloudSandboxTelemetryService,
 	) {
 		super();
+		this._identityTokenProvider = this._register(new CloudSandboxIdentityTokenProvider(
+			async () => {
+				const session = await this._resolveGitHubSession();
+				return session ? { accountKey: JSON.stringify([this._authenticationProviderId, session.account.id]), session } : undefined;
+			},
+			(session, token) => this._requestIdentityToken(session, token),
+		));
 		this._register(this._authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === this._authenticationProviderId) {
 				void this._onAuthenticationChanged();
@@ -267,7 +256,42 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return session ? JSON.stringify([this._authenticationProviderId, session.account.id]) : undefined;
 	}
 
+	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxIdentityToken> {
+		return this._identityTokenProvider.getIdentityToken(accountKey, token, forceRefresh);
+	}
+
+	private async _requestIdentityToken(session: AuthenticationSession, token: CancellationToken): Promise<ICloudSandboxIdentityTokenResponse | undefined> {
+		const context = await this._request(
+			`${GITHUB_DOT_COM_API_BASE_URI}/cmc_internal/api/agents/environments/tokens`,
+			'mc.tokens.create', 'mintIdentityToken', { Accept: 'application/json' },
+			token, REQUEST_TIMEOUT_MS, {}, 'POST', undefined, { authentication: session },
+		);
+		if (token.isCancellationRequested) {
+			context.stream.destroy();
+			throw new CancellationError();
+		}
+		if (!isSuccess(context)) {
+			context.stream.destroy();
+			const status = context.res.statusCode;
+			const retryAfter = retryAfterSeconds(context.res.headers?.['retry-after']);
+			const requestId = getGitHubRequestId(context.res.headers?.['x-github-request-id']);
+			throw new CloudSandboxRequestError(status,
+				localize('cloudSandbox.identityRequestFailed', "Sandbox identity-token acquisition failed: HTTP {0} (request {1}).", status ?? 'unknown', requestId ?? 'unknown'),
+				retryAfter);
+		}
+		try {
+			return await raceCancellationError(this._readJson<ICloudSandboxIdentityTokenResponse>(context), token);
+		} catch (error) {
+			context.stream.destroy();
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			throw new Error(localize('cloudSandbox.identityResponseFailed', "Could not read the sandbox identity-token response."));
+		}
+	}
+
 	private async _onAuthenticationChanged(): Promise<void> {
+		this._identityTokenProvider.clear();
 		this.clearSessionHistory();
 		const generation = ++this._discoveryGeneration;
 		this._discoverySince = undefined;
@@ -924,7 +948,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (context.res.statusCode !== HTTP_TOO_MANY_REQUESTS || attempt >= RATE_LIMIT_MAX_RETRIES || token.isCancellationRequested) {
 				return context;
 			}
-			const delay = rateLimitDelay(context.res.headers?.['retry-after'], attempt);
+			const delay = rateLimitDelay(retryAfterSeconds(context.res.headers?.['retry-after']), attempt);
 			// Waiting less than asked would re-issue inside the server's window, so a delay that
 			// does not fit ends the retries rather than being trimmed to fit.
 			if (waited + delay > RATE_LIMIT_WAIT_BUDGET_MS) {
@@ -939,7 +963,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], diagnostics?: { readonly diagnosticId: string; readonly authentication: AuthenticationSession }): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], diagnostics?: { readonly diagnosticId?: string; readonly authentication: AuthenticationSession }): Promise<IRequestContext> {
 		const session = diagnostics?.authentication ?? await this._resolveGitHubSession();
 		if (!session?.accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -965,7 +989,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				...(body === undefined ? undefined : { data: JSON.stringify(typeof body === 'function' ? body(session) : body) }),
 				timeout: timeoutMs,
 				callSite,
-				...(diagnostics ? { diagnosticId: diagnostics.diagnosticId } : {}),
+				...(diagnostics?.diagnosticId ? { diagnosticId: diagnostics.diagnosticId } : {}),
 			}, token).catch((error: unknown) => {
 				if ((action === 'connect' || action === 'reconnect') && !isCancellationError(error) && !token.isCancellationRequested) {
 					throw new CloudSandboxNetworkError(toErrorMessage(error), { cause: error });
@@ -982,15 +1006,18 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const cancellationError = isCancellationError(error)
 				? error
 				: token.isCancellationRequested ? new CancellationError() : undefined;
+			const requestError = action === 'mintIdentityToken'
+				? new CloudSandboxNetworkError(localize('cloudSandbox.identityNetworkError', "The sandbox identity-token request failed before a response was received."))
+				: error;
 			if (cancellationError) {
 				this._logService.trace(`${LOG_PREFIX} ${action} -> cancelled after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
 			} else {
 				this._telemetry.reportRequest(action, 'networkError');
 				// Elapsed at the budget means our own timeout fired; shorter means something else did.
 				this._logService.trace(`${LOG_PREFIX} ${action} -> failed after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
-				this._logService.error(`${LOG_PREFIX} ${requestMethod} ${url} failed: ${toErrorMessage(error)}`);
+				this._logService.error(`${LOG_PREFIX} ${requestMethod} ${url} failed: ${toErrorMessage(requestError)}`);
 			}
-			throw cancellationError ?? error;
+			throw cancellationError ?? requestError;
 		}
 	}
 
@@ -1161,38 +1188,9 @@ function toQuery(searchParams: Record<string, string> | undefined): string {
 	return search ? `?${search}` : '';
 }
 
-/** Parse `Retry-After` as delta-seconds or an HTTP date. */
-function retryAfterSeconds(value: string | string[] | undefined): number | undefined {
-	const raw = (Array.isArray(value) ? value[0] : value)?.trim();
-	if (raw) {
-		const seconds = Number(raw);
-		if (Number.isSafeInteger(seconds) && seconds >= 0) {
-			return seconds;
-		}
-		const date = Number.isNaN(seconds) ? Date.parse(raw) : NaN;
-		if (Number.isFinite(date)) {
-			return Math.max(0, (date - Date.now()) / 1000);
-		}
-	}
-	return undefined;
-}
-
 /** Parse a `Retry-After` header; fall back to a small default. */
 function parseRetryAfter(value: string | string[] | undefined): number {
 	return retryAfterSeconds(value) ?? DEFAULT_WAKING_RETRY_AFTER_SECONDS;
-}
-
-/**
- * How long to wait before re-issuing a rate-limited request: the server's `Retry-After` verbatim
- * when it names one, otherwise an exponential backoff of our own, capped. A server delay is never
- * shortened — the caller decides whether it still fits its budget, since retrying early only earns
- * another 429.
- */
-function rateLimitDelay(retryAfter: string | string[] | undefined, attempt: number): number {
-	const seconds = retryAfterSeconds(retryAfter);
-	return seconds !== undefined
-		? seconds * 1000
-		: Math.min(RATE_LIMIT_BASE_DELAY_MS * Math.pow(2, attempt), RATE_LIMIT_MAX_BACKOFF_MS);
 }
 
 /** Use a managed sandbox environment when the task has no compute-provider metadata. */

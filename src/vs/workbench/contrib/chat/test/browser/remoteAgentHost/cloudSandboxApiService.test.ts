@@ -57,12 +57,14 @@ interface ITestSetup {
 	readonly service: CloudSandboxApiService;
 	readonly requestedUrls: string[];
 	readonly provisioningOutcomes: ProvisioningOutcome[];
+	readonly requestOutcomes: RequestOutcome[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
-	changeAuthentication(): void;
+	changeAuthentication(kind?: 'sessions' | 'register' | 'unregister'): void;
 }
 
 type ProvisioningOutcome = Parameters<ICloudSandboxTelemetryService['reportProvisioningOutcome']>;
+type RequestOutcome = Parameters<ICloudSandboxTelemetryService['reportRequest']>;
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
@@ -109,6 +111,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
+	const requestOutcomes: RequestOutcome[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -119,6 +122,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	);
 	const instantiationService = store.add(new TestInstantiationService());
 	const authenticationChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+	const providerRegistered = store.add(new Emitter<{ id: string; label: string }>());
+	const providerUnregistered = store.add(new Emitter<{ id: string; label: string }>());
 
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -192,13 +197,15 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			return options.authenticationSessions ? options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
 		}
 		override readonly onDidChangeSessions = authenticationChanges.event;
-		override readonly onDidRegisterAuthenticationProvider = Event.None;
-		override readonly onDidUnregisterAuthenticationProvider = Event.None;
+		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
+		override readonly onDidUnregisterAuthenticationProvider = providerUnregistered.event;
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
-		override reportRequest(): void { }
+		override reportRequest(...outcome: RequestOutcome): void {
+			requestOutcomes.push(outcome);
+		}
 		override reportProvisioningOutcome(...outcome: ProvisioningOutcome): void {
 			provisioningOutcomes.push(outcome);
 		}
@@ -208,10 +215,183 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		service: store.add(instantiationService.createInstance(CloudSandboxApiService)),
 		requestedUrls,
 		provisioningOutcomes,
+		requestOutcomes,
 		concurrency,
-		changeAuthentication: () => authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } }),
+		changeAuthentication: (kind = 'sessions') => {
+			if (kind === 'register') {
+				providerRegistered.fire({ id: 'github', label: 'GitHub' });
+			} else if (kind === 'unregister') {
+				providerUnregistered.fire({ id: 'github', label: 'GitHub' });
+			} else {
+				authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+			}
+		},
 	};
 }
+
+suite('CloudSandboxApiService identity credentials', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const accountKey = JSON.stringify(['github', 'a']);
+	const endpoint = 'https://api.github.com/cmc_internal/api/agents/environments/tokens';
+
+	test('exchanges the selected GitHub credential without replacing REST authentication', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const requests: { url: string; method?: string; authorization?: IHeaders[string]; contentType?: IHeaders[string]; data?: string }[] = [];
+		const { service, requestOutcomes } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: async (url, _token, options) => {
+				requests.push({ url: url.toString(), method: options.type, authorization: options.headers?.Authorization, contentType: options.headers?.['Content-Type'], data: options.data });
+				if (url.toString() === endpoint) {
+					await timeout(500);
+					return jsonResponse({ token: 'identity', expires_in: 60, expires_at: new Date(started + 90_000).toISOString() });
+				}
+				return jsonResponse({ id: 'env-1', status: 'online' });
+			},
+		});
+		const identity = await service.getIdentityToken(accountKey, CancellationToken.None);
+		const cached = await service.getIdentityToken(accountKey, CancellationToken.None);
+		await service.getEnvironment('env-1', CancellationToken.None);
+		assert.deepStrictEqual({ identity, cached, requests, requestOutcomes }, {
+			identity: { token: 'identity', expiresAt: started + 60_000 },
+			cached: identity,
+			requests: [
+				{ url: endpoint, method: 'POST', authorization: 'Bearer tok', contentType: 'application/json', data: '{}' },
+				{ url: 'https://api.githubcopilot.com/agents/environments/env-1', method: 'GET', authorization: 'Bearer tok', contentType: undefined, data: undefined },
+			],
+			requestOutcomes: [['mintIdentityToken', 'succeeded'], ['getEnvironment', 'succeeded']],
+		});
+	}));
+
+	for (const kind of ['sessions', 'register', 'unregister'] as const) {
+		test(`${kind} changes discard cached and in-flight credentials`, async () => {
+			const issued = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let requests = 0;
+			const { service, changeAuthentication } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					if (++requests === 2) {
+						void issued.complete();
+						return response.p;
+					}
+					return jsonResponse({ token: `identity-${requests}`, expires_in: 120 });
+				},
+			});
+			await service.getIdentityToken(accountKey, CancellationToken.None);
+			changeAuthentication(kind);
+			const cancelled = assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), isCancellationError);
+			await issued.p;
+			changeAuthentication(kind);
+			await cancelled;
+			const current = await service.getIdentityToken(accountKey, CancellationToken.None);
+			await response.complete(jsonResponse({ token: 'obsolete', expires_in: 120 }));
+			const cached = await service.getIdentityToken(accountKey, CancellationToken.None);
+			assert.deepStrictEqual({ current: current.token, cached: cached.token, requests }, { current: 'identity-3', cached: 'identity-3', requests: 3 });
+		});
+	}
+
+	test('sign-out cancels unresolved account lookup before any exchange', async () => {
+		const sessions = new DeferredPromise<readonly AuthenticationSession[]>();
+		let signedOut = false;
+		const { service, changeAuthentication, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => signedOut ? Promise.resolve([]) : sessions.p,
+		});
+		const cancelled = assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), isCancellationError);
+		signedOut = true;
+		changeAuthentication();
+		await cancelled;
+		await sessions.complete([{ accessToken: 'obsolete', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), CloudSandboxAuthenticationRequiredError);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('rejects a different account and rotates credentials when the GitHub session changes', async () => {
+		let accessToken = 'first';
+		const authorizations: IHeaders[string][] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{ accessToken, id: 's', account: { id: 'a', label: 'a' }, scopes: [] }],
+			onRequest: (_url, _token, options) => {
+				authorizations.push(options.headers?.Authorization);
+				return jsonResponse({ token: `identity-${authorizations.length}`, expires_in: 120 });
+			},
+		});
+		await assert.rejects(service.getIdentityToken(JSON.stringify(['github', 'other']), CancellationToken.None), isCancellationError);
+		const first = await service.getIdentityToken(accountKey, CancellationToken.None);
+		accessToken = 'second';
+		const second = await service.getIdentityToken(accountKey, CancellationToken.None);
+		assert.deepStrictEqual({ first: first.token, second: second.token, authorizations }, {
+			first: 'identity-1', second: 'identity-2', authorizations: ['Bearer first', 'Bearer second'],
+		});
+	});
+
+	for (const status of [403, 429]) {
+		test(`honors HTTP ${status} Retry-After within the retry budget`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const started = Date.now();
+			const times: number[] = [];
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					times.push(Date.now() - started);
+					return times.length === 1
+						? jsonResponse({}, status, { 'retry-after': '2' })
+						: jsonResponse({ token: 'identity', expires_in: 120 });
+				},
+			});
+			const identity = await service.getIdentityToken(accountKey, CancellationToken.None);
+			assert.deepStrictEqual({ token: identity.token, times }, { token: 'identity', times: [0, 2000] });
+		}));
+
+	}
+
+	test('rejects a malformed JSON response without exposing its body', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => ({
+				res: { statusCode: 200, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString('private-invalid-response')),
+			}),
+		});
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), error =>
+			error instanceof Error && error.message.includes('invalid') && !error.message.includes('private-invalid-response'));
+		assert.strictEqual(requestedUrls.length, 1);
+	});
+
+	for (const failure of ['HTTP', 'network', 'body'] as const) {
+		test(`does not expose credentials in ${failure} errors or logs`, async () => {
+			const logService = store.add(new TestLogService());
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: () => {
+					if (failure === 'network') {
+						throw new Error('private-credential');
+					}
+					if (failure === 'body') {
+						const stream = newWriteableBufferStream();
+						stream.error(new Error('private-credential'));
+						return { res: { statusCode: 200, headers: {} }, stream };
+					}
+					return jsonResponse({ token: 'private-credential' }, 403);
+				},
+			});
+			await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), error =>
+				error instanceof Error && !error.message.includes('private-credential') && error.cause === undefined);
+			assert.deepStrictEqual({
+				requests: requestedUrls.length,
+				exposesCredential: [...logService.traces, ...logService.infos, ...logService.debugs, ...logService.errors].some(message => String(message).includes('private-credential')),
+			}, { requests: 1, exposesCredential: false });
+		});
+	}
+
+	test('does not issue an exchange after cancellation or disposal', async () => {
+		const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.Cancelled), isCancellationError);
+		service.dispose();
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+});
 
 suite('CloudSandboxApiService connection credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
