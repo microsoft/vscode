@@ -28,7 +28,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/br
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
-import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IExternalOpener, ILinkHandler, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -591,10 +591,12 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
+ * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled,
+ * and offers the Integrated Browser as a handler for any http(s) link.
  */
 export class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+	static readonly LINK_HANDLER_ID = 'workbench.integratedBrowser';
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -602,14 +604,48 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		@IEditorService private readonly editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, _token: CancellationToken): Promise<boolean> {
+	async provideLinkHandlers(target: URI): Promise<readonly ILinkHandler[]> {
+		if (target.scheme !== Schemas.http && target.scheme !== Schemas.https) {
+			return [];
+		}
+
+		// Same encoding as the opener service uses for external URIs, so that e.g. query separators survive
+		const url = encodeURI(target.toString(true));
+		return [{
+			id: LocalhostLinkOpenerContribution.LINK_HANDLER_ID,
+			label: localize('browser.linkHandler', "Integrated Browser"),
+			isDefault: this.opensByDefault(url),
+			open: async options => {
+				await this.commandService.executeCommand(BrowserViewCommandId.Open, { url, openToSide: options?.openToSide } satisfies IOpenBrowserOptions);
+				return true;
+			}
+		}];
+	}
+
+	private opensByDefault(href: string): boolean {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
+			return false;
+		}
+
+		try {
+			const parsed = new URL(href);
+			return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+				&& (isLocalhostAuthority(parsed.host) || isAllInterfacesAuthority(parsed.host));
+		} catch {
+			return false;
+		}
+	}
+
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, _token: CancellationToken): Promise<boolean> {
+		// Another opener was explicitly requested
+		if (ctx.preferredOpenerId) {
 			return false;
 		}
 
@@ -618,15 +654,7 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 			href = ctx.sourceUri.toString();
 		}
 
-		try {
-			const parsed = new URL(href);
-			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-				return false;
-			}
-			if (!isLocalhostAuthority(parsed.host) && !isAllInterfacesAuthority(parsed.host)) {
-				return false;
-			}
-		} catch {
+		if (!this.opensByDefault(href)) {
 			return false;
 		}
 

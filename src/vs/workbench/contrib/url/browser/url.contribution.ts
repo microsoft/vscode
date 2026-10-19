@@ -11,6 +11,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ExternalUriResolverContribution } from './externalUriResolver.js';
+import { EditorLinkHandlerProvider } from './linkHandlers.js';
 import { manageTrustedDomainSettingsCommand } from './trustedDomains.js';
 import { TrustedDomainsFileSystemProvider } from './trustedDomainsFileSystemProvider.js';
 import { OpenerValidatorContributions } from './trustedDomainsValidator.js';
@@ -79,6 +80,11 @@ registerWorkbenchContribution2(
 	ExternalUriResolverContribution.ID,
 	ExternalUriResolverContribution,
 	WorkbenchPhase.BlockRestore // registration only
+);
+registerWorkbenchContribution2(
+	EditorLinkHandlerProvider.ID,
+	EditorLinkHandlerProvider,
+	WorkbenchPhase.AfterRestored
 );
 
 

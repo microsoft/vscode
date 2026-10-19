@@ -6,6 +6,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -13,10 +14,11 @@ import { parse } from '../../../base/common/marshalling.js';
 import { matchesScheme, matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { normalizePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { ICodeEditorService } from './codeEditorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { EditorOpenSource, ViewColumn } from '../../../platform/editor/common/editor.js';
-import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
+import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, ILinkHandler, ILinkHandlerProvider, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
 
 interface IExternalUriOpenTarget {
 	readonly sourceUri: URI;
@@ -114,6 +116,17 @@ function shouldUseContributedExternalOpeners(target: URI | string, options: Open
 		&& shouldOpenExternal(target, options);
 }
 
+function withoutDefault(handler: ILinkHandler): ILinkHandler {
+	return {
+		id: handler.id,
+		label: handler.label,
+		detail: handler.detail,
+		isDefault: false,
+		open: options => handler.open(options),
+		setAsDefault: handler.setAsDefault && (async () => { await handler.setAsDefault?.(); }),
+	};
+}
+
 export class OpenerService implements IOpenerService {
 
 	declare readonly _serviceBrand: undefined;
@@ -125,6 +138,7 @@ export class OpenerService implements IOpenerService {
 
 	private _defaultExternalOpener: IExternalOpener;
 	private readonly _externalOpeners = new LinkedList<IExternalOpener>();
+	private readonly _linkHandlerProviders = new LinkedList<ILinkHandlerProvider>();
 	private readonly _externalResourceOpener: IOpener;
 
 	constructor(
@@ -185,6 +199,47 @@ export class OpenerService implements IOpenerService {
 	registerExternalOpener(opener: IExternalOpener): IDisposable {
 		const remove = this._externalOpeners.push(opener);
 		return { dispose: remove };
+	}
+
+	registerLinkHandlerProvider(provider: ILinkHandlerProvider): IDisposable {
+		const remove = this._linkHandlerProviders.push(provider);
+		return { dispose: remove };
+	}
+
+	async getLinkHandlers(target: URI | string, token: CancellationToken): Promise<readonly ILinkHandler[]> {
+		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
+		if (targetURI.scheme === Schemas.internal || targetURI.scheme === Schemas.command) {
+			return [];
+		}
+
+		const isExternal = shouldOpenExternal(target, undefined);
+		const providers: Partial<ILinkHandlerProvider>[] = [...(isExternal ? this._externalOpeners : []), ...this._linkHandlerProviders];
+		const handlers = (await Promise.all(providers.map(async provider => {
+			try {
+				return await provider.provideLinkHandlers?.(targetURI, token) ?? [];
+			} catch (error) {
+				onUnexpectedError(error);
+				return [];
+			}
+		}))).flat();
+
+		if (isExternal) {
+			handlers.push({
+				id: defaultExternalUriOpenerId,
+				label: matchesSomeScheme(target, Schemas.http, Schemas.https)
+					? localize('defaultBrowserLinkHandler', "Default Browser")
+					: localize('defaultApplicationLinkHandler', "Default Application"),
+				isDefault: !handlers.some(handler => handler.isDefault),
+				open: options => this.open(target, { ...options, openExternal: true, allowContributedOpeners: defaultExternalUriOpenerId }),
+			});
+		}
+
+		// The first handler claiming to be the default is the one `open` uses
+		const defaultHandler = handlers.find(handler => handler.isDefault);
+		return [
+			...(defaultHandler ? [defaultHandler] : []),
+			...handlers.filter(handler => handler !== defaultHandler).map(handler => handler.isDefault ? withoutDefault(handler) : handler),
+		];
 	}
 
 	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {

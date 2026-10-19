@@ -16,6 +16,9 @@ import { IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../../servi
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewWorkbenchService } from '../../../common/browserView.js';
 import { LocalhostLinkOpenerContribution } from '../../../electron-browser/features/browserTabManagementFeatures.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { BrowserViewCommandId } from '../../../../../../platform/browserView/common/browserView.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 
 suite('Localhost Link Opener', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,4 +54,52 @@ suite('Localhost Link Opener', () => {
 			});
 		});
 	}
+
+	test('offers the Integrated Browser as a link handler and defers to explicitly requested openers', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const commands: unknown[] = [];
+		const opened: unknown[] = [];
+		instantiationService.stub(IOpenerService, { registerExternalOpener: () => Disposable.None });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			'workbench.browser.openLocalhostLinks': true
+		}));
+		instantiationService.stub(IBrowserViewWorkbenchService, {
+			willUseRemoteProxy: () => false,
+			getPreferredGroup: async group => group
+		});
+		instantiationService.stub(IEditorService, 'openEditor', async (input: IResourceEditorInput) => {
+			opened.push(input);
+			return undefined;
+		});
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id: string, ...args: unknown[]) => {
+				commands.push({ id, args });
+				return undefined;
+			}
+		}));
+		const opener = store.add(instantiationService.createInstance(LocalhostLinkOpenerContribution));
+		const summarize = async (uri: string) => (await opener.provideLinkHandlers(URI.parse(uri))).map(({ id, label, isDefault }) => ({ id, label, isDefault }));
+
+		const [localhostHandler] = await opener.provideLinkHandlers(URI.parse('http://localhost:3000/app?x=1&path=%2Fa%20b'));
+		const handledByHandler = await localhostHandler.open({ openToSide: true });
+		const handledWithPreferredOpener = await opener.openExternal('http://localhost:3000/app', { sourceUri: URI.parse('http://localhost:3000/app'), preferredOpenerId: 'extension.opener' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			localhost: await summarize('http://localhost:3000/app'),
+			web: await summarize('https://example.com'),
+			file: await summarize('file:///workspace/index.html'),
+			handledByHandler,
+			commands,
+			handledWithPreferredOpener,
+			opened,
+		}, {
+			localhost: [{ id: LocalhostLinkOpenerContribution.LINK_HANDLER_ID, label: 'Integrated Browser', isDefault: true }],
+			web: [{ id: LocalhostLinkOpenerContribution.LINK_HANDLER_ID, label: 'Integrated Browser', isDefault: false }],
+			file: [],
+			handledByHandler: true,
+			commands: [{ id: BrowserViewCommandId.Open, args: [{ url: 'http://localhost:3000/app?x=1&path=/a%20b', openToSide: true }] }],
+			handledWithPreferredOpener: false,
+			opened: [],
+		});
+	});
 });

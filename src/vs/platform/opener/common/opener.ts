@@ -64,9 +64,39 @@ export interface IOpener {
 	open(resource: URI | string, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean>;
 }
 
-export interface IExternalOpener {
+export interface IExternalOpener extends Partial<ILinkHandlerProvider> {
 	openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
+}
+
+/**
+ * A way to open a link, for example a specific editor type or browser.
+ */
+export interface ILinkHandler {
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+
+	/**
+	 * Whether opening the link without choosing a handler uses this handler.
+	 * Providers may claim this for several handlers; {@link IOpenerService.getLinkHandlers}
+	 * keeps the claim of the handler that {@link IOpenerService.open} would use.
+	 */
+	readonly isDefault: boolean;
+
+	/**
+	 * Opens the link with this handler.
+	 */
+	open(options?: OpenInternalOptions): Promise<boolean>;
+
+	/**
+	 * Makes this handler the default for links like this one.
+	 */
+	setAsDefault?(): Promise<void>;
+}
+
+export interface ILinkHandlerProvider {
+	provideLinkHandlers(target: URI, token: CancellationToken): Promise<readonly ILinkHandler[]>;
 }
 
 export interface IValidator {
@@ -107,6 +137,19 @@ export interface IOpenerService {
 	 * Registers a new opener external resources openers.
 	 */
 	registerExternalOpener(opener: IExternalOpener): IDisposable;
+
+	/**
+	 * Registers a provider of handlers that can open links, see {@link getLinkHandlers}.
+	 * External openers provide their handlers through {@link IExternalOpener.provideLinkHandlers}.
+	 */
+	registerLinkHandlerProvider(provider: ILinkHandlerProvider): IDisposable;
+
+	/**
+	 * Returns the handlers that can open a link, so that the user can choose one.
+	 * At most one handler is the default, and it comes first. The others follow in the
+	 * order in which {@link open} consults external openers, then registered providers.
+	 */
+	getLinkHandlers(target: URI | string, token: CancellationToken): Promise<readonly ILinkHandler[]>;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.

@@ -54,11 +54,14 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../base/common/keybindings.js';
+import { OS } from '../../../../base/common/platform.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
 import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ILinkHandler, IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
@@ -307,13 +310,21 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		if (this._supportsLinks(runOptions)) {
-			const linkPick = this._getLinkPick(originalFilter);
-			if (linkPick) {
+			const linkPicks = this._getLinkPicks(originalFilter, token);
+			if (linkPicks) {
 				this.pickState.lastOriginalFilter = undefined;
 				this.pickState.lastFilter = undefined;
 				this.pickState.lastRange = undefined;
 				this.pickState.lastGlobalPicks = undefined;
-				return !runOptions?.filter || runOptions.filter(linkPick) ? [linkPick] : [];
+				const callerFilter = runOptions?.filter;
+				const filterPicks = (picks: (IAnythingQuickPickItem | IQuickPickSeparator)[]): (IAnythingQuickPickItem | IQuickPickSeparator)[] => {
+					if (!callerFilter) {
+						return picks;
+					}
+					const items = picks.filter((pick): pick is IAnythingQuickPickItem => pick.type !== 'separator' && callerFilter(pick));
+					return items.length ? [...picks.filter(pick => pick.type === 'separator'), ...items] : [];
+				};
+				return Array.isArray(linkPicks) ? filterPicks(linkPicks) : linkPicks.then(filterPicks);
 			}
 		}
 
@@ -385,7 +396,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return !runOptions?.filesOnly && !runOptions?.fileSearchDelegate && !runOptions?.handleAccept && !this.pickState.isQuickNavigating;
 	}
 
-	private _getLinkPick(filter: string): IAnythingQuickPickItem | undefined {
+	private _getLinkPicks(filter: string, token: CancellationToken): (IAnythingQuickPickItem | IQuickPickSeparator)[] | Promise<(IAnythingQuickPickItem | IQuickPickSeparator)[]> | undefined {
 		// Require an explicit hierarchical URI, not a drive letter, file query, or Quick Access prefix.
 		if (!/^[a-z][a-z0-9+.-]+:\/\//i.test(filter)) {
 			return undefined;
@@ -404,15 +415,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				}
 			}
 		} catch {
-			return {
+			return [{
 				label: localize('invalidQuickOpenLink', "Invalid Link"),
 				description: localize('invalidQuickOpenLinkDescription', "Enter a valid link to open it from Quick Open.")
-			};
+			}];
 		}
 
 		const sourceGroup = this._linkSourceGroup ?? this._editorGroupsService.activeGroup.id;
-		const openToSideLabel = localize('openLinkToSide', "Open to the Side");
-		const open = async (keyMods: IKeyMods, inBackground: boolean, forceOpenSideBySide = false): Promise<void> => {
+		const open = async (openWith: (options: OpenInternalOptions) => Promise<boolean>, keyMods: IKeyMods, inBackground: boolean, forceOpenSideBySide = false): Promise<void> => {
 			try {
 				const openToSide = keyMods.alt || (this.configuration.openEditorPinned && keyMods.ctrlCmd) || forceOpenSideBySide;
 				if (openToSide) {
@@ -422,9 +432,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					}
 				}
 
-				const handled = await this._openerService.open(filter, {
+				const handled = await openWith({
 					fromUserGesture: true,
-					allowContributedOpeners: true,
 					openToSide,
 					editorOptions: {
 						preserveFocus: inBackground,
@@ -439,21 +448,60 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 		};
 
-		return {
+		const openToSideKeybinding = this.keybindingService.resolveKeybinding(decodeKeybinding(KeyMod.Alt | KeyCode.Enter, OS)!).at(0)?.getLabel();
+		const openToSideButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(this.configuration.openSideBySideDirection === 'right' ? Codicon.splitHorizontal : Codicon.splitVertical),
+			tooltip: this.configuration.openSideBySideDirection === 'right'
+				? localize({ key: 'openLinkToSide', comment: ['{0} is a keyboard shortcut, such as Alt+Enter'] }, "Open to the Side ({0})", openToSideKeybinding)
+				: localize({ key: 'openLinkToBottom', comment: ['{0} is a keyboard shortcut, such as Alt+Enter'] }, "Open to the Bottom ({0})", openToSideKeybinding)
+		};
+		const setAsDefaultButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+			tooltip: localize('setLinkHandlerAsDefault', "Set as Default and Open")
+		};
+		const createPick = (label: string, description: string | undefined, openWith: (options: OpenInternalOptions) => Promise<boolean>, setAsDefault?: () => Promise<void>): IAnythingQuickPickItem => ({
 			resource,
-			label: `$(link-external) ${localize('openQuickOpenLink', "Open Link")}`,
-			description: filter,
-			detail: localize('openQuickOpenLinkHint', "Hold Alt while accepting to open to the side."),
-			buttons: [{
-				iconClass: ThemeIcon.asClassName(this.configuration.openSideBySideDirection === 'right' ? Codicon.splitHorizontal : Codicon.splitVertical),
-				tooltip: openToSideLabel
-			}],
-			accept: (keyMods, event) => open(keyMods, event.inBackground),
-			trigger: async (_buttonIndex, keyMods) => {
-				await open(keyMods, false, true);
+			label: `$(link-external) ${label}`,
+			description,
+			buttons: setAsDefault ? [openToSideButton, setAsDefaultButton] : [openToSideButton],
+			accept: (keyMods, event) => open(openWith, keyMods, event.inBackground),
+			trigger: async (buttonIndex, keyMods) => {
+				if (buttonIndex === 1 && setAsDefault) {
+					await setAsDefault();
+					await open(openWith, keyMods, false);
+				} else {
+					await open(openWith, keyMods, false, true);
+				}
 				return TriggerAction.CLOSE_PICKER;
 			}
+		});
+
+		const openOrdinarily = (options: OpenInternalOptions) => this._openerService.open(filter, { ...options, allowContributedOpeners: true });
+		const getHandlerPicks = async (): Promise<(IAnythingQuickPickItem | IQuickPickSeparator)[]> => {
+			let handlers: readonly ILinkHandler[] = [];
+			try {
+				handlers = await this._openerService.getLinkHandlers(filter, token);
+			} catch (error) {
+				this.logService.error(error);
+			}
+
+			// Let the opener service find a way to open links that no handler claims, such as command or session links
+			if (handlers.length === 0) {
+				return [createPick(localize('openQuickOpenLink', "Open Link"), filter, openOrdinarily)];
+			}
+
+			return [
+				{ type: 'separator', label: localize('openQuickOpenLinkWith', "open link with") },
+				...handlers.map(handler => createPick(
+					handler.label,
+					handler.isDefault ? localize('openQuickOpenLinkDefault', "Default") : undefined,
+					handler.isDefault ? openOrdinarily : options => handler.open(options),
+					handler.setAsDefault && (async () => { await handler.setAsDefault?.(); })
+				)),
+			];
 		};
+
+		return getHandlerPicks();
 	}
 
 	private doGetPicks(

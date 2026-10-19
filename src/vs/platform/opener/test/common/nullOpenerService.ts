@@ -14,6 +14,8 @@ export const NullOpenerService = Object.freeze<IOpenerService>({
 	registerExternalUriResolver() { return Disposable.None; },
 	setDefaultExternalOpener() { },
 	registerExternalOpener() { return Disposable.None; },
+	registerLinkHandlerProvider() { return Disposable.None; },
+	async getLinkHandlers() { return []; },
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
 });

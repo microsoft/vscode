@@ -13,7 +13,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener } from '../../common/externalUriOpenerService.js';
 
@@ -134,5 +134,80 @@ suite('ExternalUriOpenerService', () => {
 		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
 		assert.strictEqual(didOpen, true);
 		assert.strictEqual(openedWithPreferred, true);
+	});
+
+	function registerOpeners(externalUriOpenerService: ExternalUriOpenerService, priorities: Record<string, ExternalUriOpenerPriority>): void {
+		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
+			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
+				for (const [id, priority] of Object.entries(priorities)) {
+					yield { id, label: `Label ${id}`, canOpen: async () => priority, openExternalUri: async () => true };
+				}
+			}
+		});
+	}
+
+	async function getLinkHandlers(externalUriOpenerService: ExternalUriOpenerService, uri: URI) {
+		const handlers = await externalUriOpenerService.provideLinkHandlers(uri, CancellationToken.None);
+		return handlers.map(({ id, label, isDefault }) => ({ id, label, isDefault }));
+	}
+
+	test('Should provide link handlers by priority and open them as the preferred opener', async () => {
+		const opened: unknown[] = [];
+		instantiationService.stub(IOpenerService, {
+			registerExternalOpener: () => Disposable.None,
+			open: async (target: URI | string, options?: OpenOptions) => {
+				opened.push({ target: target.toString(), options });
+				return true;
+			}
+		});
+		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
+		registerOpeners(externalUriOpenerService, {
+			'none-id': ExternalUriOpenerPriority.None,
+			'option-id': ExternalUriOpenerPriority.Option,
+			'preferred-id': ExternalUriOpenerPriority.Preferred,
+			'default-id': ExternalUriOpenerPriority.Default,
+		});
+
+		const uri = URI.parse('http://contoso.com/a');
+		const handlers = await externalUriOpenerService.provideLinkHandlers(uri, CancellationToken.None);
+		const didOpen = await handlers[1].open({ openToSide: true });
+
+		assert.deepStrictEqual({ handlers: await getLinkHandlers(externalUriOpenerService, uri), didOpen, opened }, {
+			handlers: [
+				{ id: 'preferred-id', label: 'Label preferred-id', isDefault: true },
+				{ id: 'default-id', label: 'Label default-id', isDefault: false },
+				{ id: 'option-id', label: 'Label option-id', isDefault: false },
+			],
+			didOpen: true,
+			opened: [{ target: 'http://contoso.com/a', options: { openToSide: true, allowContributedOpeners: 'default-id' } }],
+		});
+	});
+
+	test('Should mark the configured opener as the default link handler, and none when the user would be prompted', async () => {
+		const configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
+		registerOpeners(externalUriOpenerService, {
+			'default-a': ExternalUriOpenerPriority.Default,
+			'default-b': ExternalUriOpenerPriority.Default,
+			'unavailable': ExternalUriOpenerPriority.None,
+		});
+
+		const uri = URI.parse('https://contoso.com');
+		const prompted = await getLinkHandlers(externalUriOpenerService, uri);
+		await configurationService.setUserConfiguration('workbench.externalUriOpeners', { 'contoso.com': 'unavailable' });
+		const configured = await getLinkHandlers(externalUriOpenerService, uri);
+
+		assert.deepStrictEqual({ prompted, configured }, {
+			prompted: [
+				{ id: 'default-a', label: 'Label default-a', isDefault: false },
+				{ id: 'default-b', label: 'Label default-b', isDefault: false },
+			],
+			configured: [
+				{ id: 'unavailable', label: 'Label unavailable', isDefault: true },
+				{ id: 'default-a', label: 'Label default-a', isDefault: false },
+				{ id: 'default-b', label: 'Label default-b', isDefault: false },
+			],
+		});
 	});
 });

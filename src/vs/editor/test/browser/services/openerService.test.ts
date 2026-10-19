@@ -13,7 +13,8 @@ import { NullCommandService } from '../../../../platform/commands/test/common/nu
 import { ITextEditorOptions, ViewColumn } from '../../../../platform/editor/common/editor.js';
 import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
-import { defaultExternalUriOpenerId, IExternalOpener } from '../../../../platform/opener/common/opener.js';
+import { defaultExternalUriOpenerId, IExternalOpener, ILinkHandler } from '../../../../platform/opener/common/opener.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
@@ -353,6 +354,71 @@ suite('OpenerService', function () {
 				`default:${sourceUri.toString()}`,
 			],
 		});
+	});
+
+	test('link handlers list the default first, then external openers in opening order, providers, and the default external opener', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const calls: string[] = [];
+		const handler = (id: string, isDefault: boolean) => ({ id, label: id, isDefault, open: async () => true });
+
+		store.add(openerService.registerExternalOpener({
+			openExternal: async () => false,
+			provideLinkHandlers: async () => [handler('first', false)],
+		}));
+		store.add(openerService.registerExternalOpener({
+			openExternal: async () => false,
+			provideLinkHandlers: async target => [handler(`second:${target.scheme}`, true)],
+		}));
+		store.add(openerService.registerExternalOpener({ openExternal: async () => false }));
+		store.add(openerService.registerLinkHandlerProvider({
+			provideLinkHandlers: async target => [handler(`provider:${target.scheme}`, true)],
+		}));
+		openerService.setDefaultExternalOpener({
+			async openExternal(href) {
+				calls.push(`default:${href}`);
+				return true;
+			}
+		});
+
+		const summarize = (handlers: readonly ILinkHandler[]) => handlers.map(({ id, label, isDefault }) => ({ id, label, isDefault }));
+		const webHandlers = await openerService.getLinkHandlers('https://example.com/a', CancellationToken.None);
+		const opened = await webHandlers.at(-1)!.open();
+
+		assert.deepStrictEqual({
+			web: summarize(webHandlers),
+			file: summarize(await openerService.getLinkHandlers(URI.file('/workspace/README.md'), CancellationToken.None)),
+			command: summarize(await openerService.getLinkHandlers('command:someid', CancellationToken.None)),
+			opened,
+			calls,
+		}, {
+			web: [
+				{ id: 'second:https', label: 'second:https', isDefault: true },
+				{ id: 'first', label: 'first', isDefault: false },
+				{ id: 'provider:https', label: 'provider:https', isDefault: false },
+				{ id: defaultExternalUriOpenerId, label: 'Default Browser', isDefault: false },
+			],
+			file: [
+				{ id: 'provider:file', label: 'provider:file', isDefault: true },
+			],
+			command: [],
+			opened: true,
+			calls: ['default:https://example.com/a'],
+		});
+	});
+
+	test('the default external link handler is the default when no other handler claims it', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		store.add(openerService.registerExternalOpener({
+			openExternal: async () => false,
+			provideLinkHandlers: async () => [{ id: 'option', label: 'Option', isDefault: false, open: async () => true }],
+		}));
+
+		const handlers = await openerService.getLinkHandlers('mailto:someone@example.com', CancellationToken.None);
+
+		assert.deepStrictEqual(handlers.map(({ id, label, isDefault }) => ({ id, label, isDefault })), [
+			{ id: defaultExternalUriOpenerId, label: 'Default Application', isDefault: true },
+			{ id: 'option', label: 'Option', isDefault: false },
+		]);
 	});
 
 	test('external URI fallback preserves strings for validation and opening', async function () {
