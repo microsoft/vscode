@@ -101,9 +101,9 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 
 - sessions may reorder within valid sections and move into Pinned, a custom group, or their own ungrouped section, which unpins or ungroups them as needed;
 - dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
-- date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections;
+- date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
 - dropping a session on a nested chat row places it after that chat's session;
-- nested chats may reorder within their session, which stores a list-owned chat order per sort mode; chats absent from that order keep their natural position;
+- nested chats may reorder within their session, by dragging or with Move Up and Move Down, which stores a list-owned chat order per sort mode; chats absent from that order keep their natural position;
 - user groups and workspace sections may reorder where the grouping mode allows;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 

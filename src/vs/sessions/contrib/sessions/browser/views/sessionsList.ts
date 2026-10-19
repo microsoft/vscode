@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { animateChatProgress } from '../../../../../workbench/contrib/chat/browser/widget/chatProgressAnimation.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
+import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
@@ -155,6 +156,8 @@ export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sess
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
 export const SessionChatItemIsArchivedContext = new RawContextKey<boolean>('sessionChatItem.isArchived', false);
 export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
+export const SessionChatItemCanMoveUpContext = new RawContextKey<boolean>('sessionChatItem.canMoveUp', false);
+export const SessionChatItemCanMoveDownContext = new RawContextKey<boolean>('sessionChatItem.canMoveDown', false);
 export const SessionsListFocusedChatItemContext = new RawContextKey<boolean>('sessionsList.focusedChatItem', false);
 /** Whether the focused session item currently belongs to a user group. */
 export const SessionItemInGroupContext = new RawContextKey<boolean>('sessionItem.inGroup', false);
@@ -3483,14 +3486,19 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (!dateSections) {
 			return undefined;
 		}
-		const lastSection = dateSections.at(-1);
+		// Anchor on the last session that is not being dragged, even when that empties the final section.
 		const draggedIds = new Set(sessions.map(session => session.sessionId));
-		const last = lastSection?.sessions.findLast(session => !draggedIds.has(session.sessionId));
-		return {
-			placement: { kind: 'section', sectionId: lastSection?.id ?? DATE_SECTION_IDS[0] },
-			anchor: last && { session: last, position: 'after', staysInSection: true },
-			restoresArchived: false,
-		};
+		for (let index = dateSections.length - 1; index >= 0; index--) {
+			const last = dateSections[index].sessions.findLast(session => !draggedIds.has(session.sessionId));
+			if (last) {
+				return {
+					placement: { kind: 'section', sectionId: dateSections[index].id },
+					anchor: { session: last, position: 'after', staysInSection: true },
+					restoresArchived: false,
+				};
+			}
+		}
+		return { placement: { kind: 'section', sectionId: DATE_SECTION_IDS[0] }, restoresArchived: false };
 	}
 
 	private draggedElements(data: IDragAndDropData): SessionListItem[] {
@@ -5438,10 +5446,53 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!sessions.every(session => this.canMoveSession(session, destination))) {
 			return undefined;
 		}
-		if (sessions.some(session => this.changesPlacement(session, destination.placement))) {
-			return 'move';
+		const moves = sessions.some(session => this.changesPlacement(session, destination.placement));
+		if (!moves && (!destination.anchor || this.getReorderScope(destination.anchor.session) === undefined)) {
+			return undefined;
 		}
-		return destination.anchor && this.getReorderScope(destination.anchor.session) !== undefined ? 'reorder' : undefined;
+		if (!this.rendersInDateSection(sessions, destination)) {
+			return undefined;
+		}
+		return moves ? 'move' : 'reorder';
+	}
+
+	/**
+	 * Whether every session renders in the destination's date section after the
+	 * move. Date sections derive from sort keys and grouping rules, such as
+	 * promoting recently updated sessions and capping Recent, so the drop slot
+	 * alone does not decide the section.
+	 */
+	private rendersInDateSection(sessions: readonly ISession[], destination: ISessionDropDestination): boolean {
+		const { placement } = destination;
+		if (placement.kind !== 'section' || !isDateSectionPlacement(placement)) {
+			return true;
+		}
+		const sorting = this.options.sorting();
+		const mode = sortingToMode(sorting);
+		const changes = destination.anchor && this.computeSessionReorder(this.sortInDisplayOrder(sessions), destination.anchor);
+		const getSortKey = (session: ISession) => changes?.set.get(session.sessionId)
+			?? (changes?.clear.includes(session.sessionId) ? this._sessionsListModelService.getNaturalSortKey(session, mode) : this._sessionsListModelService.getSortKey(session, mode));
+		const movedIds = new Set(sessions.map(session => session.sessionId));
+		const dateSessions = (this.getDateSections() ?? []).flatMap(section => section.sessions).filter(session => !movedIds.has(session.sessionId));
+		const sections = groupByDate(sortSessions([...dateSessions, ...sessions], sorting, getSortKey), sorting, getSortKey);
+		const target = sections.find(section => section.id === placement.sectionId);
+		return sessions.every(session => target?.sessions.includes(session));
+	}
+
+	/** The sessions in the order the tree renders them, including collapsed sections. */
+	private sortInDisplayOrder(sessions: readonly ISession[]): ISession[] {
+		const indices = new Map<string, number>();
+		const visit = (nodes: readonly ITreeNode<SessionListItem | null, FuzzyScore>[]): void => {
+			for (const node of nodes) {
+				if (node.element && isSessionItem(node.element)) {
+					indices.set(node.element.sessionId, indices.size);
+				}
+				visit(node.children);
+			}
+		};
+		visit(this.tree.getNode().children);
+		const indexOf = (session: ISession) => indices.get(session.sessionId) ?? Number.MAX_SAFE_INTEGER;
+		return [...sessions].sort((a, b) => indexOf(a) - indexOf(b));
 	}
 
 	/**
@@ -5449,9 +5500,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * group changes its placement needs, then position them next to the anchor.
 	 */
 	private async moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): Promise<void> {
+		// Capture the display order before state changes move the rows.
+		const ordered = this.sortInDisplayOrder(sessions);
 		const state = getPlacementState(destination.placement);
 		if (state.archived) {
-			const toArchive = sessions.filter(session => !session.isArchived.get());
+			const toArchive = ordered.filter(session => !session.isArchived.get());
 			if (toArchive.length > 0) {
 				await this.commandService.executeCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, toArchive);
 			}
@@ -5459,46 +5512,47 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Archived sessions lose their group membership, so restore them before changing it.
-		for (const session of sessions) {
+		for (const session of ordered) {
 			if (session.isArchived.get()) {
 				await this._sessionsManagementService.unarchiveSession(session);
 			}
 		}
 		if (state.pinned) {
-			for (const session of sessions) {
+			for (const session of ordered) {
 				this._sessionsListModelService.pinSession(session);
 			}
 		} else if (state.pinned === false) {
-			this._sessionsListModelService.unpinSessions(sessions.filter(session => this.isSessionPinned(session)));
+			this._sessionsListModelService.unpinSessions(ordered.filter(session => this.isSessionPinned(session)));
 		}
 		if (state.groupId === null) {
-			for (const session of sessions) {
+			for (const session of ordered) {
 				if (this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined) {
 					this._sessionGroupsService.removeFromGroup(session.sessionId);
 				}
 			}
 		} else if (state.groupId !== undefined) {
 			const groupId = state.groupId;
-			const joining = sessions.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== groupId);
+			const joining = ordered.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== groupId);
 			if (joining.length > 0) {
 				this._sessionGroupsService.addToGroup(joining.map(session => session.sessionId), groupId);
 			}
 		}
-		if (destination.anchor) {
-			this.reorderSessions(sessions, destination.anchor);
+		const changes = destination.anchor && this.computeSessionReorder(ordered, destination.anchor);
+		if (changes) {
+			this._sessionsListModelService.applySortChanges(sortingToMode(this.options.sorting()), changes.set, changes.clear);
 		}
 	}
 
 	/**
-	 * Reorder the sessions so they land as a contiguous block next to the anchor,
-	 * persisting synthetic sort keys between the surrounding sessions' keys. When
-	 * the sessions' natural timestamps already sort them into the slot, any stored
-	 * override is cleared instead so the list falls back to natural ordering.
+	 * The sort changes that place the sessions, in display order, as a contiguous
+	 * block next to the anchor: synthetic keys between the surrounding sessions'
+	 * keys, or cleared overrides when the sessions' natural timestamps already
+	 * sort them into the slot.
 	 */
-	private reorderSessions(sessions: readonly ISession[], anchor: ISessionDropAnchor): void {
+	private computeSessionReorder(sessions: readonly ISession[], anchor: ISessionDropAnchor): { set: Map<string, number>; clear: string[] } | undefined {
 		const scope = this.getReorderScope(anchor.session);
 		if (scope === undefined) {
-			return;
+			return undefined;
 		}
 		const mode = sortingToMode(this.options.sorting());
 		const getKey = (session: ISession) => this._sessionsListModelService.getSortKey(session, mode);
@@ -5511,14 +5565,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.sort((a, b) => getKey(b) - getKey(a));
 		const anchorIndex = remaining.findIndex(session => session.sessionId === anchor.session.sessionId);
 		if (anchorIndex === -1) {
-			return;
+			return undefined;
 		}
-		const dragged = [...sessions].sort((a, b) => getKey(b) - getKey(a));
 		const insertIndex = anchor.position === 'before' ? anchorIndex : anchorIndex + 1;
 		const above: ISession | undefined = remaining[insertIndex - 1];
 		const below: ISession | undefined = remaining[insertIndex];
 		let aboveKey = above && getKey(above);
 		let belowKey = below && getKey(below);
+		const now = Date.now();
 		if (anchor.staysInSection) {
 			// Hug the anchor when the far side of the gap belongs to another section.
 			// An open boundary belongs to the first or last date section.
@@ -5526,32 +5580,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const anchorSection = dateSections.find(section => section.sessions.includes(anchor.session));
 			const isInAnchorSection = (neighbour: ISession | undefined, boundarySection: ISessionSection | undefined) =>
 				neighbour ? !!anchorSection?.sessions.includes(neighbour) : anchorSection === boundarySection;
-			const span = (dragged.length + 1) * ADJACENT_SORT_STEP_MS;
+			const span = (sessions.length + 1) * ADJACENT_SORT_STEP_MS;
 			const anchorKey = getKey(anchor.session);
 			if (anchor.position === 'before' && !isInAnchorSection(above, dateSections.at(0))) {
 				aboveKey = Math.min(aboveKey ?? Number.POSITIVE_INFINITY, anchorKey + span);
 			} else if (anchor.position === 'after' && !isInAnchorSection(below, dateSections.at(-1))) {
 				belowKey = Math.max(belowKey ?? Number.NEGATIVE_INFINITY, anchorKey - span);
+			} else if (anchor.position === 'before' && !above) {
+				// The top of the first date section is the newest slot, so keep the sessions as recent as possible.
+				belowKey = Math.max(anchorKey, now - span);
 			}
 		}
 
-		const { set, clear } = computeReorderSortChanges({
-			draggedIds: dragged.map(session => session.sessionId),
-			naturalKeys: dragged.map(session => this._sessionsListModelService.getNaturalSortKey(session, mode)),
+		return computeReorderSortChanges({
+			draggedIds: sessions.map(session => session.sessionId),
+			naturalKeys: sessions.map(session => this._sessionsListModelService.getNaturalSortKey(session, mode)),
 			aboveKey,
 			belowKey,
-			now: Date.now(),
+			now,
 			fallbackStep: SORT_FALLBACK_STEP_MS,
 		});
-		this._sessionsListModelService.applySortChanges(mode, set, clear);
 	}
 
 	/** Persist the session's nested chat order with the dragged chats placed before/after a sibling chat. */
 	private reorderChats(chats: readonly ISessionChatItem[], target: ISessionChatItem, position: 'before' | 'after'): void {
-		const rendered = this.tree.getNode(target.session).children
-			.map(child => child.element)
-			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element))
-			.map(item => item.chat.resource.toString());
+		const rendered = this.getChatRows(target.session).map(item => item.chat.resource.toString());
 		const draggedResources = new Set(chats.map(item => item.chat.resource.toString()));
 		const order = rendered.filter(resource => !draggedResources.has(resource));
 		const targetIndex = order.indexOf(target.chat.resource.toString());
@@ -5560,6 +5613,40 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		order.splice(position === 'before' ? targetIndex : targetIndex + 1, 0, ...rendered.filter(resource => draggedResources.has(resource)));
 		this._sessionsListModelService.setChatOrder(target.session.sessionId, sortingToMode(this.options.sorting()), order);
+	}
+
+	/** The nested chat rows of a rendered session in display order, including collapsed ones. */
+	private getChatRows(session: ISession): readonly ISessionChatItem[] {
+		return this.tree.getNode(session).children
+			.map(child => child.element)
+			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element));
+	}
+
+	/** The sibling chat row a nested chat swaps with when moved up or down, if any. */
+	private getAdjacentChatRow(item: ISessionChatItem, direction: 'up' | 'down'): ISessionChatItem | undefined {
+		const rows = this.getChatRows(item.session);
+		const index = rows.findIndex(row => isEqual(row.chat.resource, item.chat.resource));
+		return index === -1 ? undefined : rows[direction === 'up' ? index - 1 : index + 1];
+	}
+
+	/** Move a nested chat one position up or down among its session's chats, keeping it focused. */
+	moveChat(item: ISessionChatItem, direction: 'up' | 'down'): boolean {
+		const target = this.getAdjacentChatRow(item, direction);
+		if (!target) {
+			return false;
+		}
+		this.reorderChats([item], target, direction === 'up' ? 'before' : 'after');
+		const moved = this.findTreeElement((element): element is ISessionChatItem =>
+			isSessionChatItem(element) && element.session.sessionId === item.session.sessionId && isEqual(element.chat.resource, item.chat.resource));
+		if (moved) {
+			this.tree.setFocus([moved]);
+			this.tree.reveal(moved);
+		}
+		const title = getChatTitle(item.chat);
+		aria.status(direction === 'up'
+			? localize('sessionsList.chatMovedUp', "Moved {0} up", title)
+			: localize('sessionsList.chatMovedDown', "Moved {0} down", title));
+		return true;
 	}
 
 	private orderSessionListChats(session: ISession, chats: readonly IChat[], sorting: SessionsSorting): readonly IChat[] {
@@ -5955,6 +6042,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsArchivedContext.key, element.chat.isArchived.get()],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatRow(element, 'up') !== undefined],
+			[SessionChatItemCanMoveDownContext.key, this.getAdjacentChatRow(element, 'down') !== undefined],
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);

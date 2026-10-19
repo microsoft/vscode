@@ -80,7 +80,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -4054,7 +4054,7 @@ suite('Sessions - SessionsList', () => {
 
 			test('drops into the date sections when grouping by date', () => {
 				const first = createTestSession('First').session;
-				const second = createTestSession('Second').session;
+				const second = createTestSession('Second', { createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) }).session;
 				const today = createTestSession('Today').session;
 				const lastMonth = createTestSession('LastMonth', { createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }).session;
 				const memberships = new Map([[first.sessionId, group.id], [second.sessionId, group.id]]);
@@ -4163,29 +4163,86 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('places sessions at the top of the date section whose header they are dropped on', () => {
+			/** Section and session labels of the rendered rows, top to bottom. */
+			function renderedRows(container: HTMLElement): string[] {
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => row.querySelector('.session-section-label')?.textContent ?? row.querySelector('.session-title')?.textContent ?? '');
+			}
+
+			test('renders sessions dropped on a date section header at the top of that section, unless grouping rules place them elsewhere', () => {
 				const now = Date.now();
-				const today = createTestSession('Today', { createdAt: new Date(now) }).session;
+				const thisWeek = createTestSession('ThisWeek', { createdAt: new Date(now - 2 * DAY_MS) }).session;
+				const promoted = createTestSession('Promoted', { createdAt: new Date(now - 20 * DAY_MS), updatedAt: new Date(now) }).session;
 				const lastMonth = createTestSession('LastMonth', { createdAt: new Date(now - 30 * DAY_MS) }).session;
 				const earlier = createTestSession('Earlier', { createdAt: new Date(now - 40 * DAY_MS) }).session;
-				const { container, sortChanges } = renderList([today, lastMonth, earlier], SessionsGrouping.Date);
+				const { container, list } = renderList([thisWeek, promoted, lastMonth, earlier], SessionsGrouping.Date, { liveListModel: true });
+				const initial = renderedRows(container);
 
-				const ontoOlder = drag(sessionRow(container, 'Today'), sectionRow(container, 'Older'), container);
-				const ontoRecent = drag(sessionRow(container, 'Earlier'), sectionRow(container, 'Recent'), container);
-				const [olderKeys, recentKeys] = sortKeys(sortChanges);
+				// Recently updated sessions render in Recent regardless of their sort key.
+				const promotedOntoOlder = drag(sessionRow(container, 'Promoted'), sectionRow(container, 'Older'), container);
+				const earlierOntoRecent = drag(sessionRow(container, 'Earlier'), sectionRow(container, 'Recent'), container);
+				const thisWeekOntoOlder = drag(sessionRow(container, 'ThisWeek'), sectionRow(container, 'Older'), container);
+				list.setItemCollapsed({ section: 'older' }, false);
 
-				assert.deepStrictEqual({ ontoOlder, ontoRecent, olderKeys, earlierAboveToday: recentKeys.Earlier > now }, {
-					ontoOlder: ['Older'],
-					ontoRecent: ['Recent'],
-					olderKeys: { Today: lastMonth.createdAt.getTime() + 1 },
-					earlierAboveToday: true,
+				assert.deepStrictEqual({ initial, promotedOntoOlder, earlierOntoRecent, thisWeekOntoOlder, rendered: renderedRows(container) }, {
+					initial: ['Recent', 'ThisWeek', 'Promoted', 'Older', 'LastMonth', 'Earlier'],
+					promotedOntoOlder: [],
+					earlierOntoRecent: ['Recent'],
+					thisWeekOntoOlder: ['Older'],
+					rendered: ['Recent', 'Earlier', 'Promoted', 'Older', 'ThisWeek', 'LastMonth'],
+				});
+			});
+
+			test('anchors drops below the last row in an earlier date section when the selection empties the last one', () => {
+				const now = Date.now();
+				const grouped = createTestSession('Grouped', { createdAt: new Date(now - 2 * DAY_MS) }).session;
+				const recent = createTestSession('Recent', { createdAt: new Date(now - DAY_MS - 60_000) }).session;
+				const older = createTestSession('Older', { createdAt: new Date(now - 30 * DAY_MS) }).session;
+				const { container, list, removedFromGroups, sortChanges } = renderList([grouped, recent, older], SessionsGrouping.Date, {
+					groups: [{ id: 'g', name: 'Group', createdAt: 1 }],
+					memberships: new Map([[grouped.sessionId, 'g']]),
+				});
+				list.setSelectedItems([{ session: grouped.resource }, { session: older.resource }]);
+
+				const highlighted = dragToEmptySpace(sessionRow(container, 'Grouped'), container);
+
+				const recentKey = recent.createdAt.getTime();
+				assert.deepStrictEqual({ highlighted, removedFromGroups, sortKeys: sortKeys(sortChanges) }, {
+					highlighted: ['Recent'],
+					removedFromGroups: ['Grouped'],
+					sortKeys: [{ Grouped: recentKey - 1, Older: recentKey - 2 }],
+				});
+			});
+
+			test('keeps the display order of dragged sessions from different sections', () => {
+				const now = Date.now();
+				const pinned = createTestSession('Pinned', { createdAt: new Date(now - 60 * 60_000) }).session;
+				const newer = createTestSession('Newer', { createdAt: new Date(now) }).session;
+				const member = createTestSession('Member', { createdAt: new Date(now - 2 * DAY_MS) }).session;
+				const { container, list, addedToGroups, pinChanges, sortChanges } = renderList([pinned, newer, member], SessionsGrouping.Date, {
+					groups: [{ id: 'g', name: 'Group', createdAt: 1 }],
+					memberships: new Map([[member.sessionId, 'g']]),
+					pinnedSessionIds: new Set([pinned.sessionId]),
+				});
+				list.setSelectedItems([{ session: newer.resource }, { session: pinned.resource }]);
+
+				drag(sessionRow(container, 'Pinned'), sessionRow(container, 'Member'), container);
+
+				const [keys] = sortKeys(sortChanges);
+				assert.deepStrictEqual({ addedToGroups, pinChanges, order: Object.keys(keys), pinnedAboveNewer: keys.Pinned > keys.Newer }, {
+					addedToGroups: [{ groupId: 'g', sessionIds: ['Pinned', 'Newer'] }],
+					pinChanges: [{ sessionId: 'Pinned', pinned: false }],
+					order: ['Pinned', 'Newer'],
+					pinnedAboveNewer: true,
 				});
 			});
 
 			test('moves sessions dropped below the last row to the end of the date sections, except archived ones', () => {
 				const now = Date.now();
-				const grouped = createTestSession('Grouped', { createdAt: new Date(now) }).session;
-				const pinned = createTestSession('Pinned', { createdAt: new Date(now) }).session;
+				// Recently updated sessions would render in Recent regardless of their sort key.
+				const grouped = createTestSession('Grouped', { createdAt: new Date(now - 2 * DAY_MS) }).session;
+				const pinned = createTestSession('Pinned', { createdAt: new Date(now - 2 * DAY_MS) }).session;
 				const recent = createTestSession('Recent', { createdAt: new Date(now) }).session;
 				const older = createTestSession('Older', { createdAt: new Date(now - 30 * DAY_MS) }).session;
 				const archived = createTestSession('Finished', { isArchived: true }).session;
@@ -7308,6 +7365,47 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				rendered: ['Third chat', 'Second chat', 'First chat'],
 				stored: [{ mode: 'created', order: ['First chat', 'Third chat', 'Second chat'] }],
+			});
+		});
+
+		test('moves a nested chat up and down without losing focus', () => {
+			const main = createChat('Main chat');
+			const chats = ['First chat', 'Second chat', 'Third chat'].map(title => createChat(title, ChatOriginKind.User));
+			const [first, , third] = chats;
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, ...chats]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session], { liveListModel: true });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			setSessionChatsExpanded(container, true);
+			list.setFocusedItem({ session: session.resource, chat: third.resource });
+
+			const movedUp = list.moveChat(new SessionChatItem(session, third), 'up');
+			const movedFirstUp = list.moveChat(new SessionChatItem(session, first), 'up');
+
+			const chatRows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.filter(row => row.querySelector('.session-chat-title'))
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
+			assert.deepStrictEqual({
+				movedUp,
+				movedFirstUp,
+				rendered: chatRows.map(row => row.querySelector('.session-chat-title')?.textContent),
+				focused: chatRows.find(row => row.classList.contains('focused'))?.querySelector('.session-chat-title')?.textContent,
+			}, {
+				movedUp: true,
+				movedFirstUp: false,
+				rendered: ['First chat', 'Third chat', 'Second chat'],
+				focused: 'Third chat',
 			});
 		});
 
