@@ -1412,7 +1412,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _updateWorkspaceTrust(): void {
 		const remoteAuthority = typeof this._resourceIdentity === 'string' && this._resourceIdentity.startsWith(`${Schemas.vscodeRemote}://`)
 			? URI.parse(this._resourceIdentity).authority : undefined;
-		const trustedAuthority = this._resourceIdentity !== LOCAL_AGENT_HOST_RESOURCE_IDENTITY
+		const connectionAuthorityTrusted = this._resourceIdentity !== LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 			&& ((remoteAuthority !== undefined && this._workspaceTrustManagementService.isAuthorityTrusted?.(Schemas.vscodeRemote, remoteAuthority) === true)
 				|| this._workspaceTrustManagementService.isAuthorityTrusted?.(AGENT_HOST_SCHEME, this._connectionAuthority) === true);
 		const trustedUris = this._workspaceTrustManagementService.getTrustedUris()
@@ -1427,7 +1427,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			[AgentHostWorkspaceTrustConfigKey]: {
 				enabled: this._workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 				trustedUris,
-				...(trustedAuthority ? { trustedAuthority: true } : {}),
+				...(connectionAuthorityTrusted ? { connectionAuthorityTrusted: true } : {}),
 			},
 		});
 	}

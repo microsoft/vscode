@@ -977,7 +977,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
 			enabled: true,
 			trustedUris: [],
-			trustedAuthority: true,
+			connectionAuthorityTrusted: true,
 		});
 	});
 
@@ -991,7 +991,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
 			enabled: true,
 			trustedUris: [],
-			trustedAuthority: true,
+			connectionAuthorityTrusted: true,
 		});
 	});
 

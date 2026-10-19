@@ -26,6 +26,7 @@ import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
+import type { ICopilotProjectExtensionTrustGrant } from './copilotProjectExtensionLaunchPolicy.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -299,8 +300,8 @@ interface ICopilotSessionLaunchBase {
 	 * launches in {@link workingDirectory}.
 	 */
 	readonly additionalDirectories?: readonly URI[];
-	/** Session-scoped project-extension trust inherited by validated isolated worktrees. */
-	readonly extensionLaunchInheritedTrust?: readonly ICopilotExtensionLaunchInheritedTrust[];
+	/** Session-scoped project-extension trust inherited by a validated isolated worktree. */
+	readonly projectExtensionTrustGrant?: ICopilotProjectExtensionTrustGrant;
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
 	/** Root-configured MCP servers disabled by the owning session's resolved customization state. */
@@ -329,12 +330,6 @@ interface ICopilotSessionLaunchBase {
 	 * layer (session `_meta`, stored metadata) that this value flows from.
 	 */
 	readonly workspaceless?: boolean;
-}
-
-/** A launch directory whose trust follows a validated, trusted base repository. */
-export interface ICopilotExtensionLaunchInheritedTrust {
-	readonly directory: URI;
-	readonly trustedFrom: URI;
 }
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
