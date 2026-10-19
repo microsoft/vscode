@@ -186,6 +186,11 @@ interface IPeerChatDeletionStorage {
 	readonly movedFrom: readonly string[];
 }
 
+/** A move request {@link AgentService} accepted before preparing any catalog, with what its kind needs. */
+type IChatMoveRequest =
+	| { readonly kind: 'reorder' | 'move'; readonly destination: Extract<AgentChatMoveDestination, { readonly kind: 'session' }> }
+	| { readonly kind: 'promote'; readonly provider: IAgent };
+
 /** What a chat move validates against and plans its worktrees by (see `_readChatMoveInputs`). */
 interface IChatMoveInputs {
 	/** The chat and its host-managed descendants. */
@@ -6828,7 +6833,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Shared by {@link _moveChat}, {@link _promoteChat} and the `move_session` pre-check ({@link _checkServerToolMove}),
 	 * so they can't drift apart. Opens a destination that isn't loaded.
 	 */
-	private async _checkChatMoveRequest(session: URI, chat: string, destination: AgentChatMoveDestination, sessionMove: boolean): Promise<{ readonly kind: 'reorder' | 'move' } | { readonly kind: 'promote'; readonly provider: IAgent }> {
+	private async _checkChatMoveRequest(session: URI, chat: string, destination: AgentChatMoveDestination, sessionMove: boolean): Promise<IChatMoveRequest> {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
@@ -6860,14 +6865,14 @@ export class AgentService extends Disposable implements IAgentService {
 				refuse(AgentChatMoveRefusal.DestinationNotFound, 'A session can\'t move under itself.');
 			}
 			this._checkReorderAnchor(sourceKey, after);
-			return { kind: 'reorder' };
+			return { kind: 'reorder', destination };
 		}
 		const listedTarget = this._stateManager.getSessionSummary(targetKey) ?? this._stateManager.getSurfacedSessionSummary(targetKey);
 		if (listedTarget && isSessionStatusArchived(listedTarget.status)) {
 			refuse(AgentChatMoveRefusal.SessionArchived, `Session ${targetKey} is archived.`);
 		}
 		await this._restoreForMove(target, AgentChatMoveRefusal.DestinationNotFound);
-		return { kind: 'move' };
+		return { kind: 'move', destination };
 	}
 
 	/**
@@ -6921,12 +6926,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (request.kind === 'promote') {
 			return this._promoteChat(session, chat, request.provider);
 		}
-		if (destination.kind !== 'session') {
-			throw new Error(`A ${request.kind} needs a session destination.`);
-		}
-		const target = destination.session;
+		const target = request.destination.session;
 		const targetKey = target.toString();
-		const after = destination.after?.toString();
+		const after = request.destination.after?.toString();
 		if (request.kind === 'reorder') {
 			await this._reorderChat(session, chatKey, after);
 			return session;
@@ -7243,9 +7245,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Promotes a peer chat and its descendants into a new session of the same agent (AHP `moveChat` to a new session,
 	 * Block 4): the chat becomes its default chat and keeps its runtime, which relaunches with the new session's
 	 * configuration at its next turn (3c). The new session starts with the source's config and the chat's own values
-	 * over it, the chat's folders and the folder state it carries.
+	 * over it, the chat's folders and the folder state it carries. Runs once {@link _checkChatMoveRequest} accepted the
+	 * request, with the source's agent it resolved as `provider`.
 	 */
-	/** Promotes `chat` to a new session of `provider`, once {@link _checkChatMoveRequest} accepted the request. */
 	private async _promoteChat(session: URI, chat: URI, provider: IAgent): Promise<URI> {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);

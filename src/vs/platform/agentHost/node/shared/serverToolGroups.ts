@@ -25,7 +25,9 @@ import { createSessionMoveToolGroup, moveSessionToolDisplay } from './sessionMov
  * `sessionAccessor` is the runtime dependency of the session-management group
  * (list/create/delete sessions); it is provided by the host at construction.
  * When omitted (the pure display path) the session group's `execute` is inert,
- * but its definitions and display remain available.
+ * but its definitions and display remain available. The `move_session` group
+ * runs only with both `sessionAccessor` and `areAgentOrchestrationLimitsEnabled`,
+ * as the host provides them, and is otherwise left out.
  */
 export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor): readonly IServerToolGroup[] {
 	return [
@@ -34,8 +36,8 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 		createSessionIsolationToolGroup(isolationAccessor),
-		// Only where it can run: the pure display path below displays it through `moveSessionToolDisplay`.
-		...(sessionAccessor ? [createSessionMoveToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled ?? (() => true))] : []),
+		// Only where it can run, which takes the host's limits too: the pure display path below displays it through `moveSessionToolDisplay`.
+		...(sessionAccessor && areAgentOrchestrationLimitsEnabled ? [createSessionMoveToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled)] : []),
 	];
 }
 

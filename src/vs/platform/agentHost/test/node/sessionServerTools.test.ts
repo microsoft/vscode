@@ -3336,21 +3336,28 @@ suite('SessionServerTools', () => {
 			let enabled = false;
 			let supported = true;
 			const accessor = createAccessor({ isChatMoveEnabled: () => enabled, supportsChatMoves: () => supported });
-			const host = new AgentServerToolHost(stateManager, buildServerToolGroups(accessor));
-			const withoutMoves = new AgentServerToolHost(stateManager, buildServerToolGroups(accessor).filter(group => !group.definitions.some(definition => definition.name === SessionServerToolName.MoveSession)));
+			const groups = buildServerToolGroups(accessor, undefined, undefined, () => true);
+			const host = new AgentServerToolHost(stateManager, groups);
+			const withoutMoves = new AgentServerToolHost(stateManager, groups.filter(group => !group.definitions.some(definition => definition.name === SessionServerToolName.MoveSession)));
 			const lists = (candidate: AgentServerToolHost) => JSON.stringify({ definitions: candidate.definitions, toolNames: candidate.toolNames, session: candidate.getDefinitionsForSession(session) });
 			const offered = () => host.getDefinitionsForSession(session).some(definition => definition.name === SessionServerToolName.MoveSession);
 			const disabledRun = await run(createMoveGroup({ isChatMoveEnabled: () => false }).group, { session: link(source, 'peer'), into: target });
 
 			const off = { unchangedLists: lists(host) === lists(withoutMoves), offered: offered(), canRequireConfirmation: host.canRequireConfirmation(SessionServerToolName.MoveSession) };
 			enabled = true;
-			const on = { offered: offered(), canRequireConfirmation: host.canRequireConfirmation(SessionServerToolName.MoveSession), requiresConfirmation: host.requiresConfirmation(buildDefaultChatUri(session), SessionServerToolName.MoveSession) };
+			const on = {
+				offered: offered(),
+				deferred: host.getDefinitionsForSession(session).find(definition => definition.name === SessionServerToolName.MoveSession)?.deferLoading,
+				materialized: groups.find(group => group.definitions.some(definition => definition.name === SessionServerToolName.MoveSession))?.materializeDefinitions ?? false,
+				canRequireConfirmation: host.canRequireConfirmation(SessionServerToolName.MoveSession),
+				requiresConfirmation: host.requiresConfirmation(buildDefaultChatUri(session), SessionServerToolName.MoveSession),
+			};
 			supported = false;
 			const unsupported = { offered: offered() };
 
 			assert.deepStrictEqual({ off, on, unsupported, disabledRun, confirms: sessionToolRequiresConfirmation(SessionServerToolName.MoveSession) }, {
 				off: { unchangedLists: true, offered: false, canRequireConfirmation: false },
-				on: { offered: true, canRequireConfirmation: true, requiresConfirmation: true },
+				on: { offered: true, deferred: true, materialized: false, canRequireConfirmation: true, requiresConfirmation: true },
 				unsupported: { offered: false },
 				disabledRun: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Disabled)}`,
 				confirms: true,
