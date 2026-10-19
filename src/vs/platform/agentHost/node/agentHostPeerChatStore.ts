@@ -30,8 +30,6 @@ import type { IAgentHostChatV2MetadataData } from './agentHostChatCatalogV2.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
-/** The agent of a chat whose agent differs from its session's; recorded once, when the chat is created. */
-export const CHAT_AGENT_PROVIDER_METADATA_KEY = 'agentHost.chatAgentProvider';
 export const CHAT_ORIGIN_METADATA_KEY = 'agentHost.chatOrigin';
 export const CHAT_INHERITED_TURN_METADATA_KEY = 'agentHost.chatInheritedTurnId';
 export const CHAT_WORKING_DIRECTORIES_METADATA_KEY = 'agentHost.chatWorkingDirectories';
@@ -647,7 +645,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			return { metadata: { ...chat.metadata, changes: changes?.content } };
 		}
 		switch (key) {
-			case CHAT_AGENT_PROVIDER_METADATA_KEY: return { metadata: { ...chat.metadata, provider: value || undefined } };
 			case CHAT_PROVIDER_DATA_METADATA_KEY: return { providerData: value || null };
 			case CHAT_ORIGIN_METADATA_KEY: return { origin: value || null };
 			case CHAT_INHERITED_TURN_METADATA_KEY: return { inheritedTurnId: value || null };

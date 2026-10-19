@@ -316,6 +316,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
 	private readonly _onDidChatConfigChange = this._register(new Emitter<IAgentChatConfigurationChangeEvent>());
 	readonly onDidChatConfigChange: Event<IAgentChatConfigurationChangeEvent> = this._onDidChatConfigChange.event;
+	/** How many live seeds carry their own schema. */
+	private _chatSchemaSeeds = 0;
 	private readonly _chatConfigSeeds = new Map<ProtocolURI, { values: Record<string, unknown>; readonly schema?: SessionConfigSchema }>();
 	/** A chat's effective values with the inputs they were computed from, so unchanged inputs return the same object. */
 	private readonly _chatValues = new Map<ProtocolURI, { readonly inputs: readonly unknown[]; readonly values: Record<string, unknown> }>();
@@ -526,7 +528,13 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	seedChatConfig(chat: ProtocolURI, values: Readonly<Record<string, unknown>>, schema?: SessionConfigSchema): IAgentChatConfigurationSeed {
 		const seed = { values: { ...values }, schema };
 		this._chatConfigSeeds.set(chat, seed);
+		if (schema) {
+			this._chatSchemaSeeds++;
+		}
 		const disposable = toDisposable(() => {
+			if (schema) {
+				this._chatSchemaSeeds--;
+			}
 			if (this._chatConfigSeeds.get(chat) === seed) {
 				this._chatConfigSeeds.delete(chat);
 			}
@@ -609,6 +617,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	 * itself or the chat that spawned it. `undefined` when the chat uses its session's config.
 	 */
 	private _ownChatSchema(chat: ProtocolURI): { readonly chat: ProtocolURI; readonly schema: SessionConfigSchema } | undefined {
+		if (this._chatSchemaSeeds === 0 && !this._stateManager.hasChatsWithOwnConfigSchema()) {
+			// No chat uses an agent other than its session's (always the case behind the off setting).
+			return undefined;
+		}
 		for (const candidate of this._chatAncestry(chat)) {
 			const schema = this._chatConfigSeeds.get(candidate)?.schema ?? this._stateManager.getChatConfig(candidate)?.schema;
 			if (schema) {
