@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -285,6 +285,100 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('preserves agent-specific frontmatter hooks without merging between agents', async () => {
+			const firstAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/first.md' });
+			const secondAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/second.md' });
+			await fileService.writeFile(firstAgentUri, VSBuffer.fromString([
+				'---',
+				'name: first',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo first',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny first',
+				'      timeout: 5',
+				'---',
+				'First agent.',
+			].join('\n')));
+			await fileService.writeFile(secondAgentUri, VSBuffer.fromString([
+				'---',
+				'name: second',
+				'hooks:',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny second',
+				'---',
+				'Second agent.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: firstAgentUri, name: 'first' },
+				{ uri: secondAgentUri, name: 'second' },
+			], fileService);
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'first',
+					tools: null,
+					hooks: {
+						SessionStart: [{ type: 'command', command: 'echo first' }],
+						PreToolUse: [{ type: 'command', command: 'deny first', timeout: 5 }],
+					},
+					prompt: 'First agent.',
+				},
+				{
+					name: 'second',
+					tools: null,
+					hooks: {
+						PreToolUse: [{ type: 'command', command: 'deny second' }],
+					},
+					prompt: 'Second agent.',
+				},
+			]);
+		});
+
+		test('preserves valid hook commands around malformed entries', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/mixed.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: mixed',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo started',
+				'  PreToolUse:',
+				'    - invalid',
+				'    - type: command',
+				'      command: deny first',
+				'    - [invalid]',
+				'    - type: command',
+				'      command: deny second',
+				'    - null',
+				'  SessionEnd:',
+				'    - invalid',
+				'    - [invalid]',
+				'---',
+				'Mixed hooks.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([{ uri: agentUri, name: 'mixed' }], fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'mixed',
+				tools: null,
+				hooks: {
+					SessionStart: [{ type: 'command', command: 'echo started' }],
+					PreToolUse: [
+						{ type: 'command', command: 'deny first' },
+						{ type: 'command', command: 'deny second' },
+					],
+				},
+				prompt: 'Mixed hooks.',
+			}]);
+		});
+
 		test('parses supported reasoning-effort values from frontmatter', async () => {
 			const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 			const agents: INamedPluginResource[] = [];
@@ -491,11 +585,19 @@ suite('copilotPluginConverters', () => {
 			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
 		});
 
-		test('includes all agents from file-dir plugins', async () => {
+		test('includes plugin agents and preserves their hooks', async () => {
 			const parentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/parent.md' });
 			const siblingUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/sibling.md' });
 			await Promise.all([
-				fileService.writeFile(parentUri, VSBuffer.fromString('Parent agent')),
+				fileService.writeFile(parentUri, VSBuffer.fromString([
+					'---',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: deny parent',
+					'---',
+					'Parent agent',
+				].join('\n'))),
 				fileService.writeFile(siblingUri, VSBuffer.fromString('Sibling agent')),
 			]);
 
@@ -508,7 +610,12 @@ suite('copilotPluginConverters', () => {
 			const result = await toSdkSessionCustomAgents(plugins, fileService);
 
 			assert.deepStrictEqual(result, [
-				{ name: 'parent', tools: null, prompt: 'Parent agent' },
+				{
+					name: 'parent',
+					tools: null,
+					hooks: { PreToolUse: [{ type: 'command', command: 'deny parent' }] },
+					prompt: 'Parent agent',
+				},
 				{ name: 'sibling', tools: null, prompt: 'Sibling agent' },
 			]);
 		});
@@ -787,6 +894,28 @@ suite('copilotPluginConverters', () => {
 				plugin: parsedPluginsEqual([a], [b]),
 				standalone: parsedPluginsEqual([{ ...a, pluginDir: undefined, resourceDir: a.pluginDir }], [{ ...b, pluginDir: undefined, resourceDir: b.pluginDir }]),
 			}, { plugin: true, standalone: true });
+		});
+
+		test('compares absolute roots when a plugin has no content nonce', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual([
+				parsedPluginsEqual([{ ...a, nonce: undefined }], [{ ...b, nonce: undefined }]),
+				parsedPluginsEqual([{ ...a, nonce: '' }], [{ ...b, nonce: '' }]),
+				parsedPluginsEqual([{ ...a, nonce: undefined }], [{ ...a, nonce: undefined }]),
+			], [false, false, true]);
+		});
+
+		test('resolves a published agent URI to the applied agent name only across an equivalent relocation', () => {
+			const applied = relocatedPlugin('/cache/old/revision');
+			const published = relocatedPlugin('/cache/new/revision');
+			const agentUri = published.agents[0].uri.toString();
+			assert.deepStrictEqual([
+				findRelocatedAgentName([applied], [published], agentUri),
+				findRelocatedAgentName([applied], [{ ...published, nonce: 'changed-resource-body' }], agentUri),
+				findRelocatedAgentName([applied], [published], 'file:///unknown.agent.md'),
+				findRelocatedAgentName([applied], [{ ...makePlugin(), pluginDir: URI.file('/workspace') }, published], agentUri),
+			], [applied.agents[0].name, undefined, undefined, applied.agents[0].name]);
 		});
 
 		test('preserves content changes when plugin roots differ', () => {
