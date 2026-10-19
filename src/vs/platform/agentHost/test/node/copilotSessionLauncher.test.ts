@@ -21,7 +21,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -133,7 +133,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, addRuntimeTrustedFolder: (folderPath: string) => Promise<void> = async () => { }): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
 		getRootConfigValues: () => rootValues,
@@ -148,6 +148,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		rejectChatSandboxChange: () => { },
 	} as Partial<IAgentConfigurationService> as IAgentConfigurationService;
 	return new CopilotSessionLauncher(
+		addRuntimeTrustedFolder,
 		configurationService,
 		{ permissions: managedSettingsPermissions ?? {} } as IAgentHostManagedSettingsService,
 		{} as IAgentHostTerminalManager,
@@ -1129,7 +1130,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		// The launcher's other dependencies are unused by the BYOK path and
 		// resolve to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, async () => { });
 	}
 
 	test('memoizes the handle, and disposeByokProxyHandle releases it so the next launch mints a fresh nonce', async () => {
@@ -1907,6 +1908,81 @@ suite('CopilotSessionLauncher shared session config', () => {
 			{ create: false, resume: false, policy: false },
 			{ create: false, resume: false, policy: false },
 			{ create: false, resume: false, policy: false },
+		]);
+	});
+});
+
+suite('CopilotSessionLauncher workspace trust', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const trustedFolder = URI.joinPath(testWorkingDirectory, 'trusted-repo');
+	const untrustedFolder = URI.joinPath(testWorkingDirectory, 'other-repo');
+
+	async function launchAll(workspaceTrust: unknown, launches: ReadonlyArray<{ readonly kind: 'create' | 'resume'; readonly workingDirectory: URI }>, addTrustedFolder: (folderPath: string) => Promise<void>, events: string[]): Promise<void> {
+		const session = {
+			sessionId: 'trust-session', on: () => () => { }, disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: SessionConfig) => { events.push(`create ${config.workingDirectory}`); reportManagedSettings(config); return session; },
+			resumeSession: async (_id: string, config: ResumeSessionConfig) => { events.push(`resume ${config.workingDirectory}`); reportManagedSettings(config); return session; },
+			rpc: { managedSettings: createUnmanagedCopilotSettings() },
+		} as unknown as CopilotClient;
+		const launcher = createTestLauncher(undefined, { [AgentHostWorkspaceTrustConfigKey]: workspaceTrust }, new NullLogService(), noopSessionOpenTelemetry, undefined, undefined, addTrustedFolder);
+		for (const { kind, workingDirectory } of launches) {
+			const base = {
+				client, sessionId: 'trust-session', workingDirectory, resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} }, activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined, githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+			const wrapper = await launcher.launch(kind === 'create'
+				? { ...base, kind, model: undefined }
+				: { ...base, kind, fallback: { model: undefined } }, testRuntime);
+			wrapper.dispose();
+		}
+	}
+
+	test('mirrors an explicit grant once, before the runtime starts preparing plugins', async () => {
+		const events: string[] = [];
+		await launchAll({ enabled: true, trustedUris: [trustedFolder.toString()] }, [
+			{ kind: 'resume', workingDirectory: trustedFolder },
+			{ kind: 'create', workingDirectory: trustedFolder },
+			{ kind: 'create', workingDirectory: untrustedFolder },
+		], async folderPath => { events.push(`trust ${folderPath}`); }, events);
+
+		assert.deepStrictEqual(events, [
+			`trust ${trustedFolder.fsPath}`,
+			`resume ${trustedFolder.fsPath}`,
+			`create ${trustedFolder.fsPath}`,
+			`create ${untrustedFolder.fsPath}`,
+		]);
+	});
+
+	test('never mirrors disabled or unknown workspace trust', async () => {
+		const events: string[] = [];
+		for (const workspaceTrust of [{ enabled: false, trustedUris: [] }, undefined]) {
+			await launchAll(workspaceTrust, [{ kind: 'create', workingDirectory: trustedFolder }], async folderPath => { events.push(`trust ${folderPath}`); }, events);
+		}
+
+		assert.deepStrictEqual(events, [`create ${trustedFolder.fsPath}`, `create ${trustedFolder.fsPath}`]);
+	});
+
+	test('starts the session when mirroring fails and retries on the next launch', async () => {
+		const events: string[] = [];
+		await launchAll({ enabled: true, trustedUris: [trustedFolder.toString()] }, [
+			{ kind: 'create', workingDirectory: trustedFolder },
+			{ kind: 'create', workingDirectory: trustedFolder },
+		], async folderPath => {
+			events.push(`trust ${folderPath}`);
+			throw new Error('runtime unavailable');
+		}, events);
+
+		assert.deepStrictEqual(events, [
+			`trust ${trustedFolder.fsPath}`,
+			`create ${trustedFolder.fsPath}`,
+			`trust ${trustedFolder.fsPath}`,
+			`create ${trustedFolder.fsPath}`,
 		]);
 	});
 });
@@ -3004,7 +3080,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		// The launcher's other dependencies are unused by this path and resolve
 		// to `undefined` under the non-strict InstantiationService.
 		const instantiationService = store.add(new InstantiationService(services));
-		return instantiationService.createInstance(CopilotSessionLauncher);
+		return instantiationService.createInstance(CopilotSessionLauncher, async () => { });
 	}
 
 	/** Invokes the private config builder with a minimal resume plan. */

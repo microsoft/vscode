@@ -5,6 +5,7 @@
 
 import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -21,7 +22,8 @@ import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { isAgentHostWorkspaceTrusted } from '../../common/agentHostWorkspaceTrust.js';
 import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
@@ -75,6 +77,9 @@ export const ContextTierConfigKey = 'contextTier';
  * Copilot Chat extension's `AUTO_MODE_TIER_PROPERTY` so both Auto surfaces use the same picker key.
  */
 export const AutoTierConfigKey = 'tier';
+
+/** How long a launch waits for workspace trust to reach the runtime before starting without it. */
+const runtimeTrustMirrorTimeoutMs = 5_000;
 
 const catalogInstallationFeatureFlags = {
 	CATALOG_SEARCH: true,
@@ -826,7 +831,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 */
 	private _byokProxyHandle: Promise<IByokLmProxyHandle> | undefined;
 
+	/** Folders whose VS Code workspace trust was mirrored into the runtime, keyed by filesystem path. */
+	private readonly _runtimeTrustedFolders = new Map<string, Promise<void>>();
+
+	/**
+	 * @param _addRuntimeTrustedFolder Adds a folder to the runtime's persisted
+	 * folder trust, which the runtime consults before installing plugins that
+	 * repository settings enable.
+	 */
 	constructor(
+		private readonly _addRuntimeTrustedFolder: (folderPath: string) => Promise<void>,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostManagedSettingsService private readonly _managedSettingsService: IAgentHostManagedSettingsService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -914,11 +928,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
+		const runtimeTrust = this._mirrorWorkspaceTrust(plan);
 		plan.stageRecorder?.mark('config');
 		const { config, modelPolicy } = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		if (runtime.cancellationToken?.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		await raceTimeout(runtimeTrust, runtimeTrustMirrorTimeoutMs, () => this._logService.warn(`[Copilot:${plan.sessionId}] Mirroring workspace trust into the Copilot runtime is still pending; starting the session without waiting`));
 		plan.stageRecorder?.mark('create');
 		const sandboxConfig = async (session: CopilotSessionWrapper['session']) => {
 			if (!managedSettingsResolved) {
@@ -977,6 +993,35 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
 		}
+	}
+
+	/**
+	 * The runtime prepares plugins that repository settings enable only for
+	 * folders in its own persisted trust list, which VS Code workspace trust
+	 * does not otherwise reach. Mirrors an explicit VS Code trust grant for the
+	 * working directory there before the runtime creates or resumes the
+	 * session, since both start that preparation. Disabled workspace trust is
+	 * not an explicit grant, so it is never mirrored.
+	 */
+	private _mirrorWorkspaceTrust(plan: CopilotSessionLaunchPlan): Promise<void> {
+		const workingDirectory = plan.workingDirectory;
+		if (workingDirectory?.scheme !== Schemas.file
+			|| !isAgentHostWorkspaceTrusted(this._configurationService.getRootValue(platformRootSchema, AgentHostWorkspaceTrustConfigKey), workingDirectory, true)) {
+			return Promise.resolve();
+		}
+		const folderPath = workingDirectory.fsPath;
+		let pending = this._runtimeTrustedFolders.get(folderPath);
+		if (!pending) {
+			const mirrored: Promise<void> = this._addRuntimeTrustedFolder(folderPath).catch(error => {
+				if (this._runtimeTrustedFolders.get(folderPath) === mirrored) {
+					this._runtimeTrustedFolders.delete(folderPath);
+				}
+				this._logService.warn(`[Copilot:${plan.sessionId}] Failed to mirror workspace trust into the Copilot runtime: ${getErrorMessage(error)}`);
+			});
+			pending = mirrored;
+			this._runtimeTrustedFolders.set(folderPath, pending);
+		}
+		return pending;
 	}
 
 	private async _resumeSession(session: URI, plan: ICopilotResumeSessionLaunchPlan, config: ResumeSessionConfig): Promise<CopilotSessionWrapper['session']> {

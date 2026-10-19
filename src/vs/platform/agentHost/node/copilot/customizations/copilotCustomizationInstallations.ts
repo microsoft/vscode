@@ -84,6 +84,8 @@ interface ICopilotCustomizationInstallationClient {
 export interface ICopilotCustomizationPolicySession {
 	readonly client: ICopilotCustomizationInstallationClient;
 	readonly sessionId: string;
+	/** Adds `folderPath` to the runtime's persisted folder trust. */
+	addTrustedFolder(folderPath: string): Promise<void>;
 	dispose(): Promise<void>;
 }
 
@@ -341,6 +343,21 @@ export class CopilotCustomizationInstallations extends Disposable {
 	async addMcpServerConfiguration(name: string, config: IMcpServerConfiguration): Promise<void> {
 		const client = await this.getClient();
 		await client.rpc.mcp.config.add({ name, config: toCopilotMcpServerConfiguration(config) });
+	}
+
+	/**
+	 * Adds `folderPath` to the runtime's persisted folder trust through the
+	 * hidden policy session, because the runtime exposes folder trust only on a
+	 * session and a chat session must not be created to obtain it.
+	 */
+	async addTrustedFolder(folderPath: string): Promise<void> {
+		const client = await this.getClient();
+		const sessionId = await this.getOrCreatePolicySessionId(client);
+		const session = this.policySession;
+		if (session?.sessionId !== sessionId) {
+			throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
+		}
+		await session.addTrustedFolder(folderPath);
 	}
 
 	async prepare(request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {

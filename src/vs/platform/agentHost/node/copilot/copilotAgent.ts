@@ -1252,7 +1252,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastStartupConfig = this._readClientStartupConfig();
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
-		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher, (folderPath: string) => this._customizationInstallations.addTrustedFolder(folderPath));
 		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),
@@ -1278,6 +1278,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return {
 					client,
 					sessionId: session.sessionId,
+					addTrustedFolder: async folderPath => {
+						const result = await session.rpc.permissions.folderTrust.addTrusted({ path: folderPath });
+						if (!result.success) {
+							throw new Error(`The Copilot runtime did not add '${folderPath}' to its trusted folders`);
+						}
+					},
 					dispose: async () => {
 						try {
 							await session.disconnect();

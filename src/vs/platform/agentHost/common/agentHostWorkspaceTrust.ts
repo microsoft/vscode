@@ -3,11 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IWorkspaceTrustManagementService } from '../../workspace/common/workspaceTrust.js';
+import type { IAgentHostWorkspaceTrust } from './agentHostSchema.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
 import { readSessionWorkspaceless, SessionState } from './state/sessionState.js';
 import { isWorktreeUnderRepository } from './worktreePaths.js';
+
+/**
+ * Whether the renderer-forwarded workspace trust covers `resource`. An absent
+ * configuration is untrusted. When workspace trust is disabled every resource
+ * is trusted, unless `explicitOnly` requires a folder the user actually trusted.
+ */
+export function isAgentHostWorkspaceTrusted(trust: IAgentHostWorkspaceTrust | undefined, resource: URI, explicitOnly = false): boolean {
+	if (!trust) {
+		return false;
+	}
+	if (!trust.enabled) {
+		return !explicitOnly;
+	}
+	return trust.trustedUris.some(uri => {
+		try {
+			return extUriBiasedIgnorePathCase.isEqualOrParent(resource, URI.parse(uri));
+		} catch {
+			return false;
+		}
+	});
+}
 
 /** Resolves persisted trust roots, inheriting trust only for individual VS Code-created worktrees. */
 export async function resolveAgentHostSessionTrustFolders(

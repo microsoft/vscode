@@ -28,12 +28,14 @@ type PolicySessionFactory = ConstructorParameters<typeof CopilotCustomizationIns
 class TestPolicySessions {
 	readonly created: string[] = [];
 	readonly disposed: string[] = [];
+	readonly trustedFolders: string[] = [];
 
 	readonly create: PolicySessionFactory = async (client, sessionId) => {
 		this.created.push(sessionId);
 		return {
 			client,
 			sessionId,
+			addTrustedFolder: async folderPath => { this.trustedFolders.push(`${sessionId}:${folderPath}`); },
 			dispose: async () => { this.disposed.push(sessionId); },
 		};
 	};
@@ -186,6 +188,7 @@ suite('CopilotCustomizationInstallations', () => {
 				return {
 					client: requestedClient,
 					sessionId,
+					async addTrustedFolder() { },
 					async dispose() { disposed++; },
 				};
 			},
@@ -405,6 +408,29 @@ suite('CopilotCustomizationInstallations', () => {
 				env: { PORT: '3000', TOKEN: '$TOKEN' },
 			},
 		}]);
+	});
+
+	test('adds trusted folders through the reused hidden policy session', async () => {
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const policySessions = new TestPolicySessions();
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+
+		await service.addTrustedFolder('/repo-a');
+		await service.addTrustedFolder('/repo-b');
+		await service.releasePolicySession(client);
+
+		const sessionId = policySessions.sessionId;
+		assert.deepStrictEqual({ created: policySessions.created.length, trustedFolders: policySessions.trustedFolders, disposed: policySessions.disposed }, {
+			created: 1,
+			trustedFolders: [`${sessionId}:/repo-a`, `${sessionId}:/repo-b`],
+			disposed: [sessionId],
+		});
 	});
 
 	test('filters non-installable catalog candidates while preserving pagination', async () => {
