@@ -27,7 +27,7 @@ import { IMenuService, MenuId } from '../../../../../platform/actions/common/act
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { type IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -207,7 +207,7 @@ interface INewChatWidgetFixtureOptions {
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
 	private _compact = false;
 
-	constructor(private readonly _kind: 'agent' | 'mode' | 'permissions' | 'isolation' | 'branch') {
+	constructor(private readonly _kind: 'agent' | 'model' | 'mode' | 'permissions' | 'isolation' | 'branch') {
 		super(undefined, toAction({ id: `fixture.${_kind}`, label: _kind, run: () => { } }));
 	}
 
@@ -235,6 +235,12 @@ class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInp
 			container.classList.add('chat-agent-picker-item');
 			dom.append(trigger, renderIcon(Codicon.agent));
 			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label', undefined, 'Agent'));
+			return;
+		}
+		if (this._kind === 'model') {
+			// The classes of the production model picker item, which the composer's layout targets.
+			container.classList.add('chat-input-picker-item', 'model-picker-item');
+			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label', undefined, 'Model'));
 			return;
 		}
 		dom.append(trigger, renderIcon(this._kind === 'isolation' ? Codicon.worktree : Codicon.gitBranch));
@@ -708,7 +714,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	if (withVoiceInputMode) {
 		menuService.addItem(MenuId.ChatExecute, { command: { id: ChatVoiceInputModeAction.ID, title: 'Voice Input Mode', icon: Codicon.micCompact }, group: 'navigation', order: -11 });
 	}
-	menuService.addItem(MenuId.ChatExecute, { command: { id: ChatSubmitAction.ID, title: 'Send', icon: Codicon.arrowUp }, group: 'navigation', order: 4 });
+	// The input only has sendable content in fixtures that attach context or fill the prompt.
+	const sendEnabled = withAttachedContext || !!comparisonPrompt;
+	menuService.addItem(MenuId.ChatExecute, { command: { id: ChatSubmitAction.ID, title: 'Send', icon: Codicon.arrowUpCompact, precondition: sendEnabled ? undefined : ContextKeyExpr.false() }, group: 'navigation', order: 4 });
 	if (withControlPickers) {
 		instantiationService.stub(IAgentHostConnectionsService, {
 			onDidChangeSessionResolution: Event.None,
@@ -728,6 +736,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		for (const menu of [Menus.NewSessionChatInputToolbar, Menus.NewSessionControl]) {
 			disposableStore.add(actionViewItems.register(menu, 'fixture.agent', () => new FixturePickerActionViewItem('agent')));
 		}
+		disposableStore.add(actionViewItems.register(Menus.NewSessionChatInputToolbar, 'fixture.model', () => new FixturePickerActionViewItem('model')));
 		disposableStore.add(actionViewItems.register(Menus.NewSessionControl, 'fixture.mode', () => new FixturePickerActionViewItem(phoneLayout ? 'permissions' : 'mode')));
 		disposableStore.add(actionViewItems.register(Menus.NewSessionRepositoryConfig, 'fixture.worktree', () => new FixturePickerActionViewItem('isolation')));
 		disposableStore.add(actionViewItems.register(Menus.NewSessionRepositoryConfig, 'fixture.branch', () => new FixturePickerActionViewItem('branch')));
@@ -1148,6 +1157,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			&& repositoryConfigContainer.classList.contains('has-no-actions')
 			&& targetWindow.getComputedStyle(repositoryConfigContainer).display === 'none');
 	}
+	if (withAttachedContext) {
+		assert(promptBox.querySelectorAll('.chat-attached-context-attachment').length === createFixtureAttachments().length,
+			'The host\'s initial attachments must render in the composer.');
+	}
 	if (phoneLayout && withAttachedContext) {
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		assert(!!content);
@@ -1462,7 +1475,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionCompactAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The new-session input toolbar shows the Auto model picker in compact mode as a centered Copilot icon inside a 22-pixel square control aligned with the expanded toolbar height.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, primaryToolbarWidth: 51 }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true, primaryToolbarWidth: 56 }),
 	}),
 	NewSessionConfiguredModel: defineComponentFixture({
 		virtualTime: { enabled: false },

@@ -892,10 +892,15 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			range = attachment.copiedFrom.range;
 			const filename = basename(resource.path);
 			this.label.setLabel(filename, undefined, { extraClasses: classNames });
+		} else if (attachment.icon) {
+			// Labelled context, such as a GitHub issue, rather than pasted text.
+			this.label.setLabel(`$(${attachment.icon.id})\u00A0${attachment.name}`);
 		} else {
 			this.label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 		}
-		this.element.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+		if (!attachment.icon || attachment.copiedFrom) {
+			this.element.appendChild(dom.$('span.attachment-additional-info', {}, `Pasted ${attachment.pastedLines}`));
+		}
 
 		this.element.style.position = 'relative';
 

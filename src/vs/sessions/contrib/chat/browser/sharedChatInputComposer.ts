@@ -131,6 +131,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	private _modelBinding: CancellationTokenSource | undefined;
 	private _boundResource: URI | undefined;
+	/** Attachments added before the input renders, such as a host's initial context. */
+	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
 	private readonly _sending = observableValue(this, false);
 	/** Releases the in-flight send's visibility tracking, also when the composer is disposed mid-send. */
 	private readonly _userInteractionSource = this._register(new MutableDisposable());
@@ -301,7 +303,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			getElements: () => [...(this.options.getChatPetPlatformElements?.() ?? []), ...this.sessionTypePicker.getChatPetPlatformElements()],
 		}));
 
-		this._renderSessionControls(container);
+		this._renderSessionControls(parent);
+		if (this._pendingAttachments.length) {
+			widget.attachmentModel.addContext(...this._pendingAttachments.splice(0));
+		}
 		this._restoreDraftState();
 
 		// The widget needs a chat model before it accepts input. Bind the draft's
@@ -342,8 +347,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}));
 	}
 
-	private _renderSessionControls(container: HTMLElement): void {
-		const bottomContainer = dom.append(container, dom.$('.new-chat-bottom-container'));
+	/**
+	 * Renders the session controls row after the input, as a sibling the host's
+	 * layout positions, for example above the input on phones.
+	 */
+	private _renderSessionControls(parent: HTMLElement): void {
+		const bottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container.sessions-shared-chat-input-controls'));
+		this._register(toDisposable(() => bottomContainer.remove()));
+		if (this.options.inputVisible) {
+			const inputVisible = this.options.inputVisible;
+			this._register(autorun(reader => bottomContainer.classList.toggle('hidden', !inputVisible.read(reader))));
+		}
 		const controlsContainer = dom.append(bottomContainer, dom.$('.new-chat-controls-container'));
 		let sessionControlsToolbar: MenuWorkbenchToolBar | undefined;
 
@@ -512,7 +526,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	get attachments(): readonly IChatRequestVariableEntry[] {
-		return this._widget?.attachmentModel.attachments ?? [];
+		return this._widget?.attachmentModel.attachments ?? this._pendingAttachments;
 	}
 
 	get hasInput(): boolean {
@@ -602,7 +616,11 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	addAttachments(...attachments: IChatRequestVariableEntry[]): void {
-		this._widget?.attachmentModel.addContext(...attachments);
+		if (this._widget) {
+			this._widget.attachmentModel.addContext(...attachments);
+		} else {
+			this._pendingAttachments.push(...attachments);
+		}
 	}
 
 	removeAttachment(id: string): void {

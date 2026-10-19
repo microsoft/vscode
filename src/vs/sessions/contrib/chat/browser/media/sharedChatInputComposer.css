@@ -27,15 +27,16 @@
 	min-width: 0;
 }
 
-.sessions-shared-chat-input.hidden {
+.sessions-shared-chat-input.hidden,
+.sessions-shared-chat-input-controls.hidden {
 	display: none !important;
 }
 
-.sessions-shared-chat-input .new-chat-bottom-container {
+.new-chat-bottom-container.sessions-shared-chat-input-controls {
 	margin-top: var(--vscode-spacing-size80);
 }
 
-.sessions-shared-chat-input .new-chat-bottom-container.empty {
+.new-chat-bottom-container.sessions-shared-chat-input-controls.empty {
 	display: none;
 }
 

@@ -201,7 +201,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getKnownBrowserViews() { return new Map(); }
 	}());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-	reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; override hasProvider() { return false; } }());
+	reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+		override onDidFilesChange = Event.None;
+		override onDidRunOperation = Event.None;
+		override hasProvider() { return false; }
+		// Attached files and folders are watched for changes.
+		override createWatcher() { return { onDidChange: Event.None, dispose: () => { } }; }
+	}());
 	reg.defineInstance(IEditorResolverService, new class extends mock<IEditorResolverService>() { override getEditors() { return []; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 	reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
@@ -414,7 +420,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override createSuggestionId() { return EditSuggestionId.newId(); }
 	}());
 	reg.define(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry);
-	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
+	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() {
+		override async resolveDirectoryImages() { return []; }
+	}());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());
 	reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());
