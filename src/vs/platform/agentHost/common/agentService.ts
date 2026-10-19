@@ -1197,6 +1197,9 @@ export interface IAgentService {
 	 */
 	resourceList(uri: URI): Promise<ResourceListResult>;
 
+	/** Estimates reclaimable regular-file allocation using the host-wide scan budget across all protocol endpoints. */
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined>;
+
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
@@ -1445,6 +1448,8 @@ export interface IAgentConnection {
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
+	/** Estimates reclaimable regular-file allocation on local or remote hosts. Unsupported hosts must not fall back to per-file RPCs. */
+	measureWorktreeDiskUsage?(root: URI, token: CancellationToken): Promise<number | undefined>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
