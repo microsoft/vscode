@@ -2285,6 +2285,28 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
+		test('keeps the label and command the chat shows when a restored shell is listed without them', async () => {
+			const restored = (id: string): Extract<BackgroundTasks[number], { type: 'shell' }> => ({ ...shell(id), description: '', command: '', attachmentMode: 'detached' });
+			const { session, signals, waitForSignal } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.backgroundTasks = [restored('server'), restored('unknown')]; },
+			});
+			const shown: BackgroundWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:server', label: 'Serve the app', command: 'npm run serve',
+				startedAt: new Date(0).toISOString(), _meta: toCopilotBackgroundShellMeta('server', 'detached'),
+			};
+			disposables.add(session.observeBackgroundWork([shown]));
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			const published = workActions(signals).map(action => action.type === ActionType.ChatBackgroundWorkSet && action.work.kind === BackgroundWorkKind.Shell
+				? { id: action.work.id, label: action.work.label, command: action.work.command }
+				: action.type);
+			assert.deepStrictEqual(published, [
+				{ id: 'shell:server', label: 'Serve the app', command: 'npm run serve' },
+				{ id: 'shell:unknown', label: '', command: '' },
+			]);
+		});
+
 		test('does not publish a stale snapshot after a newer change', async () => {
 			const { mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			const gate = new DeferredPromise<void>();
