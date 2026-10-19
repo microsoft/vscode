@@ -1646,6 +1646,12 @@
             "description": "%configuration.markdown.updateLinksOnFileMove.enableForDirectories%",
             "scope": "window"
           },
+          "markdown.workspaceSymbols.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.markdown.workspaceSymbols.enabled%",
+            "scope": "window"
+          },
           "markdown.occurrencesHighlight.enabled": {
             "type": "boolean",
             "default": false,
