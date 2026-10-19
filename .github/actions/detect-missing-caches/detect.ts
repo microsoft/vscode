@@ -20,7 +20,7 @@ interface ICacheListParameters {
 interface IGitHub {
 	readonly rest: {
 		readonly actions: {
-			readonly getActionsCacheList: (parameters: ICacheListParameters) => Promise<{ readonly data: { readonly actions_caches?: readonly { readonly key?: string }[] } }>;
+			readonly getActionsCacheList: (parameters: ICacheListParameters) => Promise<{ readonly data: { readonly actions_caches?: readonly { readonly key?: string; readonly version?: string }[] } }>;
 		};
 	};
 }
@@ -37,8 +37,13 @@ interface ICore {
 }
 
 /**
- * Line endings of a runner's checkout. The Windows runners check out text files with CRLF, which
+ * The `runner.os` of a job. The Windows runners check out text files with CRLF line endings, which
  * changes the cache keys that hash them.
+ */
+type RunnerOs = 'Linux' | 'macOS' | 'Windows';
+
+/**
+ * Line endings of a runner's checkout.
  */
 type LineEndings = 'lf' | 'crlf';
 
@@ -46,11 +51,11 @@ type LineEndings = 'lf' | 'crlf';
  * A job of `.github/workflows/pr-node-modules.yml` and the caches it keeps warm on `main`.
  */
 export interface ICacheWarmingJob {
-	readonly lineEndings: LineEndings;
+	readonly os: RunnerOs;
 	/** The `key-prefix` and the evaluated `key-args` of `.github/actions/restore-node-modules`. */
 	readonly nodeModules: { readonly prefix: string; readonly args: readonly string[] };
-	/** The `runner.os` and `arch` of `.github/actions/setup-electron`. */
-	readonly electron?: { readonly os: string; readonly arch: string };
+	/** The `arch` of `.github/actions/setup-electron`. */
+	readonly electron?: { readonly arch: string };
 	/** The marketplace target platform of the built-in extensions cache. */
 	readonly builtInExtensions?: { readonly target: string };
 	/** Whether the job caches the WSL installer with `.github/actions/restore-wsl-installer`. */
@@ -58,38 +63,56 @@ export interface ICacheWarmingJob {
 }
 
 /**
+ * A cache that a job saves. `actions/cache` only restores a cache whose key and version both match.
+ */
+export interface ICache {
+	readonly key: string;
+	readonly version: string;
+}
+
+/**
  * The cache warming jobs by job id, which is also the name of the output that tells whether the job needs to run.
  */
 export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 	'compile': {
-		lineEndings: 'lf',
+		os: 'Linux',
 		nodeModules: { prefix: 'node_modules-compile', args: ['compile', 'x64'] },
 		builtInExtensions: { target: 'linux-x64' },
 	},
 	'linux': {
-		lineEndings: 'lf',
+		os: 'Linux',
 		nodeModules: { prefix: 'node_modules-linux', args: ['linux', 'x64', 'x64'] },
-		electron: { os: 'Linux', arch: 'x64' },
+		electron: { arch: 'x64' },
 	},
 	'macOS': {
-		lineEndings: 'lf',
+		os: 'macOS',
 		nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
-		electron: { os: 'macOS', arch: 'arm64' },
+		electron: { arch: 'arm64' },
 	},
 	'windows': {
-		lineEndings: 'crlf',
+		os: 'Windows',
 		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },
-		electron: { os: 'Windows', arch: 'x64' },
+		electron: { arch: 'x64' },
 		wslInstaller: true,
 	},
 	'copilot-linux': {
-		lineEndings: 'lf',
+		os: 'Linux',
 		nodeModules: { prefix: 'copilot-node_modules-linux', args: ['linux', 'x64'] },
 	},
 	'copilot-windows': {
-		lineEndings: 'crlf',
+		os: 'Windows',
 		nodeModules: { prefix: 'copilot-node_modules-windows', args: ['win32', 'x64'] },
 	},
+};
+
+/**
+ * The `ELECTRON_CACHE_PATH` that `.github/actions/setup-electron` sets on the runners of the jobs. It
+ * depends on the home directory of the runners and is part of the cache version.
+ */
+const electronCachePaths: Readonly<Record<RunnerOs, string>> = {
+	Linux: '/home/cloudtest/.cache/electron',
+	macOS: '/Users/runner/Library/Caches/electron',
+	Windows: 'C:\\Users\\cloudtest\\AppData\\Local\\electron\\Cache',
 };
 
 /**
@@ -104,21 +127,35 @@ function hashFiles(...contents: Buffer[]): string {
 }
 
 /**
- * Returns the keys of the caches a job saves, as the job computes them on its runner.
+ * Mirrors the cache version of `actions/cache` (`getCacheVersion` in `@actions/cache`), which
+ * depends on the cache path, the compression method (zstd on all runners) and the OS.
  */
-export function getCacheKeys(job: ICacheWarmingJob, readFile: ReadRepositoryFile): string[] {
-	const keys = [`${job.nodeModules.prefix}-${hashFiles(Buffer.from(computeNodeModulesCacheKey(job.nodeModules.args, readFile)))}`];
+function getCacheVersion(os: RunnerOs, cachePath: string, enableCrossOsArchive = false): string {
+	const components = [cachePath, 'zstd-without-long'];
+	if (os === 'Windows' && !enableCrossOsArchive) {
+		components.push('windows-only');
+	}
+	components.push('1.0');
+	return createHash('sha256').update(components.join('|')).digest('hex');
+}
+
+/**
+ * Returns the caches a job saves, as the job computes their keys and versions on its runner.
+ */
+export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): ICache[] {
+	const cache = (key: string, cachePath: string, enableCrossOsArchive?: boolean): ICache => ({ key, version: getCacheVersion(job.os, cachePath, enableCrossOsArchive) });
+	const caches = [cache(`${job.nodeModules.prefix}-${hashFiles(Buffer.from(computeNodeModulesCacheKey(job.nodeModules.args, readFile)))}`, '.build/node_modules_cache')];
 	if (job.electron) {
-		keys.push(`electron-download-v1-${job.electron.os}-${job.electron.arch}-${hashFiles(readFile('.npmrc'), readFile('build/checksums/electron.txt'))}`);
+		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('.npmrc'), readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
 	}
 	if (job.builtInExtensions) {
 		const target = job.builtInExtensions.target;
-		keys.push(`builtin-extensions-${hashFiles(Buffer.from(computeBuiltInDepsCacheKey(() => target, readFile)))}`);
+		caches.push(cache(`builtin-extensions-${hashFiles(Buffer.from(computeBuiltInDepsCacheKey(() => target, readFile)))}`, '.build/builtInExtensions', true));
 	}
 	if (job.wslInstaller) {
-		keys.push(`wsl-installer-v1-Windows-${hashFiles(readFile('build/checksums/wsl.txt'))}`);
+		caches.push(cache(`wsl-installer-v1-${job.os}-${hashFiles(readFile('build/checksums/wsl.txt'))}`, '.build/wsl-installer'));
 	}
-	return keys;
+	return caches;
 }
 
 function createCheckoutReaders(): Readonly<Record<LineEndings, ReadRepositoryFile>> {
@@ -138,23 +175,36 @@ function createCheckoutReaders(): Readonly<Record<LineEndings, ReadRepositoryFil
 	};
 }
 
-async function cacheExists(github: IGitHub, context: IContext, key: string): Promise<boolean> {
+/**
+ * Returns the versions of the caches on the current branch with the given key.
+ */
+async function listCacheVersions(github: IGitHub, context: IContext, key: string): Promise<(string | undefined)[]> {
 	// The key parameter matches key prefixes.
 	const { data } = await github.rest.actions.getActionsCacheList({ ...context.repo, ref: context.ref, key, per_page: 100 });
-	return (data.actions_caches ?? []).some(cache => cache.key === key);
+	return (data.actions_caches ?? []).filter(cache => cache.key === key).map(cache => cache.version);
 }
 
 /**
  * Sets an output for each cache warming job: 'true' when one of its caches is missing on the
- * current branch, otherwise 'false'. Jobs whose caches cannot be checked run.
+ * current branch, otherwise 'false'. A cache with the right key but another version is missing,
+ * because the job could not restore it. Jobs whose caches cannot be checked run.
  */
 export async function detectMissingCaches(github: IGitHub, context: IContext, core: ICore, readers: Readonly<Record<LineEndings, ReadRepositoryFile>> = createCheckoutReaders()): Promise<void> {
 	for (const [name, job] of Object.entries(cacheWarmingJobs)) {
 		let missing: string[] | undefined;
 		try {
-			const keys = getCacheKeys(job, readers[job.lineEndings]);
-			const exists = await Promise.all(keys.map(key => cacheExists(github, context, key)));
-			missing = keys.filter((_, index) => !exists[index]);
+			const caches = getCaches(job, readers[job.os === 'Windows' ? 'crlf' : 'lf']);
+			const versions = await Promise.all(caches.map(cache => listCacheVersions(github, context, cache.key)));
+			missing = [];
+			for (const [index, cache] of caches.entries()) {
+				if (versions[index].includes(cache.version)) {
+					continue;
+				}
+				missing.push(cache.key);
+				if (versions[index].length > 0) {
+					core.warning(`${cache.key} exists with version ${versions[index].join(', ')} instead of ${cache.version}. If ${name} keeps running, update the cache versions in .github/actions/detect-missing-caches/detect.ts.`);
+				}
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			core.warning(`Unable to check the caches of ${name}; running it. ${message}`);

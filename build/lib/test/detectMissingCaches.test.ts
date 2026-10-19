@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { suite, test } from 'node:test';
-import { load } from 'js-yaml';
-import { cacheWarmingJobs, detectMissingCaches, getCacheKeys, type ICacheWarmingJob } from '../../../.github/actions/detect-missing-caches/detect.ts';
+import { FAILSAFE_SCHEMA, load } from 'js-yaml';
+import { cacheWarmingJobs, detectMissingCaches, getCaches, type ICacheWarmingJob } from '../../../.github/actions/detect-missing-caches/detect.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 
@@ -26,8 +26,15 @@ interface IJob {
 	readonly steps: readonly IStep[];
 }
 
+/**
+ * Loads a workflow or action with all values as strings.
+ */
 function loadYaml<T>(relativePath: string): T {
-	return load(readFileSync(path.join(repositoryRoot, relativePath), 'utf8')) as T;
+	return load(readFileSync(path.join(repositoryRoot, relativePath), 'utf8'), { schema: FAILSAFE_SCHEMA }) as T;
+}
+
+function loadActionSteps(name: string): readonly IStep[] {
+	return loadYaml<{ runs: { steps: IStep[] } }>(`.github/actions/${name}/action.yml`).runs.steps;
 }
 
 function readRepositoryFile(relativePath: string): Buffer {
@@ -37,10 +44,10 @@ function readRepositoryFile(relativePath: string): Buffer {
 /**
  * The runners of the cache warming jobs, as the cache keys see them.
  */
-const runners: Record<string, { platform: string; arch: string; os: string; lineEndings: ICacheWarmingJob['lineEndings'] }> = {
-	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux', lineEndings: 'lf' },
-	'1ES.Pool=1es-vscode-oss-windows-2022-x64': { platform: 'win32', arch: 'x64', os: 'Windows', lineEndings: 'crlf' },
-	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS', lineEndings: 'lf' },
+const runners: Record<string, { platform: string; arch: string; os: ICacheWarmingJob['os'] }> = {
+	'1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64': { platform: 'linux', arch: 'x64', os: 'Linux' },
+	'1ES.Pool=1es-vscode-oss-windows-2022-x64': { platform: 'win32', arch: 'x64', os: 'Windows' },
+	'macos-26-xlarge': { platform: 'darwin', arch: 'arm64', os: 'macOS' },
 };
 
 suite('Detect missing caches', () => {
@@ -64,9 +71,9 @@ suite('Detect missing caches', () => {
 			const nodeModules = step('./.github/actions/restore-node-modules')?.with;
 			const electron = step('./.github/actions/setup-electron')?.with;
 			jobs[name] = {
-				lineEndings: runner.lineEndings,
+				os: runner.os,
 				nodeModules: { prefix: nodeModules?.['key-prefix'] ?? '', args: evaluate(nodeModules?.['key-args'] ?? '').split(/\s+/) },
-				...electron ? { electron: { os: runner.os, arch: evaluate(electron.arch) } } : {},
+				...electron ? { electron: { arch: evaluate(electron.arch) } } : {},
 				...job.steps.some(step => step.with?.key?.startsWith('builtin-extensions-')) ? { builtInExtensions: { target: `${runner.platform}-${runner.arch}` } } : {},
 				...step('./.github/actions/restore-wsl-installer') ? { wslInstaller: true } : {},
 			};
@@ -80,44 +87,60 @@ suite('Detect missing caches', () => {
 		});
 	});
 
-	test('the cache keys match the actions that save them', () => {
-		// When a key changes, update getCacheKeys in .github/actions/detect-missing-caches/detect.ts to match.
-		const steps = (relativePath: string) => loadYaml<{ runs: { steps: IStep[] } }>(relativePath).runs.steps;
-		const keyOf = (relativePath: string) => steps(relativePath).find(step => step.with?.key)?.with?.key;
-		const commandLines = (steps: readonly IStep[], script: string) => steps.flatMap(step => step.run?.split('\n').filter(line => line.includes(script)).map(line => line.trim()) ?? []);
-		const compile = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml').jobs.compile;
+	test('the cache keys and versions match the actions that save them', () => {
+		// The cache keys and versions depend on these keys, paths, commands and cross-OS settings.
+		// When they change, update getCaches in .github/actions/detect-missing-caches/detect.ts to match.
+		const caches = (steps: readonly IStep[]) => steps
+			.filter(step => step.uses?.startsWith('actions/cache'))
+			.map(step => ({ key: step.with?.key, path: step.with?.path, enableCrossOsArchive: step.with?.enableCrossOsArchive }));
+		const commands = (steps: readonly IStep[], pattern: RegExp) => steps.flatMap(step => step.run?.split('\n').filter(line => pattern.test(line)).map(line => line.trim()) ?? []);
+		const compile = loadYaml<{ jobs: Record<string, IJob> }>('.github/workflows/pr-node-modules.yml').jobs.compile.steps;
 		assert.deepStrictEqual({
-			nodeModules: [keyOf('.github/actions/restore-node-modules/action.yml'), ...commandLines(steps('.github/actions/restore-node-modules/action.yml'), 'computeNodeModulesCacheKey.ts')],
-			electron: keyOf('.github/actions/setup-electron/action.yml'),
-			wslInstaller: keyOf('.github/actions/restore-wsl-installer/action.yml'),
-			builtInExtensions: [compile.steps.find(step => step.with?.key?.startsWith('builtin-extensions-'))?.with?.key, ...commandLines(compile.steps, 'computeBuiltInDepsCacheKey.ts')],
+			nodeModules: [...caches(loadActionSteps('restore-node-modules')), ...caches(loadActionSteps('save-node-modules')), ...commands(loadActionSteps('restore-node-modules'), /computeNodeModulesCacheKey/)],
+			electron: [...caches(loadActionSteps('setup-electron')), ...commands(loadActionSteps('setup-electron'), /ELECTRON_CACHE_PATH=|\$cacheRoot =/)],
+			builtInExtensions: [...caches(compile), ...commands(compile, /computeBuiltInDepsCacheKey/)],
+			wslInstaller: caches(loadActionSteps('restore-wsl-installer')),
 		}, {
 			nodeModules: [
-				'${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}',
+				{ key: '${{ inputs.key-prefix }}-${{ hashFiles(\'.build/packagelockhash\') }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
+				{ key: '${{ env.NODE_MODULES_CACHE_KEY }}', path: '.build/node_modules_cache', enableCrossOsArchive: undefined },
 				'mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
 				'node build/azure-pipelines/common/computeNodeModulesCacheKey.ts ${{ inputs.key-args }} > .build/packagelockhash',
 			],
-			electron: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'.npmrc\', \'build/checksums/electron.txt\') }}',
-			wslInstaller: 'wsl-installer-v1-${{ runner.os }}-${{ hashFiles(\'build/checksums/wsl.txt\') }}',
+			electron: [
+				{ key: 'electron-download-v1-${{ runner.os }}-${{ inputs.arch }}-${{ hashFiles(\'.npmrc\', \'build/checksums/electron.txt\') }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
+				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '${{ env.ELECTRON_CACHE_PATH }}', enableCrossOsArchive: undefined },
+				'echo "ELECTRON_CACHE_PATH=$HOME/Library/Caches/electron" >> "$GITHUB_ENV"',
+				'echo "ELECTRON_CACHE_PATH=${XDG_CACHE_HOME:-$HOME/.cache}/electron" >> "$GITHUB_ENV"',
+				'$cacheRoot = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $HOME \'AppData/Local\' }',
+				'Add-Content -Path $env:GITHUB_ENV -Value "ELECTRON_CACHE_PATH=$(Join-Path $cacheRoot \'electron/Cache\')"',
+			],
 			builtInExtensions: [
-				'builtin-extensions-${{ hashFiles(\'.build/builtindepshash\') }}',
+				{ key: 'builtin-extensions-${{ hashFiles(\'.build/builtindepshash\') }}', path: '.build/builtInExtensions', enableCrossOsArchive: 'true' },
 				'node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash',
+			],
+			wslInstaller: [
+				{ key: 'wsl-installer-v1-${{ runner.os }}-${{ hashFiles(\'build/checksums/wsl.txt\') }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
+				{ key: '${{ steps.restore.outputs.cache-primary-key }}', path: '.build/wsl-installer', enableCrossOsArchive: undefined },
 			],
 		});
 	});
 
-	test('jobs run when one of their caches is missing or the caches cannot be listed', async () => {
-		const existing = new Set(Object.values(cacheWarmingJobs).flatMap(job => getCacheKeys(job, readRepositoryFile)));
-		existing.delete(getCacheKeys(cacheWarmingJobs.windows, readRepositoryFile)[1]);
+	test('jobs run when one of their caches is missing, has another version or cannot be listed', async () => {
+		const [missing, incompatible] = [getCaches(cacheWarmingJobs.windows, readRepositoryFile)[1], getCaches(cacheWarmingJobs.macOS, readRepositoryFile)[1]];
+		const existing = Object.values(cacheWarmingJobs)
+			.flatMap(job => getCaches(job, readRepositoryFile))
+			.filter(cache => cache.key !== missing.key)
+			.map(cache => cache.key === incompatible.key ? { ...cache, version: 'other' } : cache);
 
-		const detect = async (listCaches: (key: string) => string[]) => {
+		const detect = async (listCaches: (key: string) => { key: string; version: string }[]) => {
 			const outputs: Record<string, string> = {};
 			await detectMissingCaches({
 				rest: {
 					actions: {
 						getActionsCacheList: async parameters => {
 							assert.deepStrictEqual([parameters.ref, parameters.per_page], ['refs/heads/main', 100]);
-							return { data: { actions_caches: listCaches(parameters.key).map(key => ({ key })) } };
+							return { data: { actions_caches: listCaches(parameters.key) } };
 						},
 					},
 				},
@@ -134,10 +157,10 @@ suite('Detect missing caches', () => {
 
 		assert.deepStrictEqual(await Promise.all([
 			// Listing by key prefix also returns longer keys.
-			detect(key => [...existing].filter(existingKey => existingKey.startsWith(key)).concat(`${key}-other`)),
+			detect(key => existing.filter(cache => cache.key.startsWith(key)).concat({ key: `${key}-other`, version: 'other' })),
 			detect(() => { throw new Error('Not available'); }),
 		]), [
-			{ 'compile': 'false', 'linux': 'false', 'macOS': 'false', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' },
+			{ 'compile': 'false', 'linux': 'false', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'false', 'copilot-windows': 'false' },
 			{ 'compile': 'true', 'linux': 'true', 'macOS': 'true', 'windows': 'true', 'copilot-linux': 'true', 'copilot-windows': 'true' },
 		]);
 	});
