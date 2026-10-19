@@ -48,6 +48,8 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contri
 import { createLocalModelPickerPresentation } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
+import { IModelPickerImageModels } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerImageModels.js';
+import { CopilotImageGenerationModels, CopilotImageGenerationModelSetting, CopilotImageGenerationOff, imageGenerationModelChoiceList } from '../../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
@@ -415,6 +417,12 @@ function setupContainer(container: HTMLElement, width: number): void {
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 }
 
+/** The image models the Copilot tab's image toggle lists, starting with `inUse` as the model in use. */
+function createImageModels(inUse: CopilotImageGenerationModelSetting): IModelPickerImageModels {
+	const selectedModelId = observableValue<string>('imageModel', inUse);
+	return { models: imageGenerationModelChoiceList, selectedModelId, select: id => selectedModelId.set(id, undefined) };
+}
+
 interface IPickerFixtureOptions {
 	readonly anchored?: boolean;
 	readonly anchorRight?: boolean;
@@ -454,6 +462,12 @@ interface IPickerFixtureOptions {
 	readonly pendingStops?: readonly string[];
 	/** Opens the "On This Device" tab at this family's detail page, as the show-details command does. */
 	readonly openLocalModelDetails?: string;
+	/** Offers the Copilot tab's image toggle, with Off as the image model in use unless {@link imageModel} says otherwise. */
+	readonly imageModels?: boolean;
+	/** The image model in use while the image toggle is offered. */
+	readonly imageModel?: CopilotImageGenerationModelSetting;
+	/** Turns the image toggle on, so the Copilot tab lists image models in place of chat models. */
+	readonly showImageModels?: boolean;
 }
 
 export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
@@ -566,6 +580,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		cacheBreakHint: options.cacheWarm ? { text: 'Switching models mid-session resets the prompt cache and may increase cost.', link: undefined, dismiss: () => { } } : undefined,
 		configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing these options mid-session resets the prompt cache and may increase cost.', link: undefined, dismiss: () => { } } : undefined,
 		localModels: options.localModels && createLocalModelPickerPresentation(options.localModels, { run: () => { } }, new Set(options.pendingStops)),
+		imageModels: options.imageModels ? createImageModels(options.imageModel ?? CopilotImageGenerationOff) : undefined,
 	};
 	if (options.anchored) {
 		disposableStore.add(addDisposableListener(anchor, EventType.CLICK, event => {
@@ -578,6 +593,14 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		}));
 	}
 	picker.show(anchor, pickerContext, options.openSelectedDetails ? pickerContext.selectedModelId : undefined);
+
+	if (options.showImageModels) {
+		const toggle = container.querySelector<HTMLElement>('.tabbed-action-list-tabbar-action[data-id="imageModels"]');
+		if (!toggle) {
+			throw new Error('Image models toggle not found');
+		}
+		toggle.click();
+	}
 
 	if (options.expandOther) {
 		[...container.querySelectorAll<HTMLElement>('.monaco-list-row.action')]
@@ -802,6 +825,23 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	Picker: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS }) }),
 	PickerWithAddedModels: defineComponentFixture({ render: context => renderPicker(context) }),
+	// The Copilot tab's image toggle sits beside Search, where comparison would otherwise be. Its image is an
+	// outline while image generation is off...
+	PickerImageModelsToggle: defineComponentFixture({ render: context => renderPicker(context, { imageModels: true }) }),
+	// ...and filled while an image model is in use.
+	PickerImageModelsToggleFilled: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { imageModels: true, imageModel: CopilotImageGenerationModels[0] }),
+	}),
+	// Turning it on lists the image models in place of the chat models; a model's Details says what it can do and costs.
+	PickerImageModels: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { imageModels: true, showImageModels: true }),
+	}),
+	PickerImageModelDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { imageModels: true, showImageModels: true, openDetailsFor: 'GPT Image 2.5 Flare', pricingExpanded: true }),
+	}),
 	...Object.fromEntries(Object.entries({
 		PickerWithManagedDefault: { managedDefaultModel: 'gpt-5-5' },
 		PickerWithManagedDefaultOverride: { managedDefaultModel: 'gpt-5-5', selectedModelId: 'copilot/claude-sonnet-5' },

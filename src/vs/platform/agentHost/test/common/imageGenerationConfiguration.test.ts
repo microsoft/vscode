@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../../configuration/common/configurationRegistry.js';
 import { CopilotCliConfigKey, CopilotImageGenerationEnabledSettingId, CopilotImageGenerationModelSettingId, CopilotImageGenerationWatermarkSettingId, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
-import { getDefaultImageGenerationModel, imageGenerationConfigurationProperties, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
+import { getDefaultImageGenerationModel, imageGenerationConfigurationProperties, imageGenerationModelChoiceList, migrateLegacyImageGenerationSetting } from '../../common/imageGenerationConfiguration.js';
 
 suite('ImageGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -82,6 +82,21 @@ suite('ImageGenerationConfiguration', () => {
 			['off', 'gpt-image-2.5-flare', 'gpt-image-2.5-sunburst', true, undefined].map(value => property.agentHost.transform(value)),
 			[false, true, false, false, false],
 		);
+	});
+
+	test('each listed model\'s details carry the rates its Settings description states', () => {
+		const format = (rate: number) => rate.toLocaleString('en-US');
+		assert.deepStrictEqual(imageGenerationModelChoiceList.map(({ id, description, details }) => ({
+			id,
+			details: details && {
+				ratesMatchDescription: description.includes(`**Text tokens:** ${format(details.rates.textInput)} input / ${format(details.rates.textOutput)} output`)
+					&& description.includes(`**Image tokens:** ${format(details.rates.imageInput)} input / ${format(details.rates.imageOutput)} output`),
+				previewMatchesDescription: details.previewRates === description.includes('**Preview rates'),
+			},
+		})), [
+			{ id: 'off', details: undefined },
+			{ id: 'gpt-image-2.5-flare', details: { ratesMatchDescription: true, previewMatchesDescription: true } },
+		]);
 	});
 
 	test('image generation defaults to the current model in Insiders and off in Stable and development', () => {

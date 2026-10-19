@@ -35,13 +35,29 @@ export function migrateLegacyImageGenerationSetting(enabled: unknown): CopilotIm
 	return typeof enabled === 'boolean' ? (enabled ? CopilotImageGenerationModels[0] : CopilotImageGenerationOff) : undefined;
 }
 
-/** A Settings dropdown entry; the markdown description carries the model's rates. */
-interface IImageGenerationModelChoice {
-	readonly label: string;
-	readonly description: string;
+/** What an image model costs, for surfaces that describe it in more detail than Settings. */
+export interface IImageGenerationModelDetails {
+	/** Rates in AI credits per million tokens, as stated in the model's Settings description. */
+	readonly rates: {
+		readonly textInput: number;
+		readonly textOutput: number;
+		readonly imageInput: number;
+		readonly imageOutput: number;
+	};
+	/** Whether the rates are preview rates, which may change. */
+	readonly previewRates: boolean;
 }
 
-const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, IImageGenerationModelChoice> = {
+/** An image model setting value with its display label and a markdown description of its rates. */
+export interface IImageGenerationModelChoice {
+	readonly id: CopilotImageGenerationModelSetting;
+	readonly label: string;
+	readonly description: string;
+	/** Absent for the value that turns image generation off. */
+	readonly details?: IImageGenerationModelDetails;
+}
+
+const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, Omit<IImageGenerationModelChoice, 'id'>> = {
 	[CopilotImageGenerationOff]: {
 		label: nls.localize('chat.copilot.imageGeneration.model.off.label', "Off"),
 		description: nls.localize('chat.copilot.imageGeneration.model.off', "Agents cannot generate or edit images."),
@@ -49,10 +65,17 @@ const imageGenerationModelChoices: Record<CopilotImageGenerationModelSetting, II
 	'gpt-image-2.5-flare': {
 		label: 'GPT Image 2.5 Flare',
 		description: nls.localize('chat.copilot.imageGeneration.model.gptImage25Flare', "Generate and edit images with **GPT Image 2.5 Flare** when it is available to your account. Prompts and selected images are sent to Flare.\n\n**Preview rates (AI credits per 1 million tokens):**\n- **Text tokens:** 500 input / 0 output\n- **Image tokens:** 800 input / 3,000 output\n\nThese charges are in addition to the conversation model. Rates may change; these are token rates, not per-image prices."),
+		details: {
+			rates: { textInput: 500, textOutput: 0, imageInput: 800, imageOutput: 3000 },
+			previewRates: true,
+		},
 	},
 };
 
 const imageGenerationModelSettingValues: readonly CopilotImageGenerationModelSetting[] = [CopilotImageGenerationOff, ...CopilotImageGenerationModels];
+
+/** The image model choices in Settings order, Off first, for surfaces other than Settings such as the model picker. */
+export const imageGenerationModelChoiceList: readonly IImageGenerationModelChoice[] = imageGenerationModelSettingValues.map(id => ({ id, ...imageGenerationModelChoices[id] }));
 
 export const imageGenerationConfigurationProperties = {
 	[CopilotImageGenerationModelSettingId]: {

@@ -186,14 +186,15 @@ suite('ModelPickerTelemetry', () => {
 				visible = true;
 				contextViewLayer = options.contextViewLayer;
 				let activeTab = options.initialTab;
-				tabBarActionIds = options.tabBarActions?.map(action => action.id) ?? [];
+				const tabBarActions = () => typeof options.tabBarActions === 'function' ? options.tabBarActions(activeTab) : options.tabBarActions ?? [];
+				tabBarActionIds = tabBarActions().map(action => action.id);
 				renderWelcome = () => {
 					const body = dom.$('div');
 					const rendered = options.renderEmpty?.(body, activeTab);
 					return rendered ? (store.add(rendered), body) : undefined;
 				};
 				searchModels = () => {
-					const search = options.tabBarActions?.find(action => action.id === 'search');
+					const search = tabBarActions().find(action => action.id === 'search');
 					assert.ok(search && !search.checked, 'Model must be available in the picker or in search');
 					search.run();
 				};

@@ -39,6 +39,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import type { IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
 import { IModelPickerComparison, IModelPickerComparisonState } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
+import { IModelPickerImageModels } from '../../../../../browser/widget/input/modelPicker/modelPickerImageModels.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILocalModelFamilyV1, ILocalModelStatusV1 } from '../../../../../../../../platform/agentHost/common/localModel.js';
@@ -158,6 +159,7 @@ suite('TabbedModelPicker', () => {
 		comparison?: IModelPickerComparison;
 		comparisonModels?: ILanguageModelChatMetadataAndIdentifier[];
 		localModels?: IModelPickerLocalModels;
+		imageModels?: IModelPickerImageModels;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
@@ -244,6 +246,7 @@ suite('TabbedModelPicker', () => {
 		const context: ITabbedModelPickerContext = {
 			comparison: options.comparison,
 			localModels: options.localModels,
+			imageModels: options.imageModels,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			comparisonModels: options.comparisonModels,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
@@ -740,6 +743,193 @@ suite('TabbedModelPicker', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ selections: result.selections, values: result.values.get(models[1].identifier) }, {
 			selections: [models[1].identifier], values: { effort: 'high' },
+		});
+	});
+
+	function createImageModels() {
+		const selected = observableValue<string>('imageModel', 'off');
+		const imageModels: IModelPickerImageModels = {
+			models: [
+				{ id: 'off', label: 'Off', description: 'Agents cannot generate or edit images.' },
+				{
+					id: 'gpt-image-2.5-flare', label: 'GPT Image 2.5 Flare', description: '- **Image tokens:** 800 input / 3,000 output',
+					details: { rates: { textInput: 500, textOutput: 0, imageInput: 800, imageOutput: 3000 }, previewRates: true },
+				},
+			],
+			selectedModelId: selected,
+			select: id => selected.set(id, undefined),
+		};
+		return { imageModels, selected };
+	}
+
+	function idleComparison(): IModelPickerComparison {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		return {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined), select: () => { },
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+	}
+
+	/** Each tab bar action by id, marked when pressed. */
+	function tabBarActions(popup: HTMLElement): string[] {
+		return [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action')].map(action => `${action.dataset.id}${action.getAttribute('aria-pressed') === 'true' ? ' (pressed)' : ''}`);
+	}
+
+	/** Each listed model's name, marked when it is the one in use. */
+	function modelRows(popup: HTMLElement): string[] {
+		return [...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].map(row => `${row.querySelector('.title')?.textContent}${row.classList.contains('chat-model-picker-current') ? ' (current)' : ''}`);
+	}
+
+	/** The image toggle's label, and whether its image is filled, as it is while images are generated. */
+	function imageToggle(popup: HTMLElement): string {
+		const toggle = element(popup, '[data-id="imageModels"]');
+		return `${toggle.ariaLabel} (${toggle.querySelector('.codicon-chat-model-picker-image-filled') ? 'filled' : 'outline'})`;
+	}
+
+	/** Each image row's accessible name, whether it announces a page, and its buttons. */
+	function imageRows(popup: HTMLElement) {
+		return [...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].map(row => ({
+			label: row.getAttribute('aria-label'),
+			popup: row.getAttribute('aria-haspopup'),
+			actions: [...row.querySelectorAll<HTMLElement>('.action-list-item-toolbar [role="button"]')].map(action => action.ariaLabel),
+		}));
+	}
+
+	test('the Copilot tab\'s image toggle takes comparison\'s place and lists image models until it is turned off', () => {
+		const { imageModels, selected } = createImageModels();
+		const { popup, picker, selections } = createPicker({ comparison: idleComparison(), imageModels });
+		const before = { actions: tabBarActions(popup), rows: modelRows(popup), toggle: imageToggle(popup) };
+		element(popup, '[data-id="imageModels"]').click();
+		const imageList = {
+			actions: tabBarActions(popup),
+			rows: modelRows(popup),
+			hint: popup.querySelector('.action-list-header-text')?.textContent,
+			imageRows: imageRows(popup),
+		};
+		[...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].find(row => row.querySelector('.title')?.textContent === 'GPT Image 2.5 Flare')!.click();
+		const afterChoosing = { visible: picker.isVisible, rows: modelRows(popup), toggle: imageToggle(popup), imageModel: selected.get(), chatSelections: [...selections] };
+		element(popup, '[data-id="imageModels"]').click();
+		const afterToggleOff = { actions: tabBarActions(popup), rows: modelRows(popup) };
+
+		assert.deepStrictEqual({ before, imageList, afterChoosing, afterToggleOff }, {
+			before: { actions: ['imageModels', 'search'], rows: ['First (current)', 'Fixed', 'Second'], toggle: 'Image Models: Off (outline)' },
+			imageList: {
+				actions: ['imageModels (pressed)', 'search'],
+				rows: ['Off (current)', 'GPT Image 2.5 Flare'],
+				hint: 'Choose the model Copilot uses to generate and edit images. Its charges are in addition to the conversation model.',
+				imageRows: [
+					{ label: 'Off, Agents cannot generate or edit images.', popup: null, actions: [] },
+					{ label: 'GPT Image 2.5 Flare', popup: 'dialog', actions: ['GPT Image 2.5 Flare Details'] },
+				],
+			},
+			afterChoosing: { visible: true, rows: ['Off', 'GPT Image 2.5 Flare (current)'], toggle: 'Image Models: GPT Image 2.5 Flare (filled)', imageModel: 'gpt-image-2.5-flare', chatSelections: [] },
+			afterToggleOff: { actions: ['imageModels', 'search'], rows: ['First (current)', 'Fixed', 'Second'] },
+		});
+	});
+
+	test('the image toggle follows the image model in use while the popup stays open', () => {
+		const { imageModels, selected } = createImageModels();
+		const { popup } = createPicker({ comparison: idleComparison(), imageModels });
+		const off = imageToggle(popup);
+		// Changed elsewhere, e.g. in Settings, while the chat models are listed.
+		selected.set('gpt-image-2.5-flare', undefined);
+		const flare = imageToggle(popup);
+		// A model that is no longer offered leaves image generation off.
+		selected.set('gpt-image-2.5-sunburst', undefined);
+		const retired = imageToggle(popup);
+
+		assert.deepStrictEqual({ off, flare, retired, rows: modelRows(popup) }, {
+			off: 'Image Models: Off (outline)',
+			flare: 'Image Models: GPT Image 2.5 Flare (filled)',
+			retired: 'Image Models: Off (outline)',
+			rows: ['First (current)', 'Fixed', 'Second'],
+		});
+	});
+
+	test('an image model\'s Details page says where requests go and what they cost, and Back returns to its row', async () => {
+		const { imageModels } = createImageModels();
+		const { popup, picker } = createPicker({ comparison: idleComparison(), imageModels });
+		element(popup, '[data-id="imageModels"]').click();
+		openDetails(popup, 'GPT Image 2.5 Flare');
+		const page = element(popup, '.tabbed-action-list-details');
+		const pricing = element(page, '.chat-model-card-pricing-toggle');
+		const shown = {
+			label: page.getAttribute('aria-label'),
+			name: page.querySelector('.chat-model-card-name')?.textContent,
+			description: page.querySelector('.chat-model-card-description')?.textContent,
+			pricing: pricing.getAttribute('aria-expanded'),
+			prices: [...page.querySelectorAll('.chat-model-card-pricing-row')].map(row => `${row.firstElementChild?.textContent}: ${row.lastElementChild?.textContent}`),
+		};
+		pricing.click();
+		const pricingOpened = pricing.getAttribute('aria-expanded');
+		goBack(popup);
+		await timeout(0);
+
+		assert.deepStrictEqual({ shown, pricingOpened, back: { visible: picker.isVisible, rows: modelRows(popup), focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent } }, {
+			shown: {
+				label: 'GPT Image 2.5 Flare Details',
+				name: 'GPT Image 2.5 Flare',
+				description: 'Prompts and selected images are sent to this model. Image generation works only if your account has access to it.',
+				pricing: 'false',
+				prices: ['Text Input: 500', 'Text Output: 0', 'Image Input: 800', 'Image Output: 3000'],
+			},
+			pricingOpened: 'true',
+			back: { visible: true, rows: ['Off (current)', 'GPT Image 2.5 Flare'], focusedRow: 'GPT Image 2.5 Flare' },
+		});
+	});
+
+	test('Right Arrow opens an image model\'s Details from its row, and Back returns to the row', async () => {
+		const { imageModels } = createImageModels();
+		const { popup } = createPicker({ comparison: idleComparison(), imageModels });
+		element(popup, '[data-id="imageModels"]').click();
+		const list = element(popup, '.chat-model-picker-tabbed .monaco-list');
+		const pressRight = () => {
+			list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true }));
+			return popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent;
+		};
+		// Off has nothing more to show.
+		const onOff = pressRight();
+		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+		const onFlare = pressRight();
+		goBack(popup);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			onOff,
+			onFlare,
+			listFocused: document.activeElement === list,
+			focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+		}, { onOff: undefined, onFlare: 'GPT Image 2.5 Flare', listFocused: true, focusedRow: 'GPT Image 2.5 Flare' });
+	});
+
+	test('the image toggle belongs to the Copilot tab, yields to an active comparison, and ends when searching', () => {
+		const { imageModels } = createImageModels();
+		const { popup } = createPicker({ models: [...models, harnessModel('claude', 'Claude Choice')], comparison: idleComparison(), imageModels });
+		const selectTab = (label: string) => element(popup, `.chat-model-picker-tabbar [aria-label="${label}"]`).click();
+		element(popup, '[data-id="imageModels"]').click();
+		selectTab('Claude');
+		const otherTab = { actions: tabBarActions(popup), rows: modelRows(popup) };
+		selectTab('Copilot');
+		const backOnCopilot = { actions: tabBarActions(popup), rows: modelRows(popup) };
+		element(popup, '[data-id="search"]').click();
+		element(popup, '[data-id="search"]').click();
+		const afterSearch = { actions: tabBarActions(popup), rows: modelRows(popup) };
+		selectTab('Claude');
+		element(popup, '[data-id="comparison"]').click();
+		selectTab('Copilot');
+		const comparing = tabBarActions(popup);
+
+		assert.deepStrictEqual({ otherTab, backOnCopilot, afterSearch, comparing }, {
+			otherTab: { actions: ['comparison', 'search'], rows: ['Claude Choice'] },
+			backOnCopilot: { actions: ['imageModels (pressed)', 'search'], rows: ['Off (current)', 'GPT Image 2.5 Flare'] },
+			afterSearch: { actions: ['imageModels', 'search'], rows: ['First (current)', 'Fixed', 'Second'] },
+			comparing: ['comparison (pressed)', 'search'],
 		});
 	});
 

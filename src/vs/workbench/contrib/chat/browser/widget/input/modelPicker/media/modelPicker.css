@@ -494,11 +494,31 @@
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active,
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button.active:hover,
-.action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
+.action-widget.search-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked,
+.action-widget.image-models-mode .chat-model-picker-tabbar .tabbed-action-list-tabbar-action.checked {
 	color: var(--vscode-modernTab-activeForeground);
 	background: var(--vscode-modernTab-activeBackground);
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+/* The image toggle's images, which codicons doesn't have yet: an outline while image generation is off,
+ * filled while an image model is in use. Masks take the icon's color, so they follow the theme like codicons. */
+.codicon.codicon-chat-model-picker-image::before,
+.codicon.codicon-chat-model-picker-image-filled::before {
+	content: '';
+	display: block;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	background-color: currentColor;
+}
+
+.codicon.codicon-chat-model-picker-image::before {
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-linejoin='round'%3E%3Crect x='1.5' y='1.5' width='13' height='13' rx='2.5'/%3E%3Ccircle cx='10.5' cy='5.5' r='1.25'/%3E%3Cpath d='M2.15 13.65 8 9l5.85 4.65'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.codicon.codicon-chat-model-picker-image-filled::before {
+	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='cutouts'%3E%3Crect width='16' height='16' fill='white'/%3E%3Ccircle cx='10.5' cy='5.5' r='1.5'/%3E%3Cpath d='M0 15.35 8 9l8 6.35' fill='none' stroke='black' stroke-linejoin='round'/%3E%3C/mask%3E%3Crect x='1' y='1' width='14' height='14' rx='3' mask='url(%23cutouts)'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:focus-visible,
@@ -1256,9 +1276,15 @@
 	transition: none;
 }
 
-.chat-model-card-pricing-caption {
+.chat-model-card-pricing-caption,
+.chat-model-card-pricing-note {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
+}
+
+/* What the prices add up to follows them, set apart from the last one. */
+.chat-model-card-pricing-note {
+	margin-top: var(--vscode-spacing-size40);
 }
 
 .chat-model-card-pricing-row {

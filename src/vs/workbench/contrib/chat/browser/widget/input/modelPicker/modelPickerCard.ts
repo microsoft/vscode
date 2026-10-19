@@ -158,6 +158,94 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier);
 }
 
+/** A details page's pill, such as a model's category or price category. */
+export function renderModelCardBadge(container: HTMLElement, label: string, highCost: boolean): HTMLElement {
+	const badge = dom.append(container, dom.$('span.chat-model-card-badge', undefined, label));
+	badge.classList.toggle('high-cost', highCost);
+	return badge;
+}
+
+/** One price in a details page's pricing breakdown, in credits per million tokens. */
+export interface IModelCardPrice {
+	readonly label: string;
+	readonly cost: number | null | undefined;
+}
+
+/** What a details page's "Pricing details" section lists. */
+export interface IModelCardPricingOptions {
+	/** Unique among the cards shown together, so each heading controls its own prices. */
+	readonly id: string;
+	readonly prices: readonly IModelCardPrice[];
+	/** Shown beside the heading, e.g. the model's price category. */
+	readonly badge?: { readonly label: string; readonly highCost: boolean };
+	/** Follows the prices, e.g. what the charges are added to. */
+	readonly note?: string;
+	/** Folds the prices away behind the heading, opened and closed for every card at once. */
+	readonly disclosure?: IPricingDisclosure;
+}
+
+/**
+ * A details page's "Pricing details" section, shared by every kind of model card. With a
+ * disclosure it is folded away by default: the numbers only matter to the people who go
+ * looking for them, and they are the last thing most people need to read.
+ */
+export class ModelCardPricingSection {
+
+	/** The heading's button, when the section folds away. */
+	readonly toggle: HTMLElement | undefined;
+	private readonly _chevron: HTMLElement | undefined;
+	private readonly _body: HTMLElement;
+
+	constructor(container: HTMLElement, private readonly _options: IModelCardPricingOptions, store: DisposableStore) {
+		const disclosure = _options.disclosure;
+		const section = dom.append(container, dom.$('.chat-model-card-section.chat-model-card-pricing'));
+		section.classList.toggle('collapsible', !!disclosure);
+		const bodyId = `chat-model-card-pricing-${_options.id.replace(/[^\w-]/g, '-')}`;
+		const heading = dom.append(section, dom.$(disclosure ? 'button.chat-model-card-pricing-toggle' : '.chat-model-card-section-heading'));
+		if (disclosure) {
+			heading.setAttribute('type', 'button');
+			heading.setAttribute('aria-controls', bodyId);
+			this._chevron = dom.append(heading, dom.$('span.chat-model-card-pricing-chevron', { 'aria-hidden': 'true' }));
+			this.toggle = heading;
+			store.add(dom.addDisposableListener(heading, dom.EventType.CLICK, e => {
+				dom.EventHelper.stop(e, true);
+				disclosure.setExpanded(!disclosure.isExpanded());
+			}));
+		}
+		dom.append(heading, dom.$('span.chat-model-card-section-title', undefined, localize('models.pricingDetails', "Pricing details")));
+		if (_options.badge) {
+			renderModelCardBadge(heading, _options.badge.label, _options.badge.highCost);
+		}
+		const body = this._body = dom.append(section, dom.$('.chat-model-card-pricing-body'));
+		body.id = bodyId;
+		const clip = dom.append(body, dom.$('.chat-model-card-pricing-body-clip'));
+		const content = dom.append(clip, dom.$('.chat-model-card-pricing-body-content'));
+		// The unit is stated once, so each row can be read as a plain name and number.
+		dom.append(content, dom.$('.chat-model-card-pricing-caption', undefined, getCreditsPerMillionTokensLabel()));
+		for (const price of _options.prices) {
+			const row = dom.append(content, dom.$('.chat-model-card-pricing-row'));
+			dom.append(row, dom.$('span.chat-model-card-pricing-label', undefined, price.label));
+			dom.append(row, dom.$('span.chat-model-card-pricing-value', undefined, formatModelCost(price.cost)));
+		}
+		if (_options.note) {
+			dom.append(content, dom.$('.chat-model-card-pricing-note', undefined, _options.note));
+		}
+		this.update();
+	}
+
+	/** Shows whether the disclosure is open; the card calls this when it changes. */
+	update(): void {
+		const expanded = this._options.disclosure?.isExpanded() ?? true;
+		this.toggle?.setAttribute('aria-expanded', String(expanded));
+		if (this._chevron) {
+			this._chevron.className = `chat-model-card-pricing-chevron ${ThemeIcon.asClassName(expanded ? Codicon.chevronDown : Codicon.chevronRight)}`;
+		}
+		this._body.classList.toggle('expanded', expanded);
+		this._body.inert = !expanded;
+		this._body.setAttribute('aria-hidden', String(!expanded));
+	}
+}
+
 /**
  * Model information and configuration, shared by the picker's details page and fixtures.
  * Configuration changes are written through and preserve keyboard focus.
@@ -173,14 +261,12 @@ export class ModelCard extends DisposableStore {
 	private _configurationChangeVersion = 0;
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
-	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
-	private _pricingToggle: HTMLElement | undefined;
-	private _pricingChevron: HTMLElement | undefined;
-	private _pricingBody: HTMLElement | undefined;
+	/** The pricing section, rebuilt with the rest of the card on each render. */
+	private _pricing: ModelCardPricingSection | undefined;
 
 	constructor(private _options: IModelCardOptions) {
 		super();
-		this._pricingDisclosureListener.value = _options.pricingDisclosure?.onDidChange(() => this._updatePricingDisclosure());
+		this._pricingDisclosureListener.value = _options.pricingDisclosure?.onDidChange(() => this._pricing?.update());
 		this._render();
 	}
 
@@ -195,7 +281,7 @@ export class ModelCard extends DisposableStore {
 		}
 		this._options = options;
 		if (disclosureChanged) {
-			this._pricingDisclosureListener.value = options.pricingDisclosure?.onDidChange(() => this._updatePricingDisclosure());
+			this._pricingDisclosureListener.value = options.pricingDisclosure?.onDidChange(() => this._pricing?.update());
 		}
 		if (changed) {
 			this._renderPreservingFocus();
@@ -254,14 +340,14 @@ export class ModelCard extends DisposableStore {
 		const group = focusedControl?.[0] ?? fallbackGroup;
 		const optionIndex = focusedControl?.[1].optionElements.findIndex(element => dom.isActiveElement(element));
 		const actionId = this._headerActions?.viewItems.find((_, index) => this._headerActions?.isFocused(index))?.action.id;
-		const pricingFocused = this._pricingToggle && dom.isActiveElement(this._pricingToggle);
+		const pricingFocused = !!this._pricing?.toggle && dom.isActiveElement(this._pricing.toggle);
 		this._render();
 		if (!hadFocus) {
 			return;
 		}
 		const actionIndex = this._headerActions?.viewItems.findIndex(item => item.action.id === actionId) ?? -1;
 		if (pricingFocused) {
-			this._pricingToggle?.focus();
+			this._pricing?.toggle?.focus();
 		} else if (actionIndex >= 0) {
 			this._headerActions?.focus(actionIndex);
 		} else {
@@ -294,9 +380,7 @@ export class ModelCard extends DisposableStore {
 		this._contentDisposables.clear();
 		dom.clearNode(this.element);
 		dom.clearNode(this.headerElement);
-		this._pricingToggle = undefined;
-		this._pricingChevron = undefined;
-		this._pricingBody = undefined;
+		this._pricing = undefined;
 		this._headerActions = undefined;
 		this._routingBadge = undefined;
 		this._groupControls.clear();
@@ -371,7 +455,7 @@ export class ModelCard extends DisposableStore {
 		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, displayName));
 
 		if (this._options.routingAlternatives?.length) {
-			this._routingBadge = this._renderBadge(header, '', false);
+			this._routingBadge = renderModelCardBadge(header, '', false);
 			this._updateRoutingBadge();
 		} else {
 			const badgeLabel = isRoutingModel
@@ -380,7 +464,7 @@ export class ModelCard extends DisposableStore {
 					? undefined
 					: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
 			if (badgeLabel) {
-				this._renderBadge(header, badgeLabel, !isRoutingModel && isHighCostCategory(metadata.priceCategory));
+				renderModelCardBadge(header, badgeLabel, !isRoutingModel && isHighCostCategory(metadata.priceCategory));
 			}
 		}
 
@@ -436,12 +520,6 @@ export class ModelCard extends DisposableStore {
 	private _showsPriceBadgeInPricing(): boolean {
 		const metadata = this._options.model.metadata;
 		return this._options.isUBB && !!getPriceCategoryLabel(metadata.priceCategory) && getModelCostMetrics(metadata).length > 0;
-	}
-
-	private _renderBadge(container: HTMLElement, label: string, highCost: boolean): HTMLElement {
-		const badge = dom.append(container, dom.$('span.chat-model-card-badge', undefined, label));
-		badge.classList.toggle('high-cost', highCost);
-		return badge;
 	}
 
 	private _renderDescription(tooltip: string, learnMoreUrl?: URI): void {
@@ -716,56 +794,13 @@ export class ModelCard extends DisposableStore {
 		}
 
 		const useExtended = !!context && isExtendedContext(context);
-		const disclosure = this._options.pricingDisclosure;
-		const section = dom.append(this.element, dom.$('.chat-model-card-section.chat-model-card-pricing'));
-		section.classList.toggle('collapsible', !!disclosure);
-		const bodyId = `chat-model-card-pricing-${this._options.model.identifier.replace(/[^\w-]/g, '-')}`;
-		const heading = dom.append(section, dom.$(disclosure ? 'button.chat-model-card-pricing-toggle' : '.chat-model-card-section-heading'));
-
-		// Folded away by default: the numbers only matter to the people who go looking
-		// for them, and they are the last thing most people need to read.
-		if (disclosure) {
-			heading.setAttribute('type', 'button');
-			heading.setAttribute('aria-controls', bodyId);
-			this._pricingChevron = dom.append(heading, dom.$('span.chat-model-card-pricing-chevron', { 'aria-hidden': 'true' }));
-			this._pricingToggle = heading;
-			this._contentDisposables.add(dom.addDisposableListener(heading, dom.EventType.CLICK, e => {
-				dom.EventHelper.stop(e, true);
-				disclosure.setExpanded(!disclosure.isExpanded());
-			}));
-		}
-		dom.append(heading, dom.$('span.chat-model-card-section-title', undefined, localize('models.pricingDetails', "Pricing details")));
 		const priceBadgeLabel = getPriceCategoryLabel(metadata.priceCategory);
-		if (priceBadgeLabel) {
-			this._renderBadge(heading, priceBadgeLabel, isHighCostCategory(metadata.priceCategory));
-		}
-		const body = dom.append(section, dom.$('.chat-model-card-pricing-body'));
-		this._pricingBody = body;
-		body.id = bodyId;
-		const clip = dom.append(body, dom.$('.chat-model-card-pricing-body-clip'));
-		const content = dom.append(clip, dom.$('.chat-model-card-pricing-body-content'));
-		// The unit is stated once, so each row can be read as a plain name and number.
-		dom.append(content, dom.$('.chat-model-card-pricing-caption', undefined, getCreditsPerMillionTokensLabel()));
-		for (const metric of metrics) {
-			const cost = useExtended ? metric.extended ?? metric.standard : metric.standard;
-			const row = dom.append(content, dom.$('.chat-model-card-pricing-row'));
-			dom.append(row, dom.$('span.chat-model-card-pricing-label', undefined, metric.label));
-			dom.append(row, dom.$('span.chat-model-card-pricing-value', undefined, formatModelCost(cost)));
-		}
-		this._updatePricingDisclosure();
-	}
-
-	private _updatePricingDisclosure(): void {
-		const expanded = this._options.pricingDisclosure?.isExpanded() ?? true;
-		this._pricingToggle?.setAttribute('aria-expanded', String(expanded));
-		if (this._pricingChevron) {
-			this._pricingChevron.className = `chat-model-card-pricing-chevron ${ThemeIcon.asClassName(expanded ? Codicon.chevronDown : Codicon.chevronRight)}`;
-		}
-		if (this._pricingBody) {
-			this._pricingBody.classList.toggle('expanded', expanded);
-			this._pricingBody.inert = !expanded;
-			this._pricingBody.setAttribute('aria-hidden', String(!expanded));
-		}
+		this._pricing = new ModelCardPricingSection(this.element, {
+			id: this._options.model.identifier,
+			prices: metrics.map(metric => ({ label: metric.label, cost: useExtended ? metric.extended ?? metric.standard : metric.standard })),
+			badge: priceBadgeLabel ? { label: priceBadgeLabel, highCost: isHighCostCategory(metadata.priceCategory) } : undefined,
+			disclosure: this._options.pricingDisclosure,
+		}, this._contentDisposables);
 	}
 
 }
