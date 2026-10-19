@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ClientConnectionEvent, IChannel, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
+import { ClientConnectionEvent, getDelayedChannel, IChannel, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -501,6 +501,27 @@ suite('GitHub anonymous IPC clients', () => {
 		await assert.rejects(remote.acquireAnonymousClient(controller.signal), isCancellationError);
 		await connection.flush();
 		assert.strictEqual(service.acquisitions, 0);
+	});
+
+	test('cancels acquisition while the shared-process connection is still pending', async () => {
+		const { connect, service } = setup();
+		const { connection } = connect();
+		const connected = new DeferredPromise<IChannel>();
+		const remote = new GitHubChannelClient(getDelayedChannel(connected.p), store.add(new NullLogService()));
+		const controller = new AbortController();
+		let cancelled = false;
+		const rejected = assert.rejects(remote.acquireAnonymousClient(controller.signal), isCancellationError).then(() => { cancelled = true; });
+
+		controller.abort(new CancellationError());
+		await connection.flush();
+		const cancelledBeforeConnection = cancelled;
+		await connected.complete(connection.channel);
+		await rejected;
+		await connection.flush();
+
+		assert.deepStrictEqual({ cancelledBeforeConnection, acquisitions: service.acquisitions, releases: service.releases }, {
+			cancelledBeforeConnection: true, acquisitions: 0, releases: 0,
+		});
 	});
 
 	test('releases an allocated lease when cancellation loses the acquisition reply', async () => {
@@ -1194,6 +1215,27 @@ suite('GitHub authenticated IPC clients', () => {
 		controller.abort(new CancellationError());
 		await assert.rejects(remote.acquireClient(authorization, controller.signal), isCancellationError);
 		assert.deepStrictEqual({ calls: broker.resolutions.length, scopes: service.scopes }, { calls: 0, scopes: 0 });
+	});
+
+	test('cancels acquisition while the shared-process connection is still pending', async () => {
+		const { connect, service } = setup();
+		const { connection, broker } = connect();
+		const connected = new DeferredPromise<IChannel>();
+		const remote = new GitHubChannelClient(getDelayedChannel(connected.p), store.add(new NullLogService()));
+		const controller = new AbortController();
+		let cancelled = false;
+		const rejected = assert.rejects(remote.acquireClient(authorization, controller.signal), isCancellationError).then(() => { cancelled = true; });
+
+		controller.abort(new CancellationError());
+		await connection.flush();
+		const cancelledBeforeConnection = cancelled;
+		await connected.complete(connection.channel);
+		await rejected;
+		await connection.flush();
+
+		assert.deepStrictEqual({ cancelledBeforeConnection, resolutions: broker.resolutions, acquisitions: service.acquisitions, releases: service.releases }, {
+			cancelledBeforeConnection: true, resolutions: [], acquisitions: 0, releases: 0,
+		});
 	});
 
 	for (const ending of ['cancel', 'disconnect', 'grant change'] as const) {
