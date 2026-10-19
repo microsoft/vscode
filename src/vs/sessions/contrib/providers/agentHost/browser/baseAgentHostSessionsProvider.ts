@@ -437,7 +437,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 			changes: raw.changes,
-			chats: raw.chats?.map((chat): IAgentHostChatMetadata => ({
+			chats: raw.chats?.map((chat): IAgentSessionChatMetadata => ({
 				chat: URI.parse(chat.chat),
 				summary: chat.summary,
 				kind: chat.kind,
@@ -457,15 +457,8 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 	}
 }
 
-/**
- * Listing chat metadata that may name the agent backing the chat (`SessionChatSummary.provider`).
- * Absent means the session's agent.
- */
-type IAgentHostChatMetadata = IAgentSessionChatMetadata & { readonly provider?: string };
-
 function readChatMetadataProvider(chat: IAgentSessionChatMetadata): string | undefined {
-	const provider = (chat as IAgentHostChatMetadata).provider;
-	return typeof provider === 'string' ? provider : undefined;
+	return chat.provider;
 }
 
 /** Maps an agent provider id to the harness identity the Sessions model uses ({@link ISession.harness}). */
@@ -475,7 +468,7 @@ export function toAgentHostHarness(agentProvider: string): string {
 
 /** `defaultChat` is the session's advertised default chat (`SessionSummary.defaultChat`). */
 function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats'>, defaultChat: string | undefined): readonly IAgentSessionChatMetadata[] | undefined {
-	return summary.chats?.map((chat): IAgentHostChatMetadata => ({
+	return summary.chats?.map((chat): IAgentSessionChatMetadata => ({
 		chat: URI.parse(chat.resource),
 		summary: chat.title,
 		kind: chat.resource === defaultChat ? 'default' : 'peer',
@@ -1246,7 +1239,7 @@ class AdditionalChat extends Disposable {
 	toMetadata(): IAgentSessionChatMetadata {
 		const changes = this._changesSummary.get();
 		const workingDirectories = this._workingDirectories.get();
-		const metadata: IAgentHostChatMetadata = {
+		const metadata: IAgentSessionChatMetadata = {
 			chat: this.backendUri,
 			summary: this._title.get(),
 			kind: 'peer',
@@ -7435,7 +7428,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
-		const createOptions: IAgentCreateChatRequestOptions & { readonly provider?: string } = chatProvider
+		const createOptions: IAgentCreateChatRequestOptions = chatProvider
 			? { provider: chatProvider }
 			: { model: cached.modelSelection };
 		await connection.createChat(sessionUri, chatUri, createOptions);

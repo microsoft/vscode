@@ -227,8 +227,28 @@ export type ChatMoveDestination =
  * destination, a move that would place a chat in a session with a different
  * provider.
  *
- * On success every moved chat keeps its URI, state, and immutable
- * `ChatOrigin`. The host commits ownership and catalog order before publishing
+ * A moved chat always keeps its `provider`. Because no action changes
+ * `ChatState.provider`, a host that advertises the capability MUST set
+ * `provider` on the `ChatState` of every chat it advertises as `movable`.
+ * When ownership changes, such a host MUST normalize each moved chat's
+ * {@link ChatConfigState | `ChatState.config`} for the destination session as
+ * part of the committed move:
+ *
+ * - If the chat's provider differs from the destination session's provider,
+ *   `config.schema` is the chat agent's chat-applicable config schema and
+ *   `config.values` is that agent's defaults overlaid with the chat's existing
+ *   values that are valid in that schema.
+ * - If the providers are equal, `config.schema` is removed and
+ *   `config.values` keeps, as an overlay, only the existing values whose
+ *   properties the destination session's schema declares `chatMutable`.
+ *
+ * No action carries a changed `schema`, so clients subscribed to a moved chat
+ * whose provider relationship to its session changed SHOULD resubscribe to
+ * obtain the normalized `config`.
+ *
+ * On success every moved chat keeps its URI, its state (apart from the
+ * `config` normalization above), and its immutable `ChatOrigin`. The host
+ * commits ownership and catalog order before publishing
  * `session/chatRemoved`, `session/chatAdded`, `session/chatsReordered`, and
  * root summary updates as applicable. Session and root snapshots are the
  * durable recovery path after reconnect or an uncertain response.
