@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChatStatusCanvas } from '../../../../platform/agentHost/common/chatStatusCanvas.js';
 import { parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
@@ -237,12 +238,16 @@ export class ProjectBoardModel {
 		this.children.clear();
 		const byId = new Map(cards.map(card => [card.id, card]));
 		for (const session of sessions) {
-			const parent = byId.get(getProjectBoardCardId(session, session.mainChat.read(reader)));
-			if (parent) {
+			const main = byId.get(getProjectBoardCardId(session, session.mainChat.read(reader)));
+			if (main) {
 				for (const chat of getSessionChildChats(session, reader)) {
 					const child = byId.get(getProjectBoardCardId(session, chat));
 					if (child) {
-						this.parents.set(child.id, parent);
+						const parentResource = chat.origin?.kind === ChatOriginKind.User ? chat.origin.parentChat : undefined;
+						const explicitParent = parentResource
+							? cards.find(candidate => candidate.session.sessionId === session.sessionId && isEqual(candidate.chat.resource, parentResource))
+							: undefined;
+						this.parents.set(child.id, explicitParent ?? main);
 					}
 				}
 			}

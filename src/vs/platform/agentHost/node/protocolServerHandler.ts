@@ -2090,6 +2090,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				: undefined;
 			if (source) {
 				switch (source.kind) {
+					case ChatSourceKind.Child:
+						options = { ...options, parentChat: URI.parse(source.chat) };
+						break;
 					case ChatSourceKind.Fork:
 						options = {
 							...(params.title !== undefined ? { title: params.title } : {}),

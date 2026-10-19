@@ -369,7 +369,7 @@ export interface SideChatSelection {
  * @category Chat State
  */
 export type ChatOrigin =
-	| { kind: ChatOriginKind.User }
+	| { kind: ChatOriginKind.User; chat?: URI }
 	| { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
 	| { kind: ChatOriginKind.SideChat; chat: URI; turnId: string; selection?: SideChatSelection }
 	| { kind: ChatOriginKind.Tool; chat: URI; toolCallId: string };

@@ -2176,13 +2176,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
-	 * Maps a protocol parent-chat URI (from a Tool/Fork {@link ChatSummary.origin})
+	 * Maps a protocol parent-chat URI (from a user child, Tool/Fork, or side-chat origin)
 	 * to this session's UI chat resource: the default chat maps to the session
 	 * resource; peer chats carry their chatId in the resource fragment.
 	 */
 	private _resolveParentChatResource(origin: ChatSummary['origin']): URI | undefined {
 		const parentUri = origin && (
-			origin.kind === ProtocolChatOriginKind.Tool
+			(origin.kind === ProtocolChatOriginKind.User && origin.chat)
+			|| origin.kind === ProtocolChatOriginKind.Tool
 			|| origin.kind === ProtocolChatOriginKind.Fork
 			|| origin.kind === ProtocolChatOriginKind.SideChat)
 			? origin.chat
@@ -7307,7 +7308,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._createAdditionalChat(chatId, connection);
 	}
 
-	private async _createAdditionalChat(chatId: string, connection: IAgentConnection): Promise<IChat> {
+	async createChildChat(chatId: string, parentChat: URI): Promise<IChat> {
+		this._assertSessionAvailable(chatId);
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error(this._notConnectedSendErrorMessage());
+		}
+		return this._createAdditionalChat(chatId, connection, parentChat);
+	}
+
+	private async _createAdditionalChat(chatId: string, connection: IAgentConnection, parentChat?: URI): Promise<IChat> {
 		const rawId = this._sessionKeyFromChatId(chatId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!rawId || !cached) {
@@ -7331,6 +7341,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._keepSessionStateAlive(cached.sessionId);
 		await connection.createChat(sessionUri, chatUri, {
 			model: cached.modelSelection,
+			...(parentChat ? { parentChat: this._resolveBackendSourceChatUri(cached.sessionId, sessionUri, parentChat) } : {}),
 		});
 
 		const chat = await waitForState(

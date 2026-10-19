@@ -8,8 +8,8 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { NEW_CHAT_IN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { NEW_CHAT_IN_SESSION_COMMAND_ID, NEW_CHILD_CHAT_IN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 
 function canCreatePeer(session: ISession): boolean {
 	const connection = session.remoteConnectionStatus?.get();
@@ -42,6 +42,38 @@ export function createProjectBoardPeerChatAction(
 			} catch (error) {
 				logService.error('[ProjectBoard] Failed to create a peer chat', error);
 				notificationService.error(localize('projectBoard.peerChatFailed', "The new chat could not be opened in this session."));
+			}
+		},
+	});
+}
+
+export function createProjectBoardChildChatAction(
+	getTarget: () => { session: ISession; chat: IChat } | undefined,
+	commandService: ICommandService,
+	logService: ILogService,
+	notificationService: INotificationService,
+): IAction | undefined {
+	const target = getTarget();
+	if (!target || !canCreatePeer(target.session)) {
+		return undefined;
+	}
+	return toAction({
+		id: NEW_CHILD_CHAT_IN_SESSION_COMMAND_ID,
+		label: localize('projectBoard.newChildChat', "New Child Chat"),
+		run: async () => {
+			const current = getTarget();
+			if (!current || !canCreatePeer(current.session)) {
+				notificationService.warn(localize('projectBoard.childChatUnavailable', "This chat is no longer available as a parent."));
+				return;
+			}
+			try {
+				await commandService.executeCommand(NEW_CHILD_CHAT_IN_SESSION_COMMAND_ID, {
+					session: current.session,
+					parentChat: current.chat.resource,
+				});
+			} catch (error) {
+				logService.error('[ProjectBoard] Failed to create a child chat', error);
+				notificationService.error(localize('projectBoard.childChatFailed', "The child chat could not be opened."));
 			}
 		},
 	});

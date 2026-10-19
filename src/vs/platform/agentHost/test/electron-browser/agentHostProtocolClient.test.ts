@@ -1810,6 +1810,26 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('forwards a parent-linked child source', async () => {
+			const { client, transport } = createClient();
+
+			const resultPromise = client.createChat(sessionUri, chatUri, { parentChat: sourceUri });
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					source: { kind: ChatSourceKind.Child, chat: sourceUri.toString() },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
 		test('forwards a side chat source and maps its working directories', async () => {
 			const { client, transport } = createClient();
 

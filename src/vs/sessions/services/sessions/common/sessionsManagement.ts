@@ -158,6 +158,8 @@ export interface ICreateNewChatInSessionOptions {
 	 * just-sent chat may still transiently report `Untitled`.
 	 */
 	readonly forceNew?: boolean;
+	/** Create the chat as a user-originated child of this chat. */
+	readonly parentChat?: URI;
 }
 
 /**

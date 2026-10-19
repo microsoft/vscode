@@ -17,10 +17,20 @@ import type { Message, SideChatSelection } from './state.js';
  * @nonexhaustive
  */
 export const enum ChatSourceKind {
+	/** Create a fresh user chat linked beneath an existing chat. */
+	Child = 'child',
 	/** Copy source history through the referenced turn into the new chat. */
 	Fork = 'fork',
 	/** Supply source context without copying it into the new chat's visible history. */
 	SideChat = 'sideChat',
+}
+
+/** Links a fresh user chat beneath an existing chat without copying history. */
+export interface ChildChatSource {
+	/** Discriminant */
+	kind: ChatSourceKind.Child;
+	/** URI of the parent chat. */
+	chat: URI;
 }
 
 /**
@@ -73,6 +83,7 @@ export interface SideChatSource {
  * Identifies a source chat for a new chat.
  */
 export type ChatSource =
+	| ChildChatSource
 	| ForkChatSource
 	| SideChatSource;
 

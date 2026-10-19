@@ -29724,6 +29724,25 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('child chat records a User origin naming its exact parent without copying turns', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new MultiChatAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const parent = URI.parse(buildDefaultChatUri(session));
+			const child = URI.parse(buildChatUri(session, 'peer-child-origin'));
+
+			await service.createChat(session, child, { parentChat: parent });
+
+			assert.deepStrictEqual(getStateManager(service).getChatState(child.toString())?.origin, {
+				kind: ChatOriginKind.User,
+				chat: parent.toString(),
+			});
+			assert.deepStrictEqual(getStateManager(service).getChatState(child.toString())?.turns, []);
+		});
+
 		test('fork with an unknown turn id drops the fork and seeds no turns', async () => {
 			let receivedFork: IAgentCreateChatForkSource | undefined;
 			class MultiChatAgent extends MockAgent {

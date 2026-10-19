@@ -902,6 +902,8 @@ export interface IAgentCreateChatOptions {
  * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
  */
 export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
+	/** Create a fresh user chat parented to an existing chat without copying its turns. */
+	readonly parentChat?: URI;
 	/**
 	 * Host-owned first user message submitted after creating the chat. This is
 	 * intentionally excluded from {@link IAgentCreateChatOptions}: providers

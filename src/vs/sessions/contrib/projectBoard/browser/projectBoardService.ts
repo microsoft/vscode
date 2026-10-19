@@ -69,7 +69,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { isAgentHostProvider, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../common/agentHostSessionsProvider.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { ProjectBoardNewSessionDialog } from './projectBoardNewSessionDialog.js';
-import { createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
+import { createProjectBoardChildChatAction, createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardLoadedMetadata, getProjectBoardSubmittedAt, IProjectBoardInputConfiguration, IProjectBoardMetadata } from './projectBoardMetadata.js';
 import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
@@ -3615,6 +3615,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const current = this.model.cards.find(current => current.id === card.id);
 			return this.active && !this._store.isDisposed && current && this.sessionsProvidersService.getProvider(current.session.providerId) ? current.session : undefined;
 		}, this.commandService, this.logService, this.notificationService);
+		const childChat = card && provider && isAgentHostProvider(provider) && createProjectBoardChildChatAction(() => {
+			const current = this.model.cards.find(current => current.id === card.id);
+			const currentProvider = current && this.sessionsProvidersService.getProvider(current.session.providerId);
+			return this.active && !this._store.isDisposed && current && currentProvider && isAgentHostProvider(currentProvider)
+				? { session: current.session, chat: current.chat }
+				: undefined;
+		}, this.commandService, this.logService, this.notificationService);
 		const anchor = new StandardMouseEvent(getWindow(element), event);
 		this.menuOpen = true;
 		const generation = ++this.menuGeneration;
@@ -3623,6 +3630,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			getAnchor: () => anchor,
 			getActions: () => [
 				...(peerChat ? [peerChat] : []),
+				...(childChat ? [childChat] : []),
 				...(rename ? [toAction({
 					id: 'projectBoard.card.rename',
 					label: localize('projectBoard.renameChat', "Rename..."),

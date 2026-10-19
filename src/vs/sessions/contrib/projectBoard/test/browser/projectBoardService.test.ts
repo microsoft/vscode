@@ -3799,17 +3799,27 @@ suite('ProjectBoardService', () => {
 		}, { cards: 0, ownedDrafts: 0, opened: 0 });
 	});
 
-	test('card context menu offers New Chat in This Session for the clicked owning session', async () => {
+	test('card context menu offers peer and child chats for the clicked card', async () => {
 		const chat = new TestChat('User peer menu');
 		const h = createBoard(mainWindow.document, [chat]);
 		const execute = sinon.stub().resolves();
 		h.instantiationService.stub(ICommandService, { executeCommand: execute });
+		sinon.stub(h.provider, 'id').value('local-agent-host');
+		sinon.stub(h.session, 'providerId').value('local-agent-host');
 		await h.service.open();
 		h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-		const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'sessions.chatCompositeBar.addChat');
-		assert.ok(action, 'Expose the existing native peer-creation command');
-		await action.run();
-		assert.deepStrictEqual(execute.firstCall.args, ['sessions.chatCompositeBar.addChat', h.session]);
+		const actions = h.contextMenu.delegate!.getActions();
+		const peer = actions.find(action => action.id === 'sessions.chatCompositeBar.addChat');
+		const child = actions.find(action => action.id === 'sessions.chatCompositeBar.addChildChat');
+		assert.strictEqual(peer?.label, 'New Chat in This Session');
+		assert.strictEqual(child?.label, 'New Child Chat');
+		await peer!.run();
+		await child!.run();
+		assert.deepStrictEqual(execute.getCall(0).args, ['sessions.chatCompositeBar.addChat', h.session]);
+		assert.deepStrictEqual(execute.getCall(1).args, ['sessions.chatCompositeBar.addChildChat', {
+			session: h.session,
+			parentChat: chat.resource,
+		}]);
 	});
 
 	suite('Mark as Unread', () => {

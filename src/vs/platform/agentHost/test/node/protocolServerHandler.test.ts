@@ -7888,6 +7888,33 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
+		test('createChat forwards a parent-linked child source', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-cc');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			const parent = buildDefaultChatUri(sessionUri);
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.Child, chat: parent },
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				created: agentService.createdChats,
+			}, {
+				result: null,
+				created: [{
+					session: sessionUri,
+					chat: peerChat,
+					options: { parentChat: URI.parse(parent) },
+				}],
+			});
+		});
+
 		test('createChat accepts any ahp-chat URI in an opaque session and rejects opaque or foreign URIs otherwise', async () => {
 			const opaqueSession = 'copilot:/opaque-session';
 			const opaqueDefault = 'ahp-chat:/11111111-1111-4111-8111-111111111111';

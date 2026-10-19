@@ -639,6 +639,12 @@ export interface ISessionsProvider {
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
 
 	/**
+	 * Create a user-originated child of an existing chat.
+	 * Providers that do not preserve parent provenance may omit this method.
+	 */
+	createChildChat?(sessionId: string, parentChat: URI): Promise<IChat>;
+
+	/**
 	 * Fork an existing chat into a new chat within the same session, seeded
 	 * with the source chat's history up to and including the given turn.
 	 * @param sessionId The ID of the session containing the source chat.

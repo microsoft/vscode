@@ -609,7 +609,8 @@ export interface IChatOrigin {
 	/**
 	 * For a chat spawned by another chat (e.g. a subagent worker chat, kind
 	 * {@link ChatOriginKind.Tool}, or a {@link ChatOriginKind.Fork}), the
-	 * resource of the chat that spawned it. Undefined for user-originated chats.
+	 * resource of the chat that spawned it. User-originated chats may set this
+	 * when the user explicitly creates a child chat.
 	 */
 	readonly parentChat?: URI;
 	/**

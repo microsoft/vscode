@@ -338,6 +338,24 @@ suite('ProjectBoardModel', () => {
 		}, { cards: ['main', 'user-peer'], children: ['user-peer'] });
 	});
 
+	test('nests an explicitly parented user chat beneath the clicked peer card', () => {
+		const main = createChat('main', ChatInteractivity.Full);
+		const peer = createChat('peer', ChatInteractivity.Full, { kind: ChatOriginKind.User });
+		const child = createChat('child', ChatInteractivity.Full, { kind: ChatOriginKind.User, parentChat: peer.resource });
+		const model = new ProjectBoardModel();
+		model.updateSessions([createSession(main, peer, child)]);
+		const [mainCard, peerCard, childCard] = model.cards;
+		assert.deepStrictEqual({
+			mainChildren: model.getChildCards(mainCard.id).map(card => card.title),
+			peerChildren: model.getChildCards(peerCard.id).map(card => card.title),
+			childParent: model.getParentCard(childCard.id)?.title,
+		}, {
+			mainChildren: ['peer'],
+			peerChildren: ['child'],
+			childParent: 'peer',
+		});
+	});
+
 	for (const showSessionList of [true, false]) {
 		test(`excluded tool placements remain known without appearing as cards in ${showSessionList ? 'session list' : 'card'} projection`, () => {
 			const main = createChat('main', ChatInteractivity.Full);

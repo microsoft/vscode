@@ -276,6 +276,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				title: options?.title ?? '',
 				status: ProtocolSessionStatus.Idle,
 				modifiedAt: new Date(0).toISOString(),
+				...(options?.parentChat ? { origin: { kind: ProtocolChatOriginKind.User, chat: options.parentChat.toString() } } : {}),
 			};
 			this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
 				...existing,
@@ -12854,6 +12855,32 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, {
 				createdModel: { id: 'selected-model' },
 				peerInputSelectedModels: ['agent-host-copilotcli:selected-model'],
+			});
+		});
+
+		test('createChildChat preserves the clicked parent and inherits its model selection', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-child');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-child').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-child', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, 'Parent'),
+			], { defaultChat }));
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.Chosen);
+
+			const chat = await provider.createChildChat(session.sessionId, session.resource);
+			const created = agentHost.createdChats.at(-1);
+
+			assert.deepStrictEqual({
+				parentOption: created?.options?.parentChat?.toString(),
+				parentResource: chat.origin?.parentChat?.toString(),
+				origin: chat.origin?.kind,
+				model: created?.options?.model,
+			}, {
+				parentOption: defaultChat,
+				parentResource: session.resource.toString(),
+				origin: ChatOriginKind.User,
+				model: { id: 'selected-model' },
 			});
 		});
 

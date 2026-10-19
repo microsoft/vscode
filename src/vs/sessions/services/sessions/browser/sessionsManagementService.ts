@@ -863,11 +863,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
-		if (!options?.forceNew) {
+		if (!options?.forceNew && !options?.parentChat) {
 			const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
 			if (existingUntitled) {
 				return existingUntitled;
 			}
+		}
+		if (options?.parentChat) {
+			if (!provider.createChildChat) {
+				throw new Error(`Provider '${session.providerId}' does not support child chats`);
+			}
+			return provider.createChildChat(session.sessionId, options.parentChat);
 		}
 		const created = await provider.createNewChat(session.sessionId);
 		return created;

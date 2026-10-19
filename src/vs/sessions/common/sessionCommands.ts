@@ -38,6 +38,7 @@ export const MARK_SESSION_UNREAD_COMMAND_ID = 'sessionsViewPane.markUnread';
 export const CLOSE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.closeChat';
 /** Opens the native user-created peer-chat composer. Registered in `sessionsActions.ts`. */
 export const NEW_CHAT_IN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.addChat';
+export const NEW_CHILD_CHAT_IN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.addChildChat';
 export const CLOSE_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.close';
 export const TOGGLE_PIN_SESSION_COMMAND_ID = 'sessions.chatCompositeBar.togglePin';
 export const TOGGLE_PIN_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.togglePinChat';

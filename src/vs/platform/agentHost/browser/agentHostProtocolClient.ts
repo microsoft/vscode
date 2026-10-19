@@ -2100,6 +2100,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			...(options?.fork ? {
 				source: { kind: ChatSourceKind.Fork, chat: options.fork.source.toString(), turnId: options.fork.turnId }
 			} : {}),
+			...(options?.parentChat ? {
+				source: { kind: ChatSourceKind.Child, chat: options.parentChat.toString() }
+			} : {}),
 			...(options?.sideChat ? {
 				source: {
 					kind: ChatSourceKind.SideChat,

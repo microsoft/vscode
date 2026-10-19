@@ -6230,7 +6230,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedTitle: string | undefined;
 		let forkedSourceTitle: string | undefined;
 		let persistForkedLocalTurnsAfterDuplicateCheck: (() => void) | undefined;
-		const { sideChat, title: requestedTitle, initialMessage, ...providerOptions } = options ?? {};
+		const { sideChat, parentChat, title: requestedTitle, initialMessage, ...providerOptions } = options ?? {};
 		if (initialMessage && !initialMessageContext) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'An initial chat message requires trusted submitting-client context.');
 		}
@@ -6260,6 +6260,16 @@ export class AgentService extends Disposable implements IAgentService {
 		// Persist exhaustive provenance for peer chats. Fresh user-created chats
 		// leave this undefined and default to `ChatOriginKind.User`.
 		let peerChatOrigin: ChatOrigin | undefined;
+		if (parentChat) {
+			if (sideChat || providerOptions.fork) {
+				throw new Error('[AgentService] createChat: a child chat cannot also be a fork or side chat');
+			}
+			const { sourceChatKey, sourceSessionKey } = await this._resolveSessionSourceChat(parentChat);
+			if (sourceSessionKey !== sessionKey) {
+				throw new Error(`[AgentService] createChat: child parent ${parentChat} does not belong to ${sessionKey}`);
+			}
+			peerChatOrigin = { kind: ChatOriginKind.User, chat: sourceChatKey };
+		}
 		if (sideChat) {
 			const resolvedSideChat = await this._resolveSideChatOrigin(session, sideChat);
 			peerChatOrigin = resolvedSideChat.origin;
