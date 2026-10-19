@@ -287,6 +287,9 @@ export function getCustomizationDisabledLabel(reason: CustomizationDisabledReaso
 	if (reason?.source === 'plugin') {
 		return localize('customizationDisabledPlugin', "Disabled (Plugin)");
 	}
+	if (reason?.source === 'policy') {
+		return localize('customizationDisabledByOrganization', "Disabled by Organization");
+	}
 	switch (reason?.scope) {
 		case CustomizationEnablementKind.Workspace:
 			return localize('customizationDisabledWorkspace', "Disabled (Workspace)");

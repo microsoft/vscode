@@ -62,6 +62,7 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
 	setMcpServerDisplayNames: () => { },
+	setPolicyBlockedMcpServers: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },

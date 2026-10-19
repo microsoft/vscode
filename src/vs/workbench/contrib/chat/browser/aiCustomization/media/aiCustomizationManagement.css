@@ -2847,7 +2847,8 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 }
 
-.plugin-list-widget .mcp-server-disabled-label {
+.plugin-list-widget .mcp-server-disabled-label,
+.tools-list-connected-row .mcp-server-disabled-label {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);

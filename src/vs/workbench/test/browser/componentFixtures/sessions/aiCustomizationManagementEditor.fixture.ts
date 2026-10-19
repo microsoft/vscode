@@ -713,6 +713,12 @@ const reconciledConnectorMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-94d26095770df60673dd', name: 'github-copilot-connector-94d26095770df60673dd', displayName: 'Azure Data Explorer', source: 'managed', sourceUri: undefined },
 ];
 
+const policyBlockedConnectorMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[0] },
+	{ ...activeSessionMcpServers[0], id: 'session/github-copilot-connector-4fbfc745aa6e7f90c746', name: 'github-copilot-connector-4fbfc745aa6e7f90c746', displayName: 'Orbit Calendar', source: 'managed', enabled: false, status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped }, disabledReason: { source: 'policy' } },
+	{ ...activeSessionMcpServers[0], id: 'session/github-copilot-connector-942ae5edde0f424d7c33', name: 'github-copilot-connector-942ae5edde0f424d7c33', displayName: 'Pigeon Mail', source: 'managed', enabled: false, status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped }, disabledReason: { source: 'policy' } },
+];
+
 const allStateMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0] },
 	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
@@ -3286,6 +3292,36 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			mcpWorkbenchServers: [],
 			mcpRuntimeServers: [],
 			height: 460,
+		}),
+	}),
+
+	McpServersPolicyBlockedConnectors: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Orbit Calendar and Pigeon Mail rows show "Disabled by Organization" beside a disabled switch, with no Start button; component-explorer stays enabled.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			activeSessionMcpServers: policyBlockedConnectorMcpServers,
+			mcpWorkbenchServers: [],
+			mcpRuntimeServers: [],
+			height: 460,
+		}),
+	}),
+
+	ToolsPolicyBlockedConnectors: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Connected Sources lists Orbit Calendar and Pigeon Mail with "Disabled by Organization" and a disabled switch.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.Tools,
+			activeSessionMcpServers: policyBlockedConnectorMcpServers,
+			managementSections: [
+				AICustomizationManagementSection.Agents,
+				AICustomizationManagementSection.Tools,
+			],
+			height: 500,
 		}),
 	}),
 

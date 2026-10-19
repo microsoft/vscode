@@ -10,6 +10,7 @@ const displayNameKey = 'vscode.mcpServerDisplayName';
 const maxDisplayNameLength = 512;
 const sourcePluginKey = 'agentHost.mcpServerSourcePlugin';
 const controllingSettingKey = 'vscode.mcpServerControllingSetting';
+const blockedByPolicyKey = 'agentHost.mcpServerBlockedByPolicy';
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.
@@ -93,6 +94,22 @@ export function readMcpServerControllingSetting(customization: McpServerCustomiz
  */
 export function withMcpServerControllingSettingMeta(meta: Record<string, unknown> | undefined, settingId: string | undefined): Record<string, unknown> | undefined {
 	return withMetaEntry(meta, controllingSettingKey, settingId);
+}
+
+/**
+ * Reads whether the host reports that a managed (organization) policy prevents the server from running in this
+ * session. Optional extension: hosts that do not publish it leave the server's standard lifecycle state authoritative.
+ */
+export function readMcpServerBlockedByPolicy(customization: McpServerCustomization | undefined): boolean {
+	return customization?._meta?.[blockedByPolicyKey] === true;
+}
+
+/** Records whether a managed policy blocks the server. Clearing the flag removes the entry; every other entry is preserved. */
+export function withMcpServerBlockedByPolicyMeta(meta: Record<string, unknown> | undefined, blocked: boolean): Record<string, unknown> | undefined {
+	if (!blocked) {
+		return withMetaEntry(meta, blockedByPolicyKey, undefined);
+	}
+	return meta?.[blockedByPolicyKey] === true ? meta : { ...(meta ?? {}), [blockedByPolicyKey]: true };
 }
 
 function readNonEmptyString(value: unknown): string | undefined {

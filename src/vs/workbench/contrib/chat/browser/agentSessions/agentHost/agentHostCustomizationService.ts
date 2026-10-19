@@ -17,7 +17,7 @@ import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHos
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
-import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getMcpServerCustomizationDisabledReason, isCustomizationEnabled, isMcpServerCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -280,13 +280,13 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					sourcePluginName: readMcpServerSourcePlugin(server),
 					hostConfiguration: isTopLevel ? getHostMcpServerConfiguration(target.rootConfig, server.name) : undefined,
 					controllingSettingId: readMcpServerControllingSetting(server),
-					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+					enabled: isMcpServerCustomizationEnabled(server, plugin),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,
 					pluginId: plugin?.id,
 					isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
 					owningPluginClientId: plugin?.clientId,
-					disabledReason: getCustomizationDisabledReason(server, plugin),
+					disabledReason: getMcpServerCustomizationDisabledReason(server, plugin),
 					status: server.state.kind,
 					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,

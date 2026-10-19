@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { withMcpServerBlockedByPolicyMeta, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -380,6 +380,25 @@ suite('AbstractAgentHostCustomizationService', () => {
 			{ name: 'without-extension', displayName: undefined, sourcePluginName: undefined, controllingSettingId: undefined },
 			{ name: 'github-mcp-server', displayName: undefined, sourcePluginName: undefined, controllingSettingId: 'chat.agentHost.githubMcpServer.enabled' },
 			{ name: 'github-mcp-server', displayName: undefined, sourcePluginName: undefined, controllingSettingId: undefined },
+		]);
+	});
+
+	test('reports a host-published managed-policy block as a locked disabled reason, and ignores absent or malformed flags', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		sut.setTarget(session, new FakeTarget([
+			{ ...mcpServer('host-blocked', 'github-copilot-connector-1'), _meta: withMcpServerBlockedByPolicyMeta(withMcpServerDisplayNameMeta(undefined, 'Work Mail'), true) },
+			mcpServer('host-plain', 'plain'),
+			// A conforming host may publish an unrelated or malformed value under the same key.
+			{ ...mcpServer('host-malformed', 'malformed'), _meta: { 'agentHost.mcpServerBlockedByPolicy': 'yes' } },
+		]));
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
+			name: server.name, displayName: server.displayName, enabled: server.enabled, disabledReason: server.disabledReason,
+		})), [
+			{ name: 'github-copilot-connector-1', displayName: 'Work Mail', enabled: false, disabledReason: { source: 'policy' } },
+			{ name: 'plain', displayName: undefined, enabled: true, disabledReason: undefined },
+			{ name: 'malformed', displayName: undefined, enabled: true, disabledReason: undefined },
 		]);
 	});
 

@@ -245,6 +245,8 @@ export interface ICopilotSessionRuntime {
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
 	setMcpServerDisplayNames(displayNames: ReadonlyMap<string, string>): void;
+	/** Records the Connector runtime servers the organization's managed MCP policy refused in this session. */
+	setPolicyBlockedMcpServers(serverNames: ReadonlySet<string>): void;
 	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
@@ -1026,6 +1028,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				const result = await reconcileCopilotConnectors(raw, this._logService);
 				if (result.displayNames) {
 					runtime.setMcpServerDisplayNames(result.displayNames);
+				}
+				if (result.policyBlockedServers) {
+					runtime.setPolicyBlockedMcpServers(result.policyBlockedServers);
 				}
 			}
 			await this._configureExecutionSubagentTool(raw, config);

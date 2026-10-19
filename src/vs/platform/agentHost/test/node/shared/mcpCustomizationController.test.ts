@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
-import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerBlockedByPolicy, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, buildChatUri } from '../../../common/state/sessionState.js';
@@ -353,6 +353,44 @@ suite('McpCustomizationController', () => {
 				{ name: 'acme-server', sourcePlugin: undefined },
 			],
 			restoredMeta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'builtin' },
+		});
+	});
+
+	test('publishes a managed-policy block on top-level servers, retains it across lifecycle updates and clears it explicitly', () => {
+		const restored: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'restored-connector',
+			uri: 'mcp-top-level:copilot:session-1:connector-mail',
+			name: 'connector-mail',
+			state: stopped(),
+			_meta: { 'test.opaque': 'kept' },
+		};
+		const { controller } = harness(store, { customizations: [restored] });
+		store.add(controller);
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({ name: item.name, state: item.state.kind, blocked: readMcpServerBlockedByPolicy(item), meta: item._meta }));
+
+		controller.applyAll([{ ...server('connector-mail', stopped()), blockedByPolicy: true }, server('search', ready())]);
+		const blocked = snapshot();
+		controller.applyOne(server('connector-mail', stopped()));
+		const retained = { snapshot: snapshot(), isBlocked: controller.isBlockedByPolicy('connector-mail') };
+		controller.applyOne({ ...server('connector-mail', starting()), blockedByPolicy: false });
+
+		assert.deepStrictEqual({ blocked, retained, cleared: snapshot() }, {
+			blocked: [
+				{ name: 'connector-mail', state: McpServerStatus.Stopped, blocked: true, meta: { 'test.opaque': 'kept', 'agentHost.mcpServerBlockedByPolicy': true } },
+				{ name: 'search', state: McpServerStatus.Ready, blocked: false, meta: undefined },
+			],
+			retained: {
+				snapshot: [
+					{ name: 'connector-mail', state: McpServerStatus.Stopped, blocked: true, meta: { 'test.opaque': 'kept', 'agentHost.mcpServerBlockedByPolicy': true } },
+					{ name: 'search', state: McpServerStatus.Ready, blocked: false, meta: undefined },
+				],
+				isBlocked: true,
+			},
+			cleared: [
+				{ name: 'connector-mail', state: McpServerStatus.Starting, blocked: false, meta: { 'test.opaque': 'kept' } },
+				{ name: 'search', state: McpServerStatus.Ready, blocked: false, meta: undefined },
+			],
 		});
 	});
 

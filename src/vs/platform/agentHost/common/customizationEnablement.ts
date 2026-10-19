@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationEnablementKind, type CustomizationEnablement, type SkillCustomization } from './state/protocol/state.js';
+import { readMcpServerBlockedByPolicy } from './meta/mcpCustomizationMeta.js';
+import { CustomizationEnablementKind, type CustomizationEnablement, type McpServerCustomization, type SkillCustomization } from './state/protocol/state.js';
 
 /**
  * Effective enablement when no explicit decision exists at any scope. It is
@@ -26,7 +27,13 @@ export type CustomizationDisabledReason =
 			readonly clientId?: string;
 			readonly enablement?: readonly CustomizationEnablement[];
 		};
+	}
+	| {
+		/** A managed (organization) policy prevents the customization from running; no client decision can enable it. */
+		readonly source: 'policy';
 	};
+
+type DisabledReasonPlugin = Parameters<typeof getCustomizationDisabledReason>[1];
 
 /** Returns the decisive explicit enablement decision, if one exists. */
 export function getCustomizationEnablementDecision(customization: { readonly enablement?: readonly CustomizationEnablement[] }): CustomizationEnablement | undefined {
@@ -86,6 +93,16 @@ export function getCustomizationDisabledReason(customization: { readonly enablem
 	}
 	const decision = getCustomizationEnablementDecision(customization);
 	return decision?.enabled === false ? { source: 'scope', scope: decision.kind } : undefined;
+}
+
+/** Effective enablement of an MCP server, which a host-reported managed-policy block overrides. */
+export function isMcpServerCustomizationEnabled(server: McpServerCustomization, plugin?: DisabledReasonPlugin): boolean {
+	return !readMcpServerBlockedByPolicy(server) && isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin));
+}
+
+/** Like {@link getCustomizationDisabledReason}, but reports a host-reported managed-policy block first. */
+export function getMcpServerCustomizationDisabledReason(server: McpServerCustomization, plugin?: DisabledReasonPlugin): CustomizationDisabledReason | undefined {
+	return readMcpServerBlockedByPolicy(server) ? { source: 'policy' } : getCustomizationDisabledReason(server, plugin);
 }
 
 function customizationEnablementOrder(kind: CustomizationEnablementKind): number {
