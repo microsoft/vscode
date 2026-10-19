@@ -34,7 +34,7 @@ import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/ag
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
-import { readSessionMovable, supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
+import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
@@ -6813,7 +6813,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		return !!cached && !!connection && supportsAgentHostSessionMove(connection.initializeResult.get()) && readSessionMovable(cached.sessionMeta);
+		// `vscode.movable` is published only for sessions the host has loaded and can't say "not movable", so it isn't
+		// consulted: any single-chat, unarchived session is offered, and the host restores it and refuses at move time.
+		return !!cached && !!connection && supportsAgentHostSessionMove(connection.initializeResult.get())
+			&& !cached.isArchived.get() && cached.chats.get().length === 1;
 	}
 
 	async moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void> {

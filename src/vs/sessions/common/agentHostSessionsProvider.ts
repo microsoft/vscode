@@ -165,7 +165,8 @@ export interface IAgentHostMcpServer {
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/**
 	 * Whether the host can move the session under another session of this provider (Block 4): the host moves sessions
-	 * (`vscode.sessionMove`) and says this one can move (its default chat is its only chat).
+	 * (`vscode.sessionMove`) and the session is unarchived with one chat. Answered from list data alone; the host
+	 * restores the session and refuses at move time when it can't move.
 	 */
 	canMoveSessionUnder(sessionId: string): boolean;
 	/**
