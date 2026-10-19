@@ -29,7 +29,7 @@ import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
-import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { decodeTextBlobAttachmentData, normalizeBase64AttachmentData, readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
@@ -1239,7 +1239,7 @@ function sdkAttachmentToProtocol(
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
-					modelRepresentation: decodeBase64(attachment.data ?? '').toString(),
+					modelRepresentation: decodeTextBlobAttachmentData(attachment.data, simpleDisplayKind !== undefined),
 					...(simpleDisplayKind !== undefined ? { displayKind: simpleDisplayKind } : {}),
 				};
 			}
@@ -1247,7 +1247,7 @@ function sdkAttachmentToProtocol(
 			return {
 				type: MessageAttachmentKind.EmbeddedResource,
 				label: attachment.displayName ?? 'attachment',
-				data: attachment.data ?? '',
+				data: normalizeBase64AttachmentData(attachment.data),
 				contentType: attachment.mimeType,
 				displayKind,
 			};
