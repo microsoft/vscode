@@ -2712,8 +2712,11 @@ suite('ProtocolServerHandler', () => {
 				type: 'replay', actions: [], missing: [nativeChat],
 			});
 			const reconnectedGeneration = publishes.find(publish => publish.data.data.id === 9)?.data.generation;
-			assert.strictEqual(closures.length, 1);
-			assert.notStrictEqual(closures[0], reconnectedGeneration);
+			const initialGeneration = publishes.find(publish => publish.data.data.id === 1)?.data.generation;
+			assert.deepStrictEqual({
+				closures,
+				freshGeneration: typeof reconnectedGeneration === 'number' && typeof initialGeneration === 'number' && reconnectedGeneration !== initialGeneration,
+			}, { closures: [], freshGeneration: true });
 			deliver(toHost, request(10, 'authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: `copilot-sealed.v1.${encryptionKey.keyId}.${Buffer.from(box).toString('base64url')}` }), 11);
 			await relayHandler?.whenIdle();
 			deliver(toHost, request(11, 'subscribe', { channel: nativeChat }), 12);
