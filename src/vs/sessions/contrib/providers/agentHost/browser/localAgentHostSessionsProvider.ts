@@ -395,6 +395,11 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return `${LOCAL_RESOURCE_SCHEME_PREFIX}${provider}`;
 	}
 
+	/** The bundled local host is the same build, so it takes the picked isolation on Send. */
+	protected override get _supportsDeferredIsolation(): boolean {
+		return true;
+	}
+
 	protected _adapterOptions(agentProvider: string) {
 		return {
 			readOnly: observableFromEvent(this, this._configurationService.onDidChangeConfiguration, () => this._isAgentDisabledByPolicy(agentProvider)),

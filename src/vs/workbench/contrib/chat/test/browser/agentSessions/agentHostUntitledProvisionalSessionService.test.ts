@@ -246,6 +246,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let sessionResolutions: ResourceMap<IAgentHostSessionResolution | undefined>;
 	let onDidChangeSessionResolution: Emitter<void>;
 	let onDidDisposeChatSession: Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>;
+	let onDidCreateChatModel: Emitter<IChatModel>;
 	let warnings: string[];
 	let importStore: AgentHostImportConversationStore;
 	let provisional: AgentHostUntitledProvisionalSessionService;
@@ -270,6 +271,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		sessionResolutions = new ResourceMap();
 		onDidChangeSessionResolution = ds.add(new Emitter<void>());
 		onDidDisposeChatSession = ds.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
+		onDidCreateChatModel = ds.add(new Emitter<IChatModel>());
 		warnings = [];
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
@@ -300,6 +302,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		chatInputStates = new ResourceMap();
 		insta.stub(IChatService, new class extends MockChatService {
 			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
+			override readonly onDidCreateModel = onDidCreateChatModel.event;
 			override getSession(sessionResource: URI): IChatModel | undefined {
 				const state = chatInputStates.get(sessionResource);
 				if (!state) {
@@ -430,18 +433,26 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('a draft is created with the model selected in its chat input', async () => {
-		// The first send selects this model, and discards a warm launch made with another one.
-		const ui = untitledChatUri('selected-model');
-		chatInputStates.set(ui, {
-			inputText: '', attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
-			selectedModel: { identifier: 'agent-host-copilot:gpt-6.1-sol', metadata: {} as ILanguageModelChatMetadata },
-			modelConfiguration: { reasoningEffort: 'high' },
-		});
-		await provisional.getOrCreate(ui, 'copilot', undefined);
+	for (const [identifier, expected] of [
+		['agent-host-copilot:gpt-6.1-sol', 'gpt-6.1-sol'],
+		['agent-host-copilot:openai/gpt-5-nano', 'openai/gpt-5-nano'],
+		['gpt-6.1-sol', 'gpt-6.1-sol'],
+		['copilot/gpt-6.1-sol', undefined],
+	] as const) {
+		test(`a draft is created with the model selected in its chat input (${identifier})`, async () => {
+			// The first send selects this model, and discards a warm launch made with another one.
+			// It drops an unprefixed foreign `${vendor}/${id}` for the default model, so the draft does too.
+			const ui = untitledChatUri('selected-model');
+			chatInputStates.set(ui, {
+				inputText: '', attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier, metadata: {} as ILanguageModelChatMetadata },
+				modelConfiguration: { reasoningEffort: 'high' },
+			});
+			await provisional.getOrCreate(ui, 'copilot', undefined);
 
-		assert.deepStrictEqual(agentHost.createCalls.map(call => call.model), [{ id: 'gpt-6.1-sol', config: { reasoningEffort: 'high' } }]);
-	});
+			assert.deepStrictEqual(agentHost.createCalls.map(call => call.model), [expected ? { id: expected, config: { reasoningEffort: 'high' } } : undefined]);
+		});
+	}
 
 	test('a chip still showing a disposed draft does not recreate its backend', async () => {
 		// The chat view releases its old model before the widget shows the new
@@ -467,6 +478,40 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			disposed: [backend?.toString()],
 			mapping: undefined,
 		});
+	});
+
+	test('a chat model reloaded on a disposed draft\'s URI can create and configure its backend again', async () => {
+		// A chat editor reloading a chat releases its model and resolves the same resource again.
+		const ui = untitledChatUri('reloaded-draft');
+		const first = await provisional.getOrCreate(ui, 'copilot', undefined);
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await provisional.waitForPending(ui);
+		const whileReleased = await provisional.getOrCreate(ui, 'copilot', undefined);
+		onDidCreateChatModel.fire(new class extends mock<IChatModel>() { override readonly sessionResource = ui; }());
+		const reloaded = await provisional.getOrCreate(ui, 'copilot', undefined);
+		const configured = await provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+
+		assert.deepStrictEqual({
+			whileReleased,
+			reloaded: reloaded !== undefined && reloaded.toString() !== first?.toString(),
+			configured: configured?.toString() === reloaded?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			whileReleased: undefined,
+			reloaded: true,
+			configured: true,
+			createCount: 2,
+			disposed: [first?.toString()],
+		});
+	});
+
+	test('only the most recently disposed drafts stay retired', async () => {
+		const drafts = Array.from({ length: 101 }, (_, index) => untitledChatUri(`abandoned-${index}`));
+		onDidDisposeChatSession.fire({ sessionResources: drafts, reason: 'disposed' });
+		const [oldest, newest] = [await provisional.getOrCreate(drafts[0], 'copilot', undefined), await provisional.getOrCreate(drafts[100], 'copilot', undefined)];
+
+		assert.deepStrictEqual({ oldestRetired: oldest === undefined, newestRetired: newest === undefined }, { oldestRetired: false, newestRetired: true });
 	});
 
 	test('graduation reuses a matching backend without creating or disposing a session', async () => {
