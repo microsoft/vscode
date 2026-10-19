@@ -44,7 +44,7 @@ export function isSessionAttachmentPath(sessionDataService: ISessionDataService,
 export interface IFileEditRecord {
 	/** The turn that owns this file edit. */
 	turnId: string;
-	/** The tool call or cumulative provider turn snapshot that produced this edit. */
+	/** The tool call, or provider turn-diff update, that produced this edit. */
 	toolCallId: string;
 	/** Primary file path (after-path for edits/creates/renames, before-path for deletes). */
 	filePath: string;
@@ -395,7 +395,7 @@ export interface ISessionDatabase extends IDisposable {
 
 	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
-	 * or cumulative provider turn snapshot.
+	 * or provider turn-diff update.
 	 *
 	 * If a record for the same `toolCallId` and `filePath` already exists
 	 * it is replaced.
