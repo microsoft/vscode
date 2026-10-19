@@ -863,7 +863,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'The tray must remain flush with the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
-		const inputArea = promptBox.querySelector<HTMLElement>('.new-chat-input-area');
+		const inputArea = promptBox.querySelector<HTMLElement>('.chat-input-container');
 		assert(!!inputArea);
 		const hasRoundedTopCorners = parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0;
 		assert(hasRoundedTopCorners
@@ -877,14 +877,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
 				'The phone workspace picker must retain its centered layout.');
 		} else {
-			const inputEditor = inputArea.querySelector<HTMLElement>('.sessions-chat-editor');
-			const attachIcon = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button .codicon');
+			const inputEditor = inputArea.querySelector<HTMLElement>('.interactive-input-editor');
+			const attachIcon = inputArea.querySelector<HTMLElement>('.chat-input-toolbar .codicon-add-compact');
 			assert(!!inputEditor && !!attachIcon);
+			// The codicon is the action label itself, so its glyph starts at the content box.
+			const attachIconStyle = targetWindow.getComputedStyle(attachIcon);
+			const attachIconLeft = attachIcon.getBoundingClientRect().left + parseFloat(attachIconStyle.borderLeftWidth) + parseFloat(attachIconStyle.paddingLeft);
 			assert(trayBounds.left > promptBounds.left
 				&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
 				'The tray must retain its inset when expanded or collapsed.');
 			assert(Math.abs(trayBounds.left - inputEditor.getBoundingClientRect().left) < 1
-				&& Math.abs(trayBounds.left - attachIcon.getBoundingClientRect().left) <= 1,
+				&& Math.abs(trayBounds.left - attachIconLeft) <= 1,
 				'The tray edge must align with the placeholder text and attach context icon.');
 		}
 		const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
