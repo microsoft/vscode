@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -46,7 +48,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -1857,6 +1859,25 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('forwards changeset operation invocations while their provider is registered', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidInvokeChangesetOperation = disposables.add(new Emitter<ISessionChangesetOperationInvokedEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidInvokeChangesetOperation = onDidInvokeChangesetOperation.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const invocations: ISessionChangesetOperationInvokedEvent[] = [];
+			disposables.add(service.onDidInvokeChangesetOperation(e => invocations.push(e)));
+			const registration = disposables.add(providersService.registerProvider(provider));
+
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'commit' });
+			registration.dispose();
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'sync' });
+
+			assert.deepStrictEqual(invocations, [{ session, operationId: 'commit' }]);
+		});
+
 		test('seeds cached sessions before subscribing to reentrant provider changes', () => {
 			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
 			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -2534,6 +2555,48 @@ suite('SessionsManagementService', () => {
 			}]);
 		});
 
+		test('marks only the targeted nested chat read and unread through its provider', async () => {
+			const peerIsRead = observableValue('peerIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:/peer'), isRead: peerIsRead };
+			const session = stubSession({
+				sessionId: 'nested-read',
+				providerId: 'test',
+				isRead: constObservable(false),
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const changes: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, resource: URI, isRead: boolean): Promise<void> {
+					changes.push({ sessionId, chat: resource.toString(), isRead });
+					peerIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			await service.markChatRead(session, peer);
+			const afterRead = peerIsRead.get();
+			await service.markChatUnread(session, peer);
+
+			assert.deepStrictEqual({
+				afterRead,
+				afterUnread: peerIsRead.get(),
+				mainIsRead: main.isRead.get(),
+				sessionIsRead: session.isRead.get(),
+				changes,
+			}, {
+				afterRead: true,
+				afterUnread: false,
+				mainIsRead: true,
+				sessionIsRead: false,
+				changes: [
+					{ sessionId: 'nested-read', chat: 'test:/peer', isRead: true },
+					{ sessionId: 'nested-read', chat: 'test:/peer', isRead: false },
+				],
+			});
+		});
+
 		test('falls back to individual chat read changes when batching is unsupported', async () => {
 			const first = { ...stubChat, resource: URI.parse('test:///first') };
 			const second = { ...stubChat, resource: URI.parse('test:///second') };
@@ -2645,6 +2708,40 @@ suite('SessionsManagementService', () => {
 				tool: false,
 				readChanges: ['chat:test:/main:true'],
 			});
+		});
+
+		test('preserves explicit unread on an already-read active nested chat until a new turn', async () => {
+			const peerIsRead = observableValue('peerIsRead', true);
+			const peerUpdatedAt = observableValue<Date | undefined>('peerUpdatedAt', new Date(1));
+			const main = { ...stubChat, resource: URI.parse('test:/main') };
+			const peer = { ...stubChat, resource: URI.parse('test:/peer'), isRead: peerIsRead, updatedAt: peerUpdatedAt };
+			const session = stubSession({
+				sessionId: 'active-nested-unread',
+				providerId: 'test',
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const changes: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, resource: URI, isRead: boolean): Promise<void> {
+					assert.strictEqual(resource.toString(), peer.resource.toString());
+					changes.push(isRead);
+					peerIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			await view.openChat(session, peer.resource);
+
+			await service.markChatUnread(session, peer);
+			const afterUnread = peerIsRead.get();
+			peerUpdatedAt.set(new Date(2), undefined);
+
+			assert.deepStrictEqual({
+				afterUnread,
+				afterNewTurn: peerIsRead.get(),
+				mainIsRead: main.isRead.get(),
+				changes,
+			}, { afterUnread: false, afterNewTurn: true, mainIsRead: true, changes: [false, true] });
 		});
 
 		test('marks the active peer chat as read once through its provider', async () => {
@@ -7876,6 +7973,42 @@ suite('SessionsManagementService', () => {
 			return { ...stubChat, resource: URI.parse(`test:///${session}#${id}`), title: constObservable(id), status: constObservable(SessionStatus.Completed) };
 		}
 
+		test('routes chat and session moves to the owning provider with the provider\'s session ids and chat resources', async () => {
+			const main = chat('A', 'main'), peer = chat('A', 'peer'), mainB = chat('B', 'main');
+			const sessionA = stubSession({ sessionId: 'A', providerId: 'test', chats: constObservable([main, peer]), mainChat: constObservable(main) });
+			const sessionB = stubSession({ sessionId: 'B', providerId: 'test', chats: constObservable([mainB]), mainChat: constObservable(mainB) });
+			const otherProvider = stubSession({ sessionId: 'C', providerId: 'other' });
+			const calls: unknown[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override canMoveChat(sessionId: string, chatUri: URI): boolean { return chatUri.fragment === 'peer'; }
+				override async moveChat(sessionId: string, chatUri: URI, destination: ISessionChatMoveDestination): Promise<void> {
+					calls.push(['moveChat', sessionId, chatUri.toString(), destination.kind === 'session' ? [destination.sessionId, destination.after?.toString()] : destination.kind]);
+				}
+				override canMoveSessionUnder(sessionId: string): boolean { return sessionId === 'B'; }
+				override async moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void> {
+					calls.push(['moveSessionUnder', sessionId, destinationSessionId, after?.toString()]);
+				}
+			}(sessionA);
+			const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+			const can = { chats: [main, peer].map(candidate => service.canMoveChat(sessionA, candidate)), sessions: [sessionA, sessionB].map(candidate => service.canMoveSessionUnder(candidate)) };
+			await service.moveChat(sessionA, peer, { kind: 'session', session: sessionB, after: mainB });
+			await service.moveChat(sessionA, peer, { kind: 'session', session: sessionA, after: undefined });
+			await service.moveChat(sessionA, peer, { kind: 'newSession' });
+			await service.moveSessionUnder(sessionB, sessionA, peer);
+			await assert.rejects(service.moveChat(sessionA, peer, { kind: 'session', session: otherProvider, after: undefined }), /can't be moved there/);
+
+			assert.deepStrictEqual({ can, calls }, {
+				can: { chats: [false, true], sessions: [false, true] },
+				calls: [
+					['moveChat', 'A', 'test:/A#peer', ['B', 'test:/B#main']],
+					['moveChat', 'A', 'test:/A#peer', ['A', undefined]],
+					['moveChat', 'A', 'test:/A#peer', 'newSession'],
+					['moveSessionUnder', 'B', 'A', 'test:/A#peer'],
+				],
+			});
+		});
+
 		function setup() {
 			const mainA = chat('A', 'main'), moved = chat('A', 'moved'), mainB = chat('B', 'main'), arrived = chat('B', 'moved');
 			const chatsA = observableValue<readonly IChat[]>('chatsA', [mainA, moved]);
@@ -7906,8 +8039,18 @@ suite('SessionsManagementService', () => {
 				onDidMoveChat.fire({ from: { session: sessionA, chat: mainA.resource }, to: { session: sessionB, chat: arrivedMain.resource } });
 				return arrivedMain;
 			};
+			// Like moveSession, but the move is paired only after the view reacted to the removal.
+			const moveSessionPairedLater = async () => {
+				const arrivedMain = chat('B', 'main-of-A');
+				sessions.splice(sessions.indexOf(sessionA), 1);
+				sessionsChanged.fire({ added: [], removed: [sessionA], changed: [] });
+				await timeout(0);
+				chatsB.set([...chatsB.get(), arrivedMain], undefined);
+				onDidMoveChat.fire({ from: { session: sessionA, chat: mainA.resource }, to: { session: sessionB, chat: arrivedMain.resource } });
+				return arrivedMain;
+			};
 			const fireMove = (from: IChat, to: IChat) => onDidMoveChat.fire({ from: { session: sessionA, chat: from.resource }, to: { session: sessionB, chat: to.resource } });
-			return { view, sessionA, sessionB, mainA, moved, arrived, move, moveSession, chatsA, chatsB, fireMove };
+			return { view, sessions, sessionA, sessionB, mainA, moved, arrived, move, moveSession, moveSessionPairedLater, chatsA, chatsB, fireMove };
 		}
 
 		const shown = (view: SessionsService) => ({
@@ -7927,6 +8070,28 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrived.resource.toString(), visible: ['B'] });
 		});
 
+		test('following a chat that moved announces nothing: the move itself is announced once, by whoever made it', async () => {
+			const { view, sessionA, moved, arrived, move, moveSession } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+			const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			setARIAContainer(container);
+			const announcements: string[] = [];
+			const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.length && announcements.push(record.target.textContent ?? '')));
+			container.querySelectorAll('.monaco-status, .monaco-alert').forEach(region => observer.observe(region, { childList: true }));
+			try {
+				move(moved, arrived);
+				await timeout(0);
+				moveSession();
+				await timeout(0);
+			} finally {
+				observer.disconnect();
+				container.remove();
+			}
+
+			assert.deepStrictEqual({ announcements, shown: shown(view).session }, { announcements: [], shown: 'B' });
+		});
+
 		test('a session that ended by moving its shown chat under another session leaves its slot to that session, though its removal came first', async () => {
 			const { view, sessionA, mainA, moveSession } = setup();
 			await view.openSession(sessionA.resource);
@@ -7936,6 +8101,36 @@ suite('SessionsManagementService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrivedMain.resource.toString(), visible: ['B'] });
+		});
+
+		test('a session that ended by moving its shown chat under another session gives that session the slot its fallback took, not another slot', async () => {
+			const { view, sessionA, mainA, moveSessionPairedLater } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, mainA.resource);
+
+			const arrivedMain = await moveSessionPairedLater();
+			await timeout(0);
+
+			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrivedMain.resource.toString(), visible: ['B'] });
+		});
+
+		test('a session that ended by moving its shown chat under another session doesn\'t take over a new-session composer opened in another slot', async () => {
+			const { view, sessions, sessionA, mainA, moveSessionPairedLater } = setup();
+			const mainC = chat('C', 'main');
+			const sessionC = stubSession({ sessionId: 'C', providerId: 'test', chats: constObservable([mainC]), mainChat: constObservable(mainC) });
+			sessions.push(sessionC);
+			await view.openSessionsInGrid([sessionC, sessionA]);
+			await view.openChat(sessionA, mainA.resource);
+			const before = shown(view).visible;
+
+			const arrivedMain = moveSessionPairedLater();
+			// While the move is pending, the user opens a composer in a new slot beside C.
+			view.insertAt(undefined, 'C', 'left');
+			await arrivedMain;
+			await timeout(0);
+
+			// The composer stays; B takes the departed slot's index instead.
+			assert.deepStrictEqual({ before, visible: shown(view).visible }, { before: ['C', 'A'], visible: [undefined, 'B', 'C'] });
 		});
 
 		test('a chat chosen after the view fell back from a chat stays shown when that chat\'s move is known later', async () => {

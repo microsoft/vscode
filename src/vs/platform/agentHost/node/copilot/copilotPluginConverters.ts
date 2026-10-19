@@ -5,14 +5,16 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
@@ -95,6 +97,11 @@ function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultC
 const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
 type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
 
+/** Runtime custom-agent fields not yet declared by the SDK. */
+interface ICopilotCustomAgentConfig extends CustomAgentConfig {
+	readonly disableModelInvocation?: true;
+}
+
 function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
 	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
@@ -111,8 +118,8 @@ function isCustomAgentReasoningEffort(value: string | undefined): value is Custo
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
-	const configs: CustomAgentConfig[] = [];
+export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<ICopilotCustomAgentConfig[]> {
+	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
@@ -134,7 +141,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				const skills = md.getStringArrayValue('skills');
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
-				const disableModelInvocation = md.getBooleanValue('disable-model-invocation');
+				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
 				if (infer === undefined && disableModelInvocation === true) {
 					infer = false;
 				}
@@ -152,6 +159,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
 					...(infer !== undefined ? { infer } : {}),
+					...(disableModelInvocation ? { disableModelInvocation: true } : {}),
 					prompt,
 				});
 			}
@@ -178,7 +186,7 @@ export interface IPluginAgentsForSdk {
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
-): Promise<CustomAgentConfig[]> {
+): Promise<ICopilotCustomAgentConfig[]> {
 	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
 }
 
@@ -466,26 +474,44 @@ export function toSdkHooks(
 }
 
 /**
- * Checks whether two sets of parsed plugins produce equivalent SDK config.
- * Used to determine if a session needs to be refreshed.
+ * Compares SDK configuration relative to each plugin's own materialized root, preserving plugin order.
+ * Client nonces retain resource-body revisions that are not represented in parsed metadata.
  */
-export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IParsedPlugin[]): boolean {
-	// Simple structural comparison via JSON serialization.
-	// We serialize only the essential fields, replacing URIs with strings.
-	const serialize = (plugins: readonly IParsedPlugin[]) => {
-		return JSON.stringify(plugins.map(p => ({
-			format: p.format,
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
-			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-			skills: p.skills.map(s => ({
-				uri: s.uri.toString(),
-				name: s.name,
-				disableModelInvocation: s.disableModelInvocation,
-				disableUserInvocation: s.disableUserInvocation,
-			})),
-			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
-		})));
+export function parsedPluginsEqual(
+	a: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
+	b: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
+): boolean {
+	const serialize = (plugins: typeof a) => {
+		return JSON.stringify(plugins.map(p => {
+			const root = p.pluginDir ?? p.resourceDir;
+			const roots = root ? [...new Set([root.toString(), ...(root.scheme === Schemas.file ? [root.fsPath] : [])])] : [];
+			const rootPattern = roots.length
+				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
+				: undefined;
+			return JSON.stringify({
+				format: p.format,
+				nonce: p.nonce,
+				hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+				mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
+				skills: p.skills.map(s => ({
+					uri: s.uri.toString(),
+					name: s.name,
+					disableModelInvocation: s.disableModelInvocation,
+					disableUserInvocation: s.disableUserInvocation,
+				})),
+				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+			}, (_key, value) => {
+				// Tagged segments distinguish a relocated root from literal placeholder text.
+				if (rootPattern && typeof value === 'string') {
+					const segments = value.split(rootPattern);
+					if (segments.length > 1) {
+						return { pluginRootRelative: segments };
+					}
+				}
+				return value;
+			});
+		}));
 	};
 	return serialize(a) === serialize(b);
 }

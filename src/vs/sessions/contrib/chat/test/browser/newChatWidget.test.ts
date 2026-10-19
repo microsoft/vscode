@@ -2360,12 +2360,13 @@ suite('NewChatWidget', () => {
 		]);
 	});
 
-	for (const { runs, navigationFails, openInGrid } of [
-		{ runs: 2, navigationFails: false, openInGrid: true },
-		{ runs: 10, navigationFails: true, openInGrid: true },
-		{ runs: 3, navigationFails: false, openInGrid: false },
+	for (const { runs, navigationFails, openInGrid, quickChat } of [
+		{ runs: 2, navigationFails: false, openInGrid: true, quickChat: false },
+		{ runs: 10, navigationFails: true, openInGrid: true, quickChat: false },
+		{ runs: 3, navigationFails: false, openInGrid: false, quickChat: false },
+		{ runs: 2, navigationFails: false, openInGrid: true, quickChat: true },
 	]) {
-		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions`, async () => {
+		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat})`, async () => {
 			const resolving = observableValue('resolving', false);
 			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving));
 			selection.start();
@@ -2376,15 +2377,18 @@ suite('NewChatWidget', () => {
 					...(i === 1 ? { serviceTier: 'priority' } : {}),
 				}, `Attempt ${i + 1}`);
 			}
-			selection.next();
-			selection.select('codex-judge');
-			selection.next();
-			selection.select('copilot-synthesizer');
+			if (!quickChat) {
+				selection.next();
+				selection.select('codex-judge');
+				selection.next();
+				selection.select('copilot-synthesizer');
+			}
 			selection.finish();
 			const workspace = URI.file('/workspace');
 			const session = upcastPartial<IActiveSession>({
 				sessionId: 'draft', sessionType: 'copilotcli', providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 				mode: constObservable({ id: 'file:///agents/reviewer.agent.md', kind: 'agent' }),
+				isQuickChat: constObservable(quickChat),
 			});
 			let options: IStartSessionComparisonOptions | undefined;
 			let fail = true;
@@ -2417,7 +2421,7 @@ suite('NewChatWidget', () => {
 								label: sessionType === 'copilotcli' ? 'Copilot' : sessionType === 'claude' ? 'Claude' : 'Codex',
 								icon: Codicon.robot,
 								authRequirement: SessionTypeAuthRequirement.None,
-								supportsWorktreeConfiguration: true,
+								supportsWorktreeConfiguration: !quickChat,
 							},
 							model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
 								identifier: id,
@@ -2468,6 +2472,7 @@ suite('NewChatWidget', () => {
 					})
 				},
 				sessionsManagementService: {
+					getQuickChatSessionTypes: () => [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: { id: 'copilotcli' } }],
 					getSessionTypesForFolder: () => [{ providerId: session.providerId, sessionType: { id: session.sessionType, label: 'Copilot', supportsWorktreeConfiguration: true } }],
 					discardNewSession: (draft: IActiveSession) => {
 						assert.strictEqual(draft, session);
@@ -2526,7 +2531,7 @@ suite('NewChatWidget', () => {
 				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
 				evaluatorHarnesses: [options.judgeHarness?.sessionTypeId, options.synthesisHarness?.sessionTypeId],
 				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
-				workspace: options.workspace.toString(), branch: options.branch, attachments: options.attachedContext,
+				workspace: options.workspace?.toString(), branch: options.branch, attachments: options.attachedContext,
 				enabled: selection.enabled.get(), navigation,
 			}, {
 				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('bypassPermissions'),
@@ -2535,16 +2540,56 @@ suite('NewChatWidget', () => {
 					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
 					...Array.from({ length: runs - 1 }, (_, index) => ({ thinkingLevel: 'medium', contextSize: 1_000_000, testAttempt: index + 1 })),
 				],
-				evaluatorConfigurations: [
+				evaluatorConfigurations: quickChat ? [undefined, undefined] : [
 					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
 					{ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' },
 				],
-				evaluatorModes: [undefined, 'autopilot'],
-				judge: 'codex-judge', synthesizer: 'copilot-synthesizer', evaluatorHarnesses: ['codex', 'copilotcli'], workspace: workspace.toString(), branch: 'feature',
+				evaluatorModes: quickChat ? [undefined, undefined] : [undefined, 'autopilot'],
+				judge: quickChat ? undefined : 'codex-judge', synthesizer: quickChat ? undefined : 'copilot-synthesizer',
+				evaluatorHarnesses: quickChat ? [undefined, undefined] : ['codex', 'copilotcli'], workspace: quickChat ? undefined : workspace.toString(), branch: quickChat ? undefined : 'feature',
 				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
 			});
 		});
 	}
+
+	test('offers folderless comparison only for quick-chat-capable, ready agent hosts while enabled', () => {
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			isQuickChat: constObservable(true),
+		});
+		const enabled = observableValue('enabled', true);
+		const resolving = observableValue('resolving', false);
+		let supportsQuickChats = true;
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: enabled,
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedResolved: undefined },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					get supportsQuickChats() { return supportsQuickChats; },
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => resolving,
+				}),
+			},
+			_getComparisonBranch: getComparisonBranch,
+		};
+		const ready = shouldShowComparisonAction.call(harness);
+		resolving.set(true, undefined);
+		const pending = shouldShowComparisonAction.call(harness);
+		resolving.set(false, undefined);
+		supportsQuickChats = false;
+		const unsupported = shouldShowComparisonAction.call(harness);
+		supportsQuickChats = true;
+		enabled.set(false, undefined);
+		assert.deepStrictEqual({ ready, pending, unsupported, disabled: shouldShowComparisonAction.call(harness) }, {
+			ready: true, pending: false, unsupported: false, disabled: false,
+		});
+	});
 
 	test('hides comparison action when selected folder has no git repository', () => {
 		const workspace = upcastPartial<ISessionWorkspace>({

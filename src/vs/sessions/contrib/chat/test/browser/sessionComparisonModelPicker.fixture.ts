@@ -9,12 +9,14 @@ import { renderPicker } from '../../../../../workbench/test/browser/componentFix
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 
-type ComparisonPickerState = 'empty' | 'attempts' | 'judge' | 'synthesizer';
+type ComparisonPickerState = 'single' | 'empty' | 'attempts' | 'judge' | 'synthesizer' | 'folderless';
 
 function renderComparisonPicker(context: ComponentFixtureContext, state: ComparisonPickerState): Promise<void> {
-	const selection = context.disposableStore.add(new SessionComparisonModelSelection(constObservable(true)));
-	selection.start();
-	if (state !== 'empty') {
+	const selection = context.disposableStore.add(new SessionComparisonModelSelection(constObservable(true), constObservable(false), undefined, constObservable(state !== 'folderless'), constObservable(true)));
+	if (state !== 'single') {
+		selection.start();
+	}
+	if (state !== 'empty' && state !== 'single') {
 		selection.select('copilot/gpt-5-5');
 		selection.select('copilot/claude-sonnet-5');
 		selection.select('copilot/gemini-3-5-flash');
@@ -31,6 +33,8 @@ function renderComparisonPicker(context: ComponentFixtureContext, state: Compari
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/compareModels/' }, {
+	SingleModelPicker: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderComparisonPicker(context, 'single') }),
+	FolderlessAttempts: defineComponentFixture({ render: context => renderComparisonPicker(context, 'folderless') }),
 	NoAttemptsSelected: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderComparisonPicker(context, 'empty') }),
 	AttemptsSelected: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderComparisonPicker(context, 'attempts') }),
 	JudgeSelected: defineComponentFixture({ render: context => renderComparisonPicker(context, 'judge') }),

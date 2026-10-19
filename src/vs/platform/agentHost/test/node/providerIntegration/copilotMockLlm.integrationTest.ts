@@ -15,7 +15,7 @@ import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
@@ -45,6 +45,7 @@ const STEERING_RESPONSE_DELAY_MS = 10_000;
 const CANVAS_SCENARIO_ID = 'model-opened-canvas';
 const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
 const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
+const PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID = 'plugin-restricted-sibling-delegation';
 
 function quoteShellArgument(value: string): string {
 	return isWindows ? `'${value.replace(/'/g, '\'\'')}'` : `'${value.replace(/'/g, `'\\''`)}'`;
@@ -132,6 +133,26 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 						{ kind: 'content', chunks: [{ content: 'PLUGIN_PARENT_DONE', delayMs: 0 }] },
 					],
 				},
+			}, {
+				id: PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{
+								toolNamePattern: /^task$/,
+								arguments: {
+									name: 'plugin-restricted',
+									description: 'Run the restricted plugin sibling',
+									prompt: 'Complete the restricted delegated task.',
+									agent_type: 'plugin-restricted',
+								},
+							}],
+						},
+						{ kind: 'content', chunks: [{ content: 'PLUGIN_RESTRICTED_DONE', delayMs: 0 }] },
+					],
+				},
 			}],
 		});
 	});
@@ -197,6 +218,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 		const pluginDir = join(workspaceDir, 'plugin');
 		const parentAgentFile = join(pluginDir, 'agents', 'parent.agent.md');
 		const siblingAgentFile = join(pluginDir, 'agents', 'sibling.agent.md');
+		const restrictedAgentFile = join(pluginDir, 'agents', 'restricted.agent.md');
 		await Promise.all([
 			mkdir(join(pluginDir, '.plugin'), { recursive: true }),
 			mkdir(join(pluginDir, 'agents'), { recursive: true }),
@@ -205,6 +227,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			writeFile(join(pluginDir, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Plugin Delegation' })),
 			writeFile(parentAgentFile, '---\nname: plugin-parent\ndescription: Delegates plugin work\n---\nDelegate work to plugin-sibling.'),
 			writeFile(siblingAgentFile, '---\nname: plugin-sibling\ndescription: Completes plugin work\n---\nComplete the delegated task.'),
+			writeFile(restrictedAgentFile, '---\nname: plugin-restricted\ndescription: Only runs when selected by the user\ninfer: false\n---\nComplete the restricted task.'),
 		]);
 
 		const clientId = 'real-sdk-plugin-subagents';
@@ -230,62 +253,75 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			&& getActionEnvelope(notification).channel === sessionUri,
 			30_000,
 		);
-		await retry(async () => {
+		const parentAgentUri = await retry(async () => {
 			const session = await fetchSessionWithChat(client, sessionUri);
 			const plugin = session.customizations?.find((customization): customization is PluginCustomization =>
 				customization.type === CustomizationType.Plugin && customization.uri === pluginUri
 			);
-			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-sibling']);
+			assert.deepStrictEqual(plugin?.children?.map(child => child.name).sort(), ['plugin-parent', 'plugin-restricted', 'plugin-sibling']);
+			const parent = plugin?.children?.find(child => child.name === 'plugin-parent');
+			assert.ok(parent);
+			return parent.uri;
 		}, 100, 300);
 
-		client.clearReceived();
 		const chatUri = defaultChatChannel(sessionUri);
-		const taskStarted = client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatToolCallStart)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
-			90_000,
-		);
-		client.dispatch({
-			channel: chatUri,
-			clientSeq: 2,
-			action: {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'turn-plugin-subagent',
-				startedAt: new Date().toISOString(),
-				message: {
-					text: `[scenario:${PLUGIN_SIBLING_SCENARIO_ID}] Delegate to the plugin sibling.`,
-					origin: { kind: MessageKind.User },
-					agent: { uri: URI.file(parentAgentFile).toString() },
+		const delegate = async (clientSeq: number, turnId: string, scenarioId: string) => {
+			client.clearReceived();
+			const taskStarted = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallStart)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallStartAction).toolName === 'task',
+				90_000,
+			);
+			client.dispatch({
+				channel: chatUri,
+				clientSeq,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date().toISOString(),
+					message: {
+						text: `[scenario:${scenarioId}] Delegate to the plugin sibling.`,
+						origin: { kind: MessageKind.User },
+						agent: { uri: parentAgentUri },
+					},
 				},
-			},
-		});
-		const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
-		const completeNotification = await client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatToolCallComplete)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
-			90_000,
-		);
-		await client.waitForNotification(notification =>
-			isActionNotification(notification, ActionType.ChatTurnComplete)
-			&& getActionEnvelope(notification).channel === chatUri
-			&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === 'turn-plugin-subagent',
-			90_000,
-		);
+			});
+			const startAction = getActionEnvelope(await taskStarted).action as ChatToolCallStartAction;
+			const completeNotification = await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatToolCallComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatToolCallCompleteAction).toolCallId === startAction.toolCallId,
+				90_000,
+			);
+			await client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnComplete)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as ChatTurnCompleteAction).turnId === turnId,
+				90_000,
+			);
 
-		const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
-		const session = await fetchSessionWithChat(client, sessionUri);
-		const response = session.turns.find(turn => turn.id === 'turn-plugin-subagent')?.responseParts
-			.filter(part => part.kind === ResponsePartKind.Markdown)
-			.map(part => part.content)
-			.join('');
+			const completeAction = getActionEnvelope(completeNotification).action as ChatToolCallCompleteAction;
+			const session = await fetchSessionWithChat(client, sessionUri);
+			const response = session.turns.find(turn => turn.id === turnId)?.responseParts
+				.filter(part => part.kind === ResponsePartKind.Markdown)
+				.map(part => part.content)
+				.join('');
+			return { taskSucceeded: completeAction.result.success, parentResponse: response };
+		};
+
 		assert.deepStrictEqual({
-			taskSucceeded: completeAction.result.success,
-			parentResponse: response,
+			modelInvocable: await delegate(2, 'turn-plugin-subagent', PLUGIN_SIBLING_SCENARIO_ID),
+			modelRestricted: await delegate(3, 'turn-plugin-restricted-subagent', PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID),
 		}, {
-			taskSucceeded: true,
-			parentResponse: 'PLUGIN_PARENT_DONE',
+			modelInvocable: {
+				taskSucceeded: true,
+				parentResponse: 'PLUGIN_PARENT_DONE',
+			},
+			modelRestricted: {
+				taskSucceeded: false,
+				parentResponse: 'PLUGIN_RESTRICTED_DONE',
+			},
 		});
 	});
 
@@ -328,11 +364,11 @@ session = await joinSession({
 });
 `, 'utf8');
 
-		const setCanvasesEnabled = async (enabled: boolean, clientSeq: number) => {
+		const setRootConfig = async (config: Record<string, unknown>, clientSeq: number, replace = false) => {
 			client.dispatch({
 				channel: ROOT_STATE_URI,
 				clientSeq,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } },
+				action: { type: ActionType.RootConfigChanged, config, ...(replace ? { replace } : {}) },
 			});
 			await client.waitForNotification(n =>
 				isActionNotification(n, ActionType.RootConfigChanged)
@@ -340,6 +376,7 @@ session = await joinSession({
 			);
 		};
 		let previousCanvasesEnabled: boolean | undefined;
+		let previousWorkspaceTrust: unknown;
 		try {
 			const sessionUri = await createProviderSession(
 				client,
@@ -349,8 +386,13 @@ session = await joinSession({
 				URI.file(workspaceDir),
 				async () => {
 					const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-					previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
-					await setCanvasesEnabled(true, 1);
+					const rootConfig = (result.snapshot!.state as RootState).config?.values;
+					previousCanvasesEnabled = rootConfig?.[AgentHostCanvasesEnabledConfigKey] === true;
+					previousWorkspaceTrust = rootConfig?.[AgentHostWorkspaceTrustConfigKey];
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+					}, 1);
 				},
 			);
 			dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
@@ -433,7 +475,15 @@ session = await joinSession({
 			});
 		} finally {
 			if (previousCanvasesEnabled !== undefined) {
-				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+				const currentState = (await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI })).snapshot!.state as RootState;
+				const config = { ...currentState.config?.values };
+				config[AgentHostCanvasesEnabledConfigKey] = previousCanvasesEnabled;
+				if (previousWorkspaceTrust === undefined) {
+					delete config[AgentHostWorkspaceTrustConfigKey];
+				} else {
+					config[AgentHostWorkspaceTrustConfigKey] = previousWorkspaceTrust;
+				}
+				await setRootConfig(config, 3, true);
 			}
 		}
 	});
