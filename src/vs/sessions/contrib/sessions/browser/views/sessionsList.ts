@@ -1417,7 +1417,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
 		// Shown when the session's chats use more than one harness; the row's label says so.
 		const mixedHarnessIndicator = DOM.append(titleRow, $('.session-mixed-harness-indicator'));
-		mixedHarnessIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.agent));
+		mixedHarnessIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.combine));
 		mixedHarnessIndicator.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
 		const comparisonAttemptStatusIcon = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-icon'));

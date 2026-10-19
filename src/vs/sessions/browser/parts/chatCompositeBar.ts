@@ -99,6 +99,11 @@ export interface IChatCompositeBarDelegate {
 	onTabDragEnd?(): void;
 }
 
+/** The tab hover: the chat's title path, naming its harness when it is marked. */
+function getChatTabHover(titlePath: string, harness: IHarnessPresentation | undefined): string {
+	return harness ? localize('chatTabHarnessHover', "{0} ({1})", titlePath, harness.label) : titlePath;
+}
+
 /**
  * A composite bar that displays the chats of a single chat group as tabs.
  * Selecting a tab activates that chat within the group; tabs can be dragged to
@@ -107,10 +112,6 @@ export interface IChatCompositeBarDelegate {
  * The bar is a passive renderer driven by an {@link IChatCompositeBarDelegate}
  * supplied via {@link setGroup}.
  */
-function getChatTabHover(titlePath: string, harness: IHarnessPresentation | undefined): string {
-	return harness ? localize('chatTabHarnessHover', "{0} ({1})", titlePath, harness.label) : titlePath;
-}
-
 export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -305,15 +306,11 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	/**
-	 * Presents a chat's harness when it differs from its session's main chat, re-evaluating for `reader`
-	 * as the provider learns its harnesses (a restored session can render before its host advertises them).
+	 * Presents a chat's harness, re-evaluating for `reader` as the provider learns its
+	 * harnesses (a restored session can render before its host advertises them).
 	 */
-	private _getDistinctChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation | undefined {
-		const harness = getChatHarness(session, chat);
-		if (harness === getChatHarness(session, session.mainChat.read(reader))) {
-			return undefined;
-		}
-		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), harness, reader);
+	private _presentChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation {
+		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), getChatHarness(session, chat), reader);
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
@@ -391,7 +388,10 @@ export class ChatCompositeBar extends Disposable {
 
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		const labelWidget = this._tabDisposables.add(new IconLabel(labelEl));
-		const harness = (reader: IReader | undefined) => session ? this._getDistinctChatHarness(session, chat, reader) : undefined;
+		// Only a chat on another harness than the main chat's is marked. A chat's harness never changes, and the
+		// tabs rebuild when the main chat does, so a tab of a single-harness session never builds the marker.
+		const marksHarness = !!session && getChatHarness(session, chat) !== getChatHarness(session, session.mainChat.get());
+		const harness = (reader: IReader | undefined) => session && marksHarness ? this._presentChatHarness(session, chat, reader) : undefined;
 		let titlePath = '';
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
@@ -411,16 +411,14 @@ export class ChatCompositeBar extends Disposable {
 			tab.setAttribute('aria-label', isRead ? label : localize('chatTabUnreadAriaLabel', "{0}, unread", label));
 		}));
 
-		const harnessIcon = $('.chat-composite-bar-tab-harness', { 'aria-hidden': true });
-		tab.appendChild(harnessIcon);
-		this._tabDisposables.add(autorun(reader => {
-			const chatHarness = harness(reader);
-			harnessIcon.className = 'chat-composite-bar-tab-harness';
-			harnessIcon.classList.toggle('hidden', !chatHarness);
-			if (chatHarness) {
-				harnessIcon.classList.add(...ThemeIcon.asClassNameArray(chatHarness.icon));
-			}
-		}));
+		if (marksHarness) {
+			const harnessIcon = $('.chat-composite-bar-tab-harness', { 'aria-hidden': true });
+			tab.appendChild(harnessIcon);
+			this._tabDisposables.add(autorun(reader => {
+				harnessIcon.className = 'chat-composite-bar-tab-harness';
+				harnessIcon.classList.add(...ThemeIcon.asClassNameArray(harness(reader)!.icon));
+			}));
+		}
 
 		// Lock icon shown for read-only (non-interactive) chats.
 		const lockIcon = $('.chat-composite-bar-tab-lock');

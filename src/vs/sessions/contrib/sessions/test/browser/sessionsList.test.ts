@@ -2950,6 +2950,48 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('Mixed harness indicator', () => {
+		test('marks a session whose chats use different harnesses, with its hover only while mixed', () => {
+			const base = createTestSession('Mixed').session;
+			const mainChat = base.mainChat.get();
+			const chats = observableValue<readonly IChat[]>('chats', [mainChat, { ...mainChat, harness: 'claude' }]);
+			const session: ISession = { ...base, chats, mainChat: constObservable(mainChat) };
+			const hoverTargets = new Set<HTMLElement>();
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupManagedHover: (_delegate, target) => {
+						hoverTargets.add(target);
+						return { dispose: () => hoverTargets.delete(target), show: () => { }, hide: () => { }, update: () => { } };
+					},
+				});
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const snapshot = () => {
+				const indicator = container.querySelector<HTMLElement>('.session-mixed-harness-indicator')!;
+				return {
+					visible: indicator.classList.contains('visible'),
+					icon: indicator.classList.contains('codicon-combine'),
+					hover: hoverTargets.has(indicator),
+				};
+			};
+
+			const mixed = snapshot();
+			chats.set([mainChat], undefined);
+
+			assert.deepStrictEqual({ mixed, single: snapshot() }, {
+				mixed: { visible: true, icon: true, hover: true },
+				single: { visible: false, icon: true, hover: false },
+			});
+		});
+	});
+
 	suite('External session hover', () => {
 		for (const flat of [false, true]) {
 			test(`updates ${flat ? 'flat' : 'grouped'} external session hovers while visible and when reopened`, async () => {
