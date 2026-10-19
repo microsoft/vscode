@@ -1656,6 +1656,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _mcpServerLifecycleSequencer = new SequencerByKey<string>();
 	private _runtimeMutation: { cause: CopilotRuntimeMutation; sequence: number } | undefined;
 	private readonly _mcpRestartStates = new Map<string, { sequence: number; running: boolean; connected: boolean; stopped: boolean }>();
+	/** The opening launch, whose MCP lifecycle reaches only its launch-time event callback until the wrapper subscribes. */
+	private _launchMcpRestartObserver: object | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
 	/**
 	 * Steering messages that have been accepted by the SDK but not yet
@@ -3879,6 +3881,8 @@ export class CopilotAgentSession extends Disposable {
 	private async _initializeSdkWrapper(token = CancellationToken.None): Promise<void> {
 		while (true) {
 			this._requiresRestartAfterTelemetryRevocation = false;
+			this._runtimeMutation = undefined;
+			this._mcpRestartStates.clear();
 			const launchCancellation = new CancellationTokenSource(this._lifetimeCts.token);
 			const cancellation = token.onCancellationRequested(() => launchCancellation.cancel());
 			let wrapper: CopilotSessionWrapper;
@@ -3905,8 +3909,6 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._wrapperDisposables.clear();
 			this._wrapper = this._wrapperDisposables.add(wrapper);
-			this._runtimeMutation = undefined;
-			this._mcpRestartStates.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
@@ -3934,6 +3936,7 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.error(error, `[Copilot:${this.sessionId}] Failed to release sampling event interest`);
 				}
 			});
+			this._launchMcpRestartObserver = undefined;
 			this._subscribeToEvents(this._wrapperDisposables);
 			this._subscribeToSdkEvents(this._wrapperDisposables);
 			this._readCommittedAutoTier(wrapper);
@@ -4394,6 +4397,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _createRuntimeAdapter(cancellationToken: CancellationToken): ICopilotSessionRuntime {
+		const launch = {};
+		this._launchMcpRestartObserver = launch;
 		return {
 			cancellationToken,
 			setApprovalPolicy: (resolved, bridged) => {
@@ -4411,6 +4416,9 @@ export class CopilotAgentSession extends Disposable {
 							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
 						}
 						void this._managedSettingsResolved.complete();
+					}
+					if (this._launchMcpRestartObserver === launch && event.type === 'session.mcp_server_status_changed') {
+						this._observeMcpRestart(event.data.serverName, event.data.status);
 					}
 					this._recordSdkTiming(event);
 					this._onSessionEvent?.(event);
