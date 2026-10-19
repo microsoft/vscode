@@ -14,7 +14,7 @@ import { INewScrollDimensions, INewScrollPosition, ScrollbarVisibility } from '.
 interface ITableScrollable {
 	readonly container: HTMLElement;
 	readonly scrollable: DomScrollableElement;
-	/** The batch this table is waiting in, if any. */
+	/** The batch of the window that owned this table when it was scheduled, if it is waiting in one. */
 	pending: Set<ITableScrollable> | undefined;
 	disposed: boolean;
 }
@@ -26,11 +26,19 @@ interface ITableScrollable {
 const pendingTableScans = new WeakMap<Window, Set<ITableScrollable>>();
 
 function scheduleTableScan(table: ITableScrollable): void {
-	if (table.pending || table.disposed) {
+	if (table.disposed) {
 		return;
 	}
 	const targetWindow = dom.getWindow(table.container);
 	let pending = pendingTableScans.get(targetWindow);
+	if (table.pending) {
+		if (table.pending === pending) {
+			return;
+		}
+		// The table moved to another window, e.g. it was wrapped before being mounted in an auxiliary window. Measure it
+		// with the window that shows it, which keeps running animation frames while the old one may be paused.
+		table.pending.delete(table);
+	}
 	if (!pending) {
 		const tables = pending = new Set<ITableScrollable>();
 		pendingTableScans.set(targetWindow, tables);
