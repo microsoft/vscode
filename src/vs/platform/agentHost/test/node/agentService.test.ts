@@ -32,7 +32,7 @@ import { realTimeApi, runWithFakedTimers } from '../../../../base/test/common/vi
 import { hasKey } from '../../../../base/common/types.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
-import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel, type ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTelemetryService.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
@@ -2010,8 +2010,20 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	test('closing the last view invalidates a pending writer check', async () => {
-		registerTestAgentProvider(service, copilotAgent);
-		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const outcomes: { outcome: unknown; category: unknown }[] = [];
+		const telemetry = new class extends NullTelemetryServiceShape {
+			override publicLog2(name?: string, data?: ITelemetryData): void {
+				if (name === 'agentHost.sessionSubscribe') {
+					outcomes.push({ outcome: data?.outcome, category: data?.errorCategory });
+				}
+			}
+		};
+		const scopedService = disposables.add(createTestAgentService(
+			new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			undefined, telemetry,
+		));
+		registerTestAgentProvider(scopedService, copilotAgent);
+		const session = await scopedService.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const chat = URI.parse(buildDefaultChatUri(session.toString()));
 		const started = new DeferredPromise<void>();
 		const completed = new DeferredPromise<void>();
@@ -2021,18 +2033,19 @@ suite('AgentService (node dispatcher)', () => {
 			return { error: { errorType: 'CodexThreadInUse', message: 'Locked' } };
 		};
 		let active = true;
-		const subscribing = service.subscribe(chat, 'client', () => active);
+		const subscribing = scopedService.subscribe(chat, 'client', () => active);
 		const rejected = assert.rejects(subscribing, /Subscription cancelled/);
 		await started.p;
 		active = false;
-		service.unsubscribe(chat, 'client');
+		scopedService.unsubscribe(chat, 'client');
 		await completed.complete();
 		await rejected;
-		const stateManager = getStateManager(service);
+		const stateManager = getStateManager(scopedService);
 		assert.deepStrictEqual({
 			input: readChatInputState(stateManager.getSessionState(session.toString()), chat.toString()),
 			readOnly: stateManager.getChatState(chat.toString())?.interactivity === ChatInteractivity.ReadOnly,
-		}, { input: undefined, readOnly: false });
+			outcomes,
+		}, { input: undefined, readOnly: false, outcomes: [{ outcome: 'cancelled', category: 'cancelled' }] });
 	});
 
 	test('writer checks for sibling chats preserve independent restrictions and metadata', async () => {

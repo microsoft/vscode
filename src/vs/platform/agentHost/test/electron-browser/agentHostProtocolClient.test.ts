@@ -4537,6 +4537,28 @@ suite('AgentHostProtocolClient', () => {
 			]);
 		}));
 
+		test('classifies an opaque managed chat as the first post-readiness request', async () => {
+			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.firstSessionRequest') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			const resource = URI.parse('other-host-resource:/opaque-chat');
+			disposables.add(client.getSubscription(StateComponents.Chat, resource, 'test'));
+			const request = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { snapshot: { resource: resource.toString(), fromSeq: 0, state: createChatState({ resource: resource.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }) } },
+			});
+			await flushMicrotasks();
+			assert.deepStrictEqual(diagnostics.map(event => [event.outcome, event.requestKind, event.connectionOperation]), [
+				['started', 'subscribeChat', 'connect'], ['succeeded', 'subscribeChat', 'connect'],
+			]);
+		});
+
 		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
 			test(`the recovery deadline bounds a stalled ${stage}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const blocked = new DeferredPromise<void>();
@@ -5105,18 +5127,24 @@ suite('AgentHostProtocolClient', () => {
 				await Promise.resolve();
 			}
 
+			const listing = client.listSessions();
+			const listRequest = await waitForRequest(reconnectTransport, 'listSessions');
+			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: listRequest.id, result: { items: [] } });
+			await listing;
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
 				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
 				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
 				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
+				firstRequestOperations: diagnostics.filter(event => event.phase === 'protocol.firstSessionRequest').map(event => event.connectionOperation),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
 				transportFailure: 'initial transport failed',
 				handshakeMode: 'mode=freshInitialize',
 				retrySucceeded: true,
+				firstRequestOperations: ['connect', 'connect'],
 			});
 		});
 

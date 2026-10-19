@@ -648,8 +648,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			reconnect.nextAttemptAt = undefined;
 		}
-		if (next.kind === AgentHostClientState.Connected) {
-			this._connectionOperation = this._state.kind === AgentHostClientState.Reconnecting ? 'recover' : 'connect';
+		if (this._state.kind === AgentHostClientState.Connected && next.kind === AgentHostClientState.Reconnecting) {
+			this._connectionOperation = 'recover';
 		}
 		this._state = next;
 		if (next.kind === AgentHostClientState.Connected) {
@@ -2826,10 +2826,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._firstSessionRequestPending = false;
 			const fields: { readonly channel?: unknown } | undefined = typeof params === 'object' && params !== null ? params : undefined;
 			const channel = typeof fields?.channel === 'string' ? fields.channel : undefined;
+			const subscriptionKind = method === 'subscribe' ? this._subscriptionManager.getActiveSubscriptions().find(subscription => subscription.resource.toString() === channel)?.kind : undefined;
 			const requestKind = method !== 'subscribe' ? method
 				: channel !== undefined && isAhpRootChannel(channel) ? 'subscribeRoot'
-					: channel !== undefined && isAhpChatChannel(channel) ? 'subscribeChat'
-						: this._subscriptionManager.getActiveSubscriptions().some(subscription => subscription.kind === StateComponents.Session && subscription.resource.toString() === channel) ? 'subscribeSession' : 'subscribeOther';
+					: subscriptionKind === StateComponents.Session ? 'subscribeSession'
+						: subscriptionKind === StateComponents.Chat || (channel !== undefined && isAhpChatChannel(channel)) ? 'subscribeChat' : 'subscribeOther';
 			const attemptId = this._diagnosticAttemptId;
 			const connectionOperation = this._connectionOperation;
 			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind }), 'protocol.firstSessionRequest', async () => {

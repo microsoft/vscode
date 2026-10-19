@@ -9374,7 +9374,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return snapshot;
 		};
 		try {
-			return await this._sessionOpenTelemetry.withSubscription(resource, subscribe, telemetryContext);
+			return await this._sessionOpenTelemetry.withSubscription(resource, subscribe, telemetryContext, () => !this._store.isDisposed && (isActive?.() ?? true));
 		} catch (error) {
 			const subscriptionIsActive = isActive?.() ?? true;
 			if (subscriptionIsActive) {

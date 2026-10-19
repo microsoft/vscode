@@ -39,7 +39,7 @@ export interface IAgentHostSessionOpenTelemetryScope {
 export interface IAgentHostSessionOpenTelemetry {
 	readonly _serviceBrand: undefined;
 
-	withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>, context?: IAgentHostSessionSubscribeTelemetryContext): Promise<T>;
+	withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>, context?: IAgentHostSessionSubscribeTelemetryContext, isActive?: () => boolean): Promise<T>;
 	withSdkResume<T>(session: URI, operation: () => Promise<T>): Promise<T>;
 	sdkResumeFallbackCreated(session: URI): void;
 }
@@ -142,7 +142,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		}));
 	}
 
-	async withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>, context?: IAgentHostSessionSubscribeTelemetryContext): Promise<T> {
+	async withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>, context?: IAgentHostSessionSubscribeTelemetryContext, isActive?: () => boolean): Promise<T> {
 		const stopwatch = StopWatch.create(false);
 		// A cold chat's owner is known only once the subscribe body resolves it.
 		let attempt = this._start(resource, stopwatch, undefined, context);
@@ -184,7 +184,8 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 			return result;
 		} catch (error) {
 			if (attempt) {
-				this._finish(attempt, isCancellationError(error) ? 'cancelled' : 'failure', servedFromMemory, getConnectionTelemetryError(getConnectionDiagnosticError(error)));
+				const cancelled = isCancellationError(error) || isActive?.() === false;
+				this._finish(attempt, cancelled ? 'cancelled' : 'failure', servedFromMemory, cancelled ? { errorCategory: 'cancelled' } : getConnectionTelemetryError(getConnectionDiagnosticError(error)));
 			}
 			throw error;
 		}
