@@ -1075,19 +1075,23 @@ suite('AgentHostSessionChangesets', () => {
 			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
+		let label: string | undefined;
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
+			label = changeset?.label;
 			enabled = changeset?.isEnabled.read(reader);
 			changeset?.changes.read(reader);
 		}));
 
 		assert.deepStrictEqual({
+			label,
 			enabled,
 			sessionSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Session),
 			chatSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Chat),
 			changesetSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Changeset),
 		}, {
+			label: 'Last Turn',
 			enabled: true,
 			sessionSubscriptions: [{
 				component: StateComponents.Session,
