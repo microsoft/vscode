@@ -157,10 +157,12 @@ suite('AICustomizationDiscoveryPage', () => {
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
 		const uninstalls: string[] = [];
+		let connectorChecks = 0;
+		let onCheckConnectorConnections: (() => Promise<void>) | undefined;
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
 		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
 			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
-			return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
+			return state?.kind === 'checking' || state?.kind === 'unverified' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
 				? [{ resource, state }]
 				: [];
 		}));
@@ -201,6 +203,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 			override cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
 				cancellations.push(resource.identifier);
+			}
+			override async checkConnectorConnections(): Promise<void> {
+				connectorChecks++;
+				await onCheckConnectorConnections?.();
 			}
 		}());
 		const sentimentChanged = store.add(new Emitter<void>());
@@ -255,13 +261,15 @@ suite('AICustomizationDiscoveryPage', () => {
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
-				if (state.kind === 'checking' || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'repairing' || state.kind === 'uninstalling' || state.kind === 'error') {
+				if (state.kind === 'checking' || state.kind === 'unverified' || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'repairing' || state.kind === 'uninstalling' || state.kind === 'error') {
 					recordedResources.set(key, resource);
 				} else {
 					recordedResources.delete(key);
 				}
 			},
 			notifyInstallChange: () => installChanges.fire(),
+			getConnectorChecks: () => connectorChecks,
+			setCheckConnectorConnectionsHandler: (handler: () => Promise<void>) => { onCheckConnectorConnections = handler; },
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
 			selectAddCustomization: async (id: string) => {
@@ -1335,6 +1343,72 @@ suite('AICustomizationDiscoveryPage', () => {
 			repairingDetail: 'MCP server · Copilot Connectors · Reconnecting',
 			cancelAriaLabel: 'Cancel reconnecting Mail',
 			cancellations: ['mail'],
+		});
+	});
+
+	test('an unverified Connector offers an enabled Check Connection action instead of a perpetual busy state', async () => {
+		const candidate = resource('mail', {
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			displayName: 'Mail',
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		});
+		const target = { kind: 'copilotConnector' as const, name: 'mail' };
+		const fixture = createPage([CustomizationMarketplaceSources.CopilotConnectors.id]);
+		fixture.setInstallState(candidate, { kind: 'unverified', target });
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+		await timeout(0);
+		const getConnectorRow = () => [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-results .monaco-list-row')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'Mail');
+		const describeRow = () => {
+			const row = getConnectorRow();
+			assert.ok(row);
+			return {
+				detail: row.querySelector('.customization-discovery-result-detail')?.textContent,
+				actions: [...row.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].map(button => ({
+					label: button.textContent,
+					disabled: button.classList.contains('disabled'),
+				})),
+			};
+		};
+		const unverified = describeRow();
+		const disconnectButton = [...getConnectorRow()!.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Disconnect');
+		assert.ok(disconnectButton);
+		disconnectButton.click();
+		await timeout(0);
+		const uninstalls = [...fixture.uninstalls];
+		fixture.setInstallState(candidate, { kind: 'unverified', target });
+		fixture.notifyInstallChange();
+		await timeout(0);
+
+		const check = new DeferredPromise<void>();
+		fixture.setCheckConnectorConnectionsHandler(async () => {
+			fixture.setInstallState(candidate, { kind: 'checking', target });
+			fixture.notifyInstallChange();
+			await check.p;
+			fixture.setInstallState(candidate, { kind: 'installed', target });
+			fixture.notifyInstallChange();
+		});
+		const checkButton = [...getConnectorRow()!.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Check Connection');
+		assert.ok(checkButton);
+		checkButton.click();
+		await timeout(0);
+		const checking = describeRow();
+		check.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ unverified, uninstalls, checking, checks: fixture.getConnectorChecks(), repairs: fixture.repairs }, {
+			unverified: {
+				detail: 'MCP server · Copilot Connectors · Connection status not checked',
+				actions: [{ label: 'Check Connection', disabled: false }, { label: 'Disconnect', disabled: false }],
+			},
+			uninstalls: ['mail'],
+			checking: {
+				detail: 'MCP server · Copilot Connectors · Checking connection',
+				actions: [{ label: 'Checking...', disabled: true }],
+			},
+			checks: 1,
+			repairs: [],
 		});
 	});
 

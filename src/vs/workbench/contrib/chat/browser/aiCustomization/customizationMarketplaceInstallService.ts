@@ -41,7 +41,7 @@ import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMa
 
 type McpGalleryInstallation = Extract<CustomizationMarketplaceInstallation, { readonly kind: 'mcpGallery' }>;
 type InstallationRecordState =
-	| { readonly kind: 'checking' | 'installed' | 'missing' }
+	| { readonly kind: 'checking' | 'unverified' | 'installed' | 'missing' }
 	| { readonly kind: 'error'; readonly message: string };
 
 interface IPendingOperation {
@@ -65,6 +65,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private readonly pending = new Map<string, IPendingOperation>();
 	private readonly pendingRepairs = new Map<string, IPendingOperation>();
 	private readonly pendingUninstalls = new Map<string, Promise<void>>();
+	private pendingConnectorCheck: Promise<void> | undefined;
 	private readonly recordStates = new Map<string, InstallationRecordState>();
 	private readonly reconciliationVersions = new Map<string, number>();
 	private readonly recordStore: CustomizationMarketplaceInstallationRecordStore;
@@ -516,9 +517,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (record.target.kind === 'copilotConnector') {
 				const target = record.target;
 				const connector = this.copilotConnectorsService.connectors.find(candidate => candidate.name === target.name);
+				// Without connector authorization or a catalog, the status stays unknown until the user checks it.
 				state = {
 					kind: !this.copilotConnectorsService.connectionStateKnown || connector?.connectionStatus === 'unknown'
-						? 'checking'
+						? 'unverified'
 						: connector?.connectionStatus === 'connected' ? 'installed' : 'missing',
 				};
 			} else if (record.target.kind === 'plugin') {
@@ -604,6 +606,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const state = this.recordStates.get(record.id) ?? { kind: 'checking' as const };
 		if (state.kind === 'error') {
 			return { ...state, target };
+		}
+		if (state.kind === 'unverified' && this.pendingConnectorCheck) {
+			return { kind: 'checking', target };
 		}
 		return state.kind === 'missing' ? { kind: 'missing', target, repairUnavailableMessage: this.getRepairUnavailableMessage(record) } : { kind: state.kind, target };
 	}
@@ -963,6 +968,55 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 	}
 
+	async checkConnectorConnections(): Promise<void> {
+		if (this.pendingConnectorCheck) {
+			return this.pendingConnectorCheck;
+		}
+		const operation = this.runConnectorCheck();
+		this.pendingConnectorCheck = operation;
+		this.emitChange();
+		try {
+			await operation;
+		} finally {
+			this.pendingConnectorCheck = undefined;
+			this.emitChange();
+		}
+	}
+
+	/**
+	 * Connector MCP servers are available whenever connectors are enabled, independent of Marketplace
+	 * visibility, so recovering their connection status must not depend on Marketplace visibility either.
+	 */
+	private async runConnectorCheck(): Promise<void> {
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(this.lifetimeToken));
+		const cancelIfNotAllowed = () => {
+			if (!this.isConnectorCheckAllowed()) {
+				cancellation.cancel();
+			}
+		};
+		store.add(this.entitlementService.onDidChangeSentiment(cancelIfNotAllowed));
+		store.add(this.configurationService.onDidChangeConfiguration(cancelIfNotAllowed));
+		const throwIfCancelled = () => {
+			if (cancellation.token.isCancellationRequested || !this.isConnectorCheckAllowed()) {
+				throw new CancellationError();
+			}
+		};
+		try {
+			throwIfCancelled();
+			await this.copilotConnectorsService.checkConnection(cancellation.token);
+			throwIfCancelled();
+			await this.reconcileRecords(this.getApplicableConnectorRecords());
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private isConnectorCheckAllowed(): boolean {
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true
+			&& !this.entitlementService.sentiment.hidden;
+	}
+
 	cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
 		if (resource.installation?.kind !== 'copilotConnector') {
 			return;
@@ -1019,7 +1073,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (state.kind === 'unavailable') {
 				throw new Error(state.message);
 			}
-			if (state.kind !== 'installed' && state.kind !== 'missing' && state.kind !== 'error') {
+			if (state.kind !== 'installed' && state.kind !== 'unverified' && state.kind !== 'missing' && state.kind !== 'error') {
 				return;
 			}
 			if (record && this.copilotConnectorsService.connectionStateKnown &&

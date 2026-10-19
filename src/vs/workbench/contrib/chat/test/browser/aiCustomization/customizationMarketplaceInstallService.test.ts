@@ -308,6 +308,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
+			checkConnectionCalls = 0;
+			onCheckConnection: ((token: CancellationToken) => Promise<void>) | undefined;
 			override get connectors() {
 				return this.catalogVisible ? [{
 					name: 'mail',
@@ -331,6 +333,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 				}
 				connectedConnectors.add(name);
 				connectorChanges.fire();
+			}
+			override async checkConnection(token: CancellationToken): Promise<void> {
+				this.checkConnectionCalls++;
+				await this.onCheckConnection?.(token);
 			}
 			override async disconnect(name: string, token: CancellationToken): Promise<void> {
 				this.disconnectCalls.push(name);
@@ -1669,13 +1675,112 @@ suite('CustomizationMarketplaceInstallService', () => {
 				recorded: recorded.map(resource => resource.displayName),
 				state,
 			}, {
-				beforeAuthoritativeCatalog: { kind: 'checking', target: connectorInstallationTarget },
+				beforeAuthoritativeCatalog: { kind: 'unverified', target: connectorInstallationTarget },
 				recorded: ['Mail'],
 				state: {
 					kind: 'missing',
 					target: connectorInstallationTarget,
 					repairUnavailableMessage: 'This connector is no longer available from the Copilot Connectors catalog.',
 				},
+			});
+		});
+
+		test('losing connector authorization shows an actionable unverified state that an explicit check resolves', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectorsService.connectionStateKnownOverride = false;
+			fixture.connectorsService.statusOverride = 'unknown';
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const afterScopeLoss = fixture.service.getInstallState(candidate);
+			await timeout(0);
+			const stillUnverified = fixture.service.getInstallState(candidate);
+
+			const check = new DeferredPromise<void>();
+			fixture.connectorsService.onCheckConnection = async () => {
+				await check.p;
+				fixture.connectorsService.connectionStateKnownOverride = true;
+				fixture.connectorsService.statusOverride = undefined;
+				fixture.connectorChanges.fire();
+			};
+			const first = fixture.service.checkConnectorConnections();
+			const second = fixture.service.checkConnectorConnections();
+			const during = fixture.service.getInstallState(candidate);
+			check.complete();
+			await Promise.all([first, second]);
+
+			assert.deepStrictEqual({
+				afterScopeLoss,
+				stillUnverified,
+				during,
+				after: fixture.service.getInstallState(candidate),
+				checks: fixture.connectorsService.checkConnectionCalls,
+				connects: fixture.connectorsService.connectCalls,
+			}, {
+				afterScopeLoss: { kind: 'unverified', target: connectorInstallationTarget },
+				stillUnverified: { kind: 'unverified', target: connectorInstallationTarget },
+				during: { kind: 'checking', target: connectorInstallationTarget },
+				after: { kind: 'installed', target: connectorInstallationTarget },
+				checks: 1,
+				connects: ['mail'],
+			});
+		});
+
+		test('a failed connection check stays actionable and can still disconnect', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectorsService.connectionStateKnownOverride = false;
+			fixture.connectorsService.statusOverride = 'unknown';
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			fixture.connectorsService.onCheckConnection = async () => { throw new Error('Catalog unavailable (HTTP 500)'); };
+
+			await assert.rejects(fixture.service.checkConnectorConnections(), /HTTP 500/);
+			const afterFailure = fixture.service.getInstallState(candidate);
+			await fixture.service.uninstall(candidate);
+
+			assert.deepStrictEqual({
+				afterFailure,
+				disconnects: fixture.connectorsService.disconnectCalls,
+				after: fixture.service.getInstallState(candidate),
+			}, {
+				afterFailure: { kind: 'unverified', target: connectorInstallationTarget },
+				disconnects: ['mail'],
+				after: { kind: 'available' },
+			});
+		});
+
+		test('checking connector connections does not depend on Marketplace visibility', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectorsService.connectionStateKnownOverride = false;
+			fixture.connectorsService.statusOverride = 'unknown';
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+			fixture.connectorsService.onCheckConnection = async () => {
+				fixture.connectorsService.connectionStateKnownOverride = true;
+				fixture.connectorsService.statusOverride = undefined;
+				fixture.connectorChanges.fire();
+			};
+
+			await fixture.service.checkConnectorConnections();
+			const checks = fixture.connectorsService.checkConnectionCalls;
+			fixture.entitlementService.sentiment.hidden = true;
+			await assert.rejects(fixture.service.checkConnectorConnections(), isCancellationError);
+
+			assert.deepStrictEqual({
+				checks,
+				checksWhileAIHidden: fixture.connectorsService.checkConnectionCalls - checks,
+				states: fixture.service.installations.get().installations.map(installation => installation.state.kind),
+			}, {
+				checks: 1,
+				checksWhileAIHidden: 0,
+				states: ['installed'],
 			});
 		});
 

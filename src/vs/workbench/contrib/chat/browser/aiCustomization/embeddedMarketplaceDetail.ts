@@ -26,6 +26,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
+import { getConnectorActionLabel, getConnectorStatusLabel } from './connectorPresentation.js';
 
 const $ = DOM.$;
 const maxRepresentativeQueries = 3;
@@ -339,6 +340,9 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			case 'repairing':
 				await this.installService.repair(resource);
 				break;
+			case 'unverified':
+				await this.installService.checkConnectorConnections();
+				break;
 			default:
 				throw new Error(localize('marketplaceDetail.promptUnavailable', "The customization cannot run while its state is: {0}.", getInstallStateLabel(state)));
 		}
@@ -417,20 +421,24 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 							? localize('marketplaceDetail.disconnecting', "Disconnecting...")
 							: state.kind === 'checking'
 								? localize('marketplaceDetail.checkingConnection', "Checking...")
-								: setupUrl
-									? localize('marketplaceDetail.viewSetup', "View Setup")
-									: state.kind === 'error' || state.kind === 'unavailable'
-										? localize('marketplaceDetail.unavailable', "Unavailable")
-										: localize('marketplaceDetail.connect', "Connect");
+								: state.kind === 'unverified'
+									? getConnectorActionLabel('check')
+									: setupUrl
+										? localize('marketplaceDetail.viewSetup', "View Setup")
+										: state.kind === 'error' || state.kind === 'unavailable'
+											? localize('marketplaceDetail.unavailable', "Unavailable")
+											: localize('marketplaceDetail.connect', "Connect");
 		const action = state.kind === 'installed'
 			? () => this.installService.uninstall(resource)
 			: state.kind === 'missing' && !state.repairUnavailableMessage
 				? () => this.installService.repair(resource)
-				: state.kind === 'available'
-					? () => this.options.install(resource)
-					: setupUrl
-						? () => this.options.openExternal(setupUrl)
-						: undefined;
+				: state.kind === 'unverified'
+					? () => this.installService.checkConnectorConnections()
+					: state.kind === 'available'
+						? () => this.options.install(resource)
+						: setupUrl
+							? () => this.options.openExternal(setupUrl)
+							: undefined;
 		const button = this.installActionDisposables.add(new Button(this.titleActionsEl, {
 			...defaultButtonStyles,
 			secondary: state.kind === 'installed',
@@ -449,6 +457,8 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 					status(localize('marketplaceDetail.disconnectedStatus', "Disconnected {0}.", resource.displayName));
 				} else if (state.kind === 'missing') {
 					status(localize('marketplaceDetail.reconnectedStatus', "Reconnected {0}.", resource.displayName));
+				} else if (state.kind === 'unverified') {
+					status(localize('marketplaceDetail.connectionCheckedStatus', "Checked the connection for {0}.", resource.displayName));
 				} else if (state.kind === 'available') {
 					status(localize('marketplaceDetail.connectedStatus', "Connected {0}.", resource.displayName));
 				}
@@ -457,8 +467,31 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 					? localize('marketplaceDetail.disconnectError', "Could not disconnect {0}. {1}", resource.displayName, getErrorMessage(error))
 					: state.kind === 'missing'
 						? localize('marketplaceDetail.reconnectError', "Could not reconnect {0}. {1}", resource.displayName, getErrorMessage(error))
-						: localize('marketplaceDetail.connectError', "Could not connect {0}. {1}", resource.displayName, getErrorMessage(error));
+						: state.kind === 'unverified'
+							? localize('marketplaceDetail.checkConnectionError', "Could not check the connection for {0}. {1}", resource.displayName, getErrorMessage(error))
+							: localize('marketplaceDetail.connectError', "Could not connect {0}. {1}", resource.displayName, getErrorMessage(error));
 				this.notificationService.error(message);
+			}
+		}));
+		if (state.kind === 'unverified') {
+			this.renderConnectorDisconnectAction(resource);
+		}
+	}
+
+	private renderConnectorDisconnectAction(resource: ICustomizationMarketplaceResource): void {
+		const label = getConnectorActionLabel('disconnect');
+		const button = this.installActionDisposables.add(new Button(this.titleActionsEl, {
+			...defaultButtonStyles,
+			secondary: true,
+			ariaLabel: localize('marketplaceDetail.actionAria', "{0} {1}", label, resource.displayName),
+		}));
+		button.label = label;
+		this.installActionDisposables.add(button.onDidClick(async () => {
+			try {
+				await this.installService.uninstall(resource);
+				status(localize('marketplaceDetail.disconnectedStatus', "Disconnected {0}.", resource.displayName));
+			} catch (error) {
+				this.notificationService.error(localize('marketplaceDetail.disconnectError', "Could not disconnect {0}. {1}", resource.displayName, getErrorMessage(error)));
 			}
 		}));
 	}
@@ -568,6 +601,7 @@ function isPlugin(resource: ICustomizationMarketplaceResource): boolean {
 function getLocationTarget(state: CustomizationMarketplaceInstallState): URI | undefined {
 	switch (state.kind) {
 		case 'checking':
+		case 'unverified':
 		case 'installed':
 		case 'repairing':
 		case 'uninstalling':
@@ -646,6 +680,8 @@ function getInstallStateLabel(state: CustomizationMarketplaceInstallState): stri
 			return localize('marketplaceDetail.installingState', "Installation in progress");
 		case 'checking':
 			return localize('marketplaceDetail.checkingState', "Checking installation");
+		case 'unverified':
+			return getConnectorStatusLabel('unknown');
 		case 'installed':
 			return localize('marketplaceDetail.installedState', "Installed");
 		case 'missing':

@@ -11,9 +11,17 @@ import { URI } from '../../../../base/common/uri.js';
 import { getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
+/**
+ * Installation state of a marketplace resource.
+ *
+ * - `checking`: verification is actively in progress.
+ * - `unverified`: a recorded Copilot connector whose connection status cannot be determined
+ *   without an explicit user action, for example because connector authorization is missing or
+ *   the connector catalog is unavailable. Resolve it with {@link ICustomizationMarketplaceInstallService.checkConnectorConnections}.
+ */
 export type CustomizationMarketplaceInstallState =
 	| { readonly kind: 'available' | 'installing' }
-	| { readonly kind: 'checking' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
+	| { readonly kind: 'checking' | 'unverified' | 'installed' | 'repairing' | 'uninstalling'; readonly target: CustomizationMarketplaceInstallationTarget }
 	| { readonly kind: 'missing'; readonly target: CustomizationMarketplaceInstallationTarget; readonly repairUnavailableMessage?: string }
 	| { readonly kind: 'error'; readonly target: CustomizationMarketplaceInstallationTarget; readonly message: string }
 	| { readonly kind: 'unavailable'; readonly message: string; readonly setupUrl?: URI };
@@ -115,6 +123,11 @@ export interface ICustomizationMarketplaceInstallService {
 	install(resource: ICustomizationMarketplaceResource): Promise<void>;
 	/** Restores files, registrations, or account connections missing from a recorded installation. */
 	repair(resource: ICustomizationMarketplaceResource): Promise<void>;
+	/**
+	 * Checks the connection status of recorded Copilot connectors after an explicit user action.
+	 * This may request connector authorization; it never connects or disconnects a connector.
+	 */
+	checkConnectorConnections(): Promise<void>;
 	/** Cancels an in-progress Connector install or repair. */
 	cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void;
 	/** Removes a previously installed marketplace resource through its owning service. */

@@ -592,6 +592,40 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('losing the connector-scoped session leaves status unknown until an explicit check', async () => {
+		const fixture = createFixture([{ body: catalogResponse('connected') }, { body: catalogResponse('connected') }, { body: catalogResponse('connected') }]);
+		const unscoped = { ...fixture.initialSession, scopes: ['read:user'] };
+		const scoped = { ...unscoped, id: 'connector-authorized-session', scopes: [...unscoped.scopes, 'write:plugin_gateway_connections'] };
+		fixture.setSessions([unscoped, scoped]);
+		const connected = (await fixture.service.getConnectors(CancellationToken.None))[0]?.connectionStatus;
+
+		fixture.setSessions([unscoped]);
+		fixture.sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, changed: undefined, removed: [scoped] } });
+		const afterLoss = { known: fixture.service.connectionStateKnown, connected: fixture.service.connectedMcpServers.length };
+		const unscopedStatus = (await fixture.service.getConnectors(CancellationToken.None))[0]?.connectionStatus;
+		const consentBeforeCheck = fixture.consentCalls.length;
+
+		await fixture.service.checkConnection(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			connected,
+			afterLoss,
+			unscopedStatus,
+			consentBeforeCheck,
+			consentAfterCheck: fixture.consentCalls.length,
+			known: fixture.service.connectionStateKnown,
+			status: fixture.service.connectors[0]?.connectionStatus,
+		}, {
+			connected: 'connected',
+			afterLoss: { known: false, connected: 0 },
+			unscopedStatus: 'unknown',
+			consentBeforeCheck: 0,
+			consentAfterCheck: 1,
+			known: true,
+			status: 'connected',
+		});
+	});
+
 	test('only reuses an existing scoped session belonging to the active account', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available') }]);
 		const scoped = { ...fixture.initialSession, id: 'scoped-session', accessToken: 'scoped-token' };
