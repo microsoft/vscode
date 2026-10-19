@@ -25950,6 +25950,7 @@ Use the attached image as context.
 						});
 
 						const runtimeEnabled = liveStatus !== 'disabled' && liveStatus !== 'not_configured';
+						const awaitingLoad = enabled && liveStatus === 'not_configured';
 						await session.send('reconcile sleepy');
 
 						assert.deepStrictEqual({
@@ -25957,7 +25958,7 @@ Use the attached image as context.
 							disable: mockSession.mcpDisableCalls,
 							materializingListCalls: mockSession.mcpMaterializingListCalls,
 						}, {
-							enable: desired && !runtimeEnabled ? [{ serverName }] : [],
+							enable: desired && !runtimeEnabled && !awaitingLoad ? [{ serverName }] : [],
 							disable: !desired && runtimeEnabled ? [{ serverName }] : [],
 							materializingListCalls: 0,
 						});

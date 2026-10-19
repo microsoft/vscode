@@ -6175,7 +6175,10 @@ export class CopilotAgentSession extends Disposable {
 			const enabled = observedEnablement.get(serverName);
 			try {
 				if (desired) {
-					if (enabled !== false || (this._mcpLaunchConfigurationDirty && this._projectedMcpServerLaunchEnablement.has(serverName))) {
+					const observed = observedServers.get(serverName);
+					// A configured server the runtime has not loaded yet starts with that load; enabling it now races a second start.
+					const awaitingLoad = observed?.enabled === true && observed.live?.status === 'not_configured';
+					if (enabled !== false || awaitingLoad || (this._mcpLaunchConfigurationDirty && this._projectedMcpServerLaunchEnablement.has(serverName))) {
 						continue;
 					}
 					// Re-enabling restarts the server. The SDK reports the
