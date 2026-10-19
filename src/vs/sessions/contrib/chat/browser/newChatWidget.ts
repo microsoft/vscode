@@ -338,7 +338,7 @@ export class NewChatWidget extends Disposable {
 			const selected = picked
 				? environments.find(environment => environment.id === picked.id) ?? picked
 				: environments.find(environment => (environment.kind === 'container') === !!containerRequested && environment.providerIds.includes(providerId ?? ''))
-					?? environments.find(environment => environment.kind === 'local');
+				?? environments.find(environment => environment.kind === 'local');
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;

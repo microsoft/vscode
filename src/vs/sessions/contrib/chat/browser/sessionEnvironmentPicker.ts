@@ -96,12 +96,14 @@ export class SessionEnvironmentPicker extends Disposable {
 		trigger.tabIndex = 0;
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
-		store.add({ dispose: () => {
-			if (trigger.getAttribute('aria-expanded') === 'true') {
-				this.actionWidgetService.hide();
+		store.add({
+			dispose: () => {
+				if (trigger.getAttribute('aria-expanded') === 'true') {
+					this.actionWidgetService.hide();
+				}
+				slot.remove();
 			}
-			slot.remove();
-		} });
+		});
 		const tooltip = store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), trigger, ''));
 		store.add(autorun(reader => {
 			const environment = this.selected.read(reader);
