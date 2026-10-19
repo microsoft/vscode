@@ -21,7 +21,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { type ITelemetryService, TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCopilotExtensionsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
@@ -1643,7 +1643,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, memory: true, localMemory: true };
+		const configValues: Record<string, unknown> = { [AgentHostCanvasesEnabledConfigKey]: true, [AgentHostCopilotExtensionsEnabledConfigKey]: true, [CopilotCliConfigKey.ImageGeneration]: true, memory: true, localMemory: true };
 		const launcher = createTestLauncher(managedSettingsPermissions, configValues, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
@@ -2167,11 +2167,11 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 	}
 });
 
-suite('CopilotSessionLauncher canvas config', () => {
+suite('CopilotSessionLauncher extension and canvas config', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('fails closed when a canvas-enabled client residency has no extension SDK path', async () => {
-		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
+	test('fails closed when an extension-enabled client residency has no extension SDK path', async () => {
+		const launcher = createTestLauncher(undefined, { [AgentHostCopilotExtensionsEnabledConfigKey]: true });
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
 			client: returningSession({
@@ -2193,7 +2193,58 @@ suite('CopilotSessionLauncher canvas config', () => {
 		await assert.rejects(() => launcher.launch(plan, testRuntime), /Extension SDK path is unavailable/);
 	});
 
-	test('does not request canvas extensions or rendering for ephemeral sessions', async () => {
+	test('enables Copilot extensions without enabling Canvas rendering', async () => {
+		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				captured = config;
+				return session;
+			},
+			resumeSession: async () => { throw new Error('Unexpected resume'); },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+		} as unknown as CopilotClient;
+		const launcher = createTestLauncher(undefined, { [AgentHostCopilotExtensionsEnabledConfigKey]: true });
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create',
+			client,
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: 'session-1',
+			model: undefined,
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+		};
+
+		const wrapper = await launcher.launch(plan, testRuntime);
+		try {
+			assert.deepStrictEqual({
+				requestExtensions: captured?.requestExtensions,
+				requestCanvasRenderer: captured?.requestCanvasRenderer,
+				extensionSdkPath: captured?.extensionSdkPath,
+				toolNames: captured?.tools?.map(tool => tool.name),
+				wrapperCanvasRuntimeEnabled: wrapper.canvasRuntimeEnabled,
+			}, {
+				requestExtensions: true,
+				requestCanvasRenderer: false,
+				extensionSdkPath: '/copilot-sdk',
+				toolNames: [CopilotExtensionsReloadToolName],
+				wrapperCanvasRuntimeEnabled: false,
+			});
+		} finally {
+			wrapper.dispose();
+		}
+	});
+
+	test('enables Canvas rendering without enabling Copilot extensions', async () => {
 		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
 		const session = {
 			sessionId: 'session-1',
@@ -2210,6 +2261,59 @@ suite('CopilotSessionLauncher canvas config', () => {
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
+		const plan: CopilotSessionLaunchPlan = {
+			kind: 'create',
+			client,
+			sessionId: 'session-1',
+			model: undefined,
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+		};
+
+		const wrapper = await launcher.launch(plan, testRuntime);
+		try {
+			assert.deepStrictEqual({
+				requestExtensions: captured?.requestExtensions,
+				requestCanvasRenderer: captured?.requestCanvasRenderer,
+				extensionSdkPath: captured?.extensionSdkPath,
+				toolNames: captured?.tools?.map(tool => tool.name),
+				wrapperCanvasRuntimeEnabled: wrapper.canvasRuntimeEnabled,
+			}, {
+				requestExtensions: false,
+				requestCanvasRenderer: true,
+				extensionSdkPath: undefined,
+				toolNames: [],
+				wrapperCanvasRuntimeEnabled: true,
+			});
+		} finally {
+			wrapper.dispose();
+		}
+	});
+
+	test('does not request Copilot extensions or Canvas rendering for ephemeral sessions', async () => {
+		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
+		const session = {
+			sessionId: 'session-1',
+			on: () => () => { },
+			disconnect: async () => { },
+			rpc: { options: { update: async () => ({ success: true }) } },
+		} as unknown as CopilotSession;
+		const client = {
+			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+				captured = config;
+				return session;
+			},
+			resumeSession: async () => { throw new Error('Unexpected resume'); },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+		} as unknown as CopilotClient;
+		const launcher = createTestLauncher(undefined, {
+			[AgentHostCanvasesEnabledConfigKey]: true,
+			[AgentHostCopilotExtensionsEnabledConfigKey]: true,
+		});
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
 			client,
@@ -2244,7 +2348,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 		}
 	});
 
-	test('does not request canvas extensions or rendering by default', async () => {
+	test('does not request Copilot extensions or Canvas rendering by default', async () => {
 		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
 		const session = {
 			sessionId: 'session-1',

@@ -1274,7 +1274,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	subagentTaskCompletionDelay?: number;
 	/** Whether the launch plan represents an ephemeral session. */
 	isEphemeral?: boolean;
-	/** Whether the launched SDK session requested canvas extensions and rendering. */
+	/** Whether the launched SDK session requested Canvas rendering. */
 	canvasRuntimeEnabled?: boolean;
 	/** Whether the owning chat surface is scoped to editing a single file. */
 	hasScopedEditSurface?: boolean;

@@ -21,7 +21,7 @@ import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCopilotExtensionsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
@@ -1185,10 +1185,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined }> {
 		const plugins = plan.snapshot.plugins;
+		const copilotExtensionsEnabled = !plan.isEphemeral
+			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCopilotExtensionsEnabledConfigKey) === true;
 		const canvasRuntimeEnabled = !plan.isEphemeral
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
-		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
-			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
+		if (copilotExtensionsEnabled && !plan.extensionSdkPath) {
+			throw new Error(`Extension SDK path is unavailable for extension-enabled Copilot session '${plan.sessionId}'`);
 		}
 		// Synthesize BYOK provider/model config (empty when BYOK is gated off or the
 		// renderer reports no BYOK models), merged into the returned config so both
@@ -1326,7 +1328,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
-		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
+		const extensionTools = createCopilotExtensionTools(copilotExtensionsEnabled, () => runtime.reloadExtensions(), this._logService);
 		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools].map(tool => tool.name));
 		const tools = [
 			...shellTools,
@@ -1415,9 +1417,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableConfigDiscovery: true,
 			enableSkills: true,
 			enableSessionStore: !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
-			requestExtensions: canvasRuntimeEnabled,
+			requestExtensions: copilotExtensionsEnabled,
 			requestCanvasRenderer: canvasRuntimeEnabled,
-			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
+			...(copilotExtensionsEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
 			onPermissionRequest: (request, invocation) => runtime.handlePermissionRequest(request, invocation),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			askUserVariant: 'elicitation',
