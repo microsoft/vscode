@@ -48,7 +48,8 @@ import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostClientProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
-import { ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
+import { compareProtocolVersions } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -284,6 +285,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
+	/** The next reconnect sends `initialize` instead of `reconnect`, so the host decides its capabilities again. */
+	private _freshInitializeRequested = false;
+	/** Whether this connection already re-initialized for `multipleChatProviders` since the host's gate last turned on. */
+	private _reinitializedForChatProviders = false;
 	private readonly _connectionAuthority: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	private _serverSeq = 0;
@@ -538,6 +543,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
+		// The host's gate for chats with their own agents usually turns on through this client's own mirror, after the handshake.
+		this._register(this._subscriptionManager.rootState.onDidChange(() => this._maybeReinitializeForChatProviders()));
+		this._register(this.onDidChangeConnectionState(() => this._maybeReinitializeForChatProviders()));
 
 		this._register(this._defaultAccountService.onDidChangePolicyData(() => {
 			if (this._state.kind === AgentHostClientState.Connected) {
@@ -1135,7 +1143,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }; freshInitialize: boolean }> {
+		const freshInitialize = this._freshInitializeRequested;
+		this._freshInitializeRequested = false;
 		try {
+			if (freshInitialize) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'A fresh initialize was requested');
+			}
 			const result = await this._dispatchRequest<CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }>('reconnect', {
 				channel: ROOT_STATE_URI,
 				clientId: this._clientId,
@@ -1150,7 +1163,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		}
 
-		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
+		this._logService.info(freshInitialize
+			? `[RemoteAgentHostProtocol] Re-initializing ${this._address} so the host decides its capabilities again.`
+			: `[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: this._offeredProtocolVersions(),
@@ -1400,6 +1415,38 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
 		}
+	}
+
+	/**
+	 * The host decides `multipleChatProviders` from its root config at the
+	 * handshake, but this client mirrors `multipleChatProviders.enabled` only
+	 * after it. When the setting is on, the host's gate turned on after a
+	 * handshake that negotiated a version advertising the capability, and the
+	 * handshake didn't advertise it, re-initialize once so the host decides
+	 * again. At most once until the host's gate turns off again, so it never
+	 * loops; nothing happens with the setting off.
+	 */
+	private _maybeReinitializeForChatProviders(): void {
+		if (this._state.kind !== AgentHostClientState.Connected || !this._transportFactory
+			|| this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) !== true) {
+			return;
+		}
+		const root = this._subscriptionManager.rootState.value;
+		if (!root || root instanceof Error || root.config?.values[ChatProvidersConfigKey.Enabled] !== true) {
+			this._reinitializedForChatProviders = false;
+			return;
+		}
+		const result = this._initializeResult.get();
+		if (!result || result.multipleChatProviders || this._reinitializedForChatProviders
+			|| compareProtocolVersions(result.protocolVersion, '1.1.0') < 0) {
+			return;
+		}
+		this._reinitializedForChatProviders = true;
+		this._freshInitializeRequested = true;
+		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled chats with their own agents after the handshake; re-initializing.`);
+		// Disposing the listeners closes the transport; route the close through the soft-reconnect path, as the watchdog does.
+		this._transportListeners.clear();
+		this._handleTransportClose();
 	}
 
 	private _updateFusion(): void {
