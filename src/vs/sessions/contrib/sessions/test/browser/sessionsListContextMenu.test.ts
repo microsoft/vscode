@@ -24,7 +24,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -40,8 +41,9 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
-import { createListHarness, createSession, createTestSession, TestCommandService } from './sessionsListTestUtils.js';
-import '../../browser/sessionsActions.js';
+import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -615,6 +617,78 @@ suite('Sessions list context menus', () => {
 				readSessions: ['Visible', 'Filtered'],
 			});
 		}
+	});
+
+	test('Promote to Session moves a nested session into a new session, confirming it and explaining a refusal', async () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionChatItemContext).filter(isIMenuItem).find(candidate => candidate.command.id === PROMOTE_CHAT_TO_SESSION_ACTION_ID);
+		const shownWhen = (values: Record<string, unknown>) => !!item?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
+		const enabled = { 'config.chat.agentHost.moveChats.enabled': true, [ChatContextKeys.enabled.key]: true, 'sessionChatItem.canMove': true };
+
+		const main = upcastPartial<IChat>({ resource: URI.parse('test-chat:/main'), title: constObservable('Main') });
+		const peer = upcastPartial<IChat>({ resource: URI.parse('test-chat:/peer'), title: constObservable('Peer') });
+		const { session: baseSession } = createSession('Session');
+		const session: ISession = { ...baseSession, chats: constObservable([main, peer]), mainChat: constObservable(main) };
+		const events: string[] = [];
+		let answer = { confirmed: true };
+		let refusal: string | undefined;
+		const configurationService = new TestConfigurationService({ 'chat.agentHost.moveChats.enabled': true });
+		const harness = createListHarness(disposables, [session], instantiationService => {
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { events.push(`confirm: ${confirmation.message}`); return answer; }
+			});
+			instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+				override warn(message: string) { events.push(`warn: ${message}`); return undefined!; }
+			});
+			instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
+				override canMoveChat(_session: ISession, chat: IChat): boolean { return chat === peer; }
+				override async moveChat(_session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
+					if (refusal) {
+						throw new Error(refusal);
+					}
+					events.push(`move ${chat.title.get()} -> ${destination.kind}`);
+				}
+			}([session]));
+		});
+		const promote = (chat: IChat) => harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(PROMOTE_CHAT_TO_SESSION_ACTION_ID)!.handler, { session, chat });
+
+		const results = [await promote(peer)];
+		answer = { confirmed: false };
+		results.push(await promote(peer));
+		answer = { confirmed: true };
+		refusal = 'Send a message in this chat before moving it to its own session.';
+		results.push(await promote(peer));
+		refusal = undefined;
+		results.push(await promote(main));
+		await configurationService.setUserConfiguration('chat.agentHost.moveChats.enabled', false);
+		results.push(await promote(peer));
+
+		assert.deepStrictEqual({
+			title: item && (typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
+			group: item?.group,
+			shown: {
+				enabled: shownWhen(enabled),
+				settingOff: shownWhen({ ...enabled, 'config.chat.agentHost.moveChats.enabled': false }),
+				aiDisabled: shownWhen({ ...enabled, [ChatContextKeys.enabled.key]: false }),
+				notMovable: shownWhen({ ...enabled, 'sessionChatItem.canMove': false }),
+			},
+			results,
+			events,
+		}, {
+			title: 'Promote to Session',
+			group: '1_chat',
+			shown: { enabled: true, settingOff: false, aiDisabled: false, notMovable: false },
+			results: [true, false, false, false, false],
+			events: [
+				'confirm: Are you sure you want to move \'Peer\' to a new session?',
+				'move Peer -> newSession',
+				// Cancelled: nothing moves.
+				'confirm: Are you sure you want to move \'Peer\' to a new session?',
+				'confirm: Are you sure you want to move \'Peer\' to a new session?',
+				'warn: Could not move \'Peer\'. Send a message in this chat before moving it to its own session.',
+				// The main chat and a disabled setting don't move or ask.
+			],
+		});
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {

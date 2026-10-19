@@ -44,6 +44,8 @@ export class TestCommandService extends mock<ICommandService>() {
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	override readonly onDidChangeSessions = Event.None;
+	override canMoveChat(): boolean { return false; }
+	override canMoveSessionUnder(): boolean { return false; }
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
