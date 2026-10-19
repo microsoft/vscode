@@ -20,6 +20,7 @@ import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
+import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import type { AgentService } from '../../node/agentService.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -311,13 +312,63 @@ suite('AgentService - chats with their own agent', () => {
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
 		await timeout(10);
-		const [snapshot] = await getTestAgentHostDatabase(service).readCatalogSnapshot([session.toString()]);
+		const recorded = await getTestAgentHostDatabase(service).readChatAgentProviders?.();
 
 		assert.deepStrictEqual({
 			stateProvider: getTestAgentStateManager(service).getChatProvider(subagent.toString()),
 			agent: getTestAgentHostProviderService(service).getProviderForChat(session, subagent)?.id,
-			recorded: snapshot?.chats.find(row => row.chat === subagent.toString())?.metadata?.provider,
+			recorded: recorded?.get(subagent.toString()),
 		}, { stateProvider: 'second', agent: 'second', recorded: 'second' });
+	});
+
+	test('the catalog payloads never carry a chat\'s agent, which older builds read as canonical, and listing and restore still route the chat', async () => {
+		const { service } = createService(true);
+		const { session, chat } = await createSessionWithSecondChat(service);
+		await timeout(10);
+		const database = getTestAgentHostDatabase(service);
+		const row = await database.getSessionV2(session.toString());
+		const decoded = row && decodeAgentHostCatalogPayload(row.payload);
+		const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+
+		getTestAgentStateManager(service).deleteSession(session.toString());
+		await service.restoreSession(session);
+
+		assert.deepStrictEqual({
+			payloadMentionsProvider: row?.payload.includes('"provider"'),
+			// The release/1.143 validators are these unchanged: a payload equal to its canonical re-encoding is accepted as is.
+			canonical: decoded?.ok ? decoded.value.payload === row?.payload : decoded?.error,
+			chatMetadata: snapshot?.chats.find(candidate => candidate.chat === chat.toString())?.metadata,
+			recorded: (await database.readChatAgentProviders?.())?.get(chat.toString()),
+			listed: (await service.listSessions()).find(candidate => candidate.session.toString() === session.toString())?.chats?.find(candidate => candidate.chat.toString() === chat.toString())?.provider,
+			restoredAgent: getTestAgentHostProviderService(service).getProviderForChat(session, chat)?.id,
+		}, {
+			payloadMentionsProvider: false,
+			canonical: true,
+			chatMetadata: { interactivity: 'full' },
+			recorded: 'second',
+			listed: 'second',
+			restoredAgent: 'second',
+		});
+	});
+
+	test('deleting a chat or its session forgets the chat\'s agent', async () => {
+		const { service } = createService(true);
+		const { session, chat } = await createSessionWithSecondChat(service);
+		const other = URI.parse(buildChatUri(session, 'other'));
+		await service.createChat(session, other, { provider: 'second' });
+		const database = getTestAgentHostDatabase(service);
+		const before = [...(await database.readChatAgentProviders?.())?.keys() ?? []];
+
+		await service.disposeChat(session, other);
+		const afterChat = [...(await database.readChatAgentProviders?.())?.keys() ?? []];
+		await service.disposeSession(session);
+		const afterSession = [...(await database.readChatAgentProviders?.())?.keys() ?? []];
+
+		assert.deepStrictEqual({ before, afterChat, afterSession }, {
+			before: [chat.toString(), other.toString()].sort(),
+			afterChat: [chat.toString()],
+			afterSession: [],
+		});
 	});
 
 	test('a chat with its own agent keeps it when moved to a session of another agent; a chat that would gain or lose its own agent is refused', async () => {

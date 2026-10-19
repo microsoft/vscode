@@ -43,7 +43,6 @@ export interface ICatalogSourceState {
 		readonly title?: string;
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ChatInteractivity;
-		readonly provider?: string;
 		readonly archived?: boolean;
 		readonly isRead?: boolean;
 		readonly inheritedTurnId?: string;
@@ -314,7 +313,6 @@ export class AgentHostCatalogSourceResolver {
 					titleSource: normalizeCatalogTitleSource(titleSource),
 					origin: toCatalogChatOrigin(chat.origin),
 					...(interactivity !== undefined ? { interactivity } : {}),
-					...(chat.provider !== undefined ? { provider: chat.provider } : {}),
 					...(chat.archived === true ? { archived: true } : {}),
 					...(isRead !== undefined ? { isRead } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
@@ -415,7 +413,6 @@ export function chatCatalogV2ToCatalogChats(snapshot: IAgentHostDatabaseCatalogS
 		summary: chat.metadata?.summary,
 		titleSource: chat.metadata?.titleSource,
 		interactivity: chat.metadata?.interactivity,
-		...(chat.metadata?.provider !== undefined ? { provider: chat.metadata.provider } : {}),
 		changes: chat.metadata?.changes,
 		origin: chat.origin === undefined ? undefined : projectAgentHostCatalogChatOrigin(JSON.parse(chat.origin)),
 		isRead: chat.isRead,

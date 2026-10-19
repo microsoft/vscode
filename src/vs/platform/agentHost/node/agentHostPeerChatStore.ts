@@ -30,8 +30,6 @@ import type { IAgentHostChatV2MetadataData } from './agentHostChatCatalogV2.js';
 
 export const PEER_CHATS_METADATA_KEY = 'peerChats';
 export const CHAT_PROVIDER_DATA_METADATA_KEY = 'agentHost.chatProviderData';
-/** The agent of a chat whose agent differs from its session's; recorded once, when the chat is created. */
-export const CHAT_AGENT_PROVIDER_METADATA_KEY = 'agentHost.chatAgentProvider';
 export const CHAT_ORIGIN_METADATA_KEY = 'agentHost.chatOrigin';
 export const CHAT_INHERITED_TURN_METADATA_KEY = 'agentHost.chatInheritedTurnId';
 export const CHAT_WORKING_DIRECTORIES_METADATA_KEY = 'agentHost.chatWorkingDirectories';
@@ -187,11 +185,6 @@ export interface IPersistedPeerChat {
 	readonly origin?: ChatOrigin;
 	readonly inheritedTurnId?: string;
 	readonly workingDirectories?: readonly string[];
-	/**
-	 * The agent of a chat whose agent differs from its session's, written with the chat's row when it is created.
-	 * Only set on the entry being created: other entries keep the metadata their rows record.
-	 */
-	readonly agentProvider?: string;
 }
 
 interface IReplaceCentralOptions {
@@ -652,7 +645,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			return { metadata: { ...chat.metadata, changes: changes?.content } };
 		}
 		switch (key) {
-			case CHAT_AGENT_PROVIDER_METADATA_KEY: return { metadata: { ...chat.metadata, provider: value || undefined } };
 			case CHAT_PROVIDER_DATA_METADATA_KEY: return { providerData: value || null };
 			case CHAT_ORIGIN_METADATA_KEY: return { origin: value || null };
 			case CHAT_INHERITED_TURN_METADATA_KEY: return { inheritedTurnId: value || null };
@@ -1445,7 +1437,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		});
 	}
 
-	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[], agentProvider?: string): Promise<void> {
+	upsert(session: URI, chat: URI, providerData: string | undefined, origin?: ChatOrigin, inheritedTurnId?: string, workingDirectories?: readonly string[]): Promise<void> {
 		const chatUri = chat.toString();
 		const mutate = (entries: IPersistedPeerChat[]) => {
 			const existing = entries.find(entry => entry.uri === chatUri);
@@ -1461,14 +1453,12 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
 				...(effectiveInheritedTurnId !== undefined ? { inheritedTurnId: effectiveInheritedTurnId } : {}),
 				...(effectiveWorkingDirectories !== undefined ? { workingDirectories: [...effectiveWorkingDirectories] } : {}),
-				...(agentProvider !== undefined ? { agentProvider } : {}),
 			});
 			return next;
 		};
 		return this._trackMetadataWrite(session, async () => {
 			const values = {
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: providerData ?? '',
-				...(agentProvider !== undefined ? { [CHAT_AGENT_PROVIDER_METADATA_KEY]: agentProvider } : {}),
 				...(origin !== undefined ? { [CHAT_ORIGIN_METADATA_KEY]: JSON.stringify(origin) } : {}),
 				...(inheritedTurnId !== undefined ? { [CHAT_INHERITED_TURN_METADATA_KEY]: inheritedTurnId } : {}),
 				...(workingDirectories !== undefined ? { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(workingDirectories) } : {}),
@@ -1480,7 +1470,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				const current = await this.readNormalizedChat(session, chat);
 				if (current.normalized && current.chat) {
 					await this._patchNormalized(session, chat, {
-						...(agentProvider !== undefined ? { metadata: { ...current.chat.metadata, provider: agentProvider } } : {}),
 						providerData: providerData ?? null,
 						...(origin !== undefined ? { origin: JSON.stringify(origin) } : {}),
 						...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
@@ -1815,7 +1804,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		readonly origin?: string;
 		readonly inheritedTurnId?: string;
 		readonly workingDirectories?: readonly string[];
-		readonly metadata?: IAgentHostChatV2MetadataData;
 	}> {
 		return entries.map((entry, order) => ({
 			chat: entry.uri,
@@ -1826,8 +1814,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			...(entry.origin !== undefined ? { origin: this._stringifyOrigin(entry.origin) } : {}),
 			...(entry.inheritedTurnId !== undefined ? { inheritedTurnId: entry.inheritedTurnId } : {}),
 			...(entry.workingDirectories !== undefined ? { workingDirectories: entry.workingDirectories } : {}),
-			// The agent is written in the same transaction as the chat's new row.
-			...(entry.agentProvider !== undefined ? { metadata: { interactivity: ChatInteractivity.Full, provider: entry.agentProvider } } : {}),
 		}));
 	}
 

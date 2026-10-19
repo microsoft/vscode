@@ -3498,6 +3498,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}));
 	}
 
+	private _chatAgentProviders: Promise<Map<string, string>> | undefined;
 	private _agentMergeRestore: Promise<void> = Promise.resolve();
 	private _agentMergeIndexWrites: Promise<void> = Promise.resolve();
 	/** Agent Merge notices waiting for a session's in-flight turn to finish. */
@@ -4625,10 +4626,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
 		if (!inFlight) {
-			return [...await this._startSessionListComputation(mode).promise];
+			return this._withChatAgentProviders([...await this._startSessionListComputation(mode).promise]);
 		}
 		if (inFlight.epoch === epoch) {
-			return [...await inFlight.promise];
+			return this._withChatAgentProviders([...await inFlight.promise]);
 		}
 		if (!inFlight.trailing) {
 			const startTrailing = () => this._startSessionListComputation(mode).promise;
@@ -4652,7 +4653,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			void trailing.then(clearTrailing, clearTrailing);
 		}
-		return [...await inFlight.trailing];
+		return this._withChatAgentProviders([...await inFlight.trailing]);
 	}
 
 	/**
@@ -6436,6 +6437,10 @@ export class AgentService extends Disposable implements IAgentService {
 						: existing);
 				this._catalogSyncSuppressedSessions.add(sessionKey);
 				try {
+					if (provider !== sessionProvider) {
+						// Before the chat's catalog row, so a restored or listed session never routes it to the session's agent.
+						await this._recordChatAgentProvider(chat.toString(), provider.id);
+					}
 					await this._peerChatStore.upsert(
 						session,
 						chat,
@@ -6443,8 +6448,6 @@ export class AgentService extends Disposable implements IAgentService {
 						peerChatOrigin,
 						createResult?.inheritedTurnId,
 						createOptions?.workingDirectories?.map(directory => directory.toString()),
-						// Recorded with the chat's catalog row, so a restored or listed session never routes it to the session's agent.
-						provider !== sessionProvider ? provider.id : undefined,
 					);
 					if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
 						await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? sessionState.workingDirectories ?? []);
@@ -6487,6 +6490,7 @@ export class AgentService extends Disposable implements IAgentService {
 						const storage = URI.parse(this._chatStorageResource(session, chat));
 						try {
 							await this._peerChatStore.remove(session, chat);
+							await this._deleteChatAgentProviders([chat.toString()]);
 						} catch (rollbackError) {
 							rollbackErrors.push(rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError)));
 						}
@@ -6696,6 +6700,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._peerChatStore.whenSessionsIdle(owner && owner !== sessionKey ? [session, URI.parse(owner)] : [session]);
 					await this._peerChatStore.remove(session, chat);
 					membershipRemoved = true;
+					await this._deleteChatAgentProviders([chatKey]);
 					await this._clearChatDraft(session, chat);
 					await this._deletePeerChatData(session, chat, storage);
 					await this._deletePeerChatSummaryKeys(session, chatKey);
@@ -8058,10 +8063,59 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Storage resources the normalized catalog records for a session's chats. */
-	/** The `provider` catalog metadata of a chat whose agent differs from its session's; empty otherwise. */
-	private _ownProviderMetadata(session: string, chat: string): { readonly provider?: string } {
+	/**
+	 * The recorded agents of chats whose agent differs from their session's, read once from agent-host.db. They live
+	 * outside every validated catalog payload (see {@link IAgentHostDatabase.readChatAgentProviders}), so older builds
+	 * neither see nor rewrite them.
+	 */
+	private _readChatAgentProviders(): Promise<Map<string, string>> {
+		if (!this._chatAgentProviders) {
+			const loading = (async () => new Map(await this._orchestratorDatabase.readChatAgentProviders?.() ?? []))();
+			this._chatAgentProviders = loading;
+			loading.catch(error => {
+				this._logService.warn(`[AgentService] Failed to read the agents of chats: ${toErrorMessage(error)}`);
+				if (this._chatAgentProviders === loading) {
+					this._chatAgentProviders = undefined;
+				}
+			});
+		}
+		return this._chatAgentProviders;
+	}
+
+	private async _recordChatAgentProvider(chat: string, provider: AgentProvider): Promise<void> {
+		await this._orchestratorDatabase.recordChatAgentProvider?.(chat, provider);
+		(await this._readChatAgentProviders()).set(chat, provider);
+	}
+
+	/** Records the agent of a chat that differs from its session's, when it does; failures are logged. */
+	private _recordOwnChatAgentProvider(session: string, chat: string): void {
 		const provider = this._stateManager.getChatProvider(chat);
-		return provider !== undefined && provider !== this._stateManager.getSessionState(session)?.provider ? { provider } : {};
+		if (provider !== undefined && provider !== this._stateManager.getSessionState(session)?.provider) {
+			void this._recordChatAgentProvider(chat, provider).catch(error => this._logService.error(error, `[AgentService] Failed to record the agent of chat ${chat}`));
+		}
+	}
+
+	private async _deleteChatAgentProviders(chats: readonly string[]): Promise<void> {
+		const providers = await this._readChatAgentProviders();
+		const recorded = chats.filter(chat => providers.has(chat));
+		if (recorded.length === 0) {
+			return;
+		}
+		await this._orchestratorDatabase.deleteChatAgentProviders?.(recorded);
+		for (const chat of recorded) {
+			providers.delete(chat);
+		}
+	}
+
+	/** Stamps listed chats with their recorded agents, which the catalog payloads never carry. */
+	private async _withChatAgentProviders(sessions: IAgentSessionMetadata[]): Promise<IAgentSessionMetadata[]> {
+		const providers = await this._readChatAgentProviders().catch(() => undefined);
+		if (!providers?.size) {
+			return sessions;
+		}
+		return sessions.map(session => session.chats?.some(chat => chat.provider === undefined && providers.has(chat.chat.toString()))
+			? { ...session, chats: session.chats.map(chat => chat.provider === undefined && providers.has(chat.chat.toString()) ? { ...chat, provider: providers.get(chat.chat.toString()) } : chat) }
+			: session);
 	}
 
 	private async _readRecordedChatStorage(session: string): Promise<ReadonlyMap<string, string>> {
@@ -9196,7 +9250,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await catalogDeletionFence.whenDrained;
 			if (provider) {
 				traceStage('disposeProviderChats');
-				const chatProviders = new Map(chatCatalog?.chats.flatMap(chat => chat.metadata?.provider !== undefined ? [[chat.chat, chat.metadata.provider] as const] : []));
+				const chatProviders = await this._readChatAgentProviders();
 				const disposed = await this._disposeSession(provider, session, persistedPeerChats, defaultChat, recordedChats.privateChats, chatProviders);
 				chatsToDelete = this._orderSessionChatsForTeardown(session, [...disposed.map(chat => chat.toString()), ...recordedChats.storage.keys()], defaultChat);
 			}
@@ -9234,6 +9288,7 @@ export class AgentService extends Disposable implements IAgentService {
 			traceStage('drainSessionData');
 			await this._whenSessionDataIdle(session);
 			traceStage('deleteChatData');
+			await this._deleteChatAgentProviders(chatsToDelete.map(chat => chat.toString()));
 			await this._deleteChatStorage(session, chatsToDelete.map(chat => ({
 				chat,
 				storage: recordedChats.storage.get(chat.toString()) ?? creationTimeChatStorageResource(sessionKey, chat.toString(), defaultChat),
@@ -12754,7 +12809,6 @@ export class AgentService extends Disposable implements IAgentService {
 				kind: normalized.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
 				title: chat.metadata?.summary,
 				interactivity: chat.metadata?.interactivity,
-				provider: chat.metadata?.provider,
 				changes: chat.metadata?.changes,
 				workingDirectories: chat.workingDirectories,
 			}));
@@ -12877,7 +12931,6 @@ export class AgentService extends Disposable implements IAgentService {
 			kind: 'peer' as const,
 			title: chat.metadata?.summary,
 			interactivity: chat.metadata?.interactivity,
-			provider: chat.metadata?.provider,
 			changes: chat.metadata?.changes,
 			workingDirectories: chat.workingDirectories,
 		})));
@@ -12943,13 +12996,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return undefined;
 		}
+		const chatProviders = await this._readChatAgentProviders();
 		return result.data.chats.map(chat => ({
 			uri: chat.uri.toString(),
 			kind: chat.kind,
 			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-			...(chat.provider !== undefined ? { provider: chat.provider } : {}),
+			...(chatProviders.has(chat.uri.toString()) ? { provider: chatProviders.get(chat.uri.toString()) } : {}),
 			...(chat.archived === true ? { archived: true } : {}),
 			...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
@@ -13028,6 +13082,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], recordedStorage: ReadonlyMap<string, string>, cachedChats?: readonly ICatalogChat[]): Promise<void> {
+		// Read before any chat is registered or hydrated, so every chat is routed to its own agent from the start.
+		const chatProviders = await this._readChatAgentProviders();
 		// One config resolution per agent of the chats with their own agent restored here.
 		const ownConfigCache = new Map<string, Promise<SessionConfigState>>();
 		const restored = await Promise.all(entries.map(async (entry) => {
@@ -13048,8 +13104,9 @@ export class AgentService extends Disposable implements IAgentService {
 				isDefaultChat: false,
 				storageResource,
 			}, cachedTitle ? { title: cachedTitle } : {});
-			const config = cachedChat?.provider !== undefined && entry.origin?.kind !== ChatOriginKind.Tool
-				? await this._restoreOwnChatConfig(session, cachedChat.provider, hydratedConfig?.values, ownConfigCache)
+			const chatProvider = chatProviders.get(chatUri.toString());
+			const config = chatProvider !== undefined && entry.origin?.kind !== ChatOriginKind.Tool
+				? await this._restoreOwnChatConfig(session, chatProvider, hydratedConfig?.values, ownConfigCache)
 				: hydratedConfig;
 			return {
 				chatUri,
@@ -13060,7 +13117,7 @@ export class AgentService extends Disposable implements IAgentService {
 				providerData: entry.providerData,
 				origin: entry.origin,
 				interactivity: cachedChat?.interactivity,
-				provider: cachedChat?.provider,
+				provider: chatProvider,
 				inheritedTurnId: entry.inheritedTurnId,
 				workingDirectories: entry.workingDirectories ?? cachedChat?.workingDirectories,
 				archived: entry.archived,
@@ -13184,7 +13241,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (chat && !this._disposingPeerChats.has(e.chat.toString())) {
 				void this._peerChatStore.persistPrivateChat(URI.parse(sessionStr), {
 					chat: e.chat.toString(), providerData: e.providerData,
-					metadata: { interactivity: ChatInteractivity.Hidden, ...this._ownProviderMetadata(sessionStr, e.chat.toString()) },
+					metadata: { interactivity: ChatInteractivity.Hidden },
 				}).catch(error => this._logService.error(error, `[AgentService] Failed to persist private provider data for ${e.chat.toString()}`));
 			}
 			return;
@@ -13300,6 +13357,8 @@ export class AgentService extends Disposable implements IAgentService {
 			} : {}),
 		});
 		this._resolvePendingSubagentChat(e.chat.toString());
+		// A subagent of a chat with its own agent runs in that agent, also once restored.
+		this._recordOwnChatAgentProvider(e.session.toString(), e.chat.toString());
 		const summary = this._stateManager.getSessionState(e.session.toString())?.chats.find(chat => chat.resource === e.chat.toString());
 		void this._recordLegacyPrivateChatStorage(e.session, e.chat);
 		void this._peerChatStore.persistPrivateChat(e.session, {
@@ -13307,7 +13366,7 @@ export class AgentService extends Disposable implements IAgentService {
 			parentChat: e.parent?.chat.toString(),
 			origin: summary?.origin === undefined ? undefined : JSON.stringify(summary.origin),
 			workingDirectories: summary?.workingDirectories,
-			metadata: { ...(e.title !== undefined ? { summary: e.title } : {}), interactivity: ChatInteractivity.Hidden, ...this._ownProviderMetadata(e.session.toString(), e.chat.toString()) },
+			metadata: { ...(e.title !== undefined ? { summary: e.title } : {}), interactivity: ChatInteractivity.Hidden },
 		}).catch(error => this._logService.error(error, `[AgentService] Failed to persist spawned chat ${e.chat.toString()}`));
 	}
 
@@ -13851,10 +13910,9 @@ export class AgentService extends Disposable implements IAgentService {
 			chat: spawnPoint?.chat ?? parentState.defaultChat ?? this._requireDefaultChat(parentSession),
 			toolCallId,
 		} as const;
-		// A subagent runs in the agent of the chat that spawned it; its catalog row records that agent when the spawning
-		// chat isn't found, so it is never read through the session's agent.
-		const [snapshot] = spawnPoint ? [undefined] : await this._orchestratorDatabase.readCatalogSnapshot([parentSessionKey]);
-		const recordedProvider = snapshot?.chats.find(row => row.chat === chatUri)?.metadata?.provider;
+		// A subagent runs in the agent of the chat that spawned it, recorded at its spawn for when the spawning chat isn't
+		// found, so it is never read through the session's agent.
+		const recordedProvider = spawnPoint ? undefined : (await this._readChatAgentProviders()).get(chatUri);
 		const agent = recordedProvider !== undefined && recordedProvider !== parentState.provider
 			? this._providerService.getProvider(recordedProvider)
 			: this._providerService.getProviderForChat(parentSession, origin.chat);
@@ -14147,7 +14205,7 @@ export class AgentService extends Disposable implements IAgentService {
 				parentChat,
 				origin: JSON.stringify(child.origin),
 				// A subagent runs in the agent of the chat that spawned it.
-				metadata: { interactivity: ChatInteractivity.Hidden, ...this._ownProviderMetadata(parentSessionStr, parentChat) },
+				metadata: { interactivity: ChatInteractivity.Hidden },
 			}, true, isCurrent);
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
@@ -14243,7 +14301,7 @@ export class AgentService extends Disposable implements IAgentService {
 					chat: child.chatUri,
 					parentChat,
 					origin: JSON.stringify(child.origin),
-					metadata: { interactivity: ChatInteractivity.Hidden, ...this._ownProviderMetadata(parentSessionStr, parentChat) },
+					metadata: { interactivity: ChatInteractivity.Hidden },
 				}, true, isCurrent);
 			}
 		}
