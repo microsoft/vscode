@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
@@ -17,7 +17,7 @@ import { IGitHubAccountClient } from '../../../github/common/account/account.js'
 import { IActionsClient, ListWorkflowRunsOptions, WorkflowJob, WorkflowRun } from '../../../github/common/core/actions.js';
 import { IChecksClient } from '../../../github/common/core/checks.js';
 import { GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationApi, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
-import { PullRequestCheck, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestCheck, PullRequestCheckSuite, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService, createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
@@ -449,7 +449,7 @@ suite('Agent Merge repair pacing', () => {
 		});
 	}));
 
-	test('starts held CI-only repair after the maximum hold while checks keep changing', () => withHarness(async h => {
+	test('starts held CI-only repair after the maximum hold, and holds a later repair on the same head again', () => withHarness(async h => {
 		h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
 		await timeout(1);
 		for (let minute = 5; minute < 60; minute += 5) {
@@ -462,9 +462,50 @@ suite('Agent Merge repair pacing', () => {
 		await timeout(4 * 60_000);
 		const beforeLimit = h.prompts.length;
 		await timeout(2 * 60_000);
+		const afterLimit = h.prompts.length;
 
-		assert.deepStrictEqual({ beforeLimit, afterLimit: h.prompts.length }, { beforeLimit: 0, afterLimit: 1 });
+		await h.completeTurn();
+		h.snapshot.set(readySnapshot([
+			check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+			check('windows', 'Windows', 'COMPLETED', 'FAILURE'),
+			check('other-workflow', 'Slow unrelated workflow', 'IN_PROGRESS', undefined, '2'),
+		]), undefined);
+		await timeout(31_000);
+		const afterNewFailure = h.prompts.length;
+		await timeout(ciQuietPeriod);
+
+		assert.deepStrictEqual(
+			{ beforeLimit, afterLimit, afterNewFailure, afterQuiet: h.prompts.length },
+			{ beforeLimit: 0, afterLimit: 1, afterNewFailure: 1, afterQuiet: 2 },
+		);
 	}));
+
+	const pendingWithoutRequiredChecks: readonly { readonly name: string; readonly snapshot: () => PullRequestSnapshot }[] = [
+		{
+			name: 'a check suite that has not reported check runs yet',
+			snapshot: () => readySnapshot([check('mac', 'macOS', 'COMPLETED', 'FAILURE')], 'head', [
+				{ id: 'suite', name: 'analysis', status: 'QUEUED', checkRunsReported: false },
+			]),
+		},
+		{
+			name: 'an optional check',
+			snapshot: () => readySnapshot([
+				check('mac', 'macOS', 'COMPLETED', 'FAILURE'),
+				{ ...check('other-workflow', 'Lint', 'IN_PROGRESS', undefined, '2'), required: false },
+			]),
+		},
+	];
+	for (const { name, snapshot } of pendingWithoutRequiredChecks) {
+		test(`holds CI-only repair while ${name} is still running`, () => withHarness(async h => {
+			h.snapshot.set(snapshot(), undefined);
+			h.stateManager.dispatchServerAction(h.session, { type: ActionType.SessionReady });
+			await timeout(1);
+			const whileRunning = h.prompts.length;
+			await timeout(ciQuietPeriod);
+
+			assert.deepStrictEqual({ whileRunning, afterQuiet: h.prompts.length }, { whileRunning: 0, afterQuiet: 1 });
+		}));
+	}
 
 	test('does not hold repair that also addresses other blockers', () => withHarness(async h => {
 		const snapshot = h.snapshot.get();
@@ -705,9 +746,15 @@ class RerunTestHarness extends Disposable {
 				}
 			}();
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
-				override subscribePullRequest(): PullRequestSubscription {
+				override subscribePullRequest(_ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
+					// Like the query service, only an interest in optional checks reports them.
+					const visible = options.checks?.includeOptional ? snapshot : derived(reader => {
+						const value = snapshot.read(reader);
+						const checks = value.checks.value;
+						return checks ? { ...value, checks: { ...value.checks, value: { ...checks, checks: checks.checks.filter(check => check.required !== false) } } } : value;
+					});
 					return {
-						resource: { ref, snapshot },
+						resource: { ref, snapshot: visible },
 						refresh: async (_fragment, _signal, options) => {
 							if (options?.authoritative) {
 								authoritativeRefreshes.count++;
@@ -828,7 +875,7 @@ function check(id: string, name: string, status: string, conclusion?: string, ru
 	return { id: numericId, name, type: 'checkRun', required: true, status, conclusion, detailsUrl: `https://github.com/octo/repo/actions/runs/${runId}/job/${numericId}` };
 }
 
-function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): PullRequestSnapshot {
+function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head', expectedSuites: readonly PullRequestCheckSuite[] = []): PullRequestSnapshot {
 	return {
 		ref,
 		generation: 1,
@@ -857,7 +904,7 @@ function readySnapshot(checks: readonly PullRequestCheck[], headSha = 'head'): P
 			status: 'ready',
 			complete: true,
 			headSha,
-			value: { headSha, requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true, checks },
+			value: { headSha, requirednessComplete: true, expectedSuites, expectedSuitesComplete: true, checks },
 		},
 		mergeability: {
 			status: 'ready',

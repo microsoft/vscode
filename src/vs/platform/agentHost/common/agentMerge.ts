@@ -1285,7 +1285,7 @@ export function hasAgentMergeRepairProgress(snapshot: PullRequestSnapshot, comme
 	}
 	const { reviewThreads, changesRequested, newComments } = getAgentMergeFeedback(snapshot, commentWatermark);
 	const unresolvedThreads = new Set(reviewThreads.map(thread => `${threadBlockerPrefix}${thread.id}`));
-	const checks = snapshot.checks.value?.checks ?? [];
+	const checks = snapshot.checks.value?.checks.filter(check => check.required === true) ?? [];
 	const mergeability = snapshot.mergeability.value;
 	return previous.blockers.some(blocker => {
 		if (blocker.startsWith(checkBlockerPrefix)) {
@@ -1319,19 +1319,21 @@ function isSuccessfulCheck(check: PullRequestCheck): boolean {
 
 /**
  * Summarizes the checks of a head so a caller can tell when they last changed:
- * `digest` changes whenever any check changes state, and `pending` is whether
- * any check has not finished. Covers all checks, required or not, since any of
- * them moving means CI is still running.
+ * `digest` changes whenever any check or check suite changes state, and
+ * `pending` is whether any of them has not finished. Covers all checks,
+ * required or not, and suites that have not reported check runs yet, since any
+ * of them moving means CI is still running.
  */
 export function getAgentMergeCheckActivity(checks: PullRequestChecks): { readonly digest: string; readonly pending: boolean } {
-	const states = checks.checks
-		.map(check => `${check.id}:${check.status?.toUpperCase() ?? ''}:${check.conclusion?.toUpperCase() ?? ''}`)
-		.sort();
+	const states = [
+		...checks.checks.map(check => `check:${check.id}:${check.status?.toUpperCase() ?? ''}:${check.conclusion?.toUpperCase() ?? ''}`),
+		...checks.expectedSuites.map(suite => `suite:${suite.id}:${suite.status?.toUpperCase() ?? ''}:${suite.conclusion?.toUpperCase() ?? ''}:${suite.checkRunsReported}`),
+	].sort();
 	const pending = checks.checks.some(check => {
 		const status = check.status?.toUpperCase();
 		return check.type === 'statusContext'
 			? !status || status === 'PENDING' || status === 'EXPECTED'
 			: status !== 'COMPLETED';
-	});
+	}) || checks.expectedSuites.some(suite => !suite.checkRunsReported && suite.status?.toUpperCase() !== 'COMPLETED');
 	return { digest: states.join('|'), pending };
 }

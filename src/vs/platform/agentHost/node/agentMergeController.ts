@@ -1086,6 +1086,10 @@ export class AgentMergeController extends Disposable {
 					return;
 				}
 				this._activeTurns.set(key, context);
+				// Each repair gets its own hold window, so a later CI-only repair on this head waits for the checks again.
+				if (runtime.checkActivity) {
+					runtime.checkActivity.holdSince = undefined;
+				}
 				this._logService.info(`[AgentMergeController] Started repair turn: session=${session}, turn=${turnId}, actions=${gate.actions.join(',')}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}, lifetimeAttempts=${lifetimePromptCount}`);
 				this._updateAgentMergeState(session, runtime.folderKey, {
 					lastPromptFingerprint: gate.fingerprint,
@@ -1330,7 +1334,8 @@ export class AgentMergeController extends Disposable {
 				reviewThreads: true,
 				includeBodies: true,
 			},
-			checks: { required: true },
+			// Optional checks never gate merging, but they show whether CI is still running; see `_getCIRepairHold`.
+			checks: { required: true, includeOptional: true },
 			mergeability: true,
 		});
 		this._logService.debug(`[AgentMergeController] Created pull request subscription: key=${key}, priority=background`);
