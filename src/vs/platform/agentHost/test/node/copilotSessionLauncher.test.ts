@@ -2790,7 +2790,8 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 /**
  * Covers the reasoning-effort resolution fed into `createSession` and
  * `CopilotAgent._changeModel`: a valid capability override wins over the model
- * picker's thinking level, and degrades to the picker value otherwise.
+ * picker's thinking level, and degrades to the picker value otherwise. Auto
+ * never forwards an effort because the runtime resolves its concrete model.
  */
 suite('getCopilotReasoningEffort', () => {
 
@@ -2808,6 +2809,13 @@ suite('getCopilotReasoningEffort', () => {
 			],
 			['medium', 'xhigh', 'medium', 'high', undefined]
 		);
+	});
+
+	test('does not forward reasoning effort for Auto', () => {
+		assert.deepStrictEqual([
+			getCopilotReasoningEffort({ id: 'auto', config: { thinkingLevel: 'high' } }),
+			getCopilotReasoningEffort({ id: 'auto' }, 'low'),
+		], [undefined, undefined]);
 	});
 
 	test('accepts Copilot-host reasoningEffort while preserving legacy client selections', () => {
@@ -2865,8 +2873,9 @@ suite('resolveCopilotReasoningEffort', () => {
 				// model-id entry cannot
 				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
 				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				resolveCopilotReasoningEffort({ id: 'auto', config: { thinkingLevel: 'medium' } }, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'high' } } }), log, 's1'),
 			],
-			['low', 'high', 'low', 'high', 'medium', 'medium', 'low', undefined]
+			['low', 'high', 'low', 'high', 'medium', 'medium', 'low', undefined, undefined]
 		);
 	});
 
