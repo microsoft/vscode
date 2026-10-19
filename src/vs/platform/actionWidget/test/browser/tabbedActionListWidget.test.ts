@@ -1327,6 +1327,54 @@ suite('TabbedActionListWidget', () => {
 		assert.deepStrictEqual({ onShow, afterTabSwitch }, { onShow: ['localOnly', 'search'], afterTabSwitch: ['search'] });
 	});
 
+	test('tab bar actions computed per tab follow a refresh and keep their focus', async () => {
+		const { widget } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+
+		let enabled = false;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: [{ id: 'Local' }],
+			initialTab: 'Local',
+			tabBarActions: () => [
+				{ id: 'images', icon: enabled ? Codicon.passFilled : Codicon.pass, tooltip: enabled ? 'Images: On' : 'Images: Off', alignEnd: true, checked: false, run: () => { } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search', alignEnd: true, run: () => { } },
+			],
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const actions = () => [...document.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action')].map(button => ({
+			id: button.dataset.id,
+			icon: button.firstElementChild?.className,
+			label: button.ariaLabel,
+			focused: button === document.activeElement,
+		}));
+		document.querySelector<HTMLElement>('.tabbed-action-list-tabbar-action[data-id="images"]')!.focus();
+		const onShow = actions();
+		// State an action reports changes while the popup stays open.
+		enabled = true;
+		widget.refreshActiveList();
+		// Focus leaving the popup would dismiss it a task later.
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({ onShow, afterRefresh: actions(), visible: widget.isVisible }, {
+			onShow: [
+				{ id: 'images', icon: 'codicon codicon-pass', label: 'Images: Off', focused: true },
+				{ id: 'search', icon: 'codicon codicon-search', label: 'Search', focused: false },
+			],
+			afterRefresh: [
+				{ id: 'images', icon: 'codicon codicon-pass-filled', label: 'Images: On', focused: true },
+				{ id: 'search', icon: 'codicon codicon-search', label: 'Search', focused: false },
+			],
+			visible: true,
+		});
+		widget.hide();
+	});
+
 	test('opening with a collapsed body focuses the footer without animating', () => {
 		const { body, button } = createCollapsibleWidget(disposables, false, true);
 		body.querySelector<HTMLElement>('.monaco-button')!.focus();

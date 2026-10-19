@@ -783,10 +783,16 @@ suite('TabbedModelPicker', () => {
 		return [...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].map(row => `${row.querySelector('.title')?.textContent}${row.classList.contains('chat-model-picker-current') ? ' (current)' : ''}`);
 	}
 
+	/** The image toggle's label, and whether its image is filled, as it is while images are generated. */
+	function imageToggle(popup: HTMLElement): string {
+		const toggle = element(popup, '[data-id="imageModels"]');
+		return `${toggle.ariaLabel} (${toggle.querySelector('.codicon-chat-model-picker-image-filled') ? 'filled' : 'outline'})`;
+	}
+
 	test('the Copilot tab\'s image toggle takes comparison\'s place and lists image models until it is turned off', () => {
 		const { imageModels, selected } = createImageModels();
 		const { popup, picker, selections } = createPicker({ comparison: idleComparison(), imageModels });
-		const before = { actions: tabBarActions(popup), rows: modelRows(popup) };
+		const before = { actions: tabBarActions(popup), rows: modelRows(popup), toggle: imageToggle(popup) };
 		element(popup, '[data-id="imageModels"]').click();
 		const imageList = {
 			actions: tabBarActions(popup),
@@ -795,20 +801,39 @@ suite('TabbedModelPicker', () => {
 			flareAriaLabel: [...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].find(row => row.querySelector('.title')?.textContent === 'GPT Image 2.5 Flare')?.getAttribute('aria-label'),
 		};
 		[...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].find(row => row.querySelector('.title')?.textContent === 'GPT Image 2.5 Flare')!.click();
-		const afterChoosing = { visible: picker.isVisible, rows: modelRows(popup), imageModel: selected.get(), chatSelections: [...selections] };
+		const afterChoosing = { visible: picker.isVisible, rows: modelRows(popup), toggle: imageToggle(popup), imageModel: selected.get(), chatSelections: [...selections] };
 		element(popup, '[data-id="imageModels"]').click();
 		const afterToggleOff = { actions: tabBarActions(popup), rows: modelRows(popup) };
 
 		assert.deepStrictEqual({ before, imageList, afterChoosing, afterToggleOff }, {
-			before: { actions: ['imageModels', 'search'], rows: ['First (current)', 'Fixed', 'Second'] },
+			before: { actions: ['imageModels', 'search'], rows: ['First (current)', 'Fixed', 'Second'], toggle: 'Image Models: Off (outline)' },
 			imageList: {
 				actions: ['imageModels (pressed)', 'search'],
 				rows: ['Off (current)', 'GPT Image 2.5 Flare'],
 				hint: 'Choose the model Copilot uses to generate and edit images. Its charges are in addition to the conversation model.',
 				flareAriaLabel: 'GPT Image 2.5 Flare, Image tokens: 800 input / 3,000 output',
 			},
-			afterChoosing: { visible: true, rows: ['Off', 'GPT Image 2.5 Flare (current)'], imageModel: 'gpt-image-2.5-flare', chatSelections: [] },
+			afterChoosing: { visible: true, rows: ['Off', 'GPT Image 2.5 Flare (current)'], toggle: 'Image Models: GPT Image 2.5 Flare (filled)', imageModel: 'gpt-image-2.5-flare', chatSelections: [] },
 			afterToggleOff: { actions: ['imageModels', 'search'], rows: ['First (current)', 'Fixed', 'Second'] },
+		});
+	});
+
+	test('the image toggle follows the image model in use while the popup stays open', () => {
+		const { imageModels, selected } = createImageModels();
+		const { popup } = createPicker({ comparison: idleComparison(), imageModels });
+		const off = imageToggle(popup);
+		// Changed elsewhere, e.g. in Settings, while the chat models are listed.
+		selected.set('gpt-image-2.5-flare', undefined);
+		const flare = imageToggle(popup);
+		// A model that is no longer offered leaves image generation off.
+		selected.set('gpt-image-2.5-sunburst', undefined);
+		const retired = imageToggle(popup);
+
+		assert.deepStrictEqual({ off, flare, retired, rows: modelRows(popup) }, {
+			off: 'Image Models: Off (outline)',
+			flare: 'Image Models: GPT Image 2.5 Flare (filled)',
+			retired: 'Image Models: Off (outline)',
+			rows: ['First (current)', 'Fixed', 'Second'],
 		});
 	});
 

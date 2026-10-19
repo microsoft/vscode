@@ -162,7 +162,12 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly sizingTab?: string;
 	/** Show the checked item's hover after the popup has been positioned. */
 	readonly showCheckedItemHover?: boolean;
-	/** Optional icon buttons rendered after the tabs; computed per active tab when a function, so an action can belong to one tab. */
+	/**
+	 * Optional icon buttons rendered after the tabs. A function is called for the active tab,
+	 * so an action can belong to one tab, and again whenever the list refreshes, so an
+	 * action's icon, tooltip and pressed state can follow state that changes while the popup
+	 * stays open.
+	 */
 	readonly tabBarActions?: readonly ITabBarAction[] | ((activeTab: string) => readonly ITabBarAction[]);
 	/**
 	 * When tabs show their label beside their icon. `active` labels only the active tab,
@@ -386,30 +391,44 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
-				const tabBarActions = typeof options.tabBarActions === 'function' ? options.tabBarActions(activeTab) : options.tabBarActions;
-				for (const tabAction of tabBarActions ?? []) {
-					const container = tabAction.alignEnd ? tabBar : tabStrip;
-					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
-					button.classList.toggle('align-end', !!tabAction.alignEnd);
-					button.classList.toggle('checked', !!tabAction.checked);
-					button.dataset.id = tabAction.id;
-					button.ariaLabel = tabAction.tooltip;
-					if (tabAction.useManagedHover) {
-						renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
-					} else {
-						button.title = tabAction.tooltip;
+				const tabBarActionDisposables = renderDisposables.add(new MutableDisposable<DisposableStore>());
+				let tabBarButtons: readonly HTMLElement[] = [];
+				const renderTabBarActions = () => {
+					// A rebuilt button takes over the focus of the one it replaces.
+					const focusedActionId = tabBarButtons.find(button => dom.isActiveElement(button))?.dataset.id;
+					const store = new DisposableStore();
+					tabBarActionDisposables.value = store;
+					const tabBarActions = typeof options.tabBarActions === 'function' ? options.tabBarActions(activeTab) : options.tabBarActions;
+					tabBarButtons = (tabBarActions ?? []).map(tabAction => {
+						const container = tabAction.alignEnd ? tabBar : tabStrip;
+						const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
+						store.add(toDisposable(() => button.remove()));
+						button.classList.toggle('align-end', !!tabAction.alignEnd);
+						button.classList.toggle('checked', !!tabAction.checked);
+						button.dataset.id = tabAction.id;
+						button.ariaLabel = tabAction.tooltip;
+						if (tabAction.useManagedHover) {
+							store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, tabAction.tooltip));
+						} else {
+							button.title = tabAction.tooltip;
+						}
+						// Only an action with a real on/off state announces as a toggle. A
+						// momentary one would otherwise read as a toggle that is switched off.
+						if (tabAction.checked !== undefined) {
+							button.setAttribute('aria-pressed', String(tabAction.checked));
+						}
+						dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
+						store.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
+							dom.EventHelper.stop(e, true);
+							tabAction.run();
+						}));
+						return button;
+					});
+					if (focusedActionId !== undefined) {
+						tabBarButtons.find(button => button.dataset.id === focusedActionId)?.focus();
 					}
-					// Only an action with a real on/off state announces as a toggle. A
-					// momentary one would otherwise read as a toggle that is switched off.
-					if (tabAction.checked !== undefined) {
-						button.setAttribute('aria-pressed', String(tabAction.checked));
-					}
-					dom.append(button, dom.$(`span${ThemeIcon.asCSSSelector(tabAction.icon)}`));
-					renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, e => {
-						dom.EventHelper.stop(e, true);
-						tabAction.run();
-					}));
-				}
+				};
+				renderTabBarActions();
 
 				// Built before the active tab's list because a consumer may hold per-tab state
 				// while building, and the active tab has to be the one that keeps it.
@@ -472,6 +491,9 @@ export class TabbedActionListWidget extends Disposable {
 						list.setHoverEnabled(false);
 					}
 					applyWidgetClassNames();
+					if (typeof options.tabBarActions === 'function') {
+						renderTabBarActions();
+					}
 					const preserveSize = !!refreshOptions?.preserveSize;
 					const sizing = sizingTab !== undefined && !preserveSize
 						? options.createActionList(sizingTab, true)

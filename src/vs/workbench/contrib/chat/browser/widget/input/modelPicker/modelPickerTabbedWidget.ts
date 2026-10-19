@@ -25,6 +25,7 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { CopilotImageGenerationOff, isImageGenerationModelSelected } from '../../../../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import type { AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -67,6 +68,11 @@ function isComparisonConfigurationValue(value: unknown): value is string | numbe
 function getImageModelsHint(): string {
 	return localize('chat.modelPicker.imageModels.hint', "Choose the model Copilot uses to generate and edit images. Its charges are in addition to the conversation model.");
 }
+
+/** The image toggle's image while an image model is in use, drawn by modelPicker.css until codicons has image glyphs. */
+const imageGenerationOnIcon = ThemeIcon.fromId('chat-model-picker-image-filled');
+/** The image toggle's image while image generation is off. */
+const imageGenerationOffIcon = ThemeIcon.fromId('chat-model-picker-image');
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
@@ -270,10 +276,11 @@ export class TabbedModelPicker extends Disposable {
 		this._rememberHydraFusionTier(pickerContext);
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		const imageModels = context.imageModels;
-		// The image model can change after its row is chosen, e.g. once the setting is written, so its rows follow it.
+		// The toggle's image shows whether images are generated and the image list checks the model in use, so
+		// both follow the model, which can change after its row is chosen, e.g. once the setting is written.
 		this._imageModelsListener.value = imageModels && autorun(reader => {
 			imageModels.selectedModelId.read(reader);
-			if (this._getShownImageModels(this._context)) {
+			if (this._offersImageModels(this._context, this._activeDestination)) {
 				this._widget.refreshActiveList({ preserveScrollPosition: true, preserveSize: true });
 			}
 		});
@@ -765,11 +772,19 @@ export class TabbedModelPicker extends Disposable {
 		const actions: ITabBarAction[] = [];
 		const comparison = context.comparison;
 		if (this._offersImageModels(context, activeTab)) {
+			const imageModels = context.imageModels;
+			const selectedModelId = imageModels.selectedModelId.get();
+			const generating = isImageGenerationModelSelected(selectedModelId);
+			// A model that is no longer offered leaves image generation off, so the toggle reads Off for it too.
+			const inUse = imageModels.models.find(model => model.id === (generating ? selectedModelId : CopilotImageGenerationOff));
 			// In the Copilot tab, image models take comparison's place beside Search.
 			actions.push({
 				id: 'imageModels',
-				icon: Codicon.fileMedia,
-				tooltip: localize('chat.modelPicker.imageModels', "Image Models"),
+				icon: generating ? imageGenerationOnIcon : imageGenerationOffIcon,
+				// Names the model in use, which the image's fill only shows as on or off.
+				tooltip: inUse
+					? localize('chat.modelPicker.imageModelsInUse', "Image Models: {0}", inUse.label)
+					: localize('chat.modelPicker.imageModels', "Image Models"),
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!this._getShownImageModels(context, activeTab),
