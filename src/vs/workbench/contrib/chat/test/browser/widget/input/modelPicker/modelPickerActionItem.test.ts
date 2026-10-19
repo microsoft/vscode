@@ -309,7 +309,11 @@ suite('ModelPickerActionItem', () => {
 		const { domNode } = renderPicker(createModel('First'), {
 			comparison: upcastPartial<IModelPickerComparison>({ available: constObservable(true), summary, state }),
 		});
-		const label = () => domNode.querySelector('.chat-input-picker-label')?.textContent;
+		const label = () => ({
+			text: domNode.querySelector('.model-picker-name .chat-input-picker-label')?.textContent,
+			trophy: !!domNode.querySelector('.codicon-trophy'),
+			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+		});
 		const initial = label();
 		state.set({
 			title: 'Attempts', description: 'Select models.', summary: '10 Attempts', selectedModelIds: ['model'],
@@ -319,63 +323,74 @@ suite('ModelPickerActionItem', () => {
 		summary.set('3 Attempts', undefined);
 		const committed = label();
 		state.set(undefined, undefined);
-		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed: label() }, {
-			initial: 'First', duringSetup: 'First', committed: '3 Attempts', dismissed: '3 Attempts',
+		const dismissed = label();
+		summary.set(undefined, undefined);
+		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed, reset: label() }, {
+			initial: { text: 'First', trophy: false, ariaLabel: 'Models, First' },
+			duringSetup: { text: 'First', trophy: false, ariaLabel: 'Models, First' },
+			committed: { text: undefined, trophy: true, ariaLabel: 'Models, 3 Attempts' },
+			dismissed: { text: undefined, trophy: true, ariaLabel: 'Models, 3 Attempts' },
+			reset: { text: 'First', trophy: false, ariaLabel: 'Models, First' },
 		});
 	});
 
-	test('composer keeps the labeled summary when variants repeat a model icon', () => {
+	test('composer uses one trophy and preserves variant names in its accessible label and hover', () => {
 		const model = createModel('First');
-		const { domNode } = renderPicker(model, {
+		const { domNode, getHoverContents } = renderPicker(model, {
 			compact: true,
 			showModelIcon: true,
 			comparison: upcastPartial<IModelPickerComparison>({
 				available: constObservable(true),
 				summary: constObservable('First, First Max'),
-				summaryModelIds: constObservable([model.identifier, model.identifier]),
 				state: constObservable(undefined),
 			}),
 		});
 
 		assert.deepStrictEqual({
 			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
-			attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
+			trophies: domNode.querySelectorAll('.model-picker-name > .codicon-trophy').length,
+			icons: domNode.querySelectorAll('.model-picker-name > .codicon').length,
 			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
+			hover: getHoverContents(),
 		}, {
-			label: 'First, First Max',
-			attemptIcons: undefined,
+			label: undefined,
+			trophies: 1,
+			icons: 1,
 			ariaLabel: 'Models, First, First Max',
+			hover: 'Models • First, First Max',
 		});
 	});
 
 	for (const presentation of [
-		{ name: 'expanded', compact: false, minimal: false, attemptIcons: 2, layers: false },
-		{ name: 'compact', compact: true, minimal: false, attemptIcons: undefined, layers: true },
-		{ name: 'minimal', compact: false, minimal: true, attemptIcons: undefined, layers: true },
+		{ name: 'expanded', compact: false, minimal: false, showModelIcon: true },
+		{ name: 'compact', compact: true, minimal: false, showModelIcon: true },
+		{ name: 'minimal', compact: false, minimal: true, showModelIcon: true },
+		{ name: 'without model icons', compact: false, minimal: false, showModelIcon: false },
 	]) {
-		test(`composer uses ${presentation.name === 'expanded' ? 'attempt icons' : 'the layers fallback'} for ${presentation.name === 'expanded' ? 'an' : 'a'} ${presentation.name} distinct-model comparison`, () => {
+		test(`composer uses one trophy for a distinct-model comparison (${presentation.name})`, () => {
 			const first = createModel('First');
 			const second = createModel('Second');
 			const { domNode } = renderPicker(first, {
 				compact: presentation.compact,
 				minimal: presentation.minimal,
 				models: [first, second],
-				showModelIcon: true,
+				showModelIcon: presentation.showModelIcon,
 				comparison: upcastPartial<IModelPickerComparison>({
 					available: constObservable(true),
 					summary: constObservable('First, Second'),
-					summaryModelIds: constObservable([first.identifier, second.identifier]),
 					state: constObservable(undefined),
 				}),
 			});
 
 			assert.deepStrictEqual({
-				attemptIcons: domNode.querySelector('.chat-input-picker-comparison-attempt-icons')?.childElementCount,
-				layers: !!domNode.querySelector('.codicon-layers'),
+				trophies: domNode.querySelectorAll('.model-picker-name > .codicon-trophy').length,
+				icons: domNode.querySelectorAll('.model-picker-name > .codicon').length,
+				label: domNode.querySelector('.chat-input-picker-label')?.textContent,
 				ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
 			}, {
-				attemptIcons: presentation.attemptIcons,
-				layers: presentation.layers,
+				trophies: 1,
+				icons: 1,
+				label: undefined,
 				ariaLabel: 'Models, First, Second',
 			});
 		});
