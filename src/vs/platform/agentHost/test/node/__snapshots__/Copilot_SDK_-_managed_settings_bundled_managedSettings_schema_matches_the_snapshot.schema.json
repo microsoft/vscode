@@ -77,6 +77,22 @@
 					"type": "boolean"
 				}
 			},
+			"vscode": {
+				"description": "VS Code-specific managed preferences. Preserved by the shared runtime for VS Code to consume; the runtime and other clients do not interpret these preferences. Delivered through server-managed or file-based settings, not native MDM.",
+				"type": "object",
+				"additionalProperties": false,
+				"x-mdm-delivery": false,
+				"properties": {
+					"temporaryDefaultToLocalHarness": {
+						"description": "Temporary escape hatch: true defaults new VS Code chats to the Local harness without disabling telemetry or preventing users from choosing the Copilot harness. False or absent restores normal rollout behavior. This preference must not override governance requiring the Copilot harness, including enforced sandboxing and runtime-owned permission policies.",
+						"type": "boolean"
+					}
+				},
+				"x-composition": {
+					"strategy": "highest-layer-wins",
+					"description": "The whole vscode block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An explicit false or empty block replaces a lower-priority true; this is a preference, not a security floor."
+				}
+			},
 			"model": {
 				"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. Users may override this startup default. Hosts should match it against the account's available models.",
 				"type": "string",
@@ -178,6 +194,53 @@
 					"description": "Shared settings-engine annotations are descriptive, not a complete specification of this runtime's composition rules. Use managedSettings.compose for the runtime's effective result."
 				}
 			},
+			"ensembleTier": {
+				"description": "Managed Ensemble tier, used with the virtual auto model. A bare tier locks the preference; an overridable wrapper supplies a default. Presence in any managed source suppresses autoTier across all sources. Explicit unmanaged means no managed tier and no legacy fallback. When no source supplies ensembleTier, responses expose legacy efficiency and balance as balance and intelligence as high; these compatibility aliases do not change the legacy runtime preference. Never synthesize autoTier from ensembleTier.",
+				"examples": [
+					"balance",
+					"high",
+					"max",
+					"unmanaged",
+					{
+						"overridable": "high"
+					}
+				],
+				"oneOf": [
+					{
+						"type": "string",
+						"enum": [
+							"balance",
+							"high",
+							"max",
+							"unmanaged"
+						]
+					},
+					{
+						"type": "object",
+						"properties": {
+							"overridable": {
+								"type": "string",
+								"enum": [
+									"balance",
+									"high",
+									"max",
+									"unmanaged"
+								]
+							}
+						},
+						"required": [
+							"overridable"
+						],
+						"additionalProperties": false
+					}
+				],
+				"x-composition": {
+					"allowOverridable": true,
+					"strategy": "enum-order-wins",
+					"collapseStrategy": "enum-order-permissive-wins",
+					"description": "Uses the existing Auto channel precedence among explicit Ensemble settings; legacy Auto settings do not compete."
+				}
+			},
 			"permissions": {
 				"description": "Controls that govern permissions mode behavior.",
 				"type": "object",
@@ -255,7 +318,7 @@
 						}
 					},
 					"limitTo": {
-						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request.",
+						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request. This permission boundary does not enable the sandbox or modify sandbox.userPolicy.network; sandbox network restrictions must be configured independently.",
 						"type": "array",
 						"items": {
 							"type": "string",
@@ -723,6 +786,11 @@
 						"type": "string",
 						"format": "uri"
 					},
+					"filePath": {
+						"description": "Selects a file destination instead of the collector endpoint and automatically enables OTel unless this managed telemetry block sets enabled to false. Empty or non-string canonical policy values are validation errors. For Copilot runtime and VS Code Agent Host consumers, a relative path is resolved under COPILOT_HOME when that override is nonempty, otherwise under the exporting execution host's default <user-home>/.copilot directory; a COPILOT_HOME override must be absolute. A leading ~/ is expanded using the exporting execution host's home directory. This path-resolution contract does not claim behavior for server-side or other consumers. Parent directories are created as needed. Path-resolution and file I/O failures are logged and skipped without blocking Copilot or falling back to a network destination.",
+						"type": "string",
+						"minLength": 1
+					},
 					"protocol": {
 						"description": "OTLP transport protocol used for all exported telemetry. Equivalent to the OTEL_EXPORTER_OTLP_PROTOCOL environment variable; the managed value takes precedence over any user-provided value. Recognized values are \"http/json\" and \"http/protobuf\" (\"grpc\" is accepted for forward compatibility but is not implemented in this version and falls back to the default protocol).",
 						"type": "string"
@@ -733,6 +801,65 @@
 						"additionalProperties": {
 							"type": "string"
 						}
+					},
+					"headersProvider": {
+						"description": "Either false to disable dynamic telemetry headers, or a shell-free command that produces fresh headers. The executable path follows policy-helper path rules; arguments are passed verbatim without shell evaluation.",
+						"oneOf": [
+							{
+								"const": false
+							},
+							{
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"path"
+								],
+								"properties": {
+									"path": {
+										"type": "string",
+										"minLength": 1,
+										"allOf": [
+											{
+												"not": {
+													"pattern": "^\\s|\\s$|[/\\\\]$|^\\.{1,2}$"
+												}
+											},
+											{
+												"anyOf": [
+													{
+														"pattern": "^/.+"
+													},
+													{
+														"pattern": "^[A-Za-z]:[/\\\\].+"
+													},
+													{
+														"pattern": "^\\\\\\\\[^/\\\\]+[/\\\\].+"
+													},
+													{
+														"pattern": "^~[/\\\\].+"
+													},
+													{
+														"pattern": "^[^~/\\\\][^/\\\\]*$"
+													}
+												]
+											}
+										]
+									},
+									"args": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"default": []
+									},
+									"refreshIntervalMs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1740000
+									}
+								}
+							}
+						]
 					},
 					"resourceAttributes": {
 						"description": "Extra OTel resource attributes (e.g. cost center / team routing). Equivalent to OTEL_RESOURCE_ATTRIBUTES.",
@@ -794,7 +921,26 @@
 				"x-composition": {
 					"strategy": "highest-priority-managed-block-wins",
 					"description": "The highest-priority managed channel that defines telemetry supplies the complete managed telemetry block; weaker managed telemetry blocks do not merge into it. Explicit managed fields are authoritative over local or environment configuration. Omitted fields fall back according to the client resolver, including legacy captureContent and lockCaptureContent compatibility."
-				}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"headersProvider": {
+									"type": "object"
+								}
+							},
+							"required": [
+								"headersProvider"
+							]
+						},
+						"then": {
+							"required": [
+								"endpoint"
+							]
+						}
+					}
+				]
 			},
 			"sandbox": {
 				"description": "Enterprise-mandated sandbox floor. Admin-set values compose with the user's own sandbox configuration in the safe (more-restrictive) direction and cannot be loosened by the user. Only non-deprecated keys are part of the managed surface. The restrictiveness merge itself is applied by the client at resolve time (see #11374); recognizing the block here is behavior-neutral.",
@@ -1143,9 +1289,9 @@
 						],
 						"properties": {
 							"serverName": {
-								"description": "Matches a server by its assigned label (exact, no wildcards). Restricted to letters, numbers, hyphens, and underscores.",
+								"description": "Matches a server by its assigned label (exact, case-sensitive, no wildcards or normalization). Supports registry names such as microsoft/playwright-mcp and io.github.github/github-mcp-server. Restricted to ASCII letters, numbers, hyphens, underscores, dots, and forward slashes.",
 								"type": "string",
-								"pattern": "^[A-Za-z0-9_-]+$"
+								"pattern": "^[A-Za-z0-9_./-]+$"
 							}
 						},
 						"additionalProperties": false
@@ -1154,5 +1300,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.95-0"
+	"runtimeVersion": "1.0.100-1"
 }

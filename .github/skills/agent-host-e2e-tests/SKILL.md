@@ -78,8 +78,8 @@ Always add a comment explaining *why* the gate exists. Also add or update the co
 New Agent Host E2E and real-provider integration tests are not ready to merge after local or GitHub pull-request CI alone. Push the branch, open or update a draft PR, then use the `azure-pipelines` skill to validate the real packaged Electron integration-test path.
 
 1. Queue VS Code pipeline definition `111` with `VSCODE_BUILD_TYPE=CI`; enable Windows, Linux, and macOS x64 while disabling publishing, release, Web, ARM, Alpine, and Snap artifacts. The `azure-pipelines` skill contains the canonical command.
-2. Monitor jobs as they finish. Inspect a failed platform's Electron integration-test task immediately rather than waiting for unrelated stages to complete.
-3. Treat the Agent Host E2E result as accepted only when the Electron integration tests succeed on Windows, Linux, and macOS.
+2. Monitor jobs as they finish. Inspect a failed platform's `Agent Host E2E Tests (Electron)` job and its `🧪 Run Agent Host E2E tests (Electron)` task (test ID `integration-agent-host-e2e`) immediately rather than waiting for unrelated stages to complete.
+3. Treat the Agent Host E2E result as accepted only when the `🧪 Run Agent Host E2E tests (Electron)` task succeeds on Windows, Linux, and macOS.
 4. Rerun an apparently unrelated or pre-existing failure in isolation before attributing it to the PR.
 5. After a platform-specific fix, rerun at least that platform. Rerun all three platforms when the fix can affect shared behavior, provider fixtures, process lifecycle, or cross-platform paths.
 6. Cancel obsolete builds after pushing a replacement commit.

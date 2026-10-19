@@ -79,9 +79,9 @@ import { ISCMHistoryOptions } from '../../contrib/scm/common/history.js';
 import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from '../../contrib/search/common/search.js';
 import { IRawClosedNotebookFileMatch } from '../../contrib/search/common/searchNotebookHelpers.js';
-import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from '../../contrib/speech/common/speechService.js';
+import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent, IVoiceLiveSessionResult } from '../../contrib/speech/common/speechService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
-import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from '../../contrib/timeline/common/timeline.js';
+import { Timeline, TimelineOptions, TimelineProviderDescriptor, WorkspaceTimelineProviderDescriptor } from '../../contrib/timeline/common/timeline.js';
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { RelatedInformationResult, RelatedInformationType } from '../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { AiSettingsSearchProviderOptions, AiSettingsSearchResult } from '../../services/aiSettingsSearch/common/aiSettingsSearch.js';
@@ -250,8 +250,10 @@ export interface MainThreadConfigurationShape extends IDisposable {
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 }
 
+export type IMarkerChange = [uri: UriComponents, markers: IMarkerData[] | undefined, isTruncated?: boolean];
+
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
+	$changeMany(owner: string, entries: IMarkerChange[]): void;
 	$clear(owner: string): void;
 }
 
@@ -399,6 +401,12 @@ export interface IOnEnterRuleDto {
 	previousLineText?: IRegExpDto;
 	action: EnterAction;
 }
+export interface IAutoClosingPairDto {
+	open: string;
+	close: string;
+	notIn?: string[];
+	beforeText?: IRegExpDto;
+}
 export interface ILanguageConfigurationDto {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
@@ -421,11 +429,7 @@ export interface ILanguageConfigurationDto {
 			notIn?: string[];
 		}[];
 	};
-	autoClosingPairs?: {
-		open: string;
-		close: string;
-		notIn?: string[];
-	}[];
+	autoClosingPairs?: IAutoClosingPairDto[];
 }
 
 export type GlobPattern = string | IRelativePattern;
@@ -1420,6 +1424,7 @@ export interface MainThreadInteractiveShape extends IDisposable {
 
 export interface MainThreadSpeechShape extends IDisposable {
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
+	$registerVoiceLiveSessionProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
 
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void;
@@ -1437,6 +1442,7 @@ export interface ExtHostSpeechShape {
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
+	$createVoiceLiveSession(handle: number, sdp: string | undefined, token: CancellationToken): Promise<IVoiceLiveSessionResult | undefined>;
 }
 
 export interface BrowserTabDto {
@@ -2349,7 +2355,13 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 export interface MainThreadTimelineShape extends IDisposable {
 	$registerTimelineProvider(provider: TimelineProviderDescriptor): void;
 	$unregisterTimelineProvider(source: string): void;
-	$emitTimelineChangeEvent(e: TimelineChangeEvent | undefined): void;
+	$registerWorkspaceTimelineProvider(provider: WorkspaceTimelineProviderDescriptor): void;
+	$unregisterWorkspaceTimelineProvider(source: string): void;
+	/**
+	 * @param uris The files or folders whose timelines changed, or `undefined` if all of them changed.
+	 */
+	$emitTimelineChangeEvent(source: string, uris: UriComponents[] | undefined): void;
+	$emitWorkspaceTimelineChangeEvent(source: string): void;
 }
 
 export interface HoverWithId extends languages.Hover {
@@ -2515,6 +2527,7 @@ export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandles?: string[]): Promise<(readonly (number | ITreeItem)[])[] | undefined>;
 	$handleDrop(destinationViewId: string, requestId: number, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
+	$releaseDragOperation(operationUuid: string): void;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelectionAndFocus(treeViewId: string, selectionHandles: string[], focusHandle: string): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
@@ -3645,7 +3658,10 @@ export interface ExtHostTunnelServiceShape {
 }
 
 export interface ExtHostTimelineShape {
-	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken): Promise<Dto<Timeline> | undefined>;
+	/**
+	 * @param uri The file or folder to get the timeline for, or `undefined` for the workspace timeline.
+	 */
+	$getTimeline(source: string, uri: UriComponents | undefined, options: TimelineOptions, token: CancellationToken): Promise<Dto<Timeline> | undefined>;
 }
 
 export const enum ExtHostTestingResource {

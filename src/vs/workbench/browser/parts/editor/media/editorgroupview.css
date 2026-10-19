@@ -210,7 +210,7 @@
 	z-index: 9;
 	pointer-events: none;
 	background-color: var(--title-border-bottom-color);
-	width: 100%;
+	width: var(--title-border-bottom-width, 100%);
 	height: 1px;
 }
 

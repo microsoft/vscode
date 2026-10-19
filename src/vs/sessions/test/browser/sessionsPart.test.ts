@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { EventType } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { timeout } from '../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
@@ -35,8 +36,15 @@ suite('Sessions - Sessions Part', () => {
 
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
+	test('positional pane lookup distinguishes the empty composer from an absent pane', () => {
+		const { part } = createSessionsPartTestHarness(store);
+		const session = createTestActiveSession('session');
+		part.updateVisibleSessions([undefined, session], session);
+		assert.deepStrictEqual([part.getSessionAtPosition(0), part.getSessionAtPosition(-1)?.sessionId, part.getSessionAtPosition(2)], [null, session.sessionId, undefined]);
+	});
+
 	test('session gaps omit separators while compact density preserves themed separators', () => {
-		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
+		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00', [contrastBorder]: '#00000000' };
 		const themes = [
 			new TestColorTheme(colors, ColorScheme.DARK),
 			new TestColorTheme({ ...colors, [contrastBorder]: '#ffffff' }, ColorScheme.HIGH_CONTRAST_DARK),
@@ -78,7 +86,7 @@ suite('Sessions - Sessions Part', () => {
 	});
 
 	test('compact session separators preserve contrast borders across theme changes', () => {
-		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
+		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00', [contrastBorder]: '#00000000' };
 		const themes = [
 			new TestColorTheme(colors, ColorScheme.DARK),
 			new TestColorTheme({ ...colors, [contrastBorder]: '#ffffff' }, ColorScheme.HIGH_CONTRAST_DARK),
@@ -262,6 +270,38 @@ suite('Sessions - Sessions Part', () => {
 		part.layout(1402, 902, 0, 0);
 		part.layout(1402, 902, 0, 0);
 		assert.deepStrictEqual(observations, [['698px', '698px'], ['698px', '698px']]);
+	});
+
+	test('aggregates chats actually shown across splits, maximization, and part visibility', async () => {
+		const { part } = createSessionsPartTestHarness(store);
+		const splitSession = createTestActiveSession('split', true, { chatCount: 2 });
+		const singleSession = createTestActiveSession('single');
+		part.updateVisibleSessions([splitSession, singleSession], splitSession);
+		part.layout(1202, 802, 0, 0);
+		const initial = part.shownChatCount.get();
+
+		part.getSessionView('split')!.splitActiveChat('right');
+		await timeout(0);
+		const split = part.shownChatCount.get();
+
+		part.toggleMaximizeSession('single');
+		const maximized = part.shownChatCount.get();
+		part.toggleMaximizeSession('single');
+		const restored = part.shownChatCount.get();
+
+		part.setVisible(false);
+		const partHidden = part.shownChatCount.get();
+		part.setVisible(true);
+		const partShown = part.shownChatCount.get();
+
+		assert.deepStrictEqual({ initial, split, maximized, restored, partHidden, partShown }, {
+			initial: 2,
+			split: 3,
+			maximized: 1,
+			restored: 3,
+			partHidden: 0,
+			partShown: 3,
+		});
 	});
 
 	for (const maximized of [false, true]) {

@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { CodeWindow } from '../../../../../base/browser/window.js';
-import { Event as VSCodeEvent } from '../../../../../base/common/event.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -16,13 +17,15 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { GitHubService, IGitHubService } from '../../../../../platform/github/common/githubService.js';
-import { RequestFetch } from '../../../../../platform/github/common/types.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IGitHubAnonymousClient } from '../../../../../platform/github/common/anonymous/anonymous.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { IGitHubUploadService } from '../../browser/githubUploadService.js';
 import { IssueFormService } from '../../browser/issueFormService.js';
 import { IssueWebReporter } from '../../browser/issueReporterService.js';
@@ -42,65 +45,72 @@ suite('IssueFormService', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IHostService, {});
 		instantiationService.stub(IGitHubUploadService, {});
-		instantiationService.stub(IGitHubService, {});
+		instantiationService.stub(IWorkbenchGitHubService, {});
 		return instantiationService;
 	}
 
-	function createSearchService(fetch: RequestFetch) {
+	function createSearchService(search: IGitHubAnonymousClient['search']['issues']) {
 		const instantiationService = createInstantiationService();
-		const logService = new NullLogService();
-		const gitHubService = store.add(new GitHubService({
-			fetch,
-			credentialProvider: {
-				onDidChange: VSCodeEvent.None,
-				getToken: () => { throw new Error('Issue search must never select an authenticated session'); },
-			},
-		}, logService, NullTelemetryService));
-		instantiationService.stub(IGitHubService, gitHubService);
-		instantiationService.stub(ILogService, logService);
-		return store.add(instantiationService.createInstance(IssueFormService));
+		const leases = { acquired: 0, released: 0 };
+		instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+			override async acquireAnonymousApiClient() {
+				leases.acquired++;
+				return upcastPartial<IGitHubAnonymousClient>({
+					search: { issues: search },
+					dispose: () => { leases.released++; },
+				});
+			}
+		}());
+		instantiationService.stub(ILogService, new NullLogService());
+		return {
+			service: store.add(instantiationService.createInstance(IssueFormService)),
+			leases,
+		};
 	}
 
-	test('search uses the governed anonymous client and safely encodes the public query', async () => {
-		const requests: { query: string | null; authenticated: boolean; credentials: RequestCredentials | undefined }[] = [];
-		const service = createSearchService(async (input, init) => {
-			requests.push({
-				query: new URL(String(input)).searchParams.get('q'),
-				authenticated: new Headers(init?.headers).has('Authorization'),
-				credentials: init?.credentials,
-			});
-			return new Response('{"items":[{"html_url":"https://github.com/owner/repo/issues/1","title":"Issue title","state":"open"}]}');
+	test('search uses the anonymous client with a ten-second deadline and returns its items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const requests: { query: string; options: ApiRequestOptions | undefined }[] = [];
+		const deadline = Date.now() + 10_000;
+		const items = [{
+			id: 1, node_id: 'I_1', number: 1, html_url: 'https://github.com/owner/repo/issues/1',
+			repository_url: 'https://api.github.com/repos/owner/repo', title: 'Issue title', state: 'open', user: null, score: 1,
+			updated_at: '2026-10-14T01:00:00Z',
+		}];
+		const { service, leases } = createSearchService(async (query, _signal, options) => {
+			requests.push({ query, options });
+			return { total_count: 1, incomplete_results: false, items };
 		});
 		const query = 'title & labels #1';
 		const results = await Promise.all([
 			service.searchGitHubIssues('owner/repo', query, new AbortController().signal),
 			service.searchGitHubIssues('owner/repo', query, new AbortController().signal),
 		]);
-		assert.deepStrictEqual({ requests, results }, {
-			requests: [{ query: `is:issue repo:owner/repo ${query}`, authenticated: false, credentials: 'omit' }],
-			results: Array.from({ length: 2 }, () => [{ html_url: 'https://github.com/owner/repo/issues/1', title: 'Issue title', state: 'open' }]),
+		assert.deepStrictEqual({ requests, returnedItems: results.map(result => result === items), leases }, {
+			requests: [0, 1].map(() => ({ query: `repo:owner/repo ${query}`, options: { caller: 'github.query', deadline } })),
+			returnedItems: [true, true],
+			leases: { acquired: 2, released: 2 },
 		});
-	});
+	}));
 
 	test('malformed and failed searches remain failures rather than empty successful results', async () => {
+		const errors = [new GitHubRequestError('Not Found', 'notFound', 404), new SchemaError('Malformed search response')];
 		let calls = 0;
-		const service = createSearchService(async () => ++calls === 1
-			? new Response('{"message":"Not Found"}', { status: 404 })
-			: new Response('{"items":"not-an-array"}'));
-		await assert.rejects(service.searchGitHubIssues('owner/repo', 'first', new AbortController().signal), { kind: 'notFound' });
-		await assert.rejects(service.searchGitHubIssues('owner/repo', 'second', new AbortController().signal), { kind: 'malformedResponse' });
+		const { service, leases } = createSearchService(async () => { throw errors[calls++]; });
+		for (const [index, expected] of errors.entries()) {
+			await assert.rejects(service.searchGitHubIssues('owner/repo', String(index), new AbortController().signal), error => error === expected);
+		}
+		assert.deepStrictEqual(leases, { acquired: 2, released: 2 });
 	});
 
 	test('cancelled and disposed reporters do not issue search requests', async () => {
-		let calls = 0;
-		const service = createSearchService(async () => { calls++; return new Response('{"items":[]}'); });
+		const { service, leases } = createSearchService(async () => assert.fail('Cancelled reporters must not search'));
 		const controller = new AbortController();
 		const reason = new Error('cancelled');
 		controller.abort(reason);
 		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', controller.signal), error => error === reason);
 		service.dispose();
-		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal), /disposed/);
-		assert.strictEqual(calls, 0);
+		await assert.rejects(service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal), isCancellationError);
+		assert.deepStrictEqual(leases, { acquired: 0, released: 0 });
 	});
 
 	test('disposes the legacy web reporter when its auxiliary window closes', async () => {

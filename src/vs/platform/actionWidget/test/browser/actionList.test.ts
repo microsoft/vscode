@@ -1916,6 +1916,38 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('a submenu beneath hover content is still advertised by its chevron and popup state', () => {
+		const child = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('menu'), hover: { content: 'About this item' }, submenuActions: [child] }, { ...action('hover'), hover: { content: 'About this item' } }],
+			listOptions: { showFilter: false },
+		});
+		const rows = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')).filter(row => !row.closest('.action-list-submenu-panel'));
+		const state = () => rows().map(row => ({
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		}));
+
+		const initial = state();
+		rows()[0].querySelector<HTMLElement>('.action-list-submenu-indicator.has-submenu')?.click();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+
+		assert.deepStrictEqual({
+			initial,
+			opened: state()[0].expanded,
+			panel: {
+				hover: panel?.querySelector('.action-list-submenu-hover-header')?.textContent,
+				actions: Array.from(panel?.querySelectorAll('.monaco-list-row.action .title') ?? [], title => title.textContent),
+			},
+		}, {
+			// A row with only hover content has no menu to advertise.
+			initial: [{ chevron: true, haspopup: 'menu', expanded: 'false' }, { chevron: false, haspopup: null, expanded: null }],
+			opened: 'true',
+			panel: { hover: 'About this item', actions: ['Child'] },
+		});
+	});
+
 	test('the submenu gutter follows the items the list currently holds', () => {
 		const expandable = (id: string): IActionListItem<ITestActionItem> => ({ ...action(id), hover: { content: 'panel', expandable: true } });
 		const gutters = (widget: ActionListWidget<ITestActionItem>) =>

@@ -175,11 +175,26 @@
 
 /* Info bar: caption · counter */
 .image-carousel-editor .image-info-bar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	max-width: 100%;
+	box-sizing: border-box;
 	text-align: center;
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	padding: 0 24px;
+	font-size: var(--vscode-fontSize-label1);
+	padding: 0 var(--vscode-spacing-size240);
 	min-height: 16px;
+}
+
+.image-carousel-editor .image-info-text {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.image-carousel-editor .image-actions {
+	flex-shrink: 0;
 }
 
 .image-carousel-editor .caption-separator::before {

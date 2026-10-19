@@ -68,6 +68,16 @@ const catalogPageSize = 24;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
 const leadingBrowseItemCount = 4;
+
+function formatCompactCount(count: number): string {
+	if (count > 1_000_000) {
+		return `${Math.floor(count / 100_000) / 10}M`;
+	} else if (count > 1000) {
+		return `${Math.floor(count / 1000)}K`;
+	}
+	return String(count);
+}
+
 const resultRowHeight = 56;
 const searchInputHeight = 20;
 const firstPartyPublishers = new Set(['azure', 'azure-samples', 'github', 'microsoft', 'microsoftdocs']);
@@ -499,7 +509,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				const star = DOM.append(templateData.stats, $('.codicon'));
 				star.classList.add(...ThemeIcon.asClassNameArray(Codicon.starFull));
 				star.setAttribute('aria-hidden', 'true');
-				DOM.append(templateData.stats, $('span')).textContent = element.resource.stars.toLocaleString();
+				DOM.append(templateData.stats, $('span')).textContent = formatCompactCount(element.resource.stars);
 			} else {
 				templateData.stats.removeAttribute('aria-label');
 			}
@@ -662,7 +672,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const header = this.header = DOM.append(content, $('.customization-discovery-header'));
 		const titleRow = DOM.append(header, $('.customization-discovery-title-row'));
 		const title = DOM.append(titleRow, $('h2.customization-discovery-title'));
-		title.textContent = localize('customizationDiscovery.title', "Discover customizations");
+		title.textContent = localize('customizationDiscovery.title', "Browse customizations");
 		this.createAddButton(titleRow);
 		this.titleDescription = DOM.append(header, $('p.customization-discovery-description'));
 		this.updateDescription();
@@ -2076,7 +2086,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return type && this.matchesType(type) && !hasInstallationTarget(this.getInstallState(item));
 		});
 		return [
-			localize('customizationDiscovery.title', "Discover customizations"),
+			localize('customizationDiscovery.title', "Browse customizations"),
 			this.query.isEmpty()
 				? localize('customizationDiscovery.accessibleBrowse', "Browse mode.")
 				: localize('customizationDiscovery.accessibleSearch', "Search: {0}", this.query.toString()),

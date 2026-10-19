@@ -159,6 +159,27 @@ function getMcpServerUrlInGallery(mcpServerUrl: string, mcpGalleryManifest: IMcp
 	}
 }
 
+function getNamedServerUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+	const namedResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerNamedResourceUri);
+	return namedResourceUriTemplate ? format2(namedResourceUriTemplate, { name }) : undefined;
+}
+
+function getServerIdUrl(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+	const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerIdUri);
+	return resourceUriTemplate ? format2(resourceUriTemplate, { id }) : undefined;
+}
+
+function getLatestServerVersionUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+	const latestVersionResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerLatestVersionUri);
+	return latestVersionResourceUriTemplate ? format2(latestVersionResourceUriTemplate, { name: encodeURIComponent(name) }) : undefined;
+}
+
+export function getMcpGalleryServerCardUrl(server: Pick<IGalleryMcpServer, 'name' | 'id'>, manifest: IMcpGalleryManifest): string | undefined {
+	return getLatestServerVersionUrl(server.name, manifest)
+		?? getNamedServerUrl(server.name, manifest)
+		?? (server.id ? getServerIdUrl(server.id, manifest) : undefined);
+}
+
 interface IRawGalleryMcpServer {
 	readonly name: string;
 	readonly description: string;
@@ -905,9 +926,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 
 	private async getMcpServerByName({ name, id }: { name: string; id?: string }, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
 		const urls = [
-			this.getLatestServerVersionUrl(name, mcpGalleryManifest),
-			this.getNamedServerUrl(name, mcpGalleryManifest),
-			id ? this.getServerIdUrl(id, mcpGalleryManifest) : undefined,
+			getLatestServerVersionUrl(name, mcpGalleryManifest),
+			getNamedServerUrl(name, mcpGalleryManifest),
+			id ? getServerIdUrl(id, mcpGalleryManifest) : undefined,
 		];
 
 		let attempted = false;
@@ -1224,30 +1245,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	private getSerializer(mcpGalleryManifest: IMcpGalleryManifest | null): IGalleryMcpServerDataSerializer | undefined {
 		const version = mcpGalleryManifest?.version ?? 'v0';
 		return this.galleryMcpServerDataSerializers.get(version);
-	}
-
-	private getNamedServerUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
-		const namedResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerNamedResourceUri);
-		if (!namedResourceUriTemplate) {
-			return undefined;
-		}
-		return format2(namedResourceUriTemplate, { name });
-	}
-
-	private getServerIdUrl(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
-		const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerIdUri);
-		if (!resourceUriTemplate) {
-			return undefined;
-		}
-		return format2(resourceUriTemplate, { id });
-	}
-
-	private getLatestServerVersionUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
-		const latestVersionResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerLatestVersionUri);
-		if (!latestVersionResourceUriTemplate) {
-			return undefined;
-		}
-		return format2(latestVersionResourceUriTemplate, { name: encodeURIComponent(name) });
 	}
 
 	private getWebUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {

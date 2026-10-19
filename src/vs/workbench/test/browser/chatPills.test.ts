@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { addDisposableListener, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
-import type { IManagedHoverContent, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
@@ -18,12 +19,15 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../platform/actionWidget/browser/actionWidget.js';
 import { IFileContent, IFileService } from '../../../platform/files/common/files.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
@@ -1251,5 +1255,78 @@ suite('ChatPills', () => {
 		});
 
 		disposables.dispose();
+	});
+
+	test('mirrors a lone inline entry\'s promoted action onto the pill, with its own tooltip instead of a hover copy', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const managedHovers = new Map<HTMLElement, IManagedHoverContentOrFactory>();
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupManagedHover: (delegate, target, content, options) => {
+				managedHovers.set(target, content);
+				return NullHoverService.setupManagedHover(delegate, target, content, options);
+			},
+		});
+		const events: string[] = [];
+		const promotedAction = store.add(new Action('close', 'Close Canvas Preview', undefined, true, async () => { events.push('closed'); }));
+		const entry: IChatPillEntry = { id: 'preview', label: 'Preview', promotedAction, open: () => { events.push('opened'); } };
+		const sections = observableValue<readonly IChatPillSection[]>('sections', [{ title: 'Canvases', entries: [entry] }]);
+		const render = (promotedActionIcon: ThemeIcon | undefined) => {
+			const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('canvases', 'Canvases')), {}, sections, {
+				widgetId: 'canvases',
+				icon: Codicon.preview,
+				title: 'Canvases',
+				summaryLabel: count => `${count} Canvases`,
+				summaryAriaLabel: count => `Show ${count} canvases`,
+				promotedActionIcon,
+			}));
+			const container = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			viewItem.render(container);
+			return { container, hoverActions: () => getDropdownPillHoverOptions.call(viewItem)?.actions?.map(action => action.label) };
+		};
+		const { container, hoverActions } = render(Codicon.closeCompact);
+		const withoutIcon = render(undefined);
+		const promoted = container.querySelector<HTMLElement>('.chat-pill-promoted-action');
+		assert.ok(promoted);
+		const tooltip = managedHovers.get(promoted);
+		const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		promoted.dispatchEvent(mouseDown);
+		promoted.click();
+		const clicked = events.splice(0);
+		promoted.dispatchEvent(new CustomEvent(TouchEventType.Tap));
+		const tapped = events.splice(0);
+		const single = {
+			attributes: { role: promoted.getAttribute('role'), tabIndex: promoted.getAttribute('tabindex'), ariaLabel: promoted.getAttribute('aria-label') },
+			tooltip: typeof tooltip === 'function' ? tooltip() : tooltip,
+			pillHoverActions: hoverActions(),
+			compactGlyph: promoted.classList.contains('codicon-close-compact'),
+			reservesSpace: container.classList.contains('has-promoted-action'),
+			keepsFocus: mouseDown.defaultPrevented,
+			clicked,
+			tapped,
+		};
+		const withoutIconSingle = { promoted: withoutIcon.container.querySelector('.chat-pill-promoted-action'), pillHoverActions: withoutIcon.hoverActions() };
+		sections.set([{ title: 'Canvases', entries: [entry, { id: 'other', label: 'Other', promotedAction, open: () => { } }] }], undefined);
+
+		assert.deepStrictEqual({
+			single,
+			withoutIcon: withoutIconSingle,
+			summarized: { shown: container.contains(promoted), reservesSpace: container.classList.contains('has-promoted-action') },
+		}, {
+			single: {
+				attributes: { role: 'button', tabIndex: '-1', ariaLabel: 'Close Canvas Preview' },
+				tooltip: 'Close Canvas Preview',
+				pillHoverActions: undefined,
+				compactGlyph: true,
+				reservesSpace: true,
+				keepsFocus: true,
+				clicked: ['closed'],
+				tapped: ['closed'],
+			},
+			withoutIcon: { promoted: null, pillHoverActions: ['Close Canvas Preview'] },
+			summarized: { shown: false, reservesSpace: false },
+		});
 	});
 });

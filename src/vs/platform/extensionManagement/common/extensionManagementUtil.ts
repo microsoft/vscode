@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from '../../../base/common/strings.js';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform } from './extensionManagement.js';
+import * as nls from '../../../nls.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, MaliciousExtensionInfo, getTargetPlatform, IExtensionBlockingInfo, ExtensionBlockingOrigin } from './extensionManagement.js';
 import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
 import { IFileService } from '../../files/common/files.js';
 import { isLinux, platform } from '../../../base/common/platform.js';
@@ -209,4 +211,15 @@ export function findMatchingMaliciousEntry(identifier: IExtensionIdentifier, mal
 		}
 		return areSameExtensions(identifier, extensionOrPublisher);
 	});
+}
+
+/**
+ * Builds the user facing explanation for a blocked extension. A tenant policy decision and a
+ * marketplace statement are deliberately worded differently, because conflating them either
+ * alarms users about a routine policy decision or understates a genuine marketplace finding.
+ */
+export function getExtensionBlockedMessage(blockingInfo: IExtensionBlockingInfo): IMarkdownString {
+	return new MarkdownString(blockingInfo.origin === ExtensionBlockingOrigin.Policy
+		? nls.localize('blocked by organization policy', "This extension is not permitted by your organization's policy.")
+		: nls.localize('blocked by marketplace', "This extension has been blocked by the Extension Marketplace and must not be used."));
 }

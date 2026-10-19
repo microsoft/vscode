@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { SchemaError } from '../../common/client/schema.js';
-import { GitHubService, IGitHubClient } from '../../common/githubService.js';
+import { IGitHubAccountClient } from '../../common/account/account.js';
+import { AccountClient } from '../../common/account/accountClient.js';
+import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../common/client/request.js';
+import { PaginationLimitError } from '../../common/client/pagination.js';
+import { parse, SchemaError } from '../../common/client/schema.js';
+import { GitHubService } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
 import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
-import { ApiRequestError } from '../../common/missionControl/missionControlClient.js';
+import { ApiRequestError, MissionControlClient } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
 
 const signal = () => new AbortController().signal;
@@ -71,7 +77,6 @@ function clientOptions(): GitHubClientOptions {
 		graphQlUri: 'https://api.github.com/graphql',
 		missionControl: {
 			endpoint: { apiBaseUri: `${apiBaseUri}/agents`, integrationId: 'test-integration' },
-			copilotEndpoint: { apiBaseUri, integrationId: 'test-integration' },
 		},
 	};
 }
@@ -93,7 +98,6 @@ suite('Mission Control client', () => {
 		const requests: TestRequest[] = [];
 		const identities: TestRequest[] = [];
 		const service = store.add(new GitHubService({
-			credentialProvider,
 			fetch: async (input, init = {}) => {
 				const request = { url: new URL(String(input)), init, at: Date.now() };
 				if (request.url.pathname.endsWith('/user')) {
@@ -104,9 +108,45 @@ suite('Mission Control client', () => {
 				return respond(request);
 			},
 		}, new NullLogService(), NullTelemetryService));
-		const reference = store.add(service.acquireClient(options));
-		return { service, reference, client: reference.object, requests, identities };
+		const scope = store.add(service.createRequestProviderScope(credentialProvider));
+		const acquire = (clientOptions: GitHubClientOptions = options) => {
+			const reference = scope.acquireClient(clientOptions);
+			const client = store.add(new AccountClient(reference.object.authorization, reference.object, reference));
+			return { client, providers: reference.object };
+		};
+		return { service, acquire, ...acquire(), requests, identities };
 	}
+
+	test('uses shared request policies, response modes, and nested metadata', async () => {
+		const requests: ApiRequest[] = [];
+		const body = '{"tasks":[]}';
+		const metadata = { nextLink: `${apiBaseUri}/agents/tasks?page=2`, serverDate, retryAfterSeconds: 5 };
+		const provider: IApiRequestProvider = {
+			request: async <T>(request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
+				requests.push(request);
+				return { data: parser?.(body), status: request.responseBody === 'none' ? 204 : 200, metadata };
+			},
+		};
+		const client = new MissionControlClient(provider);
+		for (const responseBody of [undefined, 'json', 'text', 'none'] as const) {
+			const request: ApiRequest = {
+				method: 'GET', path: '/tasks', expectedStatus: responseBody === 'none' ? 204 : 200,
+				responseBody, policy: { retry: false }, options: { caller: 'test.shared-contract' },
+			};
+			const response = await client.request(request, signal(), response => response);
+			assert.deepStrictEqual({ response, request: requests.at(-1) }, {
+				response: {
+					data: responseBody === 'none' ? undefined : responseBody === 'text' ? body : { tasks: [] },
+					status: request.expectedStatus,
+					metadata,
+				},
+				request: {
+					...request, authentication: 'required', accept: 'application/json',
+					responseBody: responseBody === 'none' ? 'none' : 'text',
+				},
+			});
+		}
+	});
 
 	test('acquired clients execute every automation operation with selected credentials and exact routes', async () => {
 		const { prompt, ...summary } = automation;
@@ -131,7 +171,7 @@ suite('Mission Control client', () => {
 		const create = { name: automation.name, description: automation.description, prompt };
 		const update = { tools: [], triggers: {}, model: '' };
 		const results = [
-			await client.automations.list(repository, signal(), { page: 1, per_page: 10, disabled: false }),
+			await client.automations.list(repository, signal(), { query: { page: 1, per_page: 10, disabled: false } }),
 			await client.automations.get(repository, automation.id, signal()),
 			await client.automations.create(repository, create, signal()),
 			await client.automations.update(repository, automation.id, update, signal()),
@@ -174,6 +214,93 @@ suite('Mission Control client', () => {
 			headers: Array(9).fill(['test-integration', null, 'omit', 'manual', 'no-store', 'no-referrer']),
 			identityUrl: ['https://api.github.com/user'],
 		});
+	});
+
+	test('forwards caller and deadline independently of Mission Control query parameters', async () => {
+		const { client, providers } = setup(() => Response.json(emptyPage));
+		const options = { caller: 'test.automations', deadline: Date.now() + 10_000 };
+		const sandbox = sinon.createSandbox();
+		try {
+			assert.ok(providers.missionControl);
+			const request = sandbox.spy(providers.missionControl, 'request');
+			await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
+			const { path, options: requestOptions } = request.firstCall.args[0];
+			assert.deepStrictEqual({ path, options: requestOptions }, {
+				path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
+			});
+		} finally {
+			sandbox.restore();
+		}
+	});
+
+	test('collects automation, task, run, and event pages with final metadata and unsummed totals', async () => {
+		const { prompt, ...summary } = automation;
+		const event = { id: 'event', timestamp: date, parentId: null, type: 'message', data: { text: 'Hello' } };
+		const { client, requests } = setup(({ url }) => {
+			const second = url.searchParams.get('page') === '2';
+			const number = second ? 2 : 1;
+			const next = new URL(url);
+			next.searchParams.set('page', '2');
+			const data = url.pathname.endsWith('/v2')
+				? { automations: [{ ...summary, id: `automation-${number}` }], total_count: 2 }
+				: url.pathname.endsWith('/events')
+					? { events: [{ ...event, id: `event-${number}` }], total: 2 }
+					: { tasks: [{ ...task, id: `task-${number}` }], total_active_count: 2 };
+			return Response.json(data, { headers: { date: serverDate, ...(second ? {} : { link: `<${next.href}>; rel="next"` }) } });
+		});
+		const results = [
+			await client.automations.list(repository, signal(), { maxPages: 2 }),
+			await client.tasks.list(signal(), { maxPages: 2 }),
+			await client.automations.listRuns(automation.id, signal(), { maxPages: 2 }),
+			await client.tasks.getEvents(task.id, signal(), { maxPages: 2 }),
+		];
+		assert.deepStrictEqual({ results, requests: requests.map(request => request.url.pathname + request.url.search) }, {
+			results: [
+				{ automations: [1, 2].map(number => ({ ...summary, id: `automation-${number}` })), total_count: 2 },
+				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
+				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
+				{ events: [1, 2].map(number => ({ ...event, id: `event-${number}` })), total: 2 },
+			].map(data => ({ data, nextLink: undefined, serverDate })),
+			requests: [
+				`${collection}/v2`, `${collection}/v2?page=2`,
+				'/agents/tasks', '/agents/tasks?page=2',
+				`/agents/automations/${automation.id}/tasks`, `/agents/automations/${automation.id}/tasks?page=2`,
+				`/agents/tasks/${task.id}/events`, `/agents/tasks/${task.id}/events?page=2`,
+			],
+		});
+	});
+
+	test('partial Mission Control pages keep a continuation but later errors still reject', async () => {
+		let failSecondPage = false;
+		const { client } = setup(({ url }) => {
+			const page = Number(url.searchParams.get('page') ?? 1);
+			if (page === 2 && failSecondPage) {
+				return Response.json({ message: 'Denied' }, { status: 403 });
+			}
+			return Response.json({ tasks: [{ ...task, id: `task-${page}` }], total_active_count: 3 }, {
+				headers: { link: `<${apiBaseUri}/agents/tasks?page=${page + 1}>; rel="next"`, date: serverDate },
+			});
+		});
+		await assert.rejects(client.tasks.list(signal(), { maxPages: 1 }), PaginationLimitError);
+		assert.deepStrictEqual(await client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), {
+			data: { tasks: [task], total_active_count: 3 },
+			nextLink: `${apiBaseUri}/agents/tasks?page=2`, serverDate,
+		});
+		const result = await client.tasks.list(signal(), { maxPages: 2, pageLimitBehavior: 'returnPartial' });
+		assert.deepStrictEqual(result, {
+			data: { tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 3 },
+			nextLink: `${apiBaseUri}/agents/tasks?page=3`, serverDate,
+		});
+		failSecondPage = true;
+		await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'authorization' });
+	});
+
+	test('single-page Mission Control limits reject invalid or repeated continuations', async () => {
+		for (const link of ['not-a-link; rel="next"', `<${apiBaseUri}/agents/tasks>; rel="next"`]) {
+			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
+			await assert.rejects(client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
+			assert.strictEqual(requests.length, 1);
+		}
 	});
 
 	test('automation discovery preserves public metadata without inventing internal fields or defaults', async () => {
@@ -239,15 +366,15 @@ suite('Mission Control client', () => {
 	});
 
 	for (const operation of [
-		{ name: 'list', status: 201, run: (client: IGitHubClient) => client.automations.list(repository, signal()) },
-		{ name: 'get', status: 201, run: (client: IGitHubClient) => client.automations.get(repository, automation.id, signal()) },
-		{ name: 'create', status: 200, run: (client: IGitHubClient) => client.automations.create(repository, automation, signal()) },
-		{ name: 'update', status: 201, run: (client: IGitHubClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
-		{ name: 'delete', status: 200, run: (client: IGitHubClient) => client.automations.delete(repository, automation.id, signal()) },
-		{ name: 'dispatch', status: 200, run: (client: IGitHubClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()) },
-		{ name: 'listRuns', status: 201, run: (client: IGitHubClient) => client.automations.listRuns(automation.id, signal()) },
-		{ name: 'listTools', status: 201, run: (client: IGitHubClient) => client.automations.listTools(signal()) },
-		{ name: 'listTriggers', status: 201, run: (client: IGitHubClient) => client.automations.listTriggers(signal()) },
+		{ name: 'list', status: 201, run: (client: IGitHubAccountClient) => client.automations.list(repository, signal()) },
+		{ name: 'get', status: 201, run: (client: IGitHubAccountClient) => client.automations.get(repository, automation.id, signal()) },
+		{ name: 'create', status: 200, run: (client: IGitHubAccountClient) => client.automations.create(repository, automation, signal()) },
+		{ name: 'update', status: 201, run: (client: IGitHubAccountClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
+		{ name: 'delete', status: 200, run: (client: IGitHubAccountClient) => client.automations.delete(repository, automation.id, signal()) },
+		{ name: 'dispatch', status: 200, run: (client: IGitHubAccountClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()) },
+		{ name: 'listRuns', status: 201, run: (client: IGitHubAccountClient) => client.automations.listRuns(automation.id, signal()) },
+		{ name: 'listTools', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTools(signal()) },
+		{ name: 'listTriggers', status: 201, run: (client: IGitHubAccountClient) => client.automations.listTriggers(signal()) },
 	]) {
 		test(`${operation.name} rejects an undocumented HTTP ${operation.status} success`, async () => {
 			const { client, requests } = setup(() => Response.json(automation, { status: operation.status }));
@@ -259,7 +386,7 @@ suite('Mission Control client', () => {
 	test('retains only documented diagnostics and response metadata', async () => {
 		const response = { message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision' };
 		const { client, requests } = setup(() => Response.json({ ...response, internal: 'not-public' }, {
-			status: 409, headers: { 'x-github-request-id': 'request-1', 'retry-after': '2' },
+			status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '2' },
 		}));
 		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, signal()), error => {
 			assert.ok(error instanceof ApiRequestError);
@@ -267,40 +394,18 @@ suite('Mission Control client', () => {
 				status: error.statusCode, response: error.response, requestId: error.requestId,
 				retryAfterSeconds: error.retryAfterSeconds, rawBody: error.responseBody, outcome: error.outcome,
 				attempts: requests.length,
-			}, { status: 409, response, requestId: 'request-1', retryAfterSeconds: 2, rawBody: undefined, outcome: undefined, attempts: 1 });
+			}, { status: 409, response, requestId: 'ABCD:1234:5678:90AB:CDEF', retryAfterSeconds: 2, rawBody: undefined, outcome: undefined, attempts: 1 });
 			return true;
 		});
 	});
 
 	test('missing configuration disables only Mission Control operations', async () => {
-		const { client, identities, requests } = setup(() => Response.json({}), { ...clientOptions(), missionControl: undefined });
+		const { client, identities, requests } = setup(() => Response.json([]), { ...clientOptions(), missionControl: undefined });
 		await assert.rejects(client.automations.list(repository, signal()), /No approved Mission Control API endpoint/);
-		await assert.rejects(client.missionControlModels.list(signal()), /No approved Mission Control API endpoint/);
-		const credential = await client.credentials.getCredential(signal());
-		assert.deepStrictEqual({ account: credential.account, requests: requests.length, identities: identities.length }, {
-			account: { host: 'api.github.com', accountId: '101' }, requests: 0, identities: 1,
+		const emails = await client.users.listEmails(signal());
+		assert.deepStrictEqual({ emails, requests: requests.length, identities: identities.length }, {
+			emails: [], requests: 1, identities: 1,
 		});
-	});
-
-	test('lease identity includes canonical service endpoints, integration identity and API version', () => {
-		const options = clientOptions();
-		const { service, client } = setup(() => Response.json({}), options);
-		const acquire = (missionControl: GitHubClientOptions['missionControl']) => store.add(service.acquireClient({ ...options, missionControl })).object;
-		const endpoint = { apiBaseUri: `${apiBaseUri}/agents`, integrationId: 'test-integration' };
-		const copilotEndpoint = { apiBaseUri, integrationId: 'test-integration' };
-		const equivalent = acquire({
-			endpoint: { integrationId: endpoint.integrationId, apiBaseUri: 'https://API.GITHUBCOPILOT.COM/agents/' },
-			copilotEndpoint: { ...copilotEndpoint, apiBaseUri: `${apiBaseUri}/` },
-		});
-		const distinct = [
-			acquire(undefined),
-			acquire({ endpoint }),
-			acquire({ endpoint: { ...endpoint, apiBaseUri: `${apiBaseUri}/other` }, copilotEndpoint }),
-			acquire({ endpoint: { ...endpoint, integrationId: 'other' }, copilotEndpoint }),
-			acquire({ endpoint: { ...endpoint, apiVersion: '2025-04-01' }, copilotEndpoint }),
-			acquire({ endpoint, copilotEndpoint: { ...copilotEndpoint, apiBaseUri: 'https://other.example.test' } }),
-		];
-		assert.deepStrictEqual({ equivalent: equivalent === client, distinct: new Set([client, ...distinct]).size }, { equivalent: true, distinct: 7 });
 	});
 
 	test('coalesces safe reads without letting one cancelled caller abort a peer', async () => {
@@ -363,7 +468,7 @@ suite('Mission Control client', () => {
 		assert.deepStrictEqual(requests.map(request => new Headers(request.init.headers).get('If-None-Match')), [null, '"one"', null]);
 	});
 
-	for (const failure of ['network', 'body', 500, 501, 502, 503, 504] as const) {
+	for (const failure of ['network', 'body', 408, 500, 501, 502, 503, 504] as const) {
 		test(`ordinary reads retain one transient retry for ${failure}`, () => runWithFakedTimers({}, async () => {
 			let calls = 0;
 			const { service, client, requests } = setup(() => {
@@ -381,7 +486,7 @@ suite('Mission Control client', () => {
 			try {
 				const page = await client.automations.list(repository, signal());
 				const delay = requests[1].at - requests[0].at;
-				assert.deepStrictEqual({ data: page.data, attempts: requests.length, delayed: delay >= 100 && delay <= 300 }, {
+				assert.deepStrictEqual({ data: page.data, attempts: requests.length, delayed: delay >= 1000 && delay < 1250 }, {
 					data: emptyPage, attempts: 2, delayed: true,
 				});
 			} finally {
@@ -392,9 +497,9 @@ suite('Mission Control client', () => {
 
 	for (const refusal of [
 		{ status: 429, retryAfter: '2', delay: 2000 },
-		{ status: 429, retryAfter: undefined, delay: 60_000 },
-		{ status: 429, retryAfter: '0', delay: 60_000 },
-		{ status: 429, retryAfter: 'invalid', delay: 60_000 },
+		{ status: 429, retryAfter: undefined, delay: 5_000 },
+		{ status: 429, retryAfter: '0', delay: 5_000 },
+		{ status: 429, retryAfter: 'invalid', delay: 5_000 },
 		{ status: 403, retryAfter: '2', delay: 2000 },
 		{ status: 403, retryAfter: undefined, delay: 0 },
 		{ status: 503, retryAfter: 'Thu, 01 Jan 2026 00:00:02 GMT', delay: 2000 },
@@ -438,23 +543,22 @@ suite('Mission Control client', () => {
 
 	test('cooldowns survive client release without blocking GitHub REST or another account', () => runWithFakedTimers({ startTime: Date.parse(date) }, async () => {
 		let refused = false;
-		const { service, client, reference, requests } = setup(request => {
+		const { service, client, acquire, requests } = setup(request => {
 			if (!refused && request.url.host === 'api.githubcopilot.com') {
 				refused = true;
 				return Response.json({}, { status: 429, headers: { 'retry-after': '2' } });
 			}
-			return Response.json(emptyPage);
+			return Response.json(request.url.host === 'api.github.com' ? [] : emptyPage);
 		});
 		try {
 			await assert.rejects(client.automations.list(repository, signal()), { kind: 'rateLimit' });
-			const credential = await client.credentials.getCredential(signal());
-			await client.transport.rest(credential.account, credential.token, { method: 'GET', url: 'https://api.github.com/repos/owner/repo' }, signal());
+			await client.users.listEmails(signal());
 			const options = clientOptions();
-			const other = store.add(service.acquireClient({ ...options, authorization: { ...options.authorization, sessionId: 'second' } }));
-			await other.object.automations.list(repository, signal());
-			reference.dispose();
-			const reacquired = store.add(service.acquireClient(options));
-			await reacquired.object.automations.list(repository, signal());
+			const other = acquire({ ...options, authorization: { ...options.authorization, sessionId: 'second' } }).client;
+			await other.automations.list(repository, signal());
+			client.dispose();
+			const reacquired = acquire().client;
+			await reacquired.automations.list(repository, signal());
 			assert.deepStrictEqual(requests.map(request => request.at - Date.parse(date)), [0, 0, 0, 2000]);
 		} finally {
 			service.dispose();
@@ -476,16 +580,112 @@ suite('Mission Control client', () => {
 	test('sensitive HTTP failures do not retain credentials in messages or diagnostics', async () => {
 		const secret = 'do-not-retain-this-credential';
 		const { client } = setup(() => Response.json({ message: secret, documentation_url: secret, access_token: secret }, {
-			status: 403, headers: { 'x-request-id': 'request-1' },
+			status: 403, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' },
 		}));
 		await assert.rejects(client.environments.connect('environment-1', signal()), error => {
 			assert.ok(error instanceof ApiRequestError);
 			assert.deepStrictEqual({
 				kind: error.kind, details: error.response, body: error.responseBody, requestId: error.requestId,
 				containsSecret: `${error.message}${JSON.stringify(error)}`.includes(secret),
-			}, { kind: 'authorization', details: undefined, body: undefined, requestId: 'request-1', containsSecret: false });
+			}, { kind: 'authorization', details: undefined, body: undefined, requestId: 'ABCD:1234:5678:90AB:CDEF', containsSecret: false });
 			return true;
 		});
+	});
+
+	for (const errorBody of [
+		{ error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' },
+		{ code: 'environment_compute_terminal' },
+		{ error_code: 'future_code' },
+	]) {
+		test(`sensitive requests retain safe codes without retaining response content: ${JSON.stringify(errorBody)}`, async () => {
+			const { client, requests } = setup(() => Response.json({ ...errorBody, message: 'private credential', access_token: 'private credential' }, {
+				status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' },
+			}));
+			await assert.rejects(client.environments.connect('environment-1', signal()), error => {
+				assert.ok(error instanceof ApiRequestError);
+				assert.deepStrictEqual({
+					code: error.code, limitedResource: error.limitedResource, requestId: error.requestId,
+					privateContent: JSON.stringify(error).includes('private credential'), requests: requests.length,
+				}, {
+					code: errorBody.error_code ?? errorBody.code, limitedResource: errorBody.limited_resource,
+					requestId: 'ABCD:1234:5678:90AB:CDEF', privateContent: false, requests: 1,
+				});
+				return true;
+			});
+		});
+	}
+
+	test('a known unavailable capability is not retried even when its status is 501', async () => {
+		const { client, requests } = setup(request => request.url.pathname.endsWith('/tasks')
+			? Response.json({ error_code: 'not_implemented' }, { status: 501, headers: { 'retry-after': '300' } })
+			: Response.json(emptyPage));
+		await assert.rejects(client.tasks.list(signal()), { code: 'not_implemented', statusCode: 501 });
+		assert.strictEqual(requests.length, 1);
+		await client.automations.list(repository, signal());
+	});
+
+	for (const replacement of ['replacement', 'token-selected', 'token-second', undefined]) {
+		test(`a rejected credential retries only with a new grant for the same account: ${replacement}`, async () => {
+			let token: string | undefined = 'token-selected';
+			const { client, requests } = setup(() => {
+				token = replacement;
+				return requests.length === 1
+					? Response.json({ error_code: 'unauthenticated' }, { status: 401 })
+					: Response.json({ tasks: [] });
+			}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
+			if (replacement === 'replacement') {
+				await client.tasks.list(signal());
+			} else {
+				await assert.rejects(client.tasks.list(signal()), { statusCode: 401, code: 'unauthenticated' });
+			}
+			assert.strictEqual(requests.length, replacement === 'replacement' ? 2 : 1);
+		});
+	}
+
+	test('authentication recovery retries at most once when the replacement is also rejected', async () => {
+		let token = 'old';
+		const { client, requests } = setup(() => {
+			token = 'replacement';
+			return Response.json({ error_code: 'unauthenticated' }, { status: 401 });
+		}, clientOptions(), {
+			onDidChange: Event.None,
+			getToken: () => token,
+		});
+		await assert.rejects(client.tasks.list(signal()), { statusCode: 401, code: 'unauthenticated' });
+		assert.strictEqual(requests.length, 2);
+	});
+
+	test('a sandbox quota does not block unrelated Mission Control reads', () => runWithFakedTimers({}, async () => {
+		const { client, requests } = setup(request => request.url.pathname === '/agents/tasks' && request.init.method === 'POST'
+			? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'retry-after': '2' } })
+			: Response.json({ tasks: [] }));
+		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, signal()), { code: 'rate_limit_exceeded' });
+		await client.tasks.list(signal());
+		await assert.rejects(client.tasks.create({ prompt: 'test', environment_id: 'github-sandbox' }, signal()), { code: 'rate_limit_exceeded' });
+		assert.deepStrictEqual(requests.map(request => request.at - requests[0].at), [0, 0, 2000]);
+	}));
+
+	test('a token-mint quota gates credential requests without blocking inventory reads', () => runWithFakedTimers({}, async () => {
+		let connections = 0;
+		const { client, requests } = setup(request => request.url.pathname.endsWith('/connect')
+			? ++connections === 1
+				? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, { status: 403, headers: { 'retry-after': '2' } })
+				: Response.json(connection)
+			: Response.json({ tasks: [] }));
+		await assert.rejects(client.environments.connect('environment-1', signal()), { kind: 'rateLimit', code: 'rate_limit_exceeded' });
+		await client.tasks.list(signal());
+		await client.environments.connect('environment-1', signal());
+		assert.deepStrictEqual(requests.map(request => request.at - requests[0].at), [0, 0, 2000]);
+	}));
+
+	test('credential replacement never automatically replays a mutation', async () => {
+		let token = 'old';
+		const { client, requests } = setup(() => {
+			token = 'replacement';
+			return Response.json({ error_code: 'unauthenticated' }, { status: 401 });
+		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
+		await assert.rejects(client.tasks.create({ prompt: 'test' }, signal()), { statusCode: 401, code: 'unauthenticated' });
+		assert.strictEqual(requests.length, 1);
 	});
 
 	test('reconnect validates the client identity and keeps credential requests uncacheable', async () => {
@@ -534,22 +734,24 @@ suite('Mission Control client', () => {
 
 	test('cancelling a queued mutation does not claim it was dispatched', async () => {
 		const started = new DeferredPromise<void>();
-		const response = new DeferredPromise<Response>();
-		const { client, requests } = setup(() => {
+		const response = new DeferredPromise<void>();
+		const { client, requests } = setup(async () => {
 			void started.complete();
-			return response.p;
+			await response.p;
+			return Response.json(emptyPage);
 		});
-		const read = client.automations.list(repository, signal());
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, name: `repo-${index}` }, signal()));
 		await started.p;
+		await timeout(0);
 		const controller = new AbortController();
 		const reason = new Error('cancel queued write');
 		const rejected = assert.rejects(client.automations.create(repository, automation, controller.signal), error => error === reason);
 		await timeout(0);
 		controller.abort(reason);
 		await rejected;
-		await response.complete(Response.json(emptyPage));
-		await read;
-		assert.strictEqual(requests.length, 1);
+		await response.complete();
+		await Promise.all(reads);
+		assert.strictEqual(requests.length, 8);
 	});
 
 	test('invalidates mapped caches and cancels in-flight work on credential replacement', async () => {
@@ -587,16 +789,16 @@ suite('Mission Control client', () => {
 	test('releasing the client cancels work and prevents further domain requests', async () => {
 		const started = new DeferredPromise<void>();
 		const response = new DeferredPromise<Response>();
-		const { client, reference, requests } = setup(() => {
+		const { client, requests } = setup(() => {
 			void started.complete();
 			return response.p;
 		});
 		const rejected = assert.rejects(client.automations.list(repository, signal()));
 		await started.p;
-		reference.dispose();
+		client.dispose();
 		await rejected;
 		await response.complete(Response.json(emptyPage));
-		await assert.rejects(client.automations.list(repository, signal()), /disposed/);
+		await assert.rejects(client.automations.list(repository, signal()), isCancellationError);
 		assert.deepStrictEqual({ attempts: requests.length, aborted: requests[0].init.signal?.aborted }, { attempts: 1, aborted: true });
 	});
 
@@ -630,12 +832,9 @@ suite('Mission Control client', () => {
 		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
 	});
 
-	test('tasks and SWE models use their existing contracts and configured service routes', async () => {
-		const models = { data: [{ id: 'model-1', name: 'Model' }], default_model: 'model-1' };
-		const { client, requests } = setup(request => request.url.pathname.endsWith('/models')
-			? Response.json(models)
-			: request.init.method === 'DELETE' ? new Response(null, { status: 204 })
-				: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
+	test('tasks use their existing contracts and configured service routes', async () => {
+		const { client, requests } = setup(request => request.init.method === 'DELETE' ? new Response(null, { status: 204 })
+			: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
 		const results = [
 			await client.tasks.create({ prompt: 'Do the task' }, signal()),
 			await client.tasks.get(task.id, signal()),
@@ -643,11 +842,10 @@ suite('Mission Control client', () => {
 			await client.tasks.archive(task.id, signal()),
 			await client.tasks.unarchive(task.id, signal()),
 			await client.tasks.delete(task.id, signal()),
-			await client.missionControlModels.list(signal()),
 		];
 		assert.deepStrictEqual({ results, routes: requests.map(request => request.url.pathname) }, {
-			results: [task, task, task, task, task, undefined, models],
-			routes: ['/agents/tasks', '/agents/tasks/task-1', '/agents/tasks/task-1', '/agents/tasks/task-1/archive', '/agents/tasks/task-1/unarchive', '/agents/tasks/task-1', '/agents/swe/models'],
+			results: [task, task, task, task, task, undefined],
+			routes: ['/agents/tasks', '/agents/tasks/task-1', '/agents/tasks/task-1', '/agents/tasks/task-1/archive', '/agents/tasks/task-1/unarchive', '/agents/tasks/task-1'],
 		});
 	});
 
