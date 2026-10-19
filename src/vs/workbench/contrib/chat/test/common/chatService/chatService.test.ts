@@ -278,6 +278,52 @@ suite('ChatService', () => {
 		['permissions.defaultMode', 'manual'],
 		['permissions.allow', '[]'],
 		['sandbox.enabled', true],
+		['sandbox.allowBypass', false],
+		['sandbox.userPolicy.network.allowedHosts', '[]'],
+	] as const) {
+		test(`${policyKey} preserves Local sending, queueing, retry and restored history across refresh and removal`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let value: string | boolean | undefined;
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => key === policyKey ? value : undefined,
+				getManagedSettings: () => value === undefined ? {} : { [policyKey]: value },
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const initial = await service.sendRequest(model.sessionResource, 'history');
+			ChatSendResult.assertSent(initial);
+			await initial.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			value = policyValue;
+			changes.fire();
+			const existing = await service.sendRequest(model.sessionResource, 'continue Local');
+			ChatSendResult.assertSent(existing);
+			await existing.data.responseCompletePromise;
+			const queued = await service.sendRequest(model.sessionResource, 'queue Local', { queue: ChatRequestQueueKind.Queued });
+			assert.ok(ChatSendResult.isQueued(queued));
+			const sent = await queued.deferred;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			await service.resendRequest(model.getRequests()[0]);
+			await waitForState(model.requestInProgress, inProgress => !inProgress);
+			const restoredService = createChatService();
+			const restored = testDisposables.add(restoredService.loadSessionFromData(history)).object;
+			const resumed = await restoredService.sendRequest(restored.sessionResource, 'restore Local');
+			ChatSendResult.assertSent(resumed);
+			await resumed.data.responseCompletePromise;
+			const beforeRemoval = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
+			value = undefined;
+			changes.fire();
+			assert.deepStrictEqual({
+				beforeRemoval,
+				afterRemoval: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
+				restoredHistory: restored.getRequests().length,
+			}, { beforeRemoval: [false, false], afterRemoval: [false, false], restoredHistory: 2 });
+		});
+	}
+
+	for (const [policyKey, policyValue] of [
 		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
 	] as const) {
 		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
@@ -315,7 +361,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
-				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
+				getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const model = startSessionModel(service).object;
@@ -352,7 +398,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
-				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
+				getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const activate = spy(service, 'activateDefaultAgent');
@@ -459,7 +505,7 @@ suite('ChatService', () => {
 				instantiationService.stub(IManagedSettingsService, {
 					_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 					getManagedSettingValue: key => key === policyKey ? rules : undefined,
-					getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
+					getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
 				});
 				const extensionService = new TestExtensionService();
 				const activate = stub(extensionService, 'activateByEvent').callsFake(async () => {

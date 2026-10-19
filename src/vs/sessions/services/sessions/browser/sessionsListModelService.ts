@@ -94,6 +94,9 @@ export interface ISessionsListModelService {
 	/** Store the manual order of a session's nested chats in the given sort mode. */
 	setChatOrder(sessionId: string, mode: SessionSortMode, chatResources: readonly string[]): void;
 
+	/** Drop a session's manual chat order in every sort mode, so its chats show their natural order again. */
+	clearChatOrder(sessionId: string): void;
+
 	// -- Status icon --
 
 	/**
@@ -362,6 +365,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._chatOrders[mode].set(sessionId, [...chatResources]);
 		this.saveChatOrders();
 		this._onDidChange.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+	}
+
+	clearChatOrder(sessionId: string): void {
+		const createdDeleted = this._chatOrders.created.delete(sessionId);
+		const updatedDeleted = this._chatOrders.updated.delete(sessionId);
+		if (createdDeleted || updatedDeleted) {
+			this.saveChatOrders();
+			this._onDidChange.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+		}
 	}
 
 	// -- Status icon --

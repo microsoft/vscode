@@ -1323,6 +1323,69 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
+	test('reports user invocations once any confirmation is accepted, before they run', async () => {
+		const toOperation = (id: string, confirmation?: string) => ({
+			id, label: id, confirmation, scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle,
+		});
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [],
+			operations: [toOperation('merge', 'Merge the changes?'), toOperation('sync'), toOperation('create-pr'), toOperation(PREPARE_PULL_REQUEST_OPERATION_ID)],
+		};
+		const invoked: string[] = [];
+		const subscription = createMutableSubscription(changesetState);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invoked.push(params.operationId);
+				if (params.operationId === 'sync') {
+					throw new Error('Push rejected');
+				}
+				return params.operationId === PREPARE_PULL_REQUEST_OPERATION_ID
+					? createPullRequestDetailsResult({ title: 'Title', description: '', branchName: 'feature', baseBranchName: 'main', repository: 'microsoft/vscode', autoMergeAllowed: false, mergeMethods: [], agentMergeAvailable: false })
+					: {};
+			}
+		}();
+		const confirmations = [false, true];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: confirmations.shift() ?? false }) });
+		const reported: { operationId: string; metadata: Record<string, unknown> | undefined }[] = [];
+		const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+			icon: Codicon.copilot,
+			environment: 'local',
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
+			onDidInvokeChangesetOperation: (operationId, metadata) => reported.push({ operationId, metadata }),
+		}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
+
+		await changeset.invokeOperation('merge');
+		await changeset.invokeOperation('merge');
+		await assert.rejects(() => changeset.invokeOperation('sync'), /Push rejected/);
+		const creation = changeset.operations.get().find(isSessionPullRequestOperation)?.pullRequestCreation;
+		assert.ok(creation);
+		await creation.prepare(CancellationToken.None);
+		const pullRequest = { title: 'Title', description: '', draft: true, agentMerge: false };
+		await creation.create(pullRequest);
+
+		assert.deepStrictEqual({ reported, invoked }, {
+			// The first merge was cancelled at its confirmation; preparing the
+			// Create PR form is not a user invocation.
+			reported: [
+				{ operationId: 'merge', metadata: undefined },
+				{ operationId: 'sync', metadata: undefined },
+				{ operationId: 'create-pr', metadata: createPullRequestOperationMeta(pullRequest) },
+			],
+			invoked: ['merge', 'sync', PREPARE_PULL_REQUEST_OPERATION_ID, 'create-pr'],
+		});
+	});
+
 	test('marks an invoked operation running locally until the host request settles', async () => {
 		const operationId = 'create-pr-auto-merge';
 		const operationResult = new DeferredPromise<InvokeChangesetOperationResult>();

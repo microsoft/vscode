@@ -3698,6 +3698,40 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
+		test('renders folderless comparison groups under Chats without duplicating attempts', () => {
+			const attempts = ['one', 'two'].map(resourceId => createTestSession(resourceId, { resourceId, isQuickChat: true }).session);
+			const comparison: ISessionComparison = {
+				id: 'chat-comparison', groupId: group.id, title: 'Compare ideas', createdAt: 1, prompt: 'Compare ideas',
+				participants: attempts.map(session => ({
+					id: session.sessionId,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, attempts, {
+				groups: [group],
+				memberships: new Map(attempts.map(session => [session.sessionId, group.id])),
+				comparisons: [comparison],
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			container.querySelector<HTMLElement>('.session-section')?.click();
+			assert.deepStrictEqual({
+				sections: [...container.querySelectorAll('.monaco-list-row[aria-level="1"] .session-section-label')].map(label => label.textContent),
+				comparisons: container.querySelectorAll('.session-comparison-group').length,
+				attempts: container.querySelectorAll('.session-comparison-attempt').length,
+				levels: [...container.querySelectorAll('.session-comparison-attempt')].map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-level')),
+			}, {
+				sections: ['Chats'], comparisons: 1, attempts: 2, levels: ['3', '3'],
+			});
+		});
+
 		test('only allows top-level comparison headers to be dragged', () => {
 			const workspace = renderComparison(undefined, 'all', new Set(), true);
 			const workspaceSection = [...workspace.container.querySelectorAll<HTMLElement>('.session-section')]
@@ -7022,10 +7056,11 @@ suite('Sessions - SessionsList', () => {
 		test('reports a focused nested chat only while the Sessions list owns focus', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const second = createChat('Second peer chat', ChatOriginKind.User);
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
-				chats: constObservable([main, peer]),
+				chats: constObservable([main, peer, second]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
@@ -7049,6 +7084,7 @@ suite('Sessions - SessionsList', () => {
 			const getFocusedChatItemContext = () => contextKeyService.getContext(contextTarget).getValue<boolean>(SessionsListFocusedChatItemContext.key);
 			const sessionRowValue = getFocusedChatItemContext();
 			const beforeChatFocus = list.getFocusedChatItem();
+			const beforeChatSelection = list.getFocusedChatItems();
 
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
 				.find(element => element.querySelector('.session-chat-title')?.textContent === 'Peer chat');
@@ -7056,7 +7092,14 @@ suite('Sessions - SessionsList', () => {
 			peerRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 			list.focus();
 			const focusedChat = list.getFocusedChatItem();
+			const focusedChats = list.getFocusedChatItems().map(item => item.chat.resource.toString());
 			const chatRowValue = getFocusedChatItemContext();
+			const secondRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.querySelector('.session-chat-title')?.textContent === 'Second peer chat');
+			assert.ok(secondRow);
+			secondRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0, shiftKey: true }));
+			list.focus();
+			const selectedChats = list.getFocusedChatItems().map(item => item.chat.resource.toString()).sort();
 
 			const outside = mainWindow.document.createElement('button');
 			mainWindow.document.body.appendChild(outside);
@@ -7067,16 +7110,24 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				sessionRowValue,
 				beforeChatFocus,
+				beforeChatSelection,
 				focusedChat: focusedChat?.chat.resource.toString(),
+				focusedChats,
+				selectedChats,
 				chatRowValue,
 				afterBlur: list.getFocusedChatItem(),
+				selectionAfterBlur: list.getFocusedChatItems(),
 				afterBlurValue: getFocusedChatItemContext(),
 			}, {
 				sessionRowValue: false,
 				beforeChatFocus: undefined,
+				beforeChatSelection: [],
 				focusedChat: peer.resource.toString(),
+				focusedChats: [peer.resource.toString()],
+				selectedChats: [peer.resource.toString(), second.resource.toString()].sort(),
 				chatRowValue: true,
 				afterBlur: undefined,
+				selectionAfterBlur: [],
 				afterBlurValue: false,
 			});
 		});

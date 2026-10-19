@@ -6,6 +6,7 @@
 import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
+import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
@@ -1016,6 +1017,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IAgentHostTurnTracker private readonly _turnTracker: IAgentHostTurnTracker,
 		@IAgentHostResourceProviders private readonly _resourceProviders: IAgentHostResourceProviders,
+		@IAgentHostWorktreeDiskUsageService private readonly _worktreeDiskUsage: IAgentHostWorktreeDiskUsageService,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -1221,11 +1223,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		// A watch ends with its owner: it follows a moved chat (Block 4).
-		this._register(this._stateManager.onDidChangeChatOwner(({ chat, current }) => {
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
 			const watched = URI.parse(chat);
 			if (this._chatWatchOwners.has(watched)) {
 				this._chatWatchOwners.set(watched, current);
 			}
+			this._authService.moveChatCredentials(chat, previous, current);
 		}));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
@@ -5949,7 +5952,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// Only an idle draft can run its provider before the first send. An
 		// ephemeral one is short-lived by design and launches with MCP disabled,
 		// so warming it would start nothing worth having.
-		if (isIdleProvisional && !isEphemeral) {
+		// A dispose that arrived during creation is waiting for it (see
+		// `disposeSession`); warming that draft would outlive it.
+		if (isIdleProvisional && !isEphemeral && !this._sessionResidency.isBeingDisposed(session)) {
 			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectories: config?.workingDirectories });
 		}
 		return session;
@@ -6785,6 +6790,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const transit = this._reserveChatWorkingDirectories(target, chatFolders);
 		this._chatMoveSessions.add(sourceKey);
 		this._chatMoveSessions.add(targetKey);
+		const credentialOwners = this._authService.holdSessionCredentialOwners([sourceKey, targetKey]);
 		try {
 			// The target gets the moved chat's folders before anything else changes; its other chats keep their own (PIN).
 			const releases: (() => Promise<void>)[] = [];
@@ -6918,6 +6924,7 @@ export class AgentService extends Disposable implements IAgentService {
 			transit.dispose();
 			this._chatMoveSessions.delete(sourceKey);
 			this._chatMoveSessions.delete(targetKey);
+			credentialOwners.dispose();
 			admission.dispose();
 		}
 	}
@@ -7091,12 +7098,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// Like a brand-new session, a chat is durable as a session only once its conversation exists: no agent persists one
 		// before the chat's first turn starts, and a session whose default chat has none can't be restored.
-		let started: boolean;
-		try {
-			started = this._hasStartedTurn(await this._stateManager.resolveChatState(chatKey));
-		} catch (error) {
-			return refuse(AgentChatMoveRefusal.SessionNotReady, `Chat ${chatKey}'s history couldn't be read: ${toErrorMessage(error)}`);
-		}
+		const started = this._hasStartedTurn(await this._resolveChatForMove(chatKey));
 		if (!started) {
 			refuse(AgentChatMoveRefusal.NotStarted, `Chat ${chatKey} has no turns yet; send a message before moving it to its own session.`);
 		}
@@ -7122,6 +7124,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const admission = this._stateManager.holdChatAdmission(moved);
 		this._chatMoveSessions.add(sourceKey);
+		const credentialOwners = this._authService.holdSessionCredentialOwners([sourceKey, targetKey]);
 		try {
 			let committed: readonly string[];
 			let worktreePlan: IWorktreeMoveDecisions;
@@ -7148,6 +7151,24 @@ export class AgentService extends Disposable implements IAgentService {
 				const values: Record<string, string> = { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(chatFolders) };
 				for (const [key, value] of carried) {
 					values[key] = value;
+				}
+				// The new session inherits the chat's credential owner. It is written to the session's own database before the commit
+				// creates the session, so a committed promotion always has it on disk (for older builds too) and a failed write
+				// refuses the promotion with nothing changed; the orphan left by a failed commit belongs to no session (this path does not remove it; no session lists it).
+				const credentialPrincipal = this._authService.getSessionCredentialPrincipal(sourceKey);
+				if (credentialPrincipal) {
+					try {
+						// Straight to the session's own database: the state store would create central state for a session that doesn't exist yet.
+						const reference = this._sessionDataService.openDatabase(target);
+						try {
+							await reference.object.setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify(credentialPrincipal) });
+						} finally {
+							reference.dispose();
+						}
+					} catch (error) {
+						this._logService.error(error, `[AgentService] The credential owner of chat ${chatKey} couldn't be persisted for its new session`);
+						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} couldn't be promoted: its credential owner couldn't be saved; try again.`);
+					}
 				}
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
@@ -7205,6 +7226,8 @@ export class AgentService extends Disposable implements IAgentService {
 				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined, project && { uri: project.uri.toString(), displayName: project.displayName });
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
+				// Fail closed meanwhile: the chat's credentials resolve under the new session, never to the ambient token.
+				this._authService.moveChatCredentials(chatKey, sourceKey, targetKey);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
@@ -7222,6 +7245,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return target;
 		} finally {
 			this._chatMoveSessions.delete(sourceKey);
+			credentialOwners.dispose();
 			admission.dispose();
 		}
 	}
@@ -7369,10 +7393,19 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Resolves a chat a move reads, refusing as not ready when its backing can't be loaded (for example its working directory is gone). */
+	private async _resolveChatForMove(chat: string): Promise<ChatState | undefined> {
+		try {
+			return await this._stateManager.resolveChatState(chat);
+		} catch (error) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionNotReady, `Chat ${chat}'s history couldn't be read: ${toErrorMessage(error)}`);
+		}
+	}
+
 	/** The folders a moved chat works in: its own, else its source's. Resolves the chat, so its own config is loaded. */
 	private async _movedChatFolders(source: URI, chat: string): Promise<readonly string[]> {
 		const sourceKey = source.toString();
-		const chatState = await this._stateManager.resolveChatState(chat);
+		const chatState = await this._resolveChatForMove(chat);
 		return chatState?.workingDirectories
 			?? this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chat)?.workingDirectories
 			?? this._stateManager.getSessionSummary(sourceKey)?.workingDirectories
@@ -7390,7 +7423,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (descendant === chat) {
 				continue;
 			}
-			const own = (await this._stateManager.resolveChatState(descendant))?.workingDirectories ?? summaries.find(candidate => candidate.resource === descendant)?.workingDirectories ?? [];
+			const own = (await this._resolveChatForMove(descendant))?.workingDirectories ?? summaries.find(candidate => candidate.resource === descendant)?.workingDirectories ?? [];
 			for (const folder of own) {
 				if (!folders.some(existing => isEqual(URI.parse(existing), URI.parse(folder)))) {
 					folders.push(folder);
@@ -7520,6 +7553,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const target = targetKey === undefined ? undefined : URI.parse(targetKey);
 		if (target && this._providerService.getProviderForSession(source)?.id !== this._providerService.getProviderForSession(target)?.id) {
 			refuse(AgentChatMoveRefusal.DifferentProvider, 'Chats can only move between sessions of the same agent.');
+		}
+		if (target && !this._authService.hasSameCredentialOwner(sourceKey, targetKey!)) {
+			refuse(AgentChatMoveRefusal.DifferentCredentialOwner, 'Sessions with different credential owners can\'t be combined; pick a destination that uses the same account, or move it to its own session.');
 		}
 		const sessions = [[sourceKey, sourceState] as const, ...(targetKey !== undefined && targetState ? [[targetKey, targetState] as const] : [])];
 		for (const [key, state] of sessions) {
@@ -7796,7 +7832,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const metadata = await reference.object.getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
 			const serialized = metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY];
 			if (serialized !== undefined) {
-				this._authService.restoreSessionCredentialPrincipal(session, parseCredentialPrincipal(serialized));
+				this._authService.restorePersistedCredentialPrincipal(session, parseCredentialPrincipal(serialized));
 			}
 		} finally {
 			reference.dispose();
@@ -8298,7 +8334,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * next reload.
 	 */
 	private async _interleaveLocalTurns(sessionStr: string, chatUri: string, turns: readonly Turn[]): Promise<Turn[]> {
-		const records = await this._localTurns.loadForChat(sessionStr, chatUri);
+		const records = await this._localTurns.loadForChat(sessionStr, chatUri, new Set(turns.map(turn => turn.id)));
 		return interleaveLocalTurns(turns, records, this._logService);
 	}
 
@@ -8866,9 +8902,18 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._completions.triggerCharacters;
 	}
 
+	/**
+	 * Disposes a session once a `createSession` for it that was requested
+	 * earlier has settled, so the provider has registered what it must tear
+	 * down. Creation never disposes its own session, so this cannot wait on itself.
+	 */
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
-		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session, 'delete'));
+		const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
+		await this._sessionResidency.runDisposal(session, async () => {
+			await creation?.catch(() => undefined);
+			await this._doDisposeSession(session, 'delete');
+		});
 	}
 
 	/**
@@ -8878,7 +8923,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	async disposeSessionIf(session: URI, validate: () => Promise<boolean>, canCommit: () => boolean): Promise<boolean> {
 		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
+		const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
 		return this._sessionResidency.runDisposal(session, async () => {
+			await creation?.catch(() => undefined);
 			if (!await validate() || !canCommit()) {
 				return false;
 			}
@@ -13365,6 +13412,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		return this._resourceProviders.resolve(params);
+	}
+
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token);
 	}
 
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {

@@ -20,6 +20,7 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -72,6 +73,9 @@ interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
 	const service = store.add(new TestInstantiationService());
 	service.stub(IConfigurationService, new TestConfigurationService());
+	service.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+		override readonly currentDefaultAccount = null;
+	}());
 	return service;
 }
 

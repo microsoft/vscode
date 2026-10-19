@@ -44,6 +44,8 @@ export class TestCommandService extends mock<ICommandService>() {
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	override readonly onDidChangeSessions = Event.None;
+	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
+	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
@@ -303,6 +305,11 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			chatOrderChanges.push({ sessionId, mode, order: [...order] });
 			if (options.liveListModel) {
 				chatOrders.set(sessionId, [...order]);
+				onDidChangeListModel.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+			}
+		}
+		override clearChatOrder(sessionId: string): void {
+			if (chatOrders.delete(sessionId) && options.liveListModel) {
 				onDidChangeListModel.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
 			}
 		}

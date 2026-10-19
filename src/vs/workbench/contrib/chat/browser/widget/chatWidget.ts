@@ -651,10 +651,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
-		this.policyRequiresAgentHost = observableFromEvent(this, Event.any(
-			managedSettingsService.onDidChangeManagedSettings,
-			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.TemporaryDefaultToLocalHarness)),
-		), () => requiresCopilotAgentHost(managedSettingsService, configurationService));
+		this.policyRequiresAgentHost = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -3791,7 +3788,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const model = this.viewModel.model;
-		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
+		if (options.cancelCurrentRequest && model.hasActiveRequest.get() && !cancelledCurrentRequest) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
 			cancelledCurrentRequest = true;
 			options.queue = undefined;

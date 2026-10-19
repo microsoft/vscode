@@ -27,6 +27,8 @@ import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import type { AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextViewService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
@@ -49,7 +51,7 @@ import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
-import { IModelPickerComparison } from './modelPickerComparison.js';
+import { IModelPickerComparison, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from './modelPickerComparison.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -171,6 +173,8 @@ export class TabbedModelPicker extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -230,6 +234,17 @@ export class TabbedModelPicker extends Disposable {
 
 	/** Updates an open picker: shows an on-device model family's detail page, or opens search with an initial query and focused row. */
 	openWithFilter(options: IModelPickerOpenOptions): void {
+		if (options.startComparison) {
+			const comparison = this._context?.comparison;
+			if (comparison?.available.get()) {
+				if (!comparison.state.get()) {
+					comparison.start();
+				}
+				this._searchVisible = false;
+				this._showCurrent();
+			}
+			return;
+		}
 		if (options.localModelFamilyId !== undefined) {
 			this._searchVisible = false;
 			this._showLocalModelDetailsOnOpen(options.localModelFamilyId);
@@ -243,7 +258,7 @@ export class TabbedModelPicker extends Disposable {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 			this._otherModelsExpandedOnOpen = this._isOtherModelsExpanded();
-			if (context.comparison?.available.get() && context.comparison.summary.get()) {
+			if (context.comparison?.available.get() && (context.comparison.summary.get() || options?.startComparison)) {
 				context.comparison.start();
 			}
 		}
@@ -442,6 +457,7 @@ export class TabbedModelPicker extends Disposable {
 			// The built-in provider fixes the popup's height, unless all it lists is what an
 			// upgrade would unlock, which is too short to hold another provider's models.
 			sizingTab: this._hasBuiltInChoices(context) ? MODEL_PICKER_BUILT_IN_DESTINATION : undefined,
+			sizingKey: step ? 'comparison' : 'single',
 			contextViewLayer: this._contextViewLayer,
 			tabBarActions: this._buildTabBarActions(context),
 			tabBarClassName: 'chat-model-picker-tabbar',
@@ -454,7 +470,7 @@ export class TabbedModelPicker extends Disposable {
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
 			createActionList: (activeTab, forSizing) => {
-				const current = this._getActiveContext(this._context ?? baseContext);
+				const current = forSizing ? this._context ?? baseContext : this._getActiveContext(this._context ?? baseContext);
 				const currentDestinations = this._buildDestinations(current);
 				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
@@ -492,7 +508,7 @@ export class TabbedModelPicker extends Disposable {
 					headerLink: hint?.link,
 					headerDismiss: hint?.dismiss,
 					// A tab with nothing promoted would open on an empty list, so leave it expanded.
-					collapsedByDefault: !step && hasPromotedModels(sections) && !(forSizing ? this._otherModelsExpandedOnOpen : this._isOtherModelsExpanded()) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+					collapsedByDefault: hasPromotedModels(sections) && !(forSizing ? this._otherModelsExpandedOnOpen : this._isOtherModelsExpanded()) ? new Set([OTHER_MODELS_SECTION]) : undefined,
 					onDidToggleSection: (section, collapsed) => {
 						if (section === OTHER_MODELS_SECTION) {
 							this._storageService.store(OTHER_MODELS_EXPANDED_STORAGE_KEY, !collapsed, StorageScope.APPLICATION, StorageTarget.USER);
@@ -514,7 +530,9 @@ export class TabbedModelPicker extends Disposable {
 					listOptions,
 				};
 			},
-			renderFooter: comparison && step ? container => this._renderComparisonFooter(container, comparison) : undefined,
+			renderFooter: comparison && (step || comparison.showPickerHint?.get()) ? container => step
+				? this._renderComparisonFooter(container, comparison)
+				: this._renderStartComparisonFooter(container, comparison) : undefined,
 			renderEmpty: (container, activeTab) => {
 				const destination = destinations.find(candidate => candidate.id === activeTab);
 				if (!destination?.placeholders.length) {
@@ -788,6 +806,26 @@ export class TabbedModelPicker extends Disposable {
 			});
 		}
 		return actions;
+	}
+
+	private _renderStartComparisonFooter(container: HTMLElement, comparison: IModelPickerComparison): DisposableStore {
+		const store = new DisposableStore();
+		const label = localize('modelPicker.comparison.start', "Send Query to Multiple Models");
+		const context = store.add(this._contextKeyService.createScoped(container.closest<HTMLElement>('.chat-model-picker-widget') ?? container));
+		ModelComparisonAvailableContext.bindTo(context).set(true);
+		ModelComparisonPickerFocusedContext.bindTo(context).set(true);
+		const keybinding = comparison.startCommandId ? this._keybindingService.lookupKeybinding(comparison.startCommandId, context)?.getLabel() : undefined;
+		const hint = keybinding ? localize('modelPicker.comparison.startWithKeybinding', "{0} ({1})", label, keybinding) : label;
+		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: hint }));
+		button.label = `$(${Codicon.add.id}) ${hint}`;
+		store.add(button.onDidClick(() => {
+			this._selectionVersion++;
+			comparison.start();
+			this._searchVisible = false;
+			this._showCurrent();
+			status(comparison.state.get()!.title);
+		}));
+		return store;
 	}
 
 	private _renderComparisonFooter(container: HTMLElement, comparison: IModelPickerComparison): DisposableStore {
