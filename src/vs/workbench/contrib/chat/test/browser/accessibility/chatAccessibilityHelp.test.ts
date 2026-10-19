@@ -204,9 +204,11 @@ suite('Chat Accessibility Help', () => {
 			responsivePreview: help.includes('The thumbnail row follows the selected preview\'s size'),
 			noEmptyPreview: help.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: help.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			batchDownload: help.includes('download action beside the Image batch status to save all currently ready images as a ZIP archive'),
+			downloadSnapshot: help.includes('Only images ready when you start the download are included'),
 			details: help.includes('Expand the selected tool dropdown to inspect its prompt and output'),
 			approvals: help.includes('Approval and authentication requests remain visible even when another image is selected'),
-		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, details: true, approvals: true });
+		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, batchDownload: true, downloadSnapshot: true, details: true, approvals: true });
 	});
 
 	test('documents generated image artifacts and conversation carousel navigation', () => {
@@ -733,6 +735,56 @@ suite('Chat Accessibility Help', () => {
 			quickChat: false,
 			inlineChat: false,
 			sessionsWindow: false,
+		});
+	});
+
+	test('documents optional fork titles and ordinary initial-prompt errors on persistent chat surfaces', () => {
+		const keybindingService = new MockKeybindingService();
+		const getForkHelp = (type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', isSessionsWindow = false) => {
+			const help = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
+			return {
+				forkCapableAgentHostChat: help.includes('In an Agent Host chat that supports forking'),
+				sameSessionPeerChat: help.includes('type /fork to create a forked chat beside the current one'),
+				optionalTitle: help.includes('Add a title after /fork to name it'),
+				submitPromptInFork: help.includes('type /fork prompt followed by a prompt to also send that prompt in the new chat'),
+				templateDoesNotSubmit: help.includes('Selecting the /fork title or /fork prompt completion inserts the command without submitting it.'),
+				hintsAreNotInput: help.includes('The title and prompt hints shown after the command are suggestions and are not part of your input.'),
+				doesNotDescribeNewSession: !help.includes('new session') && !help.includes('fork an Agent Host session'),
+			};
+		};
+		const documented = {
+			forkCapableAgentHostChat: true,
+			sameSessionPeerChat: true,
+			optionalTitle: true,
+			submitPromptInFork: true,
+			templateDoesNotSubmit: true,
+			hintsAreNotInput: true,
+			doesNotDescribeNewSession: true,
+		};
+		const notDocumented = {
+			forkCapableAgentHostChat: false,
+			sameSessionPeerChat: false,
+			optionalTitle: false,
+			submitPromptInFork: false,
+			templateDoesNotSubmit: false,
+			hintsAreNotInput: false,
+			doesNotDescribeNewSession: true,
+		};
+
+		assert.deepStrictEqual({
+			panelChat: getForkHelp('panelChat'),
+			agentView: getForkHelp('agentView'),
+			editsView: getForkHelp('editsView'),
+			quickChat: getForkHelp('quickChat'),
+			inlineChat: getForkHelp('inlineChat'),
+			sessionsWindow: getForkHelp('agentView', true),
+		}, {
+			panelChat: { ...documented },
+			agentView: { ...documented },
+			editsView: { ...documented },
+			quickChat: { ...notDocumented },
+			inlineChat: { ...notDocumented },
+			sessionsWindow: { ...documented },
 		});
 	});
 });

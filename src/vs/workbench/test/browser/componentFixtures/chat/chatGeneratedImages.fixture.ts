@@ -456,21 +456,23 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		inputSchema: batchGridInput,
-		expectedVisualDescriptions: ['One selected image leads above wrapping thumbnail rows. Each row has at most five uncropped images at a stable height. Portraits stay narrow, leaving unused space at the row end rather than padding the images. There is no nested scrollbar.'],
+		expectedVisualDescriptions: ['One selected image leads above wrapping thumbnail rows. Each row has at most five uncropped images at a stable height. Portraits stay narrow, leaving unused space at the row end rather than padding the images. There is no nested scrollbar. A download action sits beside the Image batch status below the thumbnails.'],
 		render: renderBatchGrid,
 	}),
 	BatchGridNarrow: defineComponentFixture({
 		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The download action remains beside the batch status without overflowing the narrow chat.'],
 		render: context => renderBatchGrid({ ...context, input: { width: 360, count: 10 } }),
 	}),
 	BatchGridInProgress: defineComponentFixture({
 		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The batch download action is available for the seven ready images while the final two images are still generating.'],
 		render: context => renderBatchGrid({ ...context, input: { inProgress: true, count: 9 } }),
 	}),
 	BatchGridLoading: defineComponentFixture({
 		virtualTime: { enabled: false },
 		inputSchema: batchGridInput.extend({ progressive: z.boolean().default(true) }),
-		expectedVisualDescriptions: ['Complete Next Image reveals mixed square, landscape, and portrait results one at a time. Row heights stay unchanged and each tile hugs its image, with unused horizontal space outside the tiles.'],
+		expectedVisualDescriptions: ['Complete Next Image reveals mixed square, landscape, and portrait results one at a time. Row heights stay unchanged and each tile hugs its image, with unused horizontal space outside the tiles. The batch download action is disabled until the first image is ready.'],
 		render: context => renderBatchGrid({ ...context, input: { ...batchGridInput.parse(context.input), progressive: true } }),
 	}),
 	GlyphRevealFinal: defineComponentFixture({

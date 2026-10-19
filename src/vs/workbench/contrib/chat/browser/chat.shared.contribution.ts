@@ -2444,7 +2444,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.WelcomePageSignInEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.welcomePage.signIn.enabled', "Controls whether the Welcome page shows a GitHub sign-in button instead of the Agents window button when signed out."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -2452,13 +2452,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
 			default: true,
-		},
-		[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.openInAgentsWindow.revealCurrentSession', "Controls whether Open in Agents Window reveals the current local Agent Host session instead of opening a new session."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		...agentsWindowHandoffConfigurationProperties,
 		'chat.approvedAccountOrganizations': {

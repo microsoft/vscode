@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryResourceType } from '../../../mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus, McpGalleryResourceType } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
 import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
@@ -112,8 +112,14 @@ suite('McpGalleryMarketplaceProvider', () => {
 		]);
 	});
 
-	test('advertises only the MCP Gallery platform source', () => {
-		assert.deepStrictEqual(getCustomizationMarketplaceSourceInfos().map(source => source.id), ['mcpGallery']);
+	test('advertises the MCP Gallery platform source only when available', () => {
+		assert.deepStrictEqual({
+			available: getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Available).map(source => source.id),
+			unavailable: getCustomizationMarketplaceSourceInfos(McpGalleryManifestStatus.Unavailable).map(source => source.id),
+		}, {
+			available: ['mcpGallery'],
+			unavailable: [],
+		});
 	});
 
 	test('retains the registry card URL for provider-owned installation', async () => {

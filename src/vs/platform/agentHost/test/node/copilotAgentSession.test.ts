@@ -65,7 +65,7 @@ import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, t
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
-import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -169,6 +169,9 @@ class MockCopilotSession {
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
+	readonly withdrawMessageRequests: Parameters<CopilotSession['rpc']['queue']['withdrawMessage']>[0][] = [];
+	withdrawMessageResult: Awaited<ReturnType<CopilotSession['rpc']['queue']['withdrawMessage']>> = { removed: true, interrupted: false };
+	withdrawMessageGate: Promise<void> | undefined;
 	readonly sendMessagesRequests: unknown[] = [];
 	sendMessagesError: Error | undefined;
 	sendMessagesGate: Promise<void> | undefined;
@@ -481,6 +484,13 @@ class MockCopilotSession {
 				throw this.sendMessagesError;
 			}
 			await this.sendMessagesGate;
+		},
+		queue: {
+			withdrawMessage: async (params: Parameters<CopilotSession['rpc']['queue']['withdrawMessage']>[0]) => {
+				this.withdrawMessageRequests.push(params);
+				await this.withdrawMessageGate;
+				return this.withdrawMessageResult;
+			},
 		},
 		debug: {
 			collectLogs: async (params: Parameters<CopilotSession['rpc']['debug']['collectLogs']>[0]) => {
@@ -1207,7 +1217,7 @@ function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapsho
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
 	handlePermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult>;
 	handleAttributedPermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
-	createClientSdkTools(toolSearchActive?: boolean): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
+	createClientSdkTools(toolSearchActive?: boolean, hostToolNames?: ReadonlySet<string>): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
 async function createAgentSession(disposables: DisposableStore, options?: {
@@ -1677,7 +1687,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return result.kind === 'attributed' ? result.result : result;
 		},
 		handleAttributedPermissionRequest: (request, invocation) => sdkRuntime.handlePermissionRequest(toPermissionRequest(request), invocation),
-		createClientSdkTools: toolSearchActive => sdkRuntime.createClientSdkTools(toolSearchActive ?? false),
+		createClientSdkTools: (toolSearchActive, hostToolNames) => sdkRuntime.createClientSdkTools(toolSearchActive ?? false, hostToolNames),
 	};
 
 	return {
@@ -2272,6 +2282,29 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(workActions(signals).map(action => action.type === ActionType.ChatBackgroundWorkSet ? `set ${action.work.id}` : `removed ${action.id}`), [
 				'removed shell:crashed',
 				'set shell:running',
+			]);
+		});
+
+		test('keeps the label and command the chat shows only when the task list leaves them empty', async () => {
+			const restored = (id: string): Extract<BackgroundTasks[number], { type: 'shell' }> => ({ ...shell(id), description: '', command: '', attachmentMode: 'detached' });
+			const { session, signals, waitForSignal } = await createAgentSession(disposables, {
+				resume: true,
+				configureMockSession: mock => { mock.backgroundTasks = [restored('server'), { ...shell('renamed'), attachmentMode: 'detached' }, restored('unknown')]; },
+			});
+			const shown = (id: string): BackgroundWork => ({
+				kind: BackgroundWorkKind.Shell, id: `shell:${id}`, label: `Serve ${id}`, command: 'npm run serve',
+				startedAt: new Date(0).toISOString(), _meta: toCopilotBackgroundShellMeta(id, 'detached'),
+			});
+			disposables.add(session.observeBackgroundWork([shown('server'), shown('renamed')]));
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			const published = workActions(signals).map(action => action.type === ActionType.ChatBackgroundWorkSet && action.work.kind === BackgroundWorkKind.Shell
+				? { id: action.work.id, label: action.work.label, command: action.work.command }
+				: action.type);
+			assert.deepStrictEqual(published, [
+				{ id: 'shell:server', label: 'Serve server', command: 'npm run serve' },
+				{ id: 'shell:renamed', label: 'Run renamed', command: 'npm test' },
+				{ id: 'shell:unknown', label: '', command: '' },
 			]);
 		});
 
@@ -13820,6 +13853,115 @@ Use the attached image as context.
 			assert.strictEqual(mockSession.sendRequests.length, 1);
 		});
 
+		/** Like the runtime, folds every steering message the SDK still holds into the running turn and echoes it. */
+		function deliverHeldSteering(mockSession: MockCopilotSession): void {
+			const withdrawn = new Set(mockSession.withdrawMessageRequests.map(request => request.messageId));
+			mockSession.sendRequests.forEach((request, index) => {
+				const { prompt, mode } = request as { prompt: string; mode?: string };
+				if (mode === 'immediate' && !withdrawn.has(`message-${index + 1}`)) {
+					mockSession.fire('user.message', { content: prompt, messageId: `message-${index + 1}`, interactionId: `interaction-${index + 1}` } as SessionEventPayload<'user.message'>['data']);
+				}
+			});
+		}
+
+		function startedTurns(signals: readonly AgentSignal[]) {
+			return getActions(signals).flatMap(action => action.type === ActionType.ChatTurnStarted ? [{ text: action.message.text, queuedMessageId: action.queuedMessageId }] : []);
+		}
+
+		test('a steering message the user removes before the model reads it is withdrawn and never becomes a turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.withdrawSteering('steer-1');
+			deliverHeldSteering(mockSession);
+
+			assert.deepStrictEqual({
+				withdrawRequests: mockSession.withdrawMessageRequests,
+				startedTurns: startedTurns(signals),
+			}, {
+				withdrawRequests: [{ messageId: 'message-1', expectedPrompt: 'focus on tests' }],
+				startedTurns: [],
+			});
+		});
+
+		test('a steering message the user removes while it is still being prepared is never sent', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await timeout(0);
+			session.resetTurnState('turn-original');
+			const gate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(gate.p);
+			const previousListCalls = mockSession.mcpListCalls;
+			const steering = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			try {
+				await timeout(0);
+				assert.strictEqual(mockSession.mcpListCalls, previousListCalls + 1);
+				await session.withdrawSteering('steer-1');
+				gate.complete();
+				await steering;
+				deliverHeldSteering(mockSession);
+
+				assert.deepStrictEqual({
+					sendRequests: mockSession.sendRequests,
+					withdrawRequests: mockSession.withdrawMessageRequests,
+					startedTurns: startedTurns(signals),
+				}, { sendRequests: [], withdrawRequests: [], startedTurns: [] });
+			} finally {
+				gate.complete();
+				await steering;
+			}
+		});
+
+		test('a removed steering message the model already received still shows as its own turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			mockSession.withdrawMessageResult = { removed: false, interrupted: false };
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.withdrawSteering('steer-1');
+			// The SDK had already folded the message into the running turn, so it still echoes it.
+			mockSession.fire('user.message', { content: 'focus on tests', interactionId: 'interaction-steer' } as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual({
+				withdrawRequests: mockSession.withdrawMessageRequests,
+				startedTurns: startedTurns(signals),
+			}, {
+				withdrawRequests: [{ messageId: 'message-1', expectedPrompt: 'focus on tests' }],
+				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-1' }],
+			});
+		});
+
+		test('an identical steering message delivered while another is being withdrawn becomes its own turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const withdrawGate = new DeferredPromise<void>();
+			mockSession.withdrawMessageGate = withdrawGate.p;
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await session.sendSteering({ id: 'steer-2', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const withdrawal = session.withdrawSteering('steer-1');
+			try {
+				await timeout(0);
+				assert.strictEqual(mockSession.withdrawMessageRequests.length, 1);
+				// The SDK withdraws the first message but delivers the second before the withdrawal returns.
+				mockSession.fire('user.message', { content: 'focus on tests', messageId: 'message-2', interactionId: 'interaction-2' } as SessionEventPayload<'user.message'>['data']);
+			} finally {
+				withdrawGate.complete();
+				await withdrawal;
+			}
+			await session.abort();
+
+			assert.deepStrictEqual({
+				withdrawRequests: mockSession.withdrawMessageRequests,
+				startedTurns: startedTurns(signals),
+				leftOver: signals.filter(signal => signal.kind === 'steering_consumed'),
+			}, {
+				withdrawRequests: [{ messageId: 'message-1', expectedPrompt: 'focus on tests' }],
+				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-2' }],
+				leftOver: [],
+			});
+		});
+
 		test('fires steering_consumed on abort when the steering never reached its turn', async () => {
 			const { session, signals } = await createAgentSession(disposables);
 
@@ -23979,6 +24121,47 @@ Use the attached image as context.
 			});
 		});
 
+		test('client tool routing keeps the advertised contract when the sender or live tools change', async () => {
+			const incompatible: ToolDefinition = {
+				...snapshot.tools[0],
+				inputSchema: { type: 'object', properties: { other: { type: 'string' } }, required: ['other'] },
+			};
+			const activeClientToolSet = activeClientToolSetWith('advertised-client');
+			activeClientToolSet.set('other-client', [incompatible]);
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			session.resetTurnState('turn-1', 'other-client');
+			mockSession.fire('tool.execution_start', { toolCallId: 'before-change', toolName: 'my_tool', arguments: {} });
+
+			activeClientToolSet.set('advertised-client', [incompatible]);
+			mockSession.fire('tool.execution_start', { toolCallId: 'after-change', toolName: 'my_tool', arguments: {} });
+			const failure = await invokeClientToolHandler(runtime.createClientSdkTools()[0], 'after-change');
+
+			assert.deepStrictEqual({
+				owners: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart
+					? [{ id: action.toolCallId, contributor: action.contributor }] : []),
+				failure: failure.resultType,
+			}, {
+				owners: [
+					{ id: 'before-change', contributor: { kind: ToolCallContributorKind.Client, clientId: 'advertised-client' } },
+					{ id: 'after-change', contributor: undefined },
+				],
+				failure: 'failure',
+			});
+		});
+
+		test('host SDK tool names are excluded from client registration and attribution', async () => {
+			const activeClientToolSet = activeClientToolSetWith('test-client');
+			const { runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientToolSet });
+			const clientTools = runtime.createClientSdkTools(false, new Set(['my_tool']));
+			mockSession.fire('tool.execution_start', { toolCallId: 'host-tool', toolName: 'my_tool', arguments: {} });
+
+			assert.deepStrictEqual({
+				clientTools: clientTools.map(tool => tool.name),
+				contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+				failures: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+			}, { clientTools: [], contributors: [undefined], failures: [] });
+		});
+
 		test('completion arriving before the SDK handler registers still resolves', async () => {
 			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 			const tools = runtime.createClientSdkTools();
@@ -24133,12 +24316,99 @@ Use the attached image as context.
 			assert.deepStrictEqual(tools.map(t => t.defer), tools.map(() => 'never'));
 		});
 
+		for (const resume of [false, true]) {
+			test(`host create_session shadows an incompatible client tool on ${resume ? 'resume' : 'create'}`, async () => {
+				const definition: IAgentServerToolDefinition = {
+					name: 'create_session',
+					description: 'Host session creation',
+					inputSchema: { type: 'object', properties: { prompt: { type: 'string' }, title: { type: 'string' } }, required: ['prompt', 'title'] },
+				};
+				const clientSnapshot: IActiveClientSnapshot = {
+					tools: [{
+						name: 'create_session', description: 'App child creation',
+						inputSchema: { type: 'object', properties: { kickoff: { type: 'object', properties: { prompt: { type: 'string' } } } } },
+					}],
+					plugins: [],
+					mcpServers: {},
+				};
+				const activeClientToolSet = new ActiveClientToolSet();
+				activeClientToolSet.set('connected-app', clientSnapshot.tools);
+				const serverToolHost = new FakeServerToolHost([definition]);
+				const { runtime, mockSession, signals } = await createAgentSession(disposables, { serverToolHost, clientSnapshot, activeClientToolSet, resume });
+				const serverTools = runtime.createServerSdkTools(true);
+				const clientTools = runtime.createClientSdkTools(true);
+				mockSession.fire('tool.execution_start', { toolCallId: 'create-child', toolName: 'create_session', arguments: { prompt: 'task', title: 'Child' } });
+				const result = await invokeClientToolHandler(serverTools[0], 'create-child', { prompt: 'task', title: 'Child' });
+
+				assert.deepStrictEqual({
+					tools: [...clientTools, ...serverTools].map(({ name, parameters, defer }) => ({ name, parameters, defer })),
+					contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+					executions: serverToolHost.executions.map(({ toolName, rawArgs }) => ({ toolName, rawArgs })),
+					result,
+				}, {
+					tools: [{ name: 'create_session', parameters: definition.inputSchema, defer: 'auto' }],
+					contributors: [undefined],
+					executions: [{ toolName: 'create_session', rawArgs: { prompt: 'task', title: 'Child' } }],
+					result: { textResultForLlm: 'ok', resultType: 'success' },
+				});
+			});
+		}
+
+		for (const scenario of ['unregistered', 'ephemeral'] as const) {
+			test(`client tool remains available when its same-name host tool is ${scenario}`, async () => {
+				const definition: IAgentServerToolDefinition = { name: 'create_session', description: 'Host session creation' };
+				const serverToolHost = new class extends FakeServerToolHost {
+					override getDefinitionsForSession(): readonly IAgentServerToolDefinition[] {
+						return scenario === 'unregistered' ? [] : this.definitions;
+					}
+				}([definition]);
+				const clientDefinition: ToolDefinition = {
+					name: 'create_session', description: 'App child creation',
+					inputSchema: { type: 'object', properties: { kickoff: { type: 'string' } } },
+				};
+				const clientSnapshot: IActiveClientSnapshot = { tools: [clientDefinition], plugins: [], mcpServers: {} };
+				const activeClientToolSet = new ActiveClientToolSet();
+				activeClientToolSet.set('connected-app', clientSnapshot.tools);
+				const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+					serverToolHost, clientSnapshot, activeClientToolSet, isEphemeral: scenario === 'ephemeral',
+				});
+				const serverTools = runtime.createServerSdkTools(true);
+				const clientTools = runtime.createClientSdkTools(true, new Set(serverTools.map(tool => tool.name)));
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'client-create', toolName: 'create_session', arguments: { kickoff: 'task' },
+				});
+				const permission = runtime.handlePermissionRequest({
+					kind: 'custom-tool', toolName: 'create_session', toolCallId: 'client-create',
+				});
+				const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				session.respondToPermissionRequest('client-create', true);
+				const resultPromise = invokeClientToolHandler(clientTools[0], 'client-create', { kickoff: 'task' });
+				session.handleClientToolCallComplete('client-create', { success: true, pastTenseMessage: 'Created child' });
+
+				assert.deepStrictEqual({
+					tools: [...clientTools, ...serverTools].map(({ name, parameters }) => ({ name, parameters })),
+					contributors: getActions(signals).flatMap(action => action.type === ActionType.ChatToolCallStart ? [action.contributor] : []),
+					confirmation: confirmation.kind === 'pending_confirmation' ? confirmation.state.contributor : undefined,
+					permission: await permission,
+					executions: serverToolHost.executions,
+					result: (await resultPromise).resultType,
+				}, {
+					tools: [{ name: 'create_session', parameters: clientDefinition.inputSchema }],
+					contributors: [{ kind: ToolCallContributorKind.Client, clientId: 'connected-app' }],
+					confirmation: { kind: ToolCallContributorKind.Client, clientId: 'connected-app' },
+					permission: { kind: 'approve-once' },
+					executions: [],
+					result: 'success',
+				});
+			});
+		}
+
 		test('honors per-tool deferral only when tool search is active', async () => {
 			for (const toolSearchActive of [false, true]) {
 				const serverToolHost = new FakeServerToolHost([
 					{ ...fakeToolDefinitions[0], deferLoading: false },
 					{ ...fakeToolDefinitions[1], deferLoading: true },
-					{ name: 'unspecified', description: 'Provider default' },
+					{ name: 'unspecified', description: 'Deferred by default' },
 				]);
 				const { runtime } = await createAgentSession(disposables, {
 					serverToolHost,
@@ -24149,7 +24419,7 @@ Use the attached image as context.
 				const expected = [
 					{ name: 'serverToolA', defer: 'never' },
 					{ name: 'serverToolB', defer: toolSearchActive ? 'auto' : 'never' },
-					{ name: 'unspecified', defer: 'never' },
+					{ name: 'unspecified', defer: toolSearchActive ? 'auto' : 'never' },
 				];
 				assert.deepStrictEqual([deferrals(), deferrals()], [expected, expected]);
 			}

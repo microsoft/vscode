@@ -56,11 +56,12 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 			let dispatched = false;
 			try {
 				const response = await this.transport.restText(missionControlAccount(this.endpoint, credential.account), credential.token, {
+					domain: metadata.domain,
 					method: metadata.method, url: url.href, bodyText, accept: metadata.accept ?? 'application/json',
 					apiVersion: this.endpoint.apiVersion ?? null, integrationId: this.endpoint.integrationId,
 					rateLimitResource: mutation && metadata.method === 'GET' ? 'agents:token_mint' : metadata.policy?.rateLimitResource ?? 'agents',
 					caller: metadata.options?.caller ?? 'github.missionControl', deadline: metadata.options?.deadline,
-					priority: metadata.options?.priority ?? (mutation ? 'mutation' : 'interactive'), retry, etag: !sensitive, coalesce: sensitive ? false : undefined,
+					priority: metadata.options?.priority ?? (mutation ? 'mutation' : 'interactive'), retry, etag: !sensitive && !metadata.options?.noCache, coalesce: sensitive ? false : undefined,
 					followRedirects: false, responseBody: metadata.responseBody,
 					onDidDispatch: mutation ? () => { dispatched = true; } : undefined,
 				}, combinedSignal);

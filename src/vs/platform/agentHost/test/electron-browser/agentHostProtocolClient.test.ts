@@ -43,7 +43,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
@@ -1696,11 +1696,12 @@ suite('AgentHostProtocolClient', () => {
 		const sourceUri = URI.parse('ahp-session:/test/chat-0');
 		const workingDirectory = toAgentHostUri(URI.file('/workspace'), agentHostAuthority('test.example:1234'));
 
-		test('forwards a fork source and ignores its working directories', async () => {
+		test('forwards an exact title and fork source while ignoring working directories', async () => {
 			const { client, transport } = createClient();
 
 			const resultPromise = client.createChat(sessionUri, chatUri, {
 				fork: { source: sourceUri, turnId: 'turn-1' },
+				title: '  Exact title  ',
 				workingDirectories: [workingDirectory],
 			});
 
@@ -1711,12 +1712,102 @@ suite('AgentHostProtocolClient', () => {
 				params: {
 					channel: sessionUri.toString(),
 					chat: chatUri.toString(),
+					title: '  Exact title  ',
 					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
 				},
 			});
 
 			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
 			await resultPromise;
+		});
+
+		test('forwards the initial message snapshot and inherits missing message selections', async () => {
+			const { client, transport } = createClient();
+			const initialMessage: Message = {
+				text: 'Summarize the attached image',
+				origin: { kind: MessageKind.User },
+				attachments: [{
+					type: MessageAttachmentKind.Resource,
+					uri: 'file:///workspace/screenshot.png',
+					label: 'screenshot.png',
+				}],
+				model: { id: 'message-model' },
+			};
+
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				fork: { source: sourceUri, turnId: 'turn-1' },
+				title: 'Fork title',
+				model: { id: 'request-model' },
+				agent: { uri: 'agent://test/reviewer' },
+				initialMessage,
+			});
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					title: 'Fork title',
+					initialMessage: {
+						...initialMessage,
+						agent: { uri: 'agent://test/reviewer' },
+					},
+					source: { kind: ChatSourceKind.Fork, chat: sourceUri.toString(), turnId: 'turn-1' },
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('inherits a request model when the initial message has none', async () => {
+			const { client, transport } = createClient();
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				model: { id: 'request-model' },
+				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+
+			assert.deepStrictEqual(transport.sentMessages[0], {
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'createChat',
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					initialMessage: {
+						text: 'Continue',
+						origin: { kind: MessageKind.User },
+						model: { id: 'request-model' },
+					},
+				},
+			});
+
+			transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+			await resultPromise;
+		});
+
+		test('preserves chat creation failure data', async () => {
+			const { client, transport } = createClient();
+			const resultPromise = client.createChat(sessionUri, chatUri, {
+				initialMessage: { text: 'Continue', origin: { kind: MessageKind.User } },
+			});
+			const data = {
+				chat: chatUri.toString(),
+			};
+
+			transport.fireMessage({
+				jsonrpc: '2.0',
+				id: 1,
+				error: { code: AhpErrorCodes.AlreadyExists, message: 'Chat already exists', data },
+			});
+
+			await assertRemoteProtocolError(resultPromise, {
+				code: AhpErrorCodes.AlreadyExists,
+				message: 'Chat already exists',
+				data,
+			});
 		});
 
 		test('forwards a side chat source and maps its working directories', async () => {
@@ -4383,16 +4474,90 @@ suite('AgentHostProtocolClient', () => {
 			client.dispose();
 
 			assert.deepStrictEqual({
-				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs })),
+				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs, requestKind: event.requestKind, connectionOperation: event.connectionOperation })),
 				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
 			}, {
 				diagnostics: [
-					{ outcome: 'started', durationMs: undefined }, { outcome: 'succeeded', durationMs: 10 },
-					{ outcome: 'started', durationMs: undefined }, { outcome: 'failed', durationMs: 15 },
+					{ outcome: 'started', durationMs: undefined, requestKind: 'listSessions', connectionOperation: 'connect' }, { outcome: 'succeeded', durationMs: 10, requestKind: 'listSessions', connectionOperation: 'connect' },
+					{ outcome: 'started', durationMs: undefined, requestKind: 'listSessions', connectionOperation: 'recover' }, { outcome: 'failed', durationMs: 15, requestKind: 'listSessions', connectionOperation: 'recover' },
 				],
 				requests: 3,
 			});
 		}));
+
+		test('samples a real session snapshot independently of listing and only once per ready cycle', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.sessionOpen') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			const listing = client.listSessions();
+			const list = await waitForRequestAtWithin(transports[0], 'listSessions', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: list.id, result: { items: [] } });
+			await listing;
+
+			for (const [index, kind] of [StateComponents.Chat, StateComponents.Session, StateComponents.Session].entries()) {
+				const resource = URI.parse(`other-host-resource:/opaque-${index}`);
+				disposables.add(client.getSubscription(kind, resource, 'test'));
+				const request = await waitForRequestAtWithin(transports[0], 'subscribe', index);
+				await timeout(10);
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: {
+						snapshot: {
+							resource: resource.toString(), fromSeq: 0,
+							state: kind === StateComponents.Chat
+								? createChatState({ resource: resource.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() })
+								: createSessionState({ resource: resource.toString(), provider: 'other', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }),
+						},
+					},
+				});
+				await flushMicrotasks();
+			}
+			const { transport, request } = await beginRecovery(client, transports);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			disposables.add(client.getSubscription(StateComponents.Session, URI.parse('other-host-resource:/missing'), 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			await timeout(15);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: {} });
+			await flushMicrotasks();
+			client.dispose();
+
+			assert.deepStrictEqual(diagnostics.map(event => ({
+				outcome: event.outcome, duration: event.durationMs, kind: event.requestKind, operation: event.connectionOperation,
+			})), [
+				{ outcome: 'started', duration: undefined, kind: 'subscribeSession', operation: 'connect' },
+				{ outcome: 'succeeded', duration: 10, kind: 'subscribeSession', operation: 'connect' },
+				{ outcome: 'started', duration: undefined, kind: 'subscribeSession', operation: 'recover' },
+				{ outcome: 'failed', duration: 15, kind: 'subscribeSession', operation: 'recover' },
+			]);
+		}));
+
+		test('classifies an opaque managed chat as the first post-readiness request', async () => {
+			const { client, transports } = createFactoryClient();
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.firstSessionRequest') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			const resource = URI.parse('other-host-resource:/opaque-chat');
+			disposables.add(client.getSubscription(StateComponents.Chat, resource, 'test'));
+			const request = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: { snapshot: { resource: resource.toString(), fromSeq: 0, state: createChatState({ resource: resource.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() }) } },
+			});
+			await flushMicrotasks();
+			assert.deepStrictEqual(diagnostics.map(event => [event.outcome, event.requestKind, event.connectionOperation]), [
+				['started', 'subscribeChat', 'connect'], ['succeeded', 'subscribeChat', 'connect'],
+			]);
+		});
 
 		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
 			test(`the recovery deadline bounds a stalled ${stage}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -4962,18 +5127,24 @@ suite('AgentHostProtocolClient', () => {
 				await Promise.resolve();
 			}
 
+			const listing = client.listSessions();
+			const listRequest = await waitForRequest(reconnectTransport, 'listSessions');
+			reconnectTransport.fireMessage({ jsonrpc: '2.0', id: listRequest.id, result: { items: [] } });
+			await listing;
 			assert.deepStrictEqual({
 				state: client.connectionState,
 				transportCount: transports.length,
 				transportFailure: diagnostics.find(event => event.phase === 'transport.connect' && event.outcome === 'failed')?.error?.message,
 				handshakeMode: diagnostics.find(event => event.phase === 'protocol.reconnect.result')?.detail,
 				retrySucceeded: diagnostics.some(event => event.phase === 'reconnect.succeeded'),
+				firstRequestOperations: diagnostics.filter(event => event.phase === 'protocol.firstSessionRequest').map(event => event.connectionOperation),
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
 				transportFailure: 'initial transport failed',
 				handshakeMode: 'mode=freshInitialize',
 				retrySucceeded: true,
+				firstRequestOperations: ['connect', 'connect'],
 			});
 		});
 

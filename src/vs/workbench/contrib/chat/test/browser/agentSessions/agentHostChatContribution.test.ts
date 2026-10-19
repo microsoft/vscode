@@ -45,7 +45,7 @@ import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/br
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ICanvas } from '../../../../canvases/common/canvas.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -64,7 +64,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -88,7 +88,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -282,6 +282,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
+	public createChatCalls: { session: URI; chat: URI; options: IAgentCreateChatRequestOptions | undefined }[] = [];
+	public nextCreatedChatTitle: string | undefined;
 	public defaultChatUri: string | undefined;
 	public disposedChats: URI[] = [];
 	public disposedSessions: URI[] = [];
@@ -416,6 +418,25 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		this.nextResolvedWorkingDirectory = undefined;
 		return session;
+	}
+
+	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+		this.createChatCalls.push({ session, chat, options });
+		this.fireAction({
+			channel: session.toString(),
+			action: {
+				type: ActionType.SessionChatAdded,
+				summary: {
+					resource: chat.toString(),
+					title: this.nextCreatedChatTitle ?? 'Generated fork title',
+					status: SessionStatus.Idle,
+					modifiedAt: new Date().toISOString(),
+					origin: { kind: ChatOriginKind.User },
+				},
+			},
+			serverSeq: this._nextSeq++,
+			origin: undefined,
+		});
 	}
 
 	override async disposeChat(chat: URI): Promise<void> { this.disposedChats.push(chat); }
@@ -3997,16 +4018,22 @@ suite('AgentHostChatContribution', () => {
 
 		test('disposed content stays read-only and rejects captured mutations', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
+			agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork: true } } }],
+				activeSessions: 0,
+			});
 			const resource = URI.parse('agent-host-copilot:/disposed-mutations');
 			const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			const forkSession = session.forkSession;
+			assert.ok(forkSession);
 			const states = [session.isReadOnly?.get()];
 			sessionHandler.dispose();
 			states.push(session.isReadOnly?.get());
 			assert.throws(() => session.renameSession?.('Changed', CancellationToken.None), /read-only/);
-			assert.throws(() => session.forkSession?.(undefined, CancellationToken.None), /read-only/);
+			assert.throws(() => forkSession(undefined, CancellationToken.None, { title: 'Changed', initialMessage: { text: 'New prompt' } }), /read-only/);
 			await assert.rejects(session.prepareForClientTools!(CancellationToken.None), /Canceled/);
-			assert.deepStrictEqual({ states, stopped: await session.interruptActiveResponseCallback?.(), actions: agentHostService.dispatchedActions }, {
-				states: [false, true], stopped: false, actions: [],
+			assert.deepStrictEqual({ states, stopped: await session.interruptActiveResponseCallback?.(), actions: agentHostService.dispatchedActions, creates: agentHostService.createChatCalls }, {
+				states: [false, true], stopped: false, actions: [], creates: [],
 			});
 		});
 
@@ -6502,6 +6529,387 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
+	// ---- Forking ---------------------------------------------------------
+
+	suite('forking', () => {
+		async function forkSession(requestedTitle: string | undefined, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string; activeTurnId?: string }) {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'fork-source');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
+			const sourceChat = buildDefaultChatUri(backendSession.toString());
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Source chat',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+					capabilities: { multipleChats: { fork: true } },
+				}],
+				activeSessions: 0,
+			});
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: sourceChat,
+				chats: [createDefaultChatSummary(summary, sourceChat)],
+				turns: Array.from({ length: boundary?.turnCount ?? 1 }, (_, index) => ({
+					id: index === 0 ? 'source-turn' : `source-turn-${index + 1}`,
+					state: TurnState.Complete,
+					message: {
+						text: 'Source request',
+						origin: { kind: MessageKind.User },
+						...(sourceSelection ? {
+							model: { id: 'source-model', config: { thinking: 'high' } },
+							agent: { uri: 'agent://source' },
+						} : {}),
+					},
+					responseParts: [],
+					usage: undefined,
+				})),
+				...(boundary?.activeTurnId ? {
+					activeTurn: {
+						id: boundary.activeTurnId,
+						startedAt: new Date().toISOString(),
+						message: { text: 'Streaming request', origin: { kind: MessageKind.User } },
+						responseParts: [],
+						usage: undefined,
+					},
+				} : {}),
+				...(sourceSelection ? {
+					draft: {
+						text: 'Unsaved composer draft',
+						origin: { kind: MessageKind.User },
+						model: { id: 'unsent-picker-model', config: { thinking: 'low' } },
+						agent: { uri: 'agent://unsent-picker' },
+					},
+				} : {}),
+			});
+			agentHostService.nextCreatedChatTitle = publishedTitle;
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(chatSession);
+			const request = boundary?.beforeRequestId
+				? chatSession.history.find((item): item is IChatSessionRequestHistoryItem => item.type === 'request' && item.id === boundary.beforeRequestId)
+				: undefined;
+			if (boundary?.beforeRequestId) {
+				assert.ok(request);
+			}
+			const forkedItem = await chatSession.forkSession?.(request, CancellationToken.None, {
+				title: requestedTitle,
+				...(initialMessage ? { initialMessage } : {}),
+				...(boundary?.sourceRequestId !== undefined ? { sourceRequestId: boundary.sourceRequestId } : {}),
+			});
+
+			return {
+				call: agentHostService.createChatCalls[0],
+				forkedItem,
+				sourceChat,
+				chatSession,
+				sessionHandler,
+				agentHostService,
+			};
+		}
+
+		test('prompt fork from an active request keeps the last completed turn', async () => {
+			const result = await forkSession('Fork', 'Fork', { text: 'Continue in a fork' }, false, {
+				turnCount: 2,
+				sourceRequestId: 'streaming-turn',
+				activeTurnId: 'streaming-turn',
+			});
+			assert.deepStrictEqual({
+				source: result.call.options?.fork?.source.toString(),
+				turnId: result.call.options?.fork?.turnId,
+				prompt: result.call.options?.initialMessage?.text,
+			}, {
+				source: result.sourceChat,
+				turnId: 'source-turn-2',
+				prompt: 'Continue in a fork',
+			});
+		});
+
+		test('prompt fork from an active first request cannot invent a completed boundary', async () => {
+			await assert.rejects(
+				forkSession('Fork', 'Fork', { text: 'Continue in a fork' }, false, {
+					turnCount: 0,
+					sourceRequestId: 'streaming-turn',
+					activeTurnId: 'streaming-turn',
+				}),
+				/Cannot fork: no turns to fork from/,
+			);
+		});
+
+		for (const boundary of [
+			{ turnCount: 1, sourceRequestId: 'source-turn' },
+			{ turnCount: 3, sourceRequestId: 'source-turn-2' },
+			{ turnCount: 3, sourceRequestId: 'source-turn-3' },
+		]) {
+			test(`fork prompt includes the exact preselected ${boundary.sourceRequestId} in a ${boundary.turnCount}-turn chat`, async () => {
+				const result = await forkSession('Fork', 'Fork', { text: 'what is 4+5' }, false, boundary);
+				assert.deepStrictEqual({
+					source: result.call.options?.fork?.source.toString(),
+					turnId: result.call.options?.fork?.turnId,
+					prompt: result.call.options?.initialMessage?.text,
+				}, {
+					source: result.sourceChat,
+					turnId: boundary.sourceRequestId,
+					prompt: 'what is 4+5',
+				});
+			});
+		}
+
+		test('a request-item fork still excludes the selected request', async () => {
+			const result = await forkSession('Fork', 'Fork', undefined, false, { turnCount: 3, beforeRequestId: 'source-turn-2' });
+			assert.strictEqual(result.call.options?.fork?.turnId, 'source-turn');
+		});
+
+		test('an exact source selection overrides the request-item boundary', async () => {
+			const result = await forkSession('Fork', 'Fork', { text: 'new prompt' }, false, {
+				turnCount: 3,
+				sourceRequestId: 'source-turn',
+				beforeRequestId: 'source-turn-3',
+			});
+			assert.strictEqual(result.call.options?.fork?.turnId, 'source-turn');
+		});
+
+		test('a request-item fork still rejects forking before the first request', async () => {
+			await assert.rejects(
+				forkSession('Fork', 'Fork', undefined, false, { beforeRequestId: 'source-turn' }),
+				/Cannot fork: cannot fork before the first request/,
+			);
+		});
+
+		test('a preselected source request must exist', async () => {
+			await assert.rejects(
+				forkSession('Fork', 'Fork', { text: 'new prompt' }, false, { sourceRequestId: 'missing-turn' }),
+				/Cannot fork: turn for request missing-turn not found in protocol state/,
+			);
+		});
+
+		test('forwards an optional title with only fork support and returns the host summary label', async () => {
+			const requestedTitle = 'Requested fork title';
+			const result = await forkSession(requestedTitle, requestedTitle);
+
+			assert.deepStrictEqual({
+				session: result.call.session.toString(),
+				options: result.call.options,
+				label: result.forkedItem?.label,
+			}, {
+				session: 'copilot:/fork-source',
+				options: {
+					model: undefined,
+					fork: { source: URI.parse(result.sourceChat), turnId: 'source-turn' },
+					title: requestedTitle,
+				},
+				label: requestedTitle,
+			});
+		});
+
+		test('returns the host summary label when an older host ignores the optional title', async () => {
+			const result = await forkSession('Ignored fork title', 'Host-generated fork title');
+
+			assert.deepStrictEqual({
+				session: result.call.session.toString(),
+				options: result.call.options,
+				label: result.forkedItem?.label,
+			}, {
+				session: 'copilot:/fork-source',
+				options: {
+					model: undefined,
+					fork: { source: URI.parse(result.sourceChat), turnId: 'source-turn' },
+					title: 'Ignored fork title',
+				},
+				label: 'Host-generated fork title',
+			});
+		});
+
+		for (const title of [undefined, '', '   ']) {
+			test(`omits an absent or empty optional fork title (${JSON.stringify(title)})`, async () => {
+				const result = await forkSession(title, 'Host fork');
+				assert.deepStrictEqual(result.call.options, {
+					model: undefined,
+					fork: { source: URI.parse(result.sourceChat), turnId: 'source-turn' },
+				});
+			});
+		}
+
+		test('supports prompt forks with only fork capability and projects a normal error turn in the created target', async () => {
+			const prompt = 'Continue in a fork';
+			const result = await forkSession(undefined, 'Prompt fork', { text: prompt });
+			assert.ok(result.forkedItem);
+			assert.ok(result.call.options?.initialMessage);
+			result.agentHostService.chatStates.set(result.call.chat.toString(), {
+				...createChatState({
+					resource: result.call.chat.toString(),
+					title: 'Prompt fork',
+					status: SessionStatus.Error,
+					modifiedAt: new Date().toISOString(),
+				}),
+				turns: [{
+					id: 'initial-prompt',
+					state: TurnState.Error,
+					message: result.call.options.initialMessage,
+					responseParts: [createErrorResponsePart({ errorType: 'provider_error', message: 'Unable to start the prompt' })],
+					usage: undefined,
+				}],
+			});
+
+			const target = disposables.add(await result.sessionHandler.provideChatSessionContent(result.forkedItem.resource, CancellationToken.None));
+			assert.deepStrictEqual({
+				supportsFork: !!result.chatSession.forkSession,
+				creates: result.agentHostService.createChatCalls.length,
+				clientTurns: result.agentHostService.turnActions,
+				sourceRequests: result.chatSession.history.filter(item => item.type === 'request').map(item => item.prompt),
+				targetRequests: target.history.filter(item => item.type === 'request').map(item => item.prompt),
+				targetErrors: target.history.filter(item => item.type === 'response').map(item => item.errorDetails?.message),
+			}, {
+				supportsFork: true,
+				creates: 1,
+				clientTurns: [],
+				sourceRequests: ['Source request'],
+				targetRequests: [prompt],
+				targetErrors: ['Error: (provider_error) Unable to start the prompt'],
+			});
+		});
+
+		test('all fork variants follow the current host fork capability', async () => {
+			const result = await forkSession(undefined, 'Fork');
+			const setForkSupport = (fork: boolean) => result.agentHostService.setRootState({
+				agents: [{ provider: 'copilot', displayName: 'Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork } } }],
+				activeSessions: 1,
+			});
+			const initiallySupported = !!result.chatSession.forkSession;
+			setForkSupport(false);
+			const afterDisabled = !!result.chatSession.forkSession;
+			setForkSupport(true);
+
+			assert.deepStrictEqual({ initiallySupported, afterDisabled, afterEnabled: !!result.chatSession.forkSession }, {
+				initiallySupported: true,
+				afterDisabled: false,
+				afterEnabled: true,
+			});
+		});
+
+		for (const code of [JsonRpcErrorCodes.InternalError, AhpErrorCodes.PermissionDenied, AhpErrorCodes.NotFound]) {
+			test(`retains the prompt fork target for an uncertain RPC error (${code}) without resending`, async () => {
+				const fixture = await forkSession(undefined, 'Fork');
+				const cause = new ProtocolError(code, 'The createChat response could not confirm the outcome');
+				const targets: URI[] = [];
+				fixture.agentHostService.createChat = async (_session, chat) => {
+					targets.push(chat);
+					throw cause;
+				};
+
+				await assert.rejects(
+					fixture.chatSession.forkSession!(undefined, CancellationToken.None, { initialMessage: { text: 'New prompt' } }),
+					error => {
+						assert.ok(error instanceof ChatSessionForkError);
+						assert.deepStrictEqual({
+							target: error.target.toString(),
+							cause: error.cause,
+							creates: targets.length,
+							clientTurns: fixture.agentHostService.turnActions,
+						}, {
+							target: fixture.chatSession.sessionResource.with({ fragment: parseChatUri(targets[0].toString())!.chatId }).toString(),
+							cause,
+							creates: 1,
+							clientTurns: [],
+						});
+						return true;
+					},
+				);
+			});
+		}
+
+		for (const code of [AhpErrorCodes.AlreadyExists, JsonRpcErrorCodes.InvalidParams, AhpErrorCodes.SessionNotFound, AhpErrorCodes.ProviderNotFound]) {
+			test(`preserves a definite pre-creation prompt fork error (${code})`, async () => {
+				const fixture = await forkSession(undefined, 'Fork');
+				const cause = new ProtocolError(code, 'The fork could not be created');
+				fixture.agentHostService.createChat = async () => { throw cause; };
+
+				await assert.rejects(
+					fixture.chatSession.forkSession!(undefined, CancellationToken.None, { initialMessage: { text: 'New prompt' } }),
+					error => error === cause,
+				);
+			});
+		}
+
+		test('captures a multiline initial message from the actual source turn rather than the unsent composer selection', async () => {
+			const prompt = 'first line\nsecond line';
+			const prefix = '/fork prompt ';
+			const result = await forkSession('Ignored', 'Forked', {
+				text: prompt,
+				textOffset: prefix.length,
+				requestOptions: {
+					attachedContext: [upcastPartial<IChatRequestVariableEntry>({
+						id: 'source-context',
+						kind: 'string',
+						name: 'Source context',
+						value: 'captured',
+						range: { start: prefix.length, endExclusive: prefix.length + 'first line'.length },
+					})],
+					resolvedVariables: [upcastPartial<IChatRequestVariableEntry>({
+						id: 'source-context',
+						kind: 'string',
+						name: 'Source context',
+						value: 'captured',
+						range: { start: prefix.length, endExclusive: prefix.length + 'first line'.length },
+					})],
+				},
+			}, true);
+
+			const message = result.call.options?.initialMessage;
+			assert.deepStrictEqual({
+				text: message?.text,
+				model: message?.model,
+				agent: message?.agent,
+				attachments: message?.attachments,
+			}, {
+				text: prompt,
+				model: { id: 'source-model', config: { thinking: 'high' } },
+				agent: { uri: 'agent://source' },
+				attachments: [{
+					type: MessageAttachmentKind.Simple,
+					label: 'Source context',
+					modelRepresentation: 'captured',
+					range: {
+						start: { line: 0, character: 0 },
+						end: { line: 0, character: 'first line'.length },
+					},
+				}],
+			});
+		});
+
+		test('does not create a fork when initial-message preflight is already cancelled', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', 'fork-cancelled');
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
+			const sourceChat = buildDefaultChatUri(backendSession.toString());
+			agentHostService.setRootState({ agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork: true } } }], activeSessions: 0 });
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: sourceChat,
+				chats: [createDefaultChatSummary({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }, sourceChat)],
+				turns: [{ id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
+			});
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(chatSession);
+			const cts = disposables.add(new CancellationTokenSource());
+			cts.cancel();
+
+			await assert.rejects(() => chatSession.forkSession!(undefined, cts.token, { initialMessage: { text: 'Prompt' } }));
+			assert.strictEqual(agentHostService.createChatCalls.length, 0);
+		});
+	});
+
 	// ---- Multi-root customization scope ---------------------------------
 
 	suite('multi-root customization scope', () => {
@@ -6566,6 +6974,20 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(toDisposable(() => chatSession.dispose()));
 
 			assert.deepStrictEqual(capturedRoots.at(-1), [primary.toString(), secondary.toString()]);
+		});
+
+		test('an existing remote session maps its customization roots into client space', async () => {
+			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { workspaceFolders: [primary] });
+			const authority = agentHostAuthority('cloudsandbox:scope-test');
+			agentHostService.resourceUris = createAgentHostResourceUriMapper(authority);
+			const capturedRoots = captureScopeRoots(instantiationService);
+			const roots = [primary, secondary, URI.parse('project-root://host/third')];
+			const sessionResource = seedExistingSession(agentHostService, 'remote-multi-root', roots);
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			assert.deepStrictEqual(capturedRoots.at(-1), roots.map(root => toAgentHostUri(root, authority).toString()));
 		});
 
 		test('an existing workspace-less session does not inherit the workspace folders', async () => {

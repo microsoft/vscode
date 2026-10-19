@@ -69,7 +69,7 @@ import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type Comp
 import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -110,7 +110,7 @@ import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { ChatSessionForkError, getChatSessionInitialMessageVariables, IChatSession, IChatSessionContentProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionInitialMessage, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -470,6 +470,8 @@ function emptyDraftFromLastTurn(state: ISessionWithDefaultChat): Message | undef
 	};
 }
 
+type ForkInitialMessageSource = Pick<ChatState, 'activeTurn' | 'turns'>;
+
 /** The draft the chat channel holds, so we only send real changes and can keep its model. */
 export class DraftSyncState {
 	private _synced: Message | undefined;
@@ -789,7 +791,10 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	}
 
 	readonly interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
-	readonly forkSession: IChatSession['forkSession'];
+	get forkSession(): IChatSession['forkSession'] {
+		return this._supportsFork() ? this._forkSessionIfWritable : undefined;
+	}
+	private readonly _forkSessionIfWritable: NonNullable<IChatSession['forkSession']>;
 	readonly renameSession: IChatSession['renameSession'];
 	readonly transferredState: IChatSession['transferredState'];
 	prepareForClientTools: IChatSession['prepareForClientTools'];
@@ -806,13 +811,14 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		canvasProvider: AgentHostCanvasCollection | undefined,
 		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
 		refreshChat: (() => Promise<void>) | undefined,
-		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
+		private readonly _forkSession: NonNullable<IChatSession['forkSession']>,
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
 		initialProgress: IChatProgress[] | undefined,
 		historySubagentObservations: IDisposable,
 		onDispose: () => void,
 		interruptActiveResponse: () => boolean,
+		private readonly _supportsFork: () => boolean,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -885,11 +891,11 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		// current active turn at call time and dispatches ChatTurnCancelled.
 		this.interruptActiveResponseCallback = async () => !this._disposed.get() && interruptActiveResponse();
 
-		this.forkSession = (request, token) => {
+		this._forkSessionIfWritable = (request, token, options) => {
 			if (this.isReadOnly.get()) {
 				throw new Error('Session is read-only');
 			}
-			return this._forkSession(request, token);
+			return this._forkSession(request, token, options);
 		};
 		this.renameSession = (title, token) => {
 			if (this.isReadOnly.get()) {
@@ -1878,12 +1884,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						return chat !== undefined ? this._config.connection.refreshSubscription!(URI.parse(chat)) : Promise.resolve();
 					}
 					: undefined,
-				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
+				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => {
 					if (!this._getSessionState(resolvedSession.toString())) {
 						throw new Error('Cannot fork session before the initial request');
 					}
 
-					return this._forkSession(sessionResource, resolvedSession, request, token);
+					return this._forkSession(sessionResource, resolvedSession, request, token, options);
 				},
 				(title: string, _token: CancellationToken) => {
 					const chat = this._getChatURIOrDefault(sessionResource, resolvedSession);
@@ -1939,6 +1945,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						duration: this._turnDuration(chatURI, turnId),
 					});
 					return true;
+				},
+				() => {
+					const agent = this._getRootState()?.agents.find(agent => agent.provider === this._config.provider);
+					return agent?.capabilities?.multipleChats?.fork === true;
 				},
 			);
 		} catch (err) {
@@ -3494,7 +3504,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const turnId = request.requestId;
 		const chatURI = this._getChatURI(request.sessionResource);
 		const turnChannel = chatURI;
-		const messageAttachments = await this._convertVariablesToAttachments(request);
+		const messageAttachments = this._convertVariablesToAttachments(request.variables.variables, request.sessionResource, request.message);
 		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
 		}
@@ -6195,6 +6205,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		backendSession: URI,
 		request: IChatSessionRequestHistoryItem | undefined,
 		token: CancellationToken,
+		options?: IChatSessionForkOptions,
 	): Promise<IChatSessionItem> {
 		if (token.isCancellationRequested) {
 			throw new Error('Cancelled');
@@ -6204,7 +6215,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!agentInfo?.capabilities?.multipleChats?.fork) {
 			throw new Error(`Provider ${this._config.provider} does not support forking`);
 		}
-
 		const sessionUri = backendSession.toString();
 		const rawSessionState = this._getRawSessionState(sessionUri);
 		if (!rawSessionState) {
@@ -6214,19 +6224,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// carries a chat fragment, else the session's default chat.
 		const sourceChat = this._resolveChatUriFromState(sessionResource, rawSessionState);
 
-		// Determine the turn to fork at. If a specific request is provided,
-		// fork BEFORE it (keeping turns up to the previous one). This matches
-		// the non-contributed path in ForkConversationAction which uses
-		// `requestIndex - 1`. If no request is provided, fork the whole chat.
+		// An explicit source is inclusive; a request-item gesture forks before that request.
 		const protocolState = this._getSessionState(sessionUri, sourceChat);
 		let turnIndex: number | undefined;
-		if (request) {
-			const requestIdx = protocolState?.turns.findIndex(t => t.id === request.id);
-			if (requestIdx === undefined || requestIdx < 0) {
-				throw new Error(`Cannot fork: turn for request ${request.id} not found in protocol state`);
+		const sourceRequestId = options?.sourceRequestId ?? request?.id;
+		if (options?.sourceRequestId !== undefined && protocolState && protocolState.activeTurn?.id === sourceRequestId) {
+			// Active requests are not forkable history; use the completed boundary already available.
+			if (protocolState.turns.length) {
+				turnIndex = protocolState.turns.length - 1;
 			}
-			// Fork before this request — keep turns [0..requestIdx-1]
-			turnIndex = requestIdx - 1;
+		} else if (sourceRequestId) {
+			const requestIdx = protocolState?.turns.findIndex(t => t.id === sourceRequestId);
+			if (requestIdx === undefined || requestIdx < 0) {
+				throw new Error(`Cannot fork: turn for request ${sourceRequestId} not found in protocol state`);
+			}
+			turnIndex = options?.sourceRequestId !== undefined ? requestIdx : requestIdx - 1;
 			if (turnIndex < 0) {
 				throw new Error('Cannot fork: cannot fork before the first request');
 			}
@@ -6240,27 +6252,62 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const turnId = protocolState!.turns[turnIndex].id;
 		const chatModel = this._chatService.getSession(sessionResource);
+		// Snapshot source-owned context and selection before the preflight awaits
+		// below. They must not follow a newly focused widget or a changed picker.
+		const capturedInitialMessage = options?.initialMessage
+			? this._captureForkInitialMessage(sessionResource, protocolState, options.initialMessage)
+			: undefined;
 
 		const forkedChat = URI.parse(newAgentHostChatUri(sessionUri, rawSessionState.defaultChat, this._config.connection.initializeResult.get()));
 		const forkedChatId = getAgentHostChatId(forkedChat.toString());
-		await this._config.connection.createChat(backendSession, forkedChat, {
-			model: lastTurnModelSelection(protocolState),
-			fork: { source: URI.parse(sourceChat), turnId },
-		});
+		const forkedResource = URI.from({ scheme: this._config.sessionType, path: sessionResource.path, fragment: forkedChatId });
+		const initialMessage = capturedInitialMessage
+			? await this._prepareForkInitialMessage(sessionResource, backendSession, capturedInitialMessage, token)
+			: undefined;
+		try {
+			await this._config.connection.createChat(backendSession, forkedChat, {
+				model: lastTurnModelSelection(protocolState),
+				fork: { source: URI.parse(sourceChat), turnId },
+				...(options?.title?.trim() ? { title: options.title } : {}),
+				...(initialMessage ? { initialMessage } : {}),
+			});
+		} catch (error) {
+			const failedBeforeCreation = error instanceof ProtocolError && (
+				error.code === AhpErrorCodes.AlreadyExists
+				|| error.code === JsonRpcErrorCodes.InvalidParams
+				|| error.code === AhpErrorCodes.SessionNotFound
+				|| error.code === AhpErrorCodes.ProviderNotFound
+			);
+			// Other RPC failures can arrive after the target was created.
+			if (initialMessage && !failedBeforeCreation) {
+				throw new ChatSessionForkError(forkedResource, error);
+			}
+			throw error;
+		}
 
 		// The chat is only addressable once the host has published it in the
 		// session's chat catalog; hydrating the returned item before then
 		// fails to resolve the fragment.
-		const sessionSubscription = this._ensureSessionSubscription(sessionUri);
-		const forkedSummary = await waitForState(
-			observableFromSubscription(this, sessionSubscription).map(state =>
-				state?.chats.find(summary => summary.resource === forkedChat.toString())),
-			(summary): summary is ChatSummary => !!summary,
-			undefined,
-			token,
-		);
+		let forkedSummary: ChatSummary;
+		try {
+			const sessionSubscription = this._ensureSessionSubscription(sessionUri);
+			forkedSummary = await waitForState(
+				observableFromSubscription(this, sessionSubscription).map(state =>
+					state?.chats.find(summary => summary.resource === forkedChat.toString())),
+				(summary): summary is ChatSummary => !!summary,
+				undefined,
+				token,
+			);
+		} catch (error) {
+			// createChat succeeded, so an initial-message fork must retain the
+			// frontend target even when catalog hydration/navigation cannot finish.
+			// The outcome is deliberately unknown: do not restore or resend it.
+			if (initialMessage) {
+				throw new ChatSessionForkError(forkedResource, error);
+			}
+			throw error;
+		}
 
-		const forkedResource = URI.from({ scheme: this._config.sessionType, path: sessionResource.path, fragment: forkedChatId });
 		const now = Date.now();
 		const forkedLabel = forkedSummary.title || chatModel?.title || localize('agentHost.forkedSessionLabel', "Forked Session");
 
@@ -6269,6 +6316,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			label: forkedLabel,
 			iconPath: getAgentSessionProviderIcon(this._config.sessionType),
 			timing: { created: now, lastRequestStarted: now, lastRequestEnded: now },
+		};
+	}
+
+	/**
+	 * Prepares a fork's initial message with the same attachment conversion and
+	 * client admission preflight as an ordinary turn. The generic fork contract
+	 * deliberately carries only workbench intent; the AHP Message remains
+	 * provider-owned here.
+	 */
+	private async _prepareForkInitialMessage(
+		sessionResource: URI,
+		backendSession: URI,
+		captured: Message,
+		token: CancellationToken,
+	): Promise<Message> {
+		this._shellInitSynchronizer.reconcile(backendSession);
+		await this._workingDirectorySynchronizer.reconcile(backendSession, token);
+		if (this._isInvocationAbandoned(token)) {
+			throw new CancellationError();
+		}
+		await this._ensureActiveClient(sessionResource, backendSession, token);
+		if (this._isInvocationAbandoned(token)) {
+			throw new CancellationError();
+		}
+
+		return captured;
+	}
+
+	private _captureForkInitialMessage(
+		sessionResource: URI,
+		sourceState: ForkInitialMessageSource | undefined,
+		intent: IChatSessionInitialMessage,
+	): Message {
+		const attachments = this._convertVariablesToAttachments(getChatSessionInitialMessageVariables(intent), sessionResource, intent.text);
+		const sourceMessage = sourceState?.activeTurn?.message ?? sourceState?.turns.at(-1)?.message;
+		return {
+			...requestMessage(intent.text, attachments, undefined, false),
+			...(sourceMessage?.model ? { model: sourceMessage.model } : {}),
+			...(sourceMessage?.agent ? { agent: sourceMessage.agent } : {}),
 		};
 	}
 
@@ -6972,7 +7058,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (dirs === undefined) {
 			return undefined;
 		}
-		return dirs.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+		// Share client-space scope identities with the sessions provider.
+		return dirs.map(directory => this._config.connection.resourceUris.fromAgentHost(typeof directory === 'string' ? URI.parse(directory) : directory));
 	}
 
 	/**
@@ -7040,10 +7127,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return true;
 	}
 
-	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
-		const attachments = this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
+	private _convertVariablesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, message: string): MessageAttachment[] {
+		const attachments = this._variableEntriesToAttachments(variables, sessionResource, message);
 		const explicitCount = attachments.length;
-		this._appendActiveEditorAttachments(attachments, request);
+		this._appendActiveEditorAttachments(attachments, variables, sessionResource, message);
 		if (attachments.length !== explicitCount) {
 			this._logService.trace(`[AgentHost] Forwarded ${attachments.length - explicitCount} active editor attachment(s); ${attachments.length} total`);
 		}
@@ -7056,18 +7143,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * {@link ChatConfiguration.ImplicitContextActiveEditor} (on by default, off in the Agents window).
 	 * Unsaved handling lives in {@link _convertVariableToAttachment}.
 	 */
-	private _appendActiveEditorAttachments(attachments: MessageAttachment[], request: IChatAgentRequest): void {
+	private _appendActiveEditorAttachments(attachments: MessageAttachment[], variables: readonly IChatRequestVariableEntry[], sessionResource: URI, message: string): void {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.ImplicitContextActiveEditor)) {
 			return;
 		}
-		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.input.implicitContext;
+		const implicitContext = this._chatWidgetService.getWidgetBySessionResource(sessionResource)?.input.implicitContext;
 		if (!implicitContext) {
 			return;
 		}
 		// Key on source entries (not produced attachments) so inlined unsaved buffers (no URI) still dedupe.
 		const existingKeys = new Set<string>();
-		for (const v of request.variables.variables) {
-			const key = this._fileEntryDedupeKey(v, request.sessionResource);
+		for (const v of variables) {
+			const key = this._fileEntryDedupeKey(v, sessionResource);
 			if (key) {
 				existingKeys.add(key);
 			}
@@ -7085,7 +7172,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (skipUntitled && entry.uri?.scheme === Schemas.untitled) {
 				continue;
 			}
-			const key = this._fileEntryDedupeKey(entry, request.sessionResource);
+			const key = this._fileEntryDedupeKey(entry, sessionResource);
 			let forwardEntry = true;
 			if (key) {
 				if (existingKeys.has(key)) {
@@ -7095,7 +7182,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 			}
 			if (forwardEntry) {
-				const attachment = this._convertVariableToAttachment(entry, request.sessionResource, request.message);
+				const attachment = this._convertVariableToAttachment(entry, sessionResource, message);
 				if (!Array.isArray(attachment) && attachment) {
 					attachments.push(attachment);
 				}

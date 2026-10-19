@@ -85,7 +85,7 @@ if $HELP; then
 	echo ""
 	echo "Runs integration tests. When no filters are given, all integration tests"
 	echo "(node.js integration tests + extension host tests) are run."
-	echo "Agent Host E2E entrypoints run in parallel before the remaining node.js tests."
+	echo "Agent Host E2E suites are not included; run them with scripts/test-agent-host-e2e.sh."
 	echo ""
 	echo "--run and --runGlob select which node.js integration test files to load."
 	echo "Extension host tests are skipped when these options are used."
@@ -199,14 +199,8 @@ if [[ -z "$SUITE_FILTER" ]]; then
 	start_suite "node.js integration tests"
 	node --input-type=module -e "import { getAgentHostTestProfile } from './src/vs/platform/agentHost/test/node/agentHostTestProfile.ts'; console.log('Agent Host test profile:', getAgentHostTestProfile(), '(' + (process.env.AGENT_HOST_TEST_PROFILE_REASON ?? 'default') + ')');"
 	if [[ -z "$RUN_GLOB" && -z "$RUN_FILE" ]]; then
-		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
-			echo "Skipping Agent Host E2E tests because no relevant files changed."
-		else
-			CURRENT_SUITE="Agent Host E2E"
-			node ./test/integration/agentHost/runner.ts "${EXTRA_ARGS[@]}"
-			CURRENT_SUITE="node.js integration tests"
-		fi
-		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
+		# Agent Host E2E runs separately, in parallel isolated processes: scripts/test-agent-host-e2e.sh
+		./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
 		./scripts/test.sh "${EXTRA_ARGS[@]}"
 	fi

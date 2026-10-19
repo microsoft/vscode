@@ -76,6 +76,7 @@ import { WorkbenchList } from '../../../../../../platform/list/browser/listServi
 import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { inheritAutoTierConfiguration } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { bindContextKey, observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
@@ -793,6 +794,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private _localSandboxSupported = false;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly agentHostPickers = new Map<string, AgentHostChatInputPicker>();
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
@@ -1130,24 +1132,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 		}));
 
-		// React to chat session option changes for the active session
-		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
-				// Options changed for our current session - refresh pickers
-				this.refreshChatSessionPickers();
-			}
-		}));
-
-		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource) {
-				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-				if (getChatSessionType(sessionResource) === chatSessionType || delegateSessionType === chatSessionType) {
-					this.refreshChatSessionPickers();
-				}
-			}
-		}));
+		this.registerChatSessionPickerListeners();
 
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
@@ -1494,6 +1479,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.modelWidget?.show();
+	}
+
+	/** The Agent Host mode or permissions picker in the input toolbar, if it is rendered. */
+	public getAgentHostPicker(property: SessionConfigKey.Mode | SessionConfigKey.AutoApprove): Pick<AgentHostChatInputPicker, 'triggerElement' | 'menuElement' | 'combinesPermissions' | 'showSection' | 'hideMenu'> | undefined {
+		const picker = this.agentHostPickers.get(property);
+		return picker?.triggerElement?.isConnected ? picker : undefined;
 	}
 
 	public openModePicker(): void {
@@ -2896,6 +2887,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		);
 	}
 
+	private registerChatSessionPickerListeners(): void {
+		// A history-backed chat can open before its live session contribution is registered.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.refreshChatSessionPickers()));
+		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
+				this.refreshChatSessionPickers();
+			}
+		}));
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource) {
+				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+				if (getChatSessionType(sessionResource) === chatSessionType || delegateSessionType === chatSessionType) {
+					this.refreshChatSessionPickers();
+				}
+			}
+		}));
+	}
+
 	/**
 	 * Refresh all registered option groups for the current chat session.
 	 * Fires events for each option group with their current selection.
@@ -4171,7 +4182,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.overflowPickerWidget.value = picker;
 							picker.show(anchor);
 						});
-						return new AgentHostChatInputPickerActionViewItem(action, createPicker());
+						const picker = createPicker();
+						this.agentHostPickers.set(agentHostPickerProperty, picker);
+						return new AgentHostChatInputPickerActionViewItem(action, picker, () => {
+							if (this.agentHostPickers.get(agentHostPickerProperty) === picker) {
+								this.agentHostPickers.delete(agentHostPickerProperty);
+							}
+						});
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);

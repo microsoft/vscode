@@ -18,7 +18,7 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from './agentHostCredentials.js';
-import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext, IAgentHostSessionSubscribeTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
@@ -90,6 +90,16 @@ export interface IAgentHostIpcConnectionOptions {
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+/**
+ * Trusted connection facts retained by the protocol ingress while it asks the
+ * host to submit a create-chat initial message. This is deliberately not part
+ * of the protocol request or provider creation options.
+ */
+export interface IAgentCreateChatInitialMessageContext {
+	readonly clientId: string;
+	readonly telemetryContext: IAgentHostClientTelemetryContext;
+}
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
 /** Maximum number of files in one Agent Host debug-log artifact. */
@@ -846,6 +856,8 @@ export interface IMissionControlOptions {
 	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
+	/** Explicit host-owner opt-in to use local Copilot credentials for same-owner relay clients. */
+	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
 }
@@ -872,7 +884,7 @@ export interface IAgentHostManagementService {
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI>;
 	/**
 	 * Local-only compatibility path for chat fields not yet represented by AHP
-	 * `createChat` (`title` and `model`).
+	 * `createChat` (`model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
 	/** Installs the chat's sandbox CA through trusted local management IPC after user consent, preserving its advertised identity. */
@@ -1003,7 +1015,7 @@ export interface IAgentService {
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void>;
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
@@ -1136,7 +1148,7 @@ export interface IAgentService {
 	 * request cancelled during asynchronous resolution cannot pin the resource.
 	 * Callers must distinguish lost subscription ownership from a missing resource.
 	 */
-	subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource): Promise<IStateSnapshot>;
+	subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot>;
 
 	/**
 	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
@@ -1428,7 +1440,7 @@ export interface IAgentConnection {
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
 	 * chat to the session's catalog and publishes `session/chatAdded`.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void>;
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(chat: URI): Promise<void>;
 

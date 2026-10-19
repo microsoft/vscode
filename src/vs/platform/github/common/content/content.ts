@@ -73,11 +73,20 @@ export interface SubmoduleContent extends ContentEntry {
 /** The full Contents object representation, distinguished from directory-entry summaries. */
 export type RepositoryContent = FileContent | DirectoryContent | SymlinkContent | SubmoduleContent;
 
+/** Well-known mode strings returned by the Git trees API. */
+export const enum GitTreeEntryMode {
+	File = '100644',
+	ExecutableFile = '100755',
+	Directory = '040000',
+	SymbolicLink = '120000',
+	Submodule = '160000',
+}
+
 /** A Git tree entry, including symlinks and submodule commits. */
 export interface GitTreeEntry {
 	/** Path relative to the requested tree, including parent directories for recursive results. */
 	readonly path: string;
-	/** Git mode string identifying ordinary files, executables, directories, symlinks, or submodules. */
+	/** Git mode string; known values are {@link GitTreeEntryMode}, but unknown modes are preserved. */
 	readonly mode: string;
 	/** Git object kind; commit denotes a submodule and symlinks are blobs. */
 	readonly type: 'blob' | 'tree' | 'commit';

@@ -10,7 +10,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
-import { captureCredentialSource, parseCredentialPrincipal } from '../../common/agentHostCredentials.js';
+import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
@@ -129,6 +129,46 @@ suite('AgentHostAuthenticationScope', () => {
 		});
 	});
 
+	test('validates relay identity before resolving delegated credentials', async () => {
+		const resolutions: string[] = [];
+		const scope = store.add(new AgentHostAuthenticationScope(
+			async () => { throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Wrong relay owner'); },
+			() => { },
+			principal,
+			async resource => { resolutions.push(resource); return undefined; },
+		));
+		await assert.rejects(scope.authenticate({ resource, token: 'foreign-client' }, resources), { code: JsonRpcErrorCodes.InvalidParams });
+		assert.deepStrictEqual(resolutions, []);
+	});
+
+	test('delegation failures never fall back to the client credential', async () => {
+		const scope = store.add(new AgentHostAuthenticationScope(
+			validate, () => { }, principal,
+			async () => ({ principal, getCredential: () => undefined }),
+		));
+		await assert.rejects(scope.authenticate({ resource, token: 'ios-token' }, resources), { code: AhpErrorCodes.AuthRequired });
+		assert.strictEqual(scope.getCredential({ resource }), undefined);
+	});
+
+	test('disconnect during delegated credential resolution cannot resurrect authentication', async () => {
+		const gate = new DeferredPromise<IAgentHostCredentialSource>();
+		const started = new DeferredPromise<void>();
+		const scope = store.add(new AgentHostAuthenticationScope(
+			validate, () => { }, principal,
+			async () => { started.complete(); return gate.p; },
+		));
+		const pending = scope.authenticate({ resource, token: 'ios-token' }, resources);
+		const rejection = assert.rejects(pending, { code: AhpErrorCodes.AuthRequired });
+		await started.p;
+		scope.dispose();
+		gate.complete({
+			principal,
+			getCredential: () => ({ resource, token: 'desktop-token', revision: 1, expiresAt: undefined }),
+		});
+		await rejection;
+		assert.throws(() => scope.getCredential({ resource }), { code: AhpErrorCodes.AuthRequired });
+	});
+
 	test('a late validation cannot overwrite a newer rotation', async () => {
 		const gate = new DeferredPromise<AuthenticateParams>();
 		const scope = createScope(params => params.token === 'first' ? gate.p : Promise.resolve(params));
@@ -227,6 +267,14 @@ suite('AgentHostAuthenticationScope', () => {
 		const different = store.add(new AgentHostAuthenticationScope(validate, () => { }, { ...principal, userId: '2' }));
 		assert.throws(() => service.bindSessionCredentials('restored', different), { code: AhpErrorCodes.PermissionDenied });
 		assert.deepStrictEqual(service.getSessionCredentialPrincipal('restored'), principal);
+	});
+
+	test('a chat without a recorded credential owner follows its session when it moves, and keeps the principal after the source is released', () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		service.restoreSessionCredentialPrincipal('source', principal);
+		service.moveChatCredentials('chat', 'source', 'target');
+		service.releaseSessionCredentials('source');
+		assert.deepStrictEqual({ principal: service.getSessionCredentialPrincipal('chat'), target: service.getSessionCredentialPrincipal('target') }, { principal, target: principal });
 	});
 
 	test('explicit local continuation validates the owner and captures only the desktop credential', async () => {
