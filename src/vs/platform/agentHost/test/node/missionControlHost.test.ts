@@ -720,13 +720,13 @@ suite('Mission Control host integration', () => {
 				error: outcome === 'failed' ? { name: 'Error', message: 'private server response (requestId=ABCD:1234:5678:90AB:CDEF)', status: 503, requestId: 'ABCD:1234:5678:90AB:CDEF' } : undefined,
 			});
 		}
-		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
 		const sample: ClassifiedSample<MissionControlOperationClassification> = {
 			operation: 'heartbeat', outcome: 'failed', durationMs: 42, statusCode: 503, hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 		};
 		assert.deepStrictEqual(events, [
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'register', outcome: 'succeeded', statusCode: undefined } },
-			{ eventName: 'agentHost.missionControlOperation', data: sample },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, errorCategory: 'httpServer' } },
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relay', outcome: 'succeeded', statusCode: undefined } },
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined } },
 		]);

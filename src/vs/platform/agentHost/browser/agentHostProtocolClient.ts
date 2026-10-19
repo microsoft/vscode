@@ -45,7 +45,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
@@ -433,6 +433,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
 	private _isSuspended = false;
 	private _firstSessionRequestPending = false;
+	private _firstSessionOpenPending = false;
+	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
@@ -646,9 +648,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			reconnect.nextAttemptAt = undefined;
 		}
+		if (next.kind === AgentHostClientState.Connected) {
+			this._connectionOperation = this._state.kind === AgentHostClientState.Reconnecting ? 'recover' : 'connect';
+		}
 		this._state = next;
 		if (next.kind === AgentHostClientState.Connected) {
 			this._firstSessionRequestPending = true;
+			this._firstSessionOpenPending = true;
 		}
 		if (next.kind === AgentHostClientState.Reconnecting) {
 			this._armReconnectDeadline(next.reconnect);
@@ -1619,6 +1625,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		if (this._firstSessionOpenPending && this._state.kind === AgentHostClientState.Connected
+			&& this._subscriptionManager.getActiveSubscriptions().some(subscription => subscription.kind === StateComponents.Session && subscription.resource.toString() === resource.toString())) {
+			this._firstSessionOpenPending = false;
+			const connectionOperation = this._connectionOperation;
+			const attemptId = this._diagnosticAttemptId;
+			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind: 'subscribeSession' }), 'protocol.sessionOpen', () => this._subscribe(resource));
+		}
+		return this._subscribe(resource);
+	}
+
+	private async _subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
 		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
 		if (!result.snapshot) {
@@ -2800,7 +2817,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		if (this._firstSessionRequestPending && current.kind === AgentHostClientState.Connected && (method === 'createSession' || method === 'listSessions' || method === 'subscribe')) {
 			this._firstSessionRequestPending = false;
-			return this._traceConnection('protocol.firstSessionRequest', async () => {
+			const fields: { readonly channel?: unknown } | undefined = typeof params === 'object' && params !== null ? params : undefined;
+			const channel = typeof fields?.channel === 'string' ? fields.channel : undefined;
+			const requestKind = method !== 'subscribe' ? method
+				: channel !== undefined && isAhpRootChannel(channel) ? 'subscribeRoot'
+					: channel !== undefined && isAhpChatChannel(channel) ? 'subscribeChat'
+						: this._subscriptionManager.getActiveSubscriptions().some(subscription => subscription.kind === StateComponents.Session && subscription.resource.toString() === channel) ? 'subscribeSession' : 'subscribeOther';
+			const attemptId = this._diagnosticAttemptId;
+			const connectionOperation = this._connectionOperation;
+			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind }), 'protocol.firstSessionRequest', async () => {
 				this._transport.send(request);
 				return result;
 			});

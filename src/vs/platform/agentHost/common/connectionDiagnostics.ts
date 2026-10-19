@@ -18,7 +18,11 @@ export interface IConnectionDiagnosticEvent {
 	readonly durationMs?: number;
 	readonly detail?: string;
 	readonly error?: IConnectionDiagnosticError;
+	readonly requestKind?: ConnectionDiagnosticRequestKind;
+	readonly connectionOperation?: 'connect' | 'recover';
 }
+
+export type ConnectionDiagnosticRequestKind = 'listSessions' | 'createSession' | 'subscribeRoot' | 'subscribeSession' | 'subscribeChat' | 'subscribeOther';
 
 export interface IConnectionDiagnosticError {
 	readonly name: string;

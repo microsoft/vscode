@@ -15,6 +15,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
+import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
@@ -56,7 +57,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return isObject(value);
 }
 
-type MissionControlOperationEvent = {
+type MissionControlOperationEvent = IConnectionTelemetryError & {
 	operation: 'configure' | 'checkIn' | 'register' | 'heartbeat' | 'token' | 'signingKeys' | 'relay' | 'relayDisconnected';
 	outcome: 'succeeded' | 'failed' | 'info';
 	durationMs: number | undefined;
@@ -64,13 +65,12 @@ type MissionControlOperationEvent = {
 	hostLaunchKind: AgentHostLaunchKind;
 };
 
-export type MissionControlOperationClassification = {
+export type MissionControlOperationClassification = ConnectionTelemetryErrorClassification & {
 	owner: 'roblourens';
 	comment: 'Mission Control host registration and relay health; routine successful heartbeats are excluded.';
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded registration, heartbeat, token, signing key, relay establishment or unexpected relay loss operation.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation success or failure, or an unexpected relay loss (info).' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Operation milliseconds, or ready relay milliseconds before an unexpected loss.' };
-	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status on failed requests, when available. No response content.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
 };
 
@@ -353,11 +353,13 @@ export class MissionControlHost extends Disposable {
 				if (event.outcome === 'started' || ((event.phase === 'heartbeat' || event.phase === 'checkIn') && event.outcome === 'succeeded')) {
 					return;
 				}
+				const failure = getConnectionTelemetryError(event.error);
 				this._telemetryService.publicLog2<MissionControlOperationEvent, MissionControlOperationClassification>('agentHost.missionControlOperation', {
+					...failure,
 					operation: event.phase,
 					outcome: event.outcome,
 					durationMs: event.durationMs,
-					statusCode: event.error?.status,
+					statusCode: failure.statusCode,
 					hostLaunchKind: this._options.hostLaunchKind,
 				});
 				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}`;

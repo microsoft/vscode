@@ -4383,15 +4383,67 @@ suite('AgentHostProtocolClient', () => {
 			client.dispose();
 
 			assert.deepStrictEqual({
-				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs })),
+				diagnostics: diagnostics.map(event => ({ outcome: event.outcome, durationMs: event.durationMs, requestKind: event.requestKind, connectionOperation: event.connectionOperation })),
 				requests: transports.flatMap(transport => transport.sentMessages).filter(message => hasKey(message, { method: true }) && message.method === 'listSessions').length,
 			}, {
 				diagnostics: [
-					{ outcome: 'started', durationMs: undefined }, { outcome: 'succeeded', durationMs: 10 },
-					{ outcome: 'started', durationMs: undefined }, { outcome: 'failed', durationMs: 15 },
+					{ outcome: 'started', durationMs: undefined, requestKind: 'listSessions', connectionOperation: 'connect' }, { outcome: 'succeeded', durationMs: 10, requestKind: 'listSessions', connectionOperation: 'connect' },
+					{ outcome: 'started', durationMs: undefined, requestKind: 'listSessions', connectionOperation: 'recover' }, { outcome: 'failed', durationMs: 15, requestKind: 'listSessions', connectionOperation: 'recover' },
 				],
 				requests: 3,
 			});
+		}));
+
+		test('samples a real session snapshot independently of listing and only once per ready cycle', () => runWithFakedTimers({}, async () => {
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'protocol.sessionOpen') {
+					diagnostics.push(event);
+				}
+			}));
+			await completeHandshake(transports[0], client.connect());
+			const listing = client.listSessions();
+			const list = await waitForRequestAtWithin(transports[0], 'listSessions', 0);
+			transports[0].fireMessage({ jsonrpc: '2.0', id: list.id, result: { items: [] } });
+			await listing;
+
+			for (const [index, kind] of [StateComponents.Chat, StateComponents.Session, StateComponents.Session].entries()) {
+				const resource = URI.parse(`other-host-resource:/opaque-${index}`);
+				disposables.add(client.getSubscription(kind, resource, 'test'));
+				const request = await waitForRequestAtWithin(transports[0], 'subscribe', index);
+				await timeout(10);
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: {
+						snapshot: {
+							resource: resource.toString(), fromSeq: 0,
+							state: kind === StateComponents.Chat
+								? createChatState({ resource: resource.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() })
+								: createSessionState({ resource: resource.toString(), provider: 'other', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }),
+						},
+					},
+				});
+				await flushMicrotasks();
+			}
+			const { transport, request } = await beginRecovery(client, transports);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			disposables.add(client.getSubscription(StateComponents.Session, URI.parse('other-host-resource:/missing'), 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			await timeout(15);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: {} });
+			await flushMicrotasks();
+			client.dispose();
+
+			assert.deepStrictEqual(diagnostics.map(event => ({
+				outcome: event.outcome, duration: event.durationMs, kind: event.requestKind, operation: event.connectionOperation,
+			})), [
+				{ outcome: 'started', duration: undefined, kind: 'subscribeSession', operation: 'connect' },
+				{ outcome: 'succeeded', duration: 10, kind: 'subscribeSession', operation: 'connect' },
+				{ outcome: 'started', duration: undefined, kind: 'subscribeSession', operation: 'recover' },
+				{ outcome: 'failed', duration: 15, kind: 'subscribeSession', operation: 'recover' },
+			]);
 		}));
 
 		for (const stage of ['preparation', 'transport', 'protocol', 'authentication preparation', 'authentication resolution', 'authenticate', 'subscriptions'] as const) {
