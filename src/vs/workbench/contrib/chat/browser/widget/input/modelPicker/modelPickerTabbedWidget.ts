@@ -767,7 +767,7 @@ export class TabbedModelPicker extends Disposable {
 			actions.push({
 				id: 'comparison',
 				icon: Codicon.layers,
-				tooltip: comparison.label,
+				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
@@ -815,14 +815,18 @@ export class TabbedModelPicker extends Disposable {
 		return actions;
 	}
 
+	private _labelWithKeybinding(label: string, commandId: string | undefined, context?: IContextKeyService): string {
+		const keybinding = commandId ? this._keybindingService.lookupKeybinding(commandId, context)?.getLabel() : undefined;
+		return keybinding ? localize('modelPicker.comparison.withKeybinding', "{0} ({1})", label, keybinding) : label;
+	}
+
 	private _renderStartComparisonFooter(container: HTMLElement, comparison: IModelPickerComparison): DisposableStore {
 		const store = new DisposableStore();
 		const label = localize('modelPicker.comparison.start', "Send Query to Multiple Models");
 		const context = store.add(this._contextKeyService.createScoped(container));
 		ModelComparisonAvailableContext.bindTo(context).set(true);
 		ModelComparisonPickerFocusedContext.bindTo(context).set(true);
-		const keybinding = comparison.startCommandId ? this._keybindingService.lookupKeybinding(comparison.startCommandId, context)?.getLabel() : undefined;
-		const hint = keybinding ? localize('modelPicker.comparison.startWithKeybinding', "{0} ({1})", label, keybinding) : label;
+		const hint = this._labelWithKeybinding(label, comparison.startCommandId, context);
 		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: hint }));
 		button.label = `$(${Codicon.add.id}) ${hint}`;
 		store.add(button.onDidClick(() => {

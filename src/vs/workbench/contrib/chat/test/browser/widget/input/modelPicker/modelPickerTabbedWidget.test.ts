@@ -803,17 +803,21 @@ suite('TabbedModelPicker', () => {
 		};
 		const shortcut = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM;
 		const { picker, popup, selections } = createPicker({ comparison, comparisonKeybinding: shortcut });
+		const shortcutLabel = new MockKeybindingService().resolveKeybinding(decodeKeybinding(shortcut, OS)!)[0].getLabel();
 		const label = element(popup, '.tabbed-action-list-footer .monaco-button').textContent;
+		const toggleLabel = element(popup, '[data-id="comparison"]').getAttribute('aria-label');
 		picker.openWithFilter({ startComparison: true });
 		assert.deepStrictEqual({
 			label,
+			toggleLabel,
 			step: state.get()?.title,
 			selections,
 			visible: picker.isVisible,
 			footer: popup.querySelector('.model-picker-comparison-actions') !== null,
-			toggle: popup.querySelector('[aria-label="Compare Models"][aria-pressed="true"]') !== null,
+			toggle: popup.querySelector('[data-id="comparison"][aria-pressed="true"]') !== null,
 		}, {
-			label: `Send Query to Multiple Models (${new MockKeybindingService().resolveKeybinding(decodeKeybinding(shortcut, OS)!)[0].getLabel()})`,
+			label: `Send Query to Multiple Models (${shortcutLabel})`,
+			toggleLabel: `Compare Models (${shortcutLabel})`,
 			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
 		});
 	});
