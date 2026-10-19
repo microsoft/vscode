@@ -20,7 +20,7 @@ import { LogServiceImpl } from '../../../log/common/logService';
 import { FetchOptions, IFetcherService, Response } from '../../../networking/common/fetcherService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
 import { createFakeResponse } from '../../../test/node/fetcher';
-import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL } from '../../common/authentication';
+import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_ALIGNED_LEGACY, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL } from '../../common/authentication';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../common/copilotToken';
 import { ICopilotTokenManager } from '../../common/copilotTokenManager';
 import { CopilotTokenStore } from '../../common/copilotTokenStore';
@@ -65,7 +65,7 @@ class TestAuthenticationApi {
 			this.permissive ||= scopes === GITHUB_SCOPE_ALIGNED;
 			return this.selected && { ...this.selected, scopes };
 		}
-		if (scopes === GITHUB_SCOPE_ALIGNED && !this.permissive) {
+		if ((scopes === GITHUB_SCOPE_ALIGNED || scopes === GITHUB_SCOPE_ALIGNED_LEGACY) && !this.permissive) {
 			return undefined;
 		}
 		const selected = accounts.find(session => session.account.id === this.selected?.account.id) ?? (accounts.length === 1 ? accounts[0] : undefined);
@@ -183,15 +183,15 @@ describe('Copilot session provenance', () => {
 		await expect(request).rejects.toThrow('session is incompatible');
 	});
 
-	test('preserves aligned, minimal, then legacy scope acquisition order', async () => {
+	test('preserves aligned, previously aligned, minimal, then legacy scope acquisition order', async () => {
 		const legacy = { ...api.sessions[1], scopes: GITHUB_SCOPE_READ_USER };
-		vscodeAuthentication.getSession.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined).mockResolvedValueOnce(legacy);
+		vscodeAuthentication.getSession.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined).mockResolvedValueOnce(legacy);
 		const selected = await getAnyAuthSession(configuration, { silent: true });
 		expect({
 			scopes: vscodeAuthentication.getSession.mock.calls.map(([, scopes]) => scopes),
 			issuer: selected?.authorizationServer?.toString(),
 		}).toEqual({
-			scopes: [GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_USER_EMAIL, GITHUB_SCOPE_READ_USER],
+			scopes: [GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_ALIGNED_LEGACY, GITHUB_SCOPE_USER_EMAIL, GITHUB_SCOPE_READ_USER],
 			issuer: legacy.authorizationServer?.toString(),
 		});
 	});
@@ -200,6 +200,7 @@ describe('Copilot session provenance', () => {
 		const selected = api.sessions[1];
 		await getAnyAuthSession(configuration, { account: selected.account, authorizationServer: selected.authorizationServer, silent: true });
 		expect(api.calls.map(call => [call.options.account?.id, call.options.authorizationServer?.toString()])).toEqual([
+			[selected.account.id, selected.authorizationServer?.toString()],
 			[selected.account.id, selected.authorizationServer?.toString()],
 			[selected.account.id, selected.authorizationServer?.toString()],
 		]);

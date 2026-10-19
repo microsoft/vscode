@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { authentication, AuthenticationGetSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, AuthenticationWwwAuthenticateRequest, ConfigurationScope, ConfigurationTarget, Uri, workspace, WorkspaceConfiguration } from 'vscode';
-import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL } from '../../../platform/authentication/common/authentication';
+import { GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_ALIGNED_LEGACY, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL } from '../../../platform/authentication/common/authentication';
 import { getAlignedSession, getAnyAuthSession } from '../../../platform/authentication/vscode-node/session';
 import { AuthProviderId, Config, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
@@ -240,6 +240,35 @@ suite('Session tests', function () {
 			const result = await getAlignedSession(accessor.get(IConfigurationService), { silent: true });
 
 			assert.strictEqual((result as AuthenticationSession)?.id, alignedSessionId);
+		});
+
+		test('should prefer an aligned session over one created before the aligned scopes changed', async () => {
+			seedSessions([
+				{ id: 'legacy-session-id', accessToken: 'legacy-token', scopes: GITHUB_SCOPE_ALIGNED_LEGACY, account: { id: 'account', label: 'account-label' } },
+				{ id: 'aligned-session-id', accessToken: 'aligned-token', scopes: GITHUB_SCOPE_ALIGNED, account: { id: 'account', label: 'account-label' } },
+			]);
+
+			const results = await Promise.all([
+				getAlignedSession(accessor.get(IConfigurationService), { silent: true }),
+				getAnyAuthSession(accessor.get(IConfigurationService)),
+			]);
+
+			assert.deepStrictEqual(results.map(result => result?.id), ['aligned-session-id', 'aligned-session-id']);
+		});
+
+		test('should reuse a session created before the aligned scopes changed without prompting', async () => {
+			seedSessions([
+				{ id: 'legacy-session-id', accessToken: 'legacy-token', scopes: GITHUB_SCOPE_ALIGNED_LEGACY, account: { id: 'account', label: 'account-label' } },
+			]);
+
+			const results = await Promise.all([
+				getAlignedSession(accessor.get(IConfigurationService), { silent: true }),
+				getAlignedSession(accessor.get(IConfigurationService), { createIfNone: true }),
+				getAnyAuthSession(accessor.get(IConfigurationService)),
+			]);
+
+			assert.deepStrictEqual(results.map(result => result?.id), ['legacy-session-id', 'legacy-session-id', 'legacy-session-id']);
+			assert.strictEqual(getSessionStub.getCalls().some(call => call.args[2]?.createIfNone), false);
 		});
 
 		test('should return undefined if there is no session with permissive scopes', async () => {

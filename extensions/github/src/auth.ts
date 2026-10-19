@@ -28,10 +28,19 @@ function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
 	}
 }
 
-const scopes = ['repo', 'workflow', 'user:email', 'read:user'];
+const scopes = ['repo', 'workflow', 'user:email', 'read:user', 'write:plugin_gateway_connections'];
+
+// The shared scopes used before `write:plugin_gateway_connections` was added. Sessions that were
+// created with these scopes remain valid so that updating does not force users to sign in again.
+const legacyScopes = ['repo', 'workflow', 'user:email', 'read:user'];
+
+async function getSilentSession(): Promise<AuthenticationSession | undefined> {
+	return await authentication.getSession('github', scopes, { silent: true })
+		?? await authentication.getSession('github', legacyScopes, { silent: true });
+}
 
 export async function getSession(): Promise<AuthenticationSession> {
-	return await authentication.getSession('github', scopes, { createIfNone: true });
+	return await getSilentSession() ?? await authentication.getSession('github', scopes, { createIfNone: true });
 }
 
 let _octokit: Promise<Octokit> | undefined;
@@ -80,7 +89,7 @@ export class OctokitService {
 	public async getOctokitGraphql(): Promise<graphql> {
 		if (!this._octokitGraphql) {
 			try {
-				const session = await authentication.getSession('github', scopes, { silent: true });
+				const session = await getSilentSession();
 
 				if (!session) {
 					throw new AuthenticationError('No GitHub authentication session available.');

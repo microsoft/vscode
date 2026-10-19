@@ -130,7 +130,8 @@
 				"read:user",
 				"user:email",
 				"repo",
-				"workflow"
+				"workflow",
+				"write:plugin_gateway_connections"
 			],
 			[
 				"user:email"

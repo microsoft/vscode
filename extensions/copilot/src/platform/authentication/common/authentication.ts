@@ -28,7 +28,11 @@ export const GITHUB_SCOPE_USER_EMAIL = ['user:email'];
 export const GITHUB_SCOPE_READ_USER = ['read:user'];
 
 // The same scopes that GitHub Pull Request, GitHub Repositories, and others use
-export const GITHUB_SCOPE_ALIGNED = ['read:user', 'user:email', 'repo', 'workflow'];
+export const GITHUB_SCOPE_ALIGNED = ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'];
+
+// The aligned scopes used before `write:plugin_gateway_connections` was added. Sessions that were
+// created with these scopes remain valid so that updating does not force users to sign in again.
+export const GITHUB_SCOPE_ALIGNED_LEGACY = ['read:user', 'user:email', 'repo', 'workflow'];
 
 export class MinimalModeError extends Error {
 	constructor() {

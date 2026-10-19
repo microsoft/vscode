@@ -18,6 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { withoutCopilotConnectorsScope } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -115,7 +116,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				this._accountSessionIds.delete(session.id);
 			}
 			for (const session of e.event.added ?? []) {
-				if (session.account.id === this._accountId && this._getScopes().every(scope => session.scopes.includes(scope))) {
+				if (session.account.id === this._accountId && this._getRequiredScopes().every(scope => session.scopes.includes(scope))) {
 					this._accountSessionIds.add(session.id);
 				}
 			}
@@ -191,6 +192,11 @@ export class MissionControlSharingService extends Disposable implements IMission
 		return this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
 	}
 
+	/** Scopes an existing session must carry; sessions that predate optional shared sign-in scopes remain eligible. */
+	private _getRequiredScopes(): readonly string[] {
+		return withoutCopilotConnectorsScope(this._getScopes());
+	}
+
 	private async _getFileSystemRoots(): Promise<URI[]> {
 		if (!this.isWindowsPlatform) {
 			return [URI.file('/')];
@@ -249,6 +255,11 @@ export class MissionControlSharingService extends Disposable implements IMission
 			if (account) {
 				const accountId = account.id;
 				sessions = sessions.filter(session => session.account.id === accountId);
+			}
+			const requiredScopes = this._getRequiredScopes();
+			if (!sessions.length && requiredScopes.length !== scopes.length) {
+				const candidates = await this._authentication.getSessions(providerId, undefined, sessionOptions, true);
+				sessions = candidates.filter(session => (!account || session.account.id === account.id) && requiredScopes.every(scope => session.scopes.includes(scope)));
 			}
 			if (!sessions.length && interactive && generation === this._generation && !this._store.isDisposed) {
 				const session = await this._authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {

@@ -39,6 +39,7 @@ import { SessionStatus } from '../../../../../platform/agentHost/common/state/se
 import { SessionModelInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
+import { withoutCopilotConnectorsScope } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { parseMissionControlError } from '../../../../../platform/github/common/missionControl/missionControlError.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -1155,9 +1156,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return exact[0];
 		}
 
-		// Fall back to the narrowest session whose scopes are a superset of what we need.
+		// Fall back to the narrowest session whose scopes are a superset of what we need. Sessions that
+		// predate the connectors scope joining the shared sign-in set remain eligible.
 		const all = await this._authenticationService.getSessions(providerId, undefined, undefined, true);
-		const required = new Set(scopes);
+		const required = new Set(withoutCopilotConnectorsScope(scopes));
 		let best: { session: AuthenticationSession; extra: number } | undefined;
 		for (const session of all) {
 			const granted = new Set(session.scopes);

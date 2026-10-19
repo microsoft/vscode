@@ -397,16 +397,17 @@ Object.assign(product, {
 			'providerUriSetting': 'github-enterprise.uri',
 			'providerScopes': [
 				[
+					'read:user',
+					'user:email',
+					'repo',
+					'workflow',
+					'write:plugin_gateway_connections'
+				],
+				[
 					'user:email'
 				],
 				[
 					'read:user'
-				],
-				[
-					'read:user',
-					'user:email',
-					'repo',
-					'workflow'
 				]
 			],
 			'entitlementUrl': 'https://api.github.com/copilot_internal/user',

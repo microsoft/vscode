@@ -22,6 +22,16 @@ const maxResponseBytes = 5 * 1024 * 1024;
 
 export const copilotConnectorsScope = 'write:plugin_gateway_connections';
 
+/**
+ * Returns the scopes that an existing session must carry to satisfy the shared GitHub sign-in scope set.
+ * New sign-ins request {@link copilotConnectorsScope} so that connecting a connector does not prompt again,
+ * but sessions created before the scope joined the shared set remain valid for every other purpose and are
+ * upgraded on demand when a connector is connected.
+ */
+export function withoutCopilotConnectorsScope(scopes: readonly string[]): readonly string[] {
+	return scopes.filter(scope => scope !== copilotConnectorsScope);
+}
+
 export type CopilotConnectorsRequest =
 	| { readonly type: 'query' }
 	| { readonly type: 'connect' | 'disconnect'; readonly name: string };

@@ -891,6 +891,27 @@ suite('DefaultAccountProvider', () => {
 		assert.deepStrictEqual(matching?.map(session => session.id), ['session']);
 	});
 
+	test('sessions created before the connectors scope joined the shared sign-in scopes remain the default account', async () => {
+		const legacySession: AuthenticationSession = { ...sessions[0], id: 'legacy', scopes: ['read:user', 'user:email', 'repo', 'workflow'] };
+		const sharedSession: AuthenticationSession = { ...sessions[0], id: 'shared', scopes: ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'] };
+		const unrelatedSession: AuthenticationSession = { ...sessions[0], id: 'unrelated', scopes: ['gist'] };
+		const provider = await createProvider(
+			new TestRequestService(async () => jsonResponse({})),
+			{},
+			{},
+			'',
+			{ getSessions: async () => [legacySession, sharedSession, unrelatedSession] }
+		);
+
+		const matching = await provider['findMatchingProviderSession']('github', [
+			['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'],
+			['user:email'],
+			['read:user'],
+		]);
+
+		assert.deepStrictEqual(matching?.map(session => session.id), ['legacy', 'shared']);
+	});
+
 	test('first server response can establish and satisfy a refresh requirement', async () => {
 		const requestService = new TestRequestService(async () => jsonResponse({
 			forceRemoteSettingsRefresh: true,

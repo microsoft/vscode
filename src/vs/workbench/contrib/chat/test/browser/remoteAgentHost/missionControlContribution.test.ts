@@ -82,6 +82,7 @@ suite('Mission Control sharing service', () => {
 		userHome?: URI;
 		localSetting?: string;
 		localSettingConfig?: IConfigurationValue<boolean>;
+		providerScopes?: string[][];
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = options.configuration ?? new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
@@ -131,7 +132,10 @@ suite('Mission Control sharing service', () => {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkspace() { return new Workspace('workspace', options.emptyWindow ? [] : [toWorkspaceFolder(workspaceRoot)], false, null, () => false); }
 		}());
-		instantiation.stub(IProductService, { quality: 'insider' });
+		instantiation.stub(IProductService, upcastPartial<IProductService>({
+			quality: 'insider',
+			...(options.providerScopes ? { defaultChatAgent: upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ providerScopes: options.providerScopes }) } : {}),
+		}));
 		const logService = store.add(new NullLogService());
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IStorageService, storage);
@@ -648,6 +652,40 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual({ calls, signIn: createSession.args }, {
 			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
 			signIn: [['github', [...session.scopes], { account: session.account }]],
+		});
+	}));
+
+	test('reuses a session that predates the connectors scope in the shared sign-in set without prompting', () => runWithFakedTimers({}, async () => {
+		const sharedScopes = [...session.scopes, 'write:plugin_gateway_connections'];
+		const getSessions = stub().callsFake(async (_providerId: string, scopes?: readonly string[]) => scopes ? [] : [otherSession, copilotSession, session]);
+		const createSession = stub().resolves(session);
+		const { sharing, calls } = fixture({ defaultAccount: copilotAccount, getSessions, createSession, providerScopes: [sharedScopes, ['user:email']] });
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls, sessionRequests: getSessions.args, signIn: createSession.args }, {
+			state: 'enabled',
+			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
+			sessionRequests: [
+				['github', undefined, undefined, true],
+				['github', sharedScopes, { account: session.account }, true],
+				['github', undefined, { account: session.account }, true],
+			],
+			signIn: [],
+		});
+	}));
+
+	test('requests the shared sign-in scopes when no session carries the sharing scopes', () => runWithFakedTimers({}, async () => {
+		const sharedScopes = [...session.scopes, 'write:plugin_gateway_connections'];
+		const createSession = stub().resolves({ ...session, scopes: sharedScopes });
+		const { sharing, calls } = fixture({
+			defaultAccount: copilotAccount,
+			getSessions: async (_providerId, scopes) => scopes ? [] : [otherSession, copilotSession],
+			createSession,
+			providerScopes: [sharedScopes, ['user:email']],
+		});
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual({ calls, signIn: createSession.args }, {
+			calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
+			signIn: [['github', sharedScopes, { account: session.account }]],
 		});
 	}));
 

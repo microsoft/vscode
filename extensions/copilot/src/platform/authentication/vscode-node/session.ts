@@ -7,7 +7,7 @@ import { authentication, AuthenticationGetSessionOptions, AuthenticationSession 
 import { mixin } from '../../../util/vs/base/common/objects';
 import { URI } from '../../../util/vs/base/common/uri';
 import { AuthPermissionMode, AuthProviderId, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { authProviderId, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
+import { authProviderId, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_ALIGNED_LEGACY, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
 import { resolveGitHubSessionUri } from '../common/enterprise';
 
 export const SESSION_LOGIN_MESSAGE = 'You are not signed in to GitHub. Please sign in to use Copilot.';
@@ -48,7 +48,7 @@ export function getAnyAuthSession(configurationService: IConfigurationService, o
 		async () => {
 			// Ask for aligned scopes first, since that's what we want to use going forward.
 			if (configurationService.getConfig(ConfigKey.Shared.AuthPermissions) !== AuthPermissionMode.Minimal) {
-				const permissive = await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, silentOptions);
+				const permissive = await getSilentAlignedSession(providerId, silentOptions);
 				if (permissive) {
 					return permissive;
 				}
@@ -86,7 +86,18 @@ export function getAlignedSession(configurationService: IConfigurationService, o
 	return getAuthSession(
 		providerId,
 		GITHUB_SCOPE_ALIGNED,
-		async () => await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { silent: true, account: options.account, authorizationServer: options.authorizationServer }),
+		() => getSilentAlignedSession(providerId, { silent: true, account: options.account, authorizationServer: options.authorizationServer }),
 		options
 	);
+}
+
+/**
+ * Silently find a session with the aligned scopes, falling back to a session that was created with the
+ * aligned scopes from before `write:plugin_gateway_connections` was added to them. New sessions are
+ * always created with {@link GITHUB_SCOPE_ALIGNED}; older sessions upgrade on demand when a Copilot
+ * connector is connected.
+ */
+async function getSilentAlignedSession(providerId: AuthProviderId, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+	return await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, options)
+		?? await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED_LEGACY, options);
 }

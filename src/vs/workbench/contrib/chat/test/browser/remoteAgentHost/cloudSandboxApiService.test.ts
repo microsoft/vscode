@@ -107,6 +107,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
+	readonly providerScopes?: string[][];
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
@@ -196,7 +197,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly onDidRegisterAuthenticationProvider = Event.None;
 		override readonly onDidUnregisterAuthenticationProvider = Event.None;
 	}());
-	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
+	instantiationService.stub(IProductService, { defaultChatAgent: options.providerScopes ? { providerScopes: options.providerScopes } : undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
@@ -1484,6 +1485,25 @@ suite('CloudSandboxApiService discovery account', () => {
 
 		assert.strictEqual(await service.getAccountKey(), '["github","narrow"]');
 	});
+
+	for (const [name, sessionScopes] of [['shared', ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections']], ['legacy', ['read:user', 'user:email', 'repo', 'workflow']]] as const) {
+		test(`accepts a ${name} session when the shared sign-in scopes include the connectors scope`, async () => {
+			const sharedScopes = ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'];
+			const requests: (readonly string[] | undefined)[] = [];
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), providerScopes: [sharedScopes, ['user:email']],
+				authenticationSessions: async requestedScopes => {
+					requests.push(requestedScopes);
+					return requestedScopes ? [] : [
+						{ id: 'minimal-session', accessToken: 'minimal-token', account: { id: 'minimal', label: 'Minimal' }, scopes: ['user:email'] },
+						{ id: `${name}-session`, accessToken: `${name}-token`, account: { id: name, label: name }, scopes: [...sessionScopes] },
+					];
+				},
+			});
+
+			assert.deepStrictEqual({ account: await service.getAccountKey(), requests }, { account: `["github","${name}"]`, requests: [sharedScopes, undefined] });
+		});
+	}
 
 	test('announces sign-out after authentication changes', async () => {
 		const { service, changeAuthentication } = createService(store, {
