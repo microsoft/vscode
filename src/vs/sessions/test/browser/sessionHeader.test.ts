@@ -40,6 +40,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly onDidChangeScreenReaderOptimized = Event.None;
 		override readonly onDidChangeReducedMotion = Event.None;
 		override isScreenReaderOptimized(): boolean { return false; }
+		override isMotionReduced(): boolean { return false; }
 	}());
 	const statusIconReads: boolean[] = [];
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
@@ -58,14 +59,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
-		override readonly status = constObservable(mainChatStatus);
+		override readonly status = observableValue(this, mainChatStatus);
 		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
-		override readonly status = constObservable(SessionStatus.Completed);
+		override readonly status = observableValue(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
@@ -75,7 +76,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly resource = URI.parse('test-session://session');
 		override readonly providerId = 'test';
 		override readonly title = observableValue(this, 'My Session');
-		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.Completed);
+		override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);
 		override readonly isRead = observableValue(this, true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
@@ -486,6 +487,32 @@ suite('Sessions - Headers', () => {
 			secondActive: false,
 			secondRead: true,
 			mainActive: true,
+		});
+	});
+
+	test('stops the spinner when its chat completes while a peer chat keeps the session in progress', () => {
+		const { store, instantiationService, session, mainChat, secondChat } = createHarness(disposables);
+		session.status.set(SessionStatus.InProgress, undefined);
+		mainChat.status.set(SessionStatus.InProgress, undefined);
+		secondChat.status.set(SessionStatus.InProgress, undefined);
+		const createChatHeader = (chat: IChat) => {
+			const header = store.add(instantiationService.createInstance(ChatHeader));
+			header.setChat({ session, chat: constObservable(chat), activate: () => { } });
+			return header;
+		};
+		const mainHeader = createChatHeader(mainChat);
+		const secondHeader = createChatHeader(secondChat);
+		const spinners = () => ({
+			main: mainHeader.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+			second: secondHeader.element.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
+		});
+
+		const bothInProgress = spinners();
+		secondChat.status.set(SessionStatus.Completed, undefined);
+
+		assert.deepStrictEqual({ bothInProgress, secondCompleted: spinners() }, {
+			bothInProgress: { main: true, second: true },
+			secondCompleted: { main: true, second: false },
 		});
 	});
 

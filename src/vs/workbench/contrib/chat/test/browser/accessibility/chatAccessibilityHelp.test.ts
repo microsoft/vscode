@@ -16,14 +16,28 @@ suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('documents the session working set while preserving existing editor guidance', () => {
-		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true);
-		assert.deepStrictEqual({
-			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
-			disclosure: help.includes('Enter or Space to expand or collapse it'),
-			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
-			editorNavigation: help.includes('Navigate between edits in the editor'),
-			editorSignals: help.includes('accessibility.signals.editsKept'),
-		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+		const read = (sessionWorkingSetUndo: boolean) => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, sessionWorkingSetUndo);
+			return {
+				sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
+				disclosure: help.includes('Enter or Space to expand or collapse it'),
+				openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+				headingActions: help.includes('The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor')
+					? 'Keep, Undo, View All Edits'
+					: help.includes('The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor') ? 'Keep, View All Edits' : undefined,
+				fileActions: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep and Undo')
+					? 'Keep, Undo'
+					: help.includes('press Tab to reach its Keep button, and Enter or Space to activate it') ? 'Keep' : undefined,
+				undo: help.includes('Undo reverts the session\'s changes after any confirmation the session asks for'),
+				editorNavigation: help.includes('Navigate between edits in the editor'),
+				editorSignals: help.includes('Sounds will play when a change is accepted or undone'),
+			};
+		};
+		const common = { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true };
+		assert.deepStrictEqual([read(false), read(true)], [
+			{ ...common, headingActions: 'Keep, View All Edits', fileActions: 'Keep', undo: false },
+			{ ...common, headingActions: 'Keep, Undo, View All Edits', fileActions: 'Keep, Undo', undo: true },
+		]);
 	});
 
 	test('does not describe the editor working set on other chat surfaces', () => {
@@ -32,7 +46,7 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
-		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill') || help.includes('press Tab to reach its Keep button')), [false, false, false, false]);
 	});
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
@@ -204,9 +218,11 @@ suite('Chat Accessibility Help', () => {
 			responsivePreview: help.includes('The thumbnail row follows the selected preview\'s size'),
 			noEmptyPreview: help.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: help.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			batchDownload: help.includes('download action beside the Image batch status to save all currently ready images as a ZIP archive'),
+			downloadSnapshot: help.includes('Only images ready when you start the download are included'),
 			details: help.includes('Expand the selected tool dropdown to inspect its prompt and output'),
 			approvals: help.includes('Approval and authentication requests remain visible even when another image is selected'),
-		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, details: true, approvals: true });
+		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, batchDownload: true, downloadSnapshot: true, details: true, approvals: true });
 	});
 
 	test('documents generated image artifacts and conversation carousel navigation', () => {
@@ -711,6 +727,24 @@ suite('Chat Accessibility Help', () => {
 			quickChat: false,
 			inlineChat: false,
 		});
+	});
+
+	test('documents session read shortcuts only for persistent editor-window chats', () => {
+		const keybindingService = new MockKeybindingService();
+		const containsShortcuts = (type: 'panelChat' | 'agentView' | 'editsView' | 'quickChat' | 'inlineChat', isSessionsWindow = false) => {
+			const content = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
+			return content.includes('as read<keybinding:agentSession.markRead>')
+				&& content.includes('or unread<keybinding:agentSession.markUnread> without opening them')
+				&& content.includes('change only the targeted nested sessions, not their parent');
+		};
+		assert.deepStrictEqual({
+			panel: containsShortcuts('panelChat'),
+			agent: containsShortcuts('agentView'),
+			edits: containsShortcuts('editsView'),
+			quick: containsShortcuts('quickChat'),
+			inline: containsShortcuts('inlineChat'),
+			agentsWindow: containsShortcuts('agentView', true),
+		}, { panel: true, agent: true, edits: true, quick: false, inline: false, agentsWindow: false });
 	});
 
 	test('documents session rename where the focused-chat keybinding is enabled', () => {

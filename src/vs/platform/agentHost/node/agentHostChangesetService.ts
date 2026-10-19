@@ -12,6 +12,7 @@ import { autorun, derived, observableFromEvent } from '../../../base/common/obse
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -63,7 +64,7 @@ import { dedupeSessionFileDiffs } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession } from '../common/agent.js';
+import { AgentSession, type IAgent } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -198,11 +199,26 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 	) {
 		super();
 		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._observeUncommittedRoot(owner)));
+		this._register(this._providerService.onDidRegisterProvider(provider => this._observeProviderTurnEdits(provider)));
+		for (const provider of this._providerService.getProviders()) {
+			this._observeProviderTurnEdits(provider);
+		}
+	}
+
+	private _observeProviderTurnEdits(provider: IAgent): void {
+		if (provider.onDidStoreTurnEdits) {
+			this._register(provider.onDidStoreTurnEdits(({ chat, turnIds }) => {
+				if (this._chatOwnership.getChatOwner(chat.toString())) {
+					this._onTrackedEditsChanged(chat.toString(), turnIds);
+				}
+			}));
+		}
 	}
 
 	/** Creates the diff-count service; overridable so tests can supply a synchronous in-process computer. */
@@ -884,6 +900,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				return { diffs: [], outcome: 'computed' };
 			}
+			const pendingEdits = this._waitForTurnEdits(trackedSource.owner, turnId);
+			if (pendingEdits) {
+				await pendingEdits;
+			}
 			if (strategy === 'fileEditTracker') {
 				const folderScope = this._getTrackedEditFolderScope(trackedSource.owner, this._configurationService.getEffectiveWorkingDirectories(trackedSource.owner));
 				return { diffs: await computeTurnDiffs(trackedSource.storage, trackedSource.db, this._diffComputeService, turnId, folderScope), outcome: 'computed' };
@@ -892,6 +912,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} finally {
 			trackedSource.dispose();
 		}
+	}
+
+	/** Returns a native persistence barrier without introducing a wait for providers that do not need one. */
+	private _waitForTurnEdits(owner: ProtocolURI, turnId: string): Promise<void> | undefined {
+		const session = this._containingSessionUri(owner);
+		const chat = this._chatOwnership.getChatOwner(owner) !== undefined ? owner : this._chatOwnership.getDefaultChat(session);
+		return chat ? this._providerService.getProviderForSession(session)?.waitForTurnEdits?.(URI.parse(chat), turnId) : undefined;
 	}
 
 	private async _computeTurnDiffsUsingGit(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<ITurnDiffResult> {
@@ -1497,8 +1524,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void {
-		// The discarded edits change past results, so recompute from scratch
-		// (no changedTurnId) rather than incrementally.
+		this._onTrackedEditsChanged(owner, turnIds);
+	}
+
+	private _onTrackedEditsChanged(owner: ProtocolURI, turnIds: readonly string[]): void {
+		// Snapshots arriving late and discarded edits both invalidate prior results: recompute from scratch.
 		for (const turnId of turnIds) {
 			this._cancelDebouncedTurnDiffComputation(owner, turnId);
 			if (this._hasSubscription(owner, buildTurnChangesetUri(owner, turnId))) {
