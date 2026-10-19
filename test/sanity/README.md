@@ -59,6 +59,8 @@ there is no update service metadata to compare against.
 
 ### Timeouts
 
+Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
+
 Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
 between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup
