@@ -10,7 +10,7 @@ import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -52,7 +52,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, McpServerInstallState, mcpOAuthClientSecretStorageKey } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 
@@ -366,6 +366,8 @@ suite('aiCustomizationManagementEditor', () => {
 		refreshCustomizationMigrationInfo(): Promise<void>;
 		cancelCustomizationMigrationRefresh(): void;
 		registerCustomizationMigrationSessionRefresh(): void;
+		registerCustomizationMigrationSecretRefresh(): void;
+		secretStorageService: { readonly onDidChangeSecret: Event<string> };
 		renderCustomizationMigrationDashboardState(): void;
 		showEmbeddedMcpDetail(server: IMcpServerDetailInput, origin?: { readonly kind: 'migration' }, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		openMigrationCustomization(item: ICustomizationMigrationDashboardItem, storage: PromptsStorage): Promise<void>;
@@ -1976,6 +1978,67 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
+
+	test('refreshes an open MCP detail when an MCP OAuth client secret changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		store.add(editor.editorPreviewDisposables);
+		const onDidChangeSecret = store.add(new Emitter<string>());
+		editor.secretStorageService = { onDidChangeSecret: onDidChangeSecret.event };
+		editor.renderCustomizationMigrationDashboardState = () => { };
+		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
+		const server = { storage: PromptsStorage.local, id: 'oauth-secret', name: 'oauth-secret', sourceUri, targetUri: URI.file('/workspace/.mcp.json') } as const;
+		let hasSecret = true;
+		const computedWithSecret: boolean[] = [];
+		editor.customizationMigrationService.computeMigration = async (_session, type) => {
+			if (type !== CustomizationMigrationType.McpServers) {
+				return { type, files: [], candidates: [] };
+			}
+			computedWithSecret.push(hasSecret);
+			return {
+				type: CustomizationMigrationType.McpServers,
+				servers: [],
+				candidates: hasSecret ? [] : [{ ...server, type: CustomizationMigrationType.McpServers, projectedConfiguration: { type: McpServerType.REMOTE, url: 'https://example.com/secret/mcp' } }],
+				exclusions: hasSecret ? [{ ...server, reason: McpServerCustomizationMigrationFailureReason.OAuthClientSecret, details: ['Client secret is stored in VS Code.'] }] : [],
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			};
+		};
+		const detailStates: { readonly migratable?: boolean; readonly reason?: string }[] = [];
+		editor.viewMode = 'mcpDetail';
+		editor.mcpDetailInput = {
+			id: 'oauth-secret',
+			name: 'oauth-secret',
+			label: 'oauth-secret',
+			installState: McpServerInstallState.Installed,
+			compatibilityId: 'oauth-secret',
+			source: { uri: sourceUri },
+		};
+		editor.embeddedMcpDetail = {
+			setMigratable: migratable => detailStates.push({ migratable }),
+			setManualReviewReason: reason => detailStates.push({ reason }),
+		};
+		editor.mcpListWidget = { setMcpServerMigrationCandidates: () => { } };
+		await editor.refreshCustomizationMigrationInfo();
+		editor.registerCustomizationMigrationSecretRefresh();
+
+		onDidChangeSecret.fire('unrelated.secret');
+		await timeout(10);
+		hasSecret = false;
+		onDidChangeSecret.fire(mcpOAuthClientSecretStorageKey('https://example.com/secret/mcp', 'confidential-client'));
+		await timeout(10);
+
+		assert.deepStrictEqual({ computedWithSecret, detailStates }, {
+			computedWithSecret: [true, false],
+			detailStates: [
+				{ migratable: false },
+				{ reason: 'Client secret is stored in VS Code.' },
+				{ migratable: true },
+				{ reason: undefined },
+			],
+		});
+	}));
 
 	test('suppresses prompt change refreshes only while migration writes are in progress', () => {
 		const editor = createTestEditor();
