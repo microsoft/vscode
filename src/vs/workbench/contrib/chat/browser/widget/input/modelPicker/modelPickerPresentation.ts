@@ -96,7 +96,9 @@ export function filterModelPickerControlModelsForEntitlement(
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
 	// One upsell stands for every HydraFusion model, so it takes the base model's name.
 	const liveHydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
-	if (!liveHydraFusion) {
+	// Fusion presents HydraFusion as its tiers, so there is no model of its own to upsell.
+	const fusion = models.some(model => model.metadata.autoModelFusion && !isUserProvidedModel(model, languageModelsService));
+	if (!liveHydraFusion || fusion) {
 		if (!hydraFusion) {
 			return controlModels;
 		}
