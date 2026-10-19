@@ -246,6 +246,7 @@ suite('Markdown editor initial state', () => {
 			readonly: true,
 			richLinksEnabled: true,
 			highlightActiveBlock: false,
+			insertActionsEnabled: false,
 			linkPresentationRules: [],
 		};
 		const encoded = encodeWebviewInitialState(state);

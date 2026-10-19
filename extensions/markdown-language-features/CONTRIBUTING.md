@@ -103,6 +103,14 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Gutter insert actions
+
+`markdown.editor.insertActions.enabled` enables the rich editor's blank-line
+gutter **+** menu and **Alt+Insert** shortcut. It defaults to disabled and supports
+resource-specific configuration. Changes update open editors without reloading
+the webview or changing document content; disabling it also closes an open menu
+and removes the extra gutter space.
+
 ### Outline and breadcrumbs
 
 The rich editor opts into `customTextEditorNavigation`. The workbench reuses the document's symbol providers for Outline and breadcrumbs; the extension reports each panel's source selection and routes reveal and view-state requests through the Markdown editor RPC bridge. Offset mapping uses the renderer's synchronized text, including when its line endings differ from the document.
