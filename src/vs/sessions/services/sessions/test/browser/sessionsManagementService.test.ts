@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
@@ -7990,6 +7992,28 @@ suite('SessionsManagementService', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(shown(view), { session: 'B', chat: arrived.resource.toString(), visible: ['B'] });
+		});
+
+		test('following a chat that moved announces nothing: the move itself is announced once, by whoever made it', async () => {
+			const { view, sessionA, moved, arrived, move, moveSession } = setup();
+			await view.openSession(sessionA.resource);
+			await view.openChat(sessionA, moved.resource);
+			const container = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			setARIAContainer(container);
+			const announcements: string[] = [];
+			const observer = new MutationObserver(records => records.forEach(record => record.addedNodes.length && announcements.push(record.target.textContent ?? '')));
+			container.querySelectorAll('.monaco-status, .monaco-alert').forEach(region => observer.observe(region, { childList: true }));
+			try {
+				move(moved, arrived);
+				await timeout(0);
+				moveSession();
+				await timeout(0);
+			} finally {
+				observer.disconnect();
+				container.remove();
+			}
+
+			assert.deepStrictEqual({ announcements, shown: shown(view).session }, { announcements: [], shown: 'B' });
 		});
 
 		test('a session that ended by moving its shown chat under another session leaves its slot to that session, though its removal came first', async () => {

@@ -36,7 +36,6 @@ import { ISessionChangesStatsCache } from '../common/sessionChangesStatsCache.js
 import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpenSource } from './sessionOpenTelemetryService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
-import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
@@ -652,7 +651,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this._setChatVisibilityState(to.session, chat, true);
 			}
 		}
-		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
 	}
 
 	/** The grid slots showing the new-session composer: the empty slot (`undefined`) and the new-session draft's. */
@@ -687,7 +685,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 			}
 		}
 		void this._openChatSession(to.session, to.chat, { preserveFocus: true }, 'automatic').catch(onUnexpectedError);
-		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
