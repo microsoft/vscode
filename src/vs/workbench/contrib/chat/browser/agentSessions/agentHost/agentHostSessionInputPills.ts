@@ -23,7 +23,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
@@ -845,7 +845,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			changes: {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
-				open: () => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
+				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
@@ -1212,8 +1212,18 @@ export class AgentHostSessionInputPills extends Disposable {
 		await this._editorService.openEditor(target, undefined, targetGroup);
 	}
 
-	private _openChanges(label: string, diffs: readonly IEditSessionEntryDiff[]): void {
+	private _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): void {
 		if (diffs.length > 0) {
+			const sessionEditorLabel = localize('agentHostSessionPills.changesEditor', "Session Changes");
+			let label = changeset?.label ?? sessionEditorLabel;
+			// Keep editor titles descriptive without replacing host-defined labels.
+			if (changeset?.changeKind === ChangesetKind.Branch && label === branchChangesetLabel()) {
+				label = localize('agentHostSessionPills.branchChangesEditor', "Branch Changes");
+			} else if (changeset?.changeKind === ChangesetKind.Uncommitted && label === uncommittedChangesetLabel()) {
+				label = localize('agentHostSessionPills.uncommittedChangesEditor', "Uncommitted Changes");
+			} else if (changeset?.changeKind === ChangesetKind.Session && label === sessionChangesetLabel()) {
+				label = sessionEditorLabel;
+			}
 			openChatFileChanges(this._editorService, label, diffs);
 		}
 	}

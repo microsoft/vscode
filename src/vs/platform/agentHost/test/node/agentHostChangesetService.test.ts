@@ -2420,7 +2420,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			branchDescription: withChatGit?.find(changeset => changeset.changeKind === 'branch')?.description,
 		}, {
 			sessionCatalogue: [{
-				label: 'Session Changes',
+				label: 'Session',
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(sessionStr),
 				changeKind: 'session',
