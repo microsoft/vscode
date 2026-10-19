@@ -111,7 +111,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
+import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, findMcpServerDetailMigrationEntry, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
@@ -1668,6 +1668,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return storage === undefined ? this.mcpServerMigrationExclusions : this.mcpServerMigrationExclusions.filter(exclusion => exclusion.storage === storage);
 	}
 
+	private getMcpMigrationExclusionReason(exclusion: IMcpServerCustomizationMigrationExclusion): string {
+		return getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers).getMcpServerExclusionReason?.(exclusion)
+			|| localize('migrationNeedsManualReviewReason', "This server cannot be migrated automatically. Update it by hand in its configuration file.");
+	}
+
 	private getAllMigrationCandidates(): readonly CustomizationMigrationCandidate[] {
 		return [...this.customizationsByMigrationCategory.values()].flat();
 	}
@@ -2490,8 +2495,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				resource: exclusion.sourceUri,
 				mcpServerId: exclusion.id,
 				storage,
-				manualReviewReason: getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers).getMcpServerExclusionReason?.(exclusion)
-					?? localize('migrationNeedsManualReviewReason', "This server cannot be migrated automatically. Update it by hand in its configuration file."),
+				manualReviewReason: this.getMcpMigrationExclusionReason(exclusion),
 			}))),
 			hasIgnoredGroups: this.getIgnoredMigrationGroups().length > 0,
 		};
@@ -5158,6 +5162,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		this.embeddedMcpDetail.setMigratable(isMcpServerDetailMigratable(this.mcpDetailInput, this.getMcpServerMigrationCandidates()));
+		const exclusion = findMcpServerDetailMigrationEntry(this.mcpDetailInput, this.getMcpMigrationExclusions());
+		this.embeddedMcpDetail.setManualReviewReason(exclusion ? this.getMcpMigrationExclusionReason(exclusion) : undefined);
 	}
 
 	private getMcpServerMigrationCandidates(): readonly IMcpServerCustomizationMigrationCandidate[] {

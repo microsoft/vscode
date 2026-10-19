@@ -175,7 +175,7 @@ suite('aiCustomizationManagementEditor', () => {
 			compatibilityId: 'server-id',
 			source: { uri: sourceUri },
 		};
-		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable) };
+		editor.embeddedMcpDetail = { setMigratable: migratable => states.push(migratable), setManualReviewReason: () => { } };
 		editor.mcpListWidget = { setMcpServerMigrationCandidates: candidates => listCandidates.push(candidates) };
 		const candidate: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -195,6 +195,42 @@ suite('aiCustomizationManagementEditor', () => {
 			states: [true, false],
 			listCandidates: [[candidate]],
 		});
+	});
+
+	test('shows the planner exclusion reason in an open MCP detail', () => {
+		const editor = createTestEditor();
+		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
+		const reasons: (string | undefined)[] = [];
+		editor.viewMode = 'mcpDetail';
+		editor.mcpDetailInput = {
+			id: 'server-row',
+			name: 'server',
+			label: 'Server',
+			installState: McpServerInstallState.Installed,
+			compatibilityId: 'server-id',
+			source: { uri: sourceUri },
+		};
+		editor.embeddedMcpDetail = { setMigratable: () => { }, setManualReviewReason: reason => reasons.push(reason) };
+		editor.mcpListWidget = { setMcpServerMigrationCandidates: () => { } };
+		const exclusion: IMcpServerCustomizationMigrationExclusion = {
+			storage: PromptsStorage.local,
+			id: 'server-id',
+			name: 'server',
+			sourceUri,
+			targetUri: URI.file('/workspace/.mcp.json'),
+			reason: McpServerCustomizationMigrationFailureReason.OAuthClientSecret,
+			details: ['Client secret is stored in VS Code.'],
+		};
+		editor.setCustomizationsToMigrate(new Map(), new Map(), [exclusion]);
+		editor.setCustomizationsToMigrate(new Map(), new Map(), [{ ...exclusion, details: [] }]);
+		editor.setCustomizationsToMigrate(new Map(), new Map(), [{ ...exclusion, sourceUri: URI.file('/other/.vscode/mcp.json') }]);
+		editor.editorPreviewDisposables.dispose();
+
+		assert.deepStrictEqual(reasons, [
+			'Client secret is stored in VS Code.',
+			'This server cannot be migrated automatically. Update it by hand in its configuration file.',
+			undefined,
+		]);
 	});
 
 	type TestQuickPickItem = {
@@ -274,7 +310,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
 		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
-		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
+		embeddedMcpDetail: { setMigratable(migratable: boolean): void; setManualReviewReason(reason: string | undefined): void } | undefined;
 		mcpListWidget: { setMcpServerMigrationCandidates(candidates: readonly IMcpServerCustomizationMigrationCandidate[]): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
 		dimension: undefined;
