@@ -8,6 +8,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { agentEntitlementHintMeta } from '../../common/meta/agentEntitlementHintMeta.js';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -4265,7 +4266,7 @@ suite('CopilotAgent', () => {
 		}();
 		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku', analytics_tracking_id: 'analytics',
-		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService, copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'token-a');
@@ -5676,7 +5677,7 @@ suite('CopilotAgent', () => {
 				return copilotDiscovery.p;
 			}
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku', analytics_tracking_id: 'codex-analytics' });
-		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints));
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints, NullTelemetryService));
 		const events: ITelemetryData[] = [];
 		const sdkEvents: ITelemetryData[] = [];
 		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
@@ -5760,7 +5761,7 @@ suite('CopilotAgent', () => {
 				oldCredentialReachedNewEndpoint ||= new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a';
 			}
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'enterprise-sku' });
-		}, logService, TEST_PRODUCT_SERVICE, endpoints));
+		}, logService, TEST_PRODUCT_SERVICE, endpoints, NullTelemetryService));
 		const skus: ITelemetryData[] = [];
 		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 			telemetryLevel: TelemetryLevel.USAGE,
@@ -5768,7 +5769,7 @@ suite('CopilotAgent', () => {
 		}, TEST_PRODUCT_SERVICE)));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService: apiService, gitHubEndpointService: endpoints, telemetryService });
 		try {
-			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
+			const oldAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a', undefined, agentEntitlementHintMeta({ trackingId: 'analytics', sku: 'free' }));
 			await discoveryStarted.p;
 			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
 			const newAuthentication = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-b');
@@ -5789,7 +5790,7 @@ suite('CopilotAgent', () => {
 		let available = false;
 		const copilotApiService = disposables.add(new CopilotApiService(async () => available
 			? Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'recovered-sku' })
-			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'test-token-a');
@@ -5803,6 +5804,59 @@ suite('CopilotAgent', () => {
 				unavailableSku: undefined, recoveredSku: 'recovered-sku',
 			});
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('refreshes same-token discovery for matching account entitlement hints without trusting their SKU', async () => {
+		let sku = 'no_access';
+		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku, analytics_tracking_id: 'analytics',
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
+		const refresh = spy(copilotApiService, 'refreshCopilotUser');
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const before = agent.getTelemetryContext().copilotSku;
+			sku = 'server-sku';
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementHintMeta({ trackingId: 'other', sku: 'free' }));
+			const unrelated = agent.getTelemetryContext().copilotSku;
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementHintMeta({ trackingId: 'analytics', sku: 'free' }));
+			assert.deepStrictEqual(refresh.args, [
+				['token', 'other', 'free'],
+				['token', 'analytics', 'free'],
+			]);
+			await refresh.lastCall.returnValue;
+			assert.deepStrictEqual({ before, unrelated, refreshed: agent.getTelemetryContext().copilotSku }, {
+				before: 'no_access', unrelated: 'no_access', refreshed: 'server-sku',
+			});
+		} finally {
+			refresh.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('pending entitlement refresh does not block same-token authentication or revocation', async () => {
+		const refresh = new DeferredPromise<Response>();
+		const refreshStarted = new DeferredPromise<void>();
+		let requests = 0;
+		const copilotApiService = disposables.add(new CopilotApiService(async () => {
+			if (++requests === 1) {
+				return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'no_access', analytics_tracking_id: 'analytics' });
+			}
+			refreshStarted.complete();
+			return refresh.p;
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.authenticate('https://api.github.com', 'token', undefined, agentEntitlementHintMeta({ trackingId: 'analytics', sku: 'free' }));
+			await refreshStarted.p;
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.authenticate('https://api.github.com', '');
+			assert.deepStrictEqual({ sku: agent.getTelemetryContext().copilotSku, requests }, { sku: undefined, requests: 2 });
+		} finally {
+			refresh.complete(Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'free', analytics_tracking_id: 'analytics' }));
 			await disposeAgent(agent);
 		}
 	});
@@ -7267,7 +7321,7 @@ suite('CopilotAgent', () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
 		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
-		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 		const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService, copilotApiService });
 		const mockSession = new MockCopilotSession();
 		const createdSession = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
@@ -20400,7 +20454,7 @@ suite('CopilotAgent', () => {
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
 			const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
 				endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
-			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService(), NullTelemetryService));
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, copilotApiService });
 			client.createSession = async config => {
 				capturedConfig = config;
@@ -25078,8 +25132,10 @@ suite('CopilotAgent', () => {
 
 		const tools: ToolDefinition[] = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
 
-		test('identical client plugin content under a different URI does not require a restart', async () => {
-			const agent = createTestAgent(disposables);
+		test('identical client plugin content under a different URI does not require a restart while the applied root exists', async () => {
+			const { agent, fileService } = createTestAgentContext(disposables);
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await fileService.createFolder(URI.file('/cache/old'));
 			try {
 				const session = AgentSession.uri('copilotcli', 'relocated-plugin-session');
 				agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client' });
@@ -25100,10 +25156,14 @@ suite('CopilotAgent', () => {
 					}],
 				});
 				const applied = snapshot('/cache/old');
+				const relocated = await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new'));
+				const changed = await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new', 'changed-content'));
+				await fileService.del(URI.file('/cache/old'), { recursive: true });
 				assert.deepStrictEqual([
+					relocated,
+					changed,
 					await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new')),
-					await activeClient.getRestartReason(applied, undefined, snapshot('/cache/new', 'changed-content')),
-				], [undefined, 'clientPluginsChanged']);
+				], [undefined, 'clientPluginsChanged', 'clientPluginsChanged']);
 			} finally {
 				await disposeAgent(agent);
 			}

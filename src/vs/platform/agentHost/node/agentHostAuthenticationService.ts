@@ -154,7 +154,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			p => p.getProtectedResources().some(r => r.resource === params.resource),
 		);
 		const settled = await Promise.allSettled(
-			matching.map(p => p.authenticate(params.resource, params.token, params.expiresIn)),
+			matching.map(p => p.authenticate(params.resource, params.token, params.expiresIn, params._meta)),
 		);
 		let authenticated = false;
 		let rejected = false;

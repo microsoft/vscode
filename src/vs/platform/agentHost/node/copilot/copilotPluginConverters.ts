@@ -10,7 +10,7 @@ import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
-import { parseFrontMatter } from '../../../../base/common/yaml.js';
+import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
@@ -106,6 +106,64 @@ function isCustomAgentReasoningEffort(value: string | undefined): value is Custo
 	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
+function yamlNodeToValue(node: YamlNode): unknown {
+	if (node.type === 'scalar') {
+		if (node.format !== 'none') {
+			return node.value;
+		}
+		if (node.value === 'true') {
+			return true;
+		}
+		if (node.value === 'false') {
+			return false;
+		}
+		if (node.value === 'null' || node.value === '~') {
+			return null;
+		}
+		if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(node.value)) {
+			return Number(node.value);
+		}
+		return node.value;
+	}
+	if (node.type === 'sequence') {
+		return node.items.map(yamlNodeToValue);
+	}
+	return Object.fromEntries(node.properties.map(property => [property.key.value, yamlNodeToValue(property.value)]));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
+	if (md.header?.type !== 'map') {
+		return undefined;
+	}
+	const hooksNode = md.header.properties.find(property => property.key.value === 'hooks')?.value;
+	if (!hooksNode || hooksNode.type !== 'map') {
+		return undefined;
+	}
+
+	const hooks: [string, Record<string, unknown>[]][] = [];
+	for (const property of hooksNode.properties) {
+		if (property.value.type !== 'sequence') {
+			continue;
+		}
+		const commands: Record<string, unknown>[] = [];
+		for (const item of property.value.items) {
+			const command = yamlNodeToValue(item);
+			if (!isRecord(command)) {
+				continue;
+			}
+			commands.push(command);
+		}
+		if (commands.length > 0) {
+			hooks.push([property.key.value, commands]);
+		}
+	}
+	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
+}
+
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
  *
@@ -139,6 +197,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 				const description = md.getStringValue('description');
 				const tools = md.getStringArrayValue('tools');
 				const skills = md.getStringArrayValue('skills');
+				const hooks = getCustomAgentHooks(md);
 				const reasoningEffort = md.getStringValue('reasoning-effort');
 				let infer = md.getBooleanValue('infer');
 				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
@@ -158,6 +217,7 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
 					tools: tools && tools.length > 0 ? tools : null,
 					...(skills !== undefined ? { skills } : {}),
+					...(hooks ? { hooks } : {}),
 					...(infer !== undefined ? { infer } : {}),
 					...(disableModelInvocation ? { disableModelInvocation: true } : {}),
 					prompt,
@@ -473,17 +533,16 @@ export function toSdkHooks(
 	return hooks;
 }
 
+type ComparablePlugin = IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+
 /**
- * Compares SDK configuration relative to each plugin's own materialized root, preserving plugin order.
- * Client nonces retain resource-body revisions that are not represented in parsed metadata.
+ * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
+ * materialized root, since the nonce covers resource bodies that parsed metadata does not; others compare by absolute path.
  */
-export function parsedPluginsEqual(
-	a: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
-	b: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
-): boolean {
+export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly ComparablePlugin[]): boolean {
 	const serialize = (plugins: typeof a) => {
 		return JSON.stringify(plugins.map(p => {
-			const root = p.pluginDir ?? p.resourceDir;
+			const root = p.nonce ? p.pluginDir ?? p.resourceDir : undefined;
 			const roots = root ? [...new Set([root.toString(), ...(root.scheme === Schemas.file ? [root.fsPath] : [])])] : [];
 			const rootPattern = roots.length
 				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
@@ -514,4 +573,17 @@ export function parsedPluginsEqual(
 		}));
 	};
 	return serialize(a) === serialize(b);
+}
+
+/** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
+export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
+	for (const plugin of published) {
+		const index = plugin.agents.findIndex(agent => agent.uri.toString() === agentUri);
+		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
+		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
+		if (equivalent) {
+			return equivalent.agents[index]?.name;
+		}
+	}
+	return undefined;
 }

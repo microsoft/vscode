@@ -786,6 +786,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			description: candidate.description,
 			publisher: candidate.publisher,
 			itemUrl: candidate.source.kind === 'url' ? candidate.source.url : undefined,
+			connectorIds: candidate.connectorIds,
 			installable: true,
 		};
 	}
