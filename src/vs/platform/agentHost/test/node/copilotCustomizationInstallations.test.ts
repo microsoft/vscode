@@ -280,6 +280,99 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('rejects a pending SDK review after its hidden policy session is replaced', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const catalogue = { resourceId: 'urn:air:github.test:skill:demo', displayName: 'Demo Skill', source: 'https://agentfinder.github.com' };
+		const installation = {
+			installationId: 'skill-installation',
+			operationId: 'skill-operation',
+			name: 'demo-skill',
+			target: { scope: 'personal' as const, relativePath: 'skills/demo', displayLabel: '~/.copilot/skills/demo' },
+			configuredEnabled: false,
+			sessionState: 'loaded-disabled' as const,
+			source: {
+				resourceId: catalogue.resourceId,
+				catalogRevisionId: 'catalog-revision',
+				repositoryId: 'repository-id',
+				repository: 'owner/repository',
+				revision: 'a'.repeat(40),
+				root: 'skills/demo',
+				descriptorDigest: 'b'.repeat(64),
+				bundleDigest: 'c'.repeat(64),
+			},
+			catalogue,
+			installedAt: new Date().toISOString(),
+			ownershipState: 'intact' as const,
+		};
+		const applies: string[] = [];
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() {
+					override readonly installations = new class extends mock<CopilotClient['rpc']['skills']['installations']>() {
+						override readonly list: CopilotClient['rpc']['skills']['installations']['list'] = async () => ({
+							kind: 'outcome' as const,
+							negotiated,
+							outcome: { kind: 'listed' as const, installations: [installation] },
+						});
+					}();
+					override readonly planUninstall: CopilotClient['rpc']['skills']['planUninstall'] = async () => ({
+						kind: 'outcome' as const,
+						negotiated,
+						outcome: {
+							kind: 'uninstall-planned' as const,
+							plan: {
+								planHandle: 'skill-plan',
+								operationId: 'skill-uninstall',
+								expiresAt,
+								installation,
+								review: { action: 'uninstall' as const, installation, filesModified: false, files: [], totalBytes: 0, catalogue },
+							},
+						},
+					});
+					override readonly applyUninstall: CopilotClient['rpc']['skills']['applyUninstall'] = async request => {
+						applies.push(`skills.applyUninstall:${request.policySessionId}`);
+						throw new Error('Applied a plan bound to a deleted policy session');
+					};
+				}(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+					override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+						override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async () => ({
+							kind: 'outcome' as const,
+							negotiated,
+							outcome: { kind: 'listed' as const, installations: [] },
+						});
+					}();
+					override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
+						override readonly list: CopilotClient['rpc']['mcp']['config']['list'] = async () => ({
+							servers: { demo: { type: 'http' as const, url: 'https://example.test/mcp', tools: ['*'] } },
+						});
+						override readonly remove: CopilotClient['rpc']['mcp']['config']['remove'] = async request => {
+							applies.push(`mcp.config.remove:${request.name}`);
+						};
+					}();
+				}(),
+			},
+		};
+		const policySessions = new TestPolicySessions();
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+		const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+		const sdkReview = await service.prepare({ installationId: installation.installationId });
+		const configurationReview = await service.prepare({ installationId: 'mcp-config:demo' });
+		await service.releasePolicySession(client);
+		const sdkApply = await service.apply(sdkReview.operationId).then(() => undefined, message);
+		const sdkRetry = await service.apply(sdkReview.operationId).then(() => undefined, message);
+		await service.apply(configurationReview.operationId);
+
+		assert.deepStrictEqual({ sdkApply, sdkRetry, applies }, {
+			sdkApply: 'The customization runtime restarted. Start the operation again.',
+			sdkRetry: 'This customization installation review expired. Start the operation again.',
+			applies: ['mcp.config.remove:demo'],
+		});
+	});
+
 	test('adds a raw MCP configuration through the SDK', async () => {
 		const requests: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
 		const client = {

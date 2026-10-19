@@ -155,7 +155,12 @@ class PendingCustomizationInstallation extends Disposable {
 		readonly id: string,
 		readonly client: ICopilotCustomizationInstallationClient,
 		readonly sdkOperationId: string,
-		readonly policySessionId: string,
+		/**
+		 * The hidden policy session the SDK planned this operation in and must
+		 * apply it in, or `undefined` for configuration-only operations that do
+		 * not use a policy session.
+		 */
+		readonly policySessionId: string | undefined,
 		readonly review: IAgentCustomizationInstallationReview,
 		readonly validatesConfirmation: (request: InstallationConfirmationRequest) => boolean,
 		readonly apply: () => Promise<ISdkResult | undefined>,
@@ -350,7 +355,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (!operation) {
 			throw new Error(localize('copilot.customizationInstallation.expired', "This customization installation review expired. Start the operation again."));
 		}
-		if (operation.client !== await this.getClient()) {
+		const client = await this.getClient();
+		// A token change, telemetry revocation, or idle timeout deletes the hidden
+		// policy session; the SDK cannot apply a plan bound to a deleted session.
+		if (operation.client !== client || (operation.policySessionId !== undefined && operation.policySessionId !== this.policySession?.sessionId)) {
 			this.operations.deleteAndDispose(operationId);
 			throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
 		}
@@ -513,7 +521,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		}
 		const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(choice)];
 		if (source.kind === 'card') {
-			return this.prepareMcpCardConfiguration(client, policySessionId, request, planned.plan, choice, configuration);
+			return this.prepareMcpCardConfiguration(client, request, planned.plan, choice, configuration);
 		}
 		const prepared = await client.rpc.mcp.prepareInstall({
 			contract: mcpInstallationContract,
@@ -573,7 +581,6 @@ export class CopilotCustomizationInstallations extends Disposable {
 	/** Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available. */
 	private prepareMcpCardConfiguration(
 		client: ICopilotCustomizationInstallationClient,
-		policySessionId: string,
 		request: IAgentCustomizationInstallationRequest,
 		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
 		choice: Extract<typeof plan.transportChoices[number], { readonly installMethod: 'remote' }>,
@@ -607,7 +614,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			operationId,
 			client,
 			generateUuid(),
-			policySessionId,
+			undefined,
 			review,
 			() => false,
 			async () => {
@@ -634,7 +641,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			if (!Object.hasOwn(configured.servers, serverName)) {
 				throw new Error(localize('copilot.customizationInstallation.notFound', "The SDK no longer owns this customization installation."));
 			}
-			return this.prepareConfiguredMcpUninstall(client, policySessionId, serverName);
+			return this.prepareConfiguredMcpUninstall(client, serverName);
 		}
 		const inventory = await this.listWithClient(client, policySessionId);
 		const installation = inventory.find(candidate => candidate.installationId === installationId);
@@ -712,7 +719,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return review;
 	}
 
-	private prepareConfiguredMcpUninstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, serverName: string): IAgentCustomizationInstallationReview {
+	private prepareConfiguredMcpUninstall(client: ICopilotCustomizationInstallationClient, serverName: string): IAgentCustomizationInstallationReview {
 		const operationId = generateUuid();
 		const review: IAgentCustomizationInstallationReview = {
 			operationId,
@@ -730,7 +737,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			operationId,
 			client,
 			generateUuid(),
-			policySessionId,
+			undefined,
 			review,
 			() => false,
 			async () => {
