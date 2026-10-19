@@ -647,17 +647,18 @@ suite('TabbedModelPicker', () => {
 		popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
 		popup.style.setProperty('--vscode-inputOption-activeBorder', 'rgb(40, 50, 60)');
 		const comparisonActionState = () => {
-			const style = dom.getWindow(comparisonAction).getComputedStyle(comparisonAction);
+			const action = element(popup, '[data-id="comparison"]');
+			const style = dom.getWindow(action).getComputedStyle(action);
 			return {
-				ariaLabel: comparisonAction.getAttribute('aria-label'),
-				htmlTitle: comparisonAction.getAttribute('title'),
-				pressed: comparisonAction.getAttribute('aria-pressed'),
-				trophy: !!comparisonAction.querySelector('.codicon-trophy'),
-				alignedWithSearch: comparisonAction.classList.contains('align-end'),
+				ariaLabel: action.getAttribute('aria-label'),
+				htmlTitle: action.getAttribute('title'),
+				pressed: action.getAttribute('aria-pressed'),
+				trophy: !!action.querySelector('.codicon-trophy'),
+				alignedWithSearch: action.classList.contains('align-end'),
 				background: style.backgroundColor,
 				border: style.borderColor,
-				width: comparisonAction.offsetWidth,
-				height: comparisonAction.offsetHeight,
+				width: action.offsetWidth,
+				height: action.offsetHeight,
 			};
 		};
 		assert.deepStrictEqual({
