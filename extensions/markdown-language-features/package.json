@@ -594,17 +594,17 @@
         {
           "command": "markdown.reopenAsPreview",
           "when": "activeEditor == workbench.editors.files.textFileEditor && resourceLangId =~ /^(markdown|prompt|instructions|chatagent|skill)$/ && !notebookEditorFocused && !hasCustomMarkdownPreview && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "markdown.showSource",
           "when": "activeWebviewPanelId == 'markdown.preview'",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "markdown.reopenAsSource",
           "when": "activeCustomEditorId == 'vscode.markdown.preview.editor' && !activeCustomEditorTextDiff && !isSessionsWindow",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "markdown.preview.refresh",
@@ -1982,6 +1982,7 @@
     "update-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --write",
     "check-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --check",
     "test-markdown-editor-package-json": "node --test ./scripts/updateMarkdownEditorPackageJson.test.mts",
+    "test-editor-title": "node --test ./scripts/editorTitle.test.mts",
     "test-markdown-editor-clipboard": "node --test ./scripts/clipboardMedia.test.mts ./scripts/markdownEditorMediaTransfer.test.mts",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
