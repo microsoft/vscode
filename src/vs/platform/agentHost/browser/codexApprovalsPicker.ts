@@ -22,13 +22,33 @@ export function getCodexApprovalsPickerListOptions(): IActionListOptions {
 	};
 }
 
-/** Explains a Full Access selection made while a turn is still running. */
-export function showCodexPermissionsChangeNotice(dialogService: IDialogService, previousValue: unknown, selectedValue: string): void {
+function getCodexPermissionsLabel(value: unknown): string {
+	switch (value) {
+		case 'full-access': return localize('codexApprovals.fullAccess', "Full Access");
+		case 'auto-review': return localize('codexApprovals.autoReview', "Auto-Review");
+		default: return localize('codexApprovals.default', "Default Permissions");
+	}
+}
+
+/** Offers to restart a turn with new permissions, returning the continuation message only on Apply Now. */
+export async function showCodexPermissionsChangeNotice(dialogService: IDialogService, previousValue: unknown, selectedValue: string): Promise<string | undefined> {
 	if (previousValue === selectedValue || (previousValue !== 'full-access' && selectedValue !== 'full-access')) {
 		return;
 	}
-	void dialogService.info(
-		localize('codexApprovals.nextTurn.title', "Full Access Changes on the Next Turn"),
-		localize('codexApprovals.nextTurn.detail', "Changes to file and network access take effect with your next message after the current turn finishes. Codex keeps its current access until then."),
-	);
+	const selectedLabel = getCodexPermissionsLabel(selectedValue);
+	const { result } = await dialogService.prompt({
+		type: 'question',
+		message: selectedValue === 'full-access'
+			? localize('codexApprovals.enableFullAccess.title', "Enable Full Access Now?")
+			: localize('codexApprovals.disableFullAccess.title', "Disable Full Access Now?"),
+		detail: selectedValue === 'full-access'
+			? localize('codexApprovals.enableFullAccess.detail', "Applying now will stop the current turn and send a new message to continue with Full Access.\n\nClose this dialog to apply the change with your next message after the current turn finishes.")
+			: localize('codexApprovals.disableFullAccess.detail', "Applying now will stop the current turn and send a new message to disable Full Access and continue with {0}.\n\nClose this dialog to apply the change with your next message after the current turn finishes.", selectedLabel),
+		buttons: [{
+			label: localize('codexApprovals.applyNow', "Apply Now"),
+			run: () => localize('codexApprovals.continue', "Continue (I changed permissions from {0} to {1})", getCodexPermissionsLabel(previousValue), selectedLabel),
+		}],
+		custom: true,
+	});
+	return result;
 }

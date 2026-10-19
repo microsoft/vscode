@@ -18,6 +18,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -56,6 +57,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
@@ -80,14 +82,24 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 		return localize('agentHostCodexApprovalsPicker.ariaLabel', "Approvals Picker");
 	}
 
-	protected override _onDidSelectValue(previousValue: string, selectedValue: string, chat: URI): void {
+	protected override async _onDidSelectValue(previousValue: string, selectedValue: string, chat: URI): Promise<void> {
 		const activeChat = this._session.get()?.activeChat.get();
 		if (!activeChat || !isEqual(activeChat.resource, chat)) {
 			return;
 		}
 		const status = activeChat.status.get();
 		if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
-			showCodexPermissionsChangeNotice(this._dialogService, previousValue, selectedValue);
+			const widget = this._chatWidgetService.getWidgetBySessionResource(chat);
+			const viewModel = widget?.viewModel;
+			const requestId = viewModel?.model.lastRequest?.id;
+			const message = await showCodexPermissionsChangeNotice(this._dialogService, previousValue, selectedValue);
+			if (message && widget && viewModel && !this._store.isDisposed
+				&& this._session.get()?.activeChat.get() === activeChat
+				&& this._getActiveContext()?.currentValue === selectedValue
+				&& widget.viewModel === viewModel && isEqual(viewModel.sessionResource, chat)
+				&& viewModel.model.lastRequest?.id === requestId) {
+				await widget.acceptInput(message, { cancelCurrentRequest: true, preserveInput: true });
+			}
 		}
 	}
 

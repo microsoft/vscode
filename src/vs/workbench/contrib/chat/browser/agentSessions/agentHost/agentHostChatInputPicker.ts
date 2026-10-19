@@ -1308,8 +1308,14 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}
 		await this._setValue(context, value, property);
-		if (property === CodexSessionConfigKey.PermissionsPreset && this._isCurrentTarget(context) && this._widget.viewModel?.model.hasActiveRequest.get()) {
-			showCodexPermissionsChangeNotice(this._dialogService, context.value, value);
+		const viewModel = this._widget.viewModel;
+		if (property === CodexSessionConfigKey.PermissionsPreset && this._isCurrentTarget(context) && viewModel?.model.hasActiveRequest.get()) {
+			const requestId = viewModel.model.lastRequest?.id;
+			const message = await showCodexPermissionsChangeNotice(this._dialogService, context.value, value);
+			if (message && this._isCurrentTarget(context) && this._widget.viewModel === viewModel
+				&& this._readContext(property)?.value === value && viewModel.model.lastRequest?.id === requestId) {
+				await this._widget.acceptInput(message, { cancelCurrentRequest: true, preserveInput: true });
+			}
 		}
 	}
 
