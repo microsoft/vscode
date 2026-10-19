@@ -665,6 +665,10 @@ suite('Sessions list context menus', () => {
 		const configurationService = new TestConfigurationService({ 'chat.agentHost.moveChats.enabled': true });
 		const harness = createListHarness(disposables, [session], instantiationService => {
 			instantiationService.stub(IConfigurationService, configurationService);
+			// No sessions list view: nothing to reveal the new session in.
+			instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+				override getViewWithId() { return null; }
+			});
 			instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 				override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { events.push(`confirm: ${confirmation.message}`); return answer; }
 			});

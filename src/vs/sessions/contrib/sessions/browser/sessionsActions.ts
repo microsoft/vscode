@@ -77,7 +77,7 @@ import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHo
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { isChatMoveDndEnabled, runSessionsListMove } from './views/sessionsListChatMove.js';
+import { isChatMoveDndEnabled, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -771,13 +771,16 @@ registerAction2(class PromoteChatToSessionAction extends Action2 {
 		if (!context || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService)) || !sessionsManagementService.canMoveChat(context.session, context.chat)) {
 			return false;
 		}
-		return runSessionsListMove(
-			{ kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } },
-			sessionsManagementService,
-			accessor.get(IDialogService),
-			configurationService,
-			accessor.get(INotificationService),
-		);
+		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
+		// Like a drop on the list, reveal and select the new session in the list once it shows it.
+		const revealMoved = getSessionsList(accessor)?.watchMoveForReveal(move);
+		let moved = false;
+		try {
+			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(IDialogService), configurationService, accessor.get(INotificationService));
+		} finally {
+			revealMoved?.(moved);
+		}
+		return moved;
 	}
 });
 
