@@ -1214,4 +1214,93 @@ suite('CopilotCustomizationInstallations', () => {
 			decisions: ['confirm'],
 		});
 	});
+
+	suite('inventory failures', () => {
+		type McpInstallationManagementResult = Awaited<ReturnType<CopilotClient['rpc']['mcp']['installations']['list']>>;
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+
+		function createService(mcpResults: { list: McpInstallationManagementResult; recover: McpInstallationManagementResult }) {
+			const calls: string[] = [];
+			const skills = new class extends mock<CopilotClient['rpc']['skills']>() {
+				override readonly installations = new class extends mock<CopilotClient['rpc']['skills']['installations']>() {
+					override readonly list: CopilotClient['rpc']['skills']['installations']['list'] = async () => {
+						calls.push('skills.list');
+						return { kind: 'outcome' as const, negotiated, outcome: { kind: 'listed' as const, installations: [] } };
+					};
+					override readonly recover: CopilotClient['rpc']['skills']['installations']['recover'] = async () => {
+						calls.push('skills.recover');
+						return { kind: 'outcome' as const, negotiated, outcome: { kind: 'recovered' as const, installations: [] } };
+					};
+				}();
+			}();
+			const mcp = new class extends mock<CopilotClient['rpc']['mcp']>() {
+				override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+					override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async () => {
+						calls.push('mcp.list');
+						return mcpResults.list;
+					};
+					override readonly recover: CopilotClient['rpc']['mcp']['installations']['recover'] = async () => {
+						calls.push('mcp.recover');
+						return mcpResults.recover;
+					};
+				}();
+			}();
+			const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() { }();
+			const service = store.add(new CopilotCustomizationInstallations(async () => ({ rpc: { catalog, skills, mcp } }), () => 'sdk-session'));
+			return { service, calls };
+		}
+
+		test('surfaces the refusal reason when MCP inventory is refused', async () => {
+			const refused: McpInstallationManagementResult = { kind: 'outcome', negotiated, outcome: { kind: 'refused', reason: 'lifecycle-unavailable' } };
+			const { service, calls } = createService({ list: refused, recover: refused });
+
+			const error = await service.list(URI.parse('agent-host-copilotcli:///session')).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+
+			assert.deepStrictEqual({ error, calls: calls.sort() }, {
+				error: 'The SDK could not list installed MCP servers. (refused: lifecycle-unavailable)',
+				calls: ['mcp.list', 'skills.list'],
+			});
+		});
+
+		test('recovers once when MCP inventory requires recovery', async () => {
+			const installation: McpInstallationSummary = {
+				installationId: 'installation-id',
+				operationId: 'operation-id',
+				identity: { canonicalName: 'io.github.example/demo', serverName: 'io.github.example/demo', version: '1.0.0' },
+				choiceId: 'remote:0',
+				state: 'active',
+				installedAt: new Date().toISOString(),
+			};
+			const { service, calls } = createService({
+				list: { kind: 'outcome', negotiated, outcome: { kind: 'recovery-required' } },
+				recover: { kind: 'outcome', negotiated, outcome: { kind: 'recovered', installations: [installation] } },
+			});
+
+			const inventory = await service.list(URI.parse('agent-host-copilotcli:///session'));
+
+			assert.deepStrictEqual({ inventory, calls: calls.sort() }, {
+				inventory: [{
+					installationId: 'installation-id',
+					kind: 'mcp',
+					mediaType: 'application/mcp-server+json',
+					catalogue: undefined,
+					serverName: 'io.github.example/demo',
+					state: 'installed',
+				}],
+				calls: ['mcp.list', 'mcp.recover', 'skills.list'],
+			});
+		});
+
+		test('does not retry recovery when MCP inventory still requires recovery', async () => {
+			const recoveryRequired: McpInstallationManagementResult = { kind: 'outcome', negotiated, outcome: { kind: 'recovery-required' } };
+			const { service, calls } = createService({ list: recoveryRequired, recover: recoveryRequired });
+
+			const error = await service.list(URI.parse('agent-host-copilotcli:///session')).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+
+			assert.deepStrictEqual({ error, calls: calls.sort() }, {
+				error: 'The SDK could not list installed MCP servers. (recovery-required)',
+				calls: ['mcp.list', 'mcp.recover', 'skills.list'],
+			});
+		});
+	});
 });

@@ -71,6 +71,10 @@ const mcpInstallationContract = {
 interface ISdkResult {
 	readonly kind: string;
 	readonly message?: string;
+	readonly outcome?: {
+		readonly kind: string;
+		readonly reason?: unknown;
+	};
 }
 
 interface ICopilotCustomizationInstallationClient {
@@ -291,10 +295,16 @@ export class CopilotCustomizationInstallations extends Disposable {
 		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
 		const client = await this.getClient();
 		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
-		const [skills, mcp, configured] = await Promise.all([
+		const [listedSkills, listedMcp, configured] = await Promise.all([
 			client.rpc.skills.installations.list({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.list({ contract: mcpInstallationContract, policySessionId }),
 			client.rpc.mcp.config?.list?.() ?? Promise.resolve({ servers: {} }),
+		]);
+		// Reconcile durable SDK evidence at most once per kind; a repeated
+		// `recovery-required` result surfaces as an inventory error.
+		const [skills, mcp] = await Promise.all([
+			isRecoveryRequired(listedSkills) ? client.rpc.skills.installations.recover({ contract: skillInstallationContract, policySessionId }) : listedSkills,
+			isRecoveryRequired(listedMcp) ? client.rpc.mcp.installations.recover({ contract: mcpInstallationContract, policySessionId }) : listedMcp,
 		]);
 		const mcpInstallations = this.getMcpInstallations(mcp);
 		return [
@@ -1003,7 +1013,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	private resultError(result: ISdkResult, fallback: string): Error {
-		return new Error(result.message ?? fallback);
+		const message = result.message ?? fallback;
+		const detail = describeSdkOutcome(result);
+		return new Error(detail
+			? localize('copilot.customizationInstallation.resultErrorDetail', "{0} ({1})", message, detail)
+			: message);
 	}
 
 	private assertApplied(result: ISdkResult, action: 'install' | 'uninstall'): void {
@@ -1025,6 +1039,26 @@ export class CopilotCustomizationInstallations extends Disposable {
 		super.dispose();
 	}
 
+}
+
+/**
+ * Whether the SDK reported that durable installation evidence must be
+ * reconciled through `installations.recover` before inventory is available.
+ */
+function isRecoveryRequired(result: ISdkResult): boolean {
+	return result.kind === 'outcome' && result.outcome?.kind === 'recovery-required';
+}
+
+/**
+ * Describes a handled-but-unsuccessful SDK outcome as non-localized
+ * diagnostic identifiers, e.g. `refused: policy-context-unavailable`.
+ */
+function describeSdkOutcome(result: ISdkResult): string | undefined {
+	if (result.kind !== 'outcome' || !result.outcome) {
+		return undefined;
+	}
+	const { kind, reason } = result.outcome;
+	return typeof reason === 'string' ? `${kind}: ${reason}` : kind;
 }
 
 function isMatchingCandidateCatalogue(catalogue: IInstallationCatalogueIdentity | undefined, candidate: InstallableCatalogCandidate): boolean {
