@@ -23,11 +23,14 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { scrollbarShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
+import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../../workbench/contrib/chat/browser/attachments/chatVariables.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { ChatInputNoticeHost } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { IChatInputHostModelSelection } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
@@ -37,6 +40,11 @@ import { IChatDraft } from '../../../../workbench/contrib/chat/common/attachment
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { IDynamicVariable } from '../../../../workbench/contrib/chat/common/attachments/chatVariables.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { IChatSlashCommandService } from '../../../../workbench/contrib/chat/common/participants/chatSlashCommands.js';
+import { ChatRequestSlashCommandPart, IParsedChatRequest } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
+import { ChatRequestParser } from '../../../../workbench/contrib/chat/common/requestParser/chatRequestParser.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -48,7 +56,7 @@ import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChat
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { getLabeledPickerResponsiveItems, hasSendableNewChatContent, INewChatComposerInputOptions, syncInputGitHubContextAttachments } from './newChatComposerInput.js';
 import { createSessionModelCommands, INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
-import { INewChatVoiceComposer, INewChatVoiceTargetService } from './newChatVoice.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceInputDecorations } from './newChatVoice.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { INewSessionComposer, INewSessionComposerPicker, INewSessionPromptOptionsController, NewSessionPromptOptionsState, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { NewSessionPromptOptionsPresenter } from './newSessionPromptOptions.js';
@@ -71,6 +79,13 @@ export type ComposerBusyState = '' | 'initializing' | 'sending';
 
 /** What the composer is waiting on, shown as progress in its input toolbar. */
 export const SharedChatInputComposerBusyContext = new RawContextKey<ComposerBusyState>('sessionsSharedChatInputComposerBusy', '', localize('sessionsSharedChatInputComposerBusy', "What the new-session composer is waiting on, if anything."));
+
+/** A client-side slash command parsed from the composer's input. */
+interface IClientSlashCommand {
+	readonly part: ChatRequestSlashCommandPart;
+	readonly parsed: IParsedChatRequest;
+	readonly sessionResource: URI;
+}
 
 /** The separator between repository controls, styled per composer layout. */
 class RepositoryConfigSeparatorActionViewItem extends ActionViewItem {
@@ -136,6 +151,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@ILogService private readonly logService: ILogService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatSubmitRequestHandlerService private readonly chatSubmitRequestHandlerService: IChatSubmitRequestHandlerService,
+		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
@@ -189,6 +205,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._register(composerFocusTracker.onDidFocus(() => composerFocusKey.set(true)));
 		this._register(composerFocusTracker.onDidBlur(() => composerFocusKey.set(false)));
 		const widgetInstantiationService = this._register(this._scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, widgetContextKeyService])));
+		// Voice Mode belongs to this composer while it is the voice input for a draft.
+		const ownsDraftVoiceSession = derived(this, reader => this.newChatVoiceTargetService.activeComposer.read(reader) === this
+			&& isEqual(this.newChatVoiceTargetService.currentVoiceInputResource.read(reader), NEW_CHAT_VOICE_SENTINEL));
 		const widget = this._widget = this._register(widgetInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
@@ -212,6 +231,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				inputPartHorizontalPadding: 0,
 				hostModelSelection: this._createHostModelSelection(),
 				deferredNotificationsEnabled: this.options.deferredNotificationsEnabled,
+				ownsDraftVoiceSession,
 				hostSubmit: {
 					canSubmit: derived(this, reader => this._canSendRequest.read(reader) && !this._sending.read(reader)),
 					hasContent: this.options.hasAdditionalSendContent,
@@ -272,6 +292,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 		this._register(this.newChatVoiceTargetService.registerComposer(this));
 		this._register(this.onDidFocus(() => this.newChatVoiceTargetService.setActive(this)));
+		const inputContainer = widget.inputPart.inputContainerElement;
+		if (inputContainer) {
+			this._register(this.instantiationService.createInstance(NewChatVoiceInputDecorations, inputContainer, this.options.inputVisible ?? constObservable(true), ownsDraftVoiceSession));
+		}
 		this._register(widget.input.registerChatPetHorizontalPlatformProvider({
 			onDidChange: Event.any(this.options.onDidChangeChatPetPlatform ?? Event.None, this.sessionTypePicker.onDidChangeChatPetPlatform),
 			getElements: () => [...(this.options.getChatPetPlatformElements?.() ?? []), ...this.sessionTypePicker.getChatPetPlatformElements()],
@@ -711,7 +735,19 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const widget = this._widget;
 		const query = rawQuery.trim();
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
-		if (!widget || this._sending.get() || !hasSendableNewChatContent(query, attachments, hasAdditionalSendContent) || !this._canSendRequest.get()) {
+		if (!widget || this._sending.get() || !hasSendableNewChatContent(query, attachments, hasAdditionalSendContent)) {
+			return false;
+		}
+		// Inline references belong to the input text; a command completion submits
+		// its own text instead, which carries none.
+		const references = rawQuery === widget.getInput() ? [...getDynamicVariablesForWidget(widget)] : [];
+		// Client-side commands, such as /models, are not sends: they run in the
+		// input as in any chat input, also while the host cannot send.
+		const slashCommand = this._parseClientSlashCommand(widget, rawQuery, references);
+		if (slashCommand) {
+			return this._runClientSlashCommand(slashCommand, attachments);
+		}
+		if (!this._canSendRequest.get()) {
 			return false;
 		}
 
@@ -727,6 +763,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			if (!this.getInputValue() && !widget.attachmentModel.attachments.length) {
 				this.setInputValue(rawQuery);
 				widget.attachmentModel.addContext(...attachments);
+				// The send cleared the inline references along with the text.
+				widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: references });
 			}
 		};
 		try {
@@ -747,7 +785,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			// host sends, so the draft must not carry the sent prompt.
 			await widget.input.acceptInput(true, true);
 			this._modelRef.value?.object.inputModel.setState({ inputText: '', attachments: [] });
-			const sent = await this.options.sendRequest({ query, attachments: attachments.length > 0 ? [...attachments] : undefined, background, userInteraction });
+			// Prompt ranges, such as those of inline references, refer to the untrimmed input.
+			const queryOffset = rawQuery.length - rawQuery.trimStart().length;
+			const sentAttachments = attachments.map(entry => entry.range && queryOffset
+				? { ...entry, range: { start: entry.range.start - queryOffset, endExclusive: entry.range.endExclusive - queryOffset } }
+				: entry);
+			const sent = await this.options.sendRequest({ query, attachments: sentAttachments.length > 0 ? sentAttachments : undefined, background, userInteraction });
 			if (!sent) {
 				userInteraction?.cancel('notDispatched');
 				restoreInput();
@@ -764,6 +807,44 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this._userInteractionSource.clear();
 			widget.input.setInputEnabled(true);
 			this._sending.set(false, undefined);
+		}
+	}
+
+	/** The client-side command `rawQuery` runs, if any. Provider commands are references, so they never parse as one. */
+	private _parseClientSlashCommand(widget: ChatWidget, rawQuery: string, references: readonly IDynamicVariable[]): IClientSlashCommand | undefined {
+		const sessionResource = widget.viewModel?.sessionResource;
+		if (!sessionResource) {
+			return undefined;
+		}
+		const parsed = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(references, getSelectedToolAndToolSetsForWidget(widget), rawQuery, ChatAgentLocation.Chat, {
+			mode: widget.input.currentModeKind,
+			sessionType: getChatSessionType(sessionResource),
+		});
+		const part = parsed.parts.find((part): part is ChatRequestSlashCommandPart => part instanceof ChatRequestSlashCommandPart);
+		return part ? { part, parsed, sessionResource } : undefined;
+	}
+
+	/** Runs a client-side command like a chat input does, keeping the input usable for any UI the command opens. */
+	private async _runClientSlashCommand({ part, parsed, sessionResource }: IClientSlashCommand, attachments: readonly IChatRequestVariableEntry[]): Promise<boolean> {
+		try {
+			const result = await this.chatSlashCommandService.executeCommand(
+				part.slashCommand.command,
+				parsed.text.slice(part.range.endExclusive).trimStart(),
+				new Progress(() => { }),
+				[],
+				ChatAgentLocation.Chat,
+				sessionResource,
+				CancellationToken.None,
+				{ attachedContext: [...attachments] },
+				{ input: parsed.text },
+			);
+			if (!result?.preserveInput) {
+				this.setInputValue('');
+			}
+			return true;
+		} catch (error) {
+			this.logService.error(`[SharedChatInputComposer] Failed to run /${part.slashCommand.command}`, error);
+			return false;
 		}
 	}
 

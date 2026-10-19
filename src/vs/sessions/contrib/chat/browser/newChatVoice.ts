@@ -5,14 +5,22 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, derived, derivedOpts, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IMicCaptureService } from '../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../../../workbench/contrib/chat/browser/voiceClient/ttsPlaybackService.js';
+import { IVoiceSessionController } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { setupVoiceInputDecorations } from './voiceInputDecorations.js';
 
 /**
  * Stable resource for targeting the new-session composer before a session exists.
@@ -137,6 +145,40 @@ export class NewChatVoiceTargetService extends Disposable implements INewChatVoi
 		}
 		this._pendingVoiceTransition = undefined;
 		return true;
+	}
+}
+
+/**
+ * Shows the Voice Mode transcript and glow on a composer's input while it owns
+ * a Voice Mode session that targets its draft.
+ */
+export class NewChatVoiceInputDecorations extends Disposable {
+	constructor(
+		inputContainer: HTMLElement,
+		isVisible: IObservable<boolean>,
+		ownsDraftVoiceSession: IObservable<boolean>,
+		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
+		@ITtsPlaybackService ttsPlaybackService: ITtsPlaybackService,
+		@IMicCaptureService micCaptureService: IMicCaptureService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+	) {
+		super();
+		this._register(setupVoiceInputDecorations({
+			voiceSessionController,
+			ttsPlaybackService,
+			micCaptureService,
+			configurationService,
+			keybindingService,
+			themeService,
+			accessibilityService,
+		}, {
+			inputContainer,
+			isActive: isVisible,
+			isOwner: derived(this, reader => voiceSessionController.hasDraftTarget.read(reader) && ownsDraftVoiceSession.read(reader)),
+		}));
 	}
 }
 

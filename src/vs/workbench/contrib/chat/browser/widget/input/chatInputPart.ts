@@ -305,6 +305,8 @@ export interface IChatInputPartOptions {
 	 * this input's own rule, which holds them back during a first chat session.
 	 */
 	deferredNotificationsEnabled?: IObservable<boolean>;
+	/** Whether this input owns a Voice Mode session that targets a draft. Defaults to never. */
+	ownsDraftVoiceSession?: IObservable<boolean>;
 	/** Whether this input is a transient surface (inline, terminal, or quick chat). */
 	isTransientChat?: boolean;
 	widgetViewKindTag: string;
@@ -3785,7 +3787,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const target = this.voiceSessionController.targetSession.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
 			const resource = voiceSessionResource.read(reader);
-			return isVoiceSessionActiveForInput(isVoiceInputActive.read(reader), target, hasDraftTarget, resource);
+			return isVoiceSessionActiveForInput(isVoiceInputActive.read(reader), target, hasDraftTarget, resource, this.options.ownsDraftVoiceSession?.read(reader));
 		});
 
 		const inputPickerCompactStates = new Map<string, ISettableObservable<boolean>>();
