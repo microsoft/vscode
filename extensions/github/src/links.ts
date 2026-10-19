@@ -6,22 +6,13 @@
 import * as vscode from 'vscode';
 import { RefType } from './typings/git.constants.js';
 import type { API as GitAPI, Repository } from './typings/git.d.ts';
-import { getRepositoryFromUrl, repositoryHasGitHubRemote } from './util.js';
+import { getRepositoryFromUrl } from './util.js';
+import { resolveLinkRepository } from './linkRepository.js';
 
-export function isFileInRepo(repository: Repository, file: vscode.Uri): boolean {
-	return file.path.toLowerCase() === repository.rootUri.path.toLowerCase() ||
-		(file.path.toLowerCase().startsWith(repository.rootUri.path.toLowerCase()) &&
-			file.path.substring(repository.rootUri.path.length).startsWith('/'));
-}
-
-export function getRepositoryForFile(gitAPI: GitAPI, file: vscode.Uri): Repository | undefined {
-	for (const repository of gitAPI.repositories) {
-		if (isFileInRepo(repository, file)) {
-			return repository;
-		}
-	}
-	return undefined;
-}
+// `isFileInRepo` and `getRepositoryForFile` now live in `linkRepository.js`
+// (which has no `vscode` dependency so it is unit-testable in plain Node) and
+// are re-exported here for existing importers.
+export { isFileInRepo, getRepositoryForFile } from './linkRepository.js';
 
 enum LinkType {
 	File = 1,
@@ -135,9 +126,10 @@ export async function getLink(gitAPI: GitAPI, useSelection: boolean, shouldEnsur
 	const fileAndPosition = getFileAndPosition(context);
 	const fileUri = fileAndPosition?.uri;
 
-	// Use the first repo if we cannot determine a repo from the uri.
-	const githubRepository = gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo));
-	const gitRepo = (fileUri ? getRepositoryForFile(gitAPI, fileUri) : githubRepository) ?? githubRepository;
+	// A provided file must itself be a linkable resource in a git repository.
+	// We do not fall back to an arbitrary repo for it (see #341026); the
+	// first-GitHub-repo fallback only applies to repo-level links with no file.
+	const gitRepo = resolveLinkRepository(gitAPI, fileUri);
 	if (!gitRepo) {
 		return;
 	}
