@@ -114,8 +114,11 @@ function tryDecodeBase64Text(payload: string): string | undefined {
 
 /**
  * Normalizes a `blob` attachment's `data` field for binary/embedded resources
- * by stripping a leading `data:...;base64,` prefix and ASCII whitespace when
- * the payload is otherwise valid base64.
+ * by stripping a leading `data:...;base64,` prefix and the line breaks of
+ * line-wrapped base64. Line breaks are only removed when the result is
+ * canonical base64; other payloads, including raw text with spaces such as
+ * `not base64`, are kept as-is so consumers fail to decode them and fall back
+ * instead of producing garbage bytes.
  */
 export function normalizeBase64AttachmentData(data: string): string {
 	if (!data) {
@@ -123,5 +126,7 @@ export function normalizeBase64AttachmentData(data: string): string {
 	}
 	const dataUrlMatch = /^data:[^,]*;base64,(?<payload>[\s\S]*)$/i.exec(data);
 	const raw = dataUrlMatch?.groups?.payload ?? data;
-	return /^[A-Za-z0-9+/_=\s-]+$/.test(raw) ? raw.replace(/\s+/g, '') : raw;
+	const unwrapped = raw.replace(/[\r\n]+/g, '');
+	const groups = base64TextPattern.exec(unwrapped)?.groups;
+	return groups && isCanonicalBase64(groups.body, groups.padding) ? unwrapped : raw;
 }

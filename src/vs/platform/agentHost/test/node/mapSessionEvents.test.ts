@@ -1863,6 +1863,12 @@ suite('mapSessionEvents — history replay', () => {
 							displayName: 'screenshot.png',
 							data: 'data:image/png;base64,iVBORw0KGgo=\r\n',
 						},
+						...[['wrapped.bin', 'AAEC\r\nAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([displayName, data]) => ({
+							type: 'blob' as const,
+							mimeType: 'application/octet-stream',
+							displayName,
+							data,
+						})),
 					],
 				},
 			},
@@ -1920,6 +1926,13 @@ suite('mapSessionEvents — history replay', () => {
 				contentType: 'image/png',
 				displayKind: 'image',
 			},
+			...[['wrapped.bin', 'AAECAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([label, data]) => ({
+				type: MessageAttachmentKind.EmbeddedResource,
+				label,
+				data,
+				contentType: 'application/octet-stream',
+				displayKind: undefined,
+			})),
 		]);
 	});
 

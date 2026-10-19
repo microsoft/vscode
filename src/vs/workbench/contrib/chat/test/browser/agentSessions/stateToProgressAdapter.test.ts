@@ -432,18 +432,18 @@ suite('stateToProgressAdapter', () => {
 		const restored = messageAttachmentsToVariableData([{
 			type: MessageAttachmentKind.EmbeddedResource,
 			label: 'notes.bin',
-			data: 'not base64: raw text',
+			data: 'not base64',
 			contentType: 'application/octet-stream',
 		}, {
 			type: MessageAttachmentKind.EmbeddedResource,
 			label: 'screenshot.png',
-			data: 'not base64: raw text',
+			data: 'not base64',
 			contentType: 'image/png',
 			displayKind: 'image',
 		}], 'local')?.variables;
 
 		assert.deepStrictEqual(restored?.map(({ kind, name, value }) => ({ kind, name, value })), [
-			{ kind: 'generic', name: 'notes.bin', value: 'not base64: raw text' },
+			{ kind: 'generic', name: 'notes.bin', value: 'not base64' },
 			{ kind: 'generic', name: 'screenshot.png', value: 'screenshot.png' },
 		]);
 	});
