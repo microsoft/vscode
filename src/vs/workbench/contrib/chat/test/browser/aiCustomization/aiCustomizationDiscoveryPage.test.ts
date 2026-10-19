@@ -373,6 +373,42 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('intro offers one accessible Learn more link to customization documentation', async () => {
+		const fixture = createPage();
+		const description = fixture.container.querySelector<HTMLElement>('.customization-discovery-description');
+		const links = [...description?.querySelectorAll('a') ?? []];
+		links[0]?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			description: description?.textContent,
+			links: links.map(link => ({
+				label: link.textContent,
+				ariaLabel: link.getAttribute('aria-label'),
+				href: link.href,
+				tabIndex: link.tabIndex,
+			})),
+			opened: fixture.opened,
+		}, {
+			description: 'Tailor your agent to your tools, your team, and your workflow. Learn more',
+			links: [{
+				label: 'Learn more',
+				ariaLabel: 'Learn more about agent customizations',
+				href: 'https://aka.ms/vscode-customizations',
+				tabIndex: 0,
+			}],
+			opened: ['https://aka.ms/vscode-customizations'],
+		});
+	});
+
+	test('search placeholder introduces customization types', () => {
+		const fixture = createPage();
+		assert.strictEqual(
+			fixture.container.querySelector('.customization-discovery-search .suggest-input-placeholder')?.textContent,
+			'Search MCP servers, plugins, skills and more...',
+		);
+	});
+
 	test('announces loading only after the scheduled catalog search starts', async () => {
 		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => ariaHost.remove()));
