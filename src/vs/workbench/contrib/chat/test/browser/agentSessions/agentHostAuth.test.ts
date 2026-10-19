@@ -34,7 +34,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
@@ -1008,6 +1008,45 @@ suite('autoAuthenticateMcpServer', () => {
 			authenticateRequests: allowed ? [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }] : [],
 		})));
 	});
+
+	test('never looks up sessions or forwards an MCP token for a Copilot Connector scope challenge', async () => {
+		const sessionRequests: (readonly string[] | undefined)[] = [];
+		const authenticateRequests: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({
+			getSessions: async (_providerId, scopes) => {
+				sessionRequests.push(scopes);
+				return [{ id: 'narrow', scopes: ['write:plugin_gateway_connections'], accessToken: 'narrow-token', account: { id: 'account-id', label: 'Account' } }];
+			},
+		}));
+		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILabelService, { getHostLabel: () => 'Host' });
+		const connection = new class extends mock<IAgentConnection>() {
+			override async authenticate(request: { resource: string; scopes?: readonly string[]; token: string }) {
+				authenticateRequests.push(request.resource);
+				return { authenticated: true };
+			}
+		}();
+		const resource = { resource: 'https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp', authorization_servers: ['https://github.com/login/oauth'] };
+		const silent = await instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: 'vscode-agent-host', authority: '' }, 'connector-kusto', {
+			resource,
+			requiredScopes: ['write:plugin_gateway_connections'],
+		});
+		const interactive = await instantiationService.invokeFunction(resolveMcpServerAuthentication, resource, {
+			allowInteraction: true,
+			logPrefix: '[AgentHost]',
+			mcpServerId: agentHostMcpServerId('', 'connector-kusto', resource.resource),
+			mcpServerName: 'Kusto',
+			mcpServerUrl: resource.resource,
+			scopes: ['write:plugin_gateway_connections'],
+			authenticate: request => connection.authenticate(request),
+		});
+		assert.deepStrictEqual({ silent, interactive, sessionRequests, authenticateRequests }, { silent: false, interactive: false, sessionRequests: [], authenticateRequests: [] });
+	});
 });
 
 suite('resolveMcpServerAuthentication', () => {
@@ -1845,6 +1884,57 @@ suite('authenticateProtectedResources', () => {
 			});
 		});
 	}
+
+	test('Copilot Connector credential stays on the default session until a session grants every Copilot and Connector scope', async () => {
+		const account = { id: 'active-account', label: 'Active' };
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes: ['read:user', 'user:email', 'repo', 'workflow'] };
+		const narrow: AuthenticationSession = { id: 'narrow', accessToken: 'narrow-token', account, scopes: ['write:plugin_gateway_connections'] };
+		const partial: AuthenticationSession = { id: 'partial', accessToken: 'partial-token', account, scopes: ['user:email', 'write:plugin_gateway_connections'] };
+		const full: AuthenticationSession = { id: 'full', accessToken: 'full-token', account, scopes: [...current.scopes, 'write:plugin_gateway_connections'] };
+		let sessions: readonly AuthenticationSession[] = [current, narrow, partial];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested) => requested ? [current] : sessions,
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const requests: { resource: string; token: string }[] = [];
+		const authenticate = async (request: { resource: string; token: string }) => { requests.push({ resource: request.resource, token: request.token }); };
+		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, current.id, authenticate);
+		sessions = [current, narrow, partial, full];
+		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, current.id, authenticate);
+		assert.deepStrictEqual(requests, [
+			{ resource: 'https://api.github.com', token: 'current-token' },
+			{ resource: 'https://api.github.com', token: 'full-token' },
+		]);
+	});
+
+	test('Copilot Connector credential stays on the authorized account when another account is returned first', async () => {
+		const scopes = ['read:user', 'user:email'];
+		const account = { id: 'active-account', label: 'Active' };
+		const other = { id: 'other-account', label: 'Other' };
+		const otherCurrent: AuthenticationSession = { id: 'other-current', accessToken: 'other-current-token', account: other, scopes };
+		const otherFull: AuthenticationSession = { id: 'other-full', accessToken: 'other-full-token', account: other, scopes: [...scopes, 'write:plugin_gateway_connections'] };
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+		const full: AuthenticationSession = { id: 'full', accessToken: 'full-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'] };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested, options: IAuthenticationProviderSessionOptions) => requested
+				? [otherCurrent, current]
+				: [otherCurrent, otherFull, current, full].filter(session => !options.account || session.account.id === options.account.id),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const tokens: string[] = [];
+		const authenticate = async (request: { token: string }) => { tokens.push(request.token); };
+		const authorized = await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, full.id, authenticate);
+		const unavailable = await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, 'signed-out-session', authenticate);
+		assert.deepStrictEqual({ authorized, unavailable, tokens }, { authorized: true, unavailable: false, tokens: ['full-token'] });
+	});
 
 	test('a connector authorization upgrade replaces the token forwarded to a running agent host', async () => {
 		const account = { id: 'active-account', label: 'Active' };
