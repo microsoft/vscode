@@ -51,6 +51,7 @@ import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from '
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from './copilotBuiltinToolAllowlist.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
@@ -250,9 +251,9 @@ export interface ICopilotSessionRuntime {
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createClientSdkTools(toolSearchActive: boolean): Tool<any>[];
+	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createServerSdkTools(): Tool<any>[];
+	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	reloadExtensions(): Promise<void>;
 }
 
@@ -1210,16 +1211,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
-		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
-		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
-		// exception: the SDK validates the session-start `agent:` against `customAgents`
-		// by name, so the selected agent is force-included (see `toSdkSessionCustomAgents`).
+		// Rely on the SDK to discover skills and other plugin resources from
+		// `pluginDirectories`. Agents are projected explicitly because the SDK treats an
+		// explicit `customAgents` array as the complete catalog, and VS Code always adds its
+		// built-in agents there (see `toSdkSessionCustomAgents`).
 		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, plan.resolvedAgentName, this._fileService);
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
@@ -1259,7 +1260,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		});
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
-		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
+		// Allow-list by default: a runtime built-in that is not in the host's list stays off until adopted.
+		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools) ?? [...COPILOT_DEFAULT_AVAILABLE_TOOLS];
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),
 			// Keep dynamic workflows disabled until Agent Host support is validated.
@@ -1300,11 +1302,14 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			&& agentHostModelSupportsToolSearch(effectiveModel?.id)
 			&& clientToolNames.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
+		const serverTools = runtime.createServerSdkTools(toolSearchActive);
+		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
+		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools].map(tool => tool.name));
 		const tools = [
 			...shellTools,
-			...runtime.createClientSdkTools(toolSearchActive),
-			...runtime.createServerSdkTools(),
-			...createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService),
+			...runtime.createClientSdkTools(toolSearchActive, hostToolNames),
+			...serverTools,
+			...extensionTools,
 		];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const bridgedPermissions = this._managedSettingsService.permissions;
@@ -1315,7 +1320,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			bridgedPermissions).permissions;
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
-			hasClientTool: name => clientToolNames.has(name),
+			hasClientTool: name => clientToolNames.has(name) && !hostToolNames.has(name),
 			workspaceless: plan.workspaceless === true,
 			toolSearchActive,
 		};

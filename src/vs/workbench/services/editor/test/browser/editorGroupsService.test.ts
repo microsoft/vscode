@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,6 +23,7 @@ import { IContextKeyService, RawContextKey } from '../../../../../platform/conte
 import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../layout/browser/layoutService.js';
 
 suite('EditorGroupsService', () => {
 
@@ -1518,6 +1519,54 @@ suite('EditorGroupsService', () => {
 		assert.ok(typeof layout.groups[0].size === 'number');
 		assert.ok(typeof layout.groups[1].size === 'number');
 		assert.ok(typeof layout.groups[2].size === 'number');
+	});
+
+	test('compact editor layout reserves only the borders present at its left edge', async () => {
+		let floating = true;
+		let compact = false;
+		let neighborVisible = true;
+		const layoutService = new class extends TestLayoutService {
+			override isFloatingPanelsEnabled(): boolean { return floating; }
+			override isModernUICompact(): boolean { return compact; }
+			override getPanelPosition(): Position { return Position.LEFT; }
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART || part === Parts.TITLEBAR_PART || part === Parts.STATUSBAR_PART || (part === Parts.PANEL_PART && neighborVisible);
+			}
+		};
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		const [part] = await createPart(instantiationService);
+		part.floatingBorderWidth = 1;
+		const measure = () => {
+			part.layout(500, 300, 0, 0);
+			return {
+				width: part.contentDimension.width,
+				height: part.contentDimension.height,
+				outerLeft: part.element.classList.contains('floating-editor-outer-left'),
+			};
+		};
+		const defaultDensity = measure();
+		compact = true;
+		const compactShared = measure();
+		neighborVisible = false;
+		const compactOuter = measure();
+		neighborVisible = true;
+		part.floatingBorderWidth = 0.8;
+		const fractionalBorder = measure();
+		part.floatingBorderWidth = 1;
+		compact = false;
+		const restoredDefault = measure();
+		floating = false;
+		const classic = measure();
+
+		assert.deepStrictEqual({ defaultDensity, compactShared, compactOuter, fractionalBorder, restoredDefault, classic }, {
+			defaultDensity: { width: 490, height: 294, outerLeft: false },
+			compactShared: { width: 499, height: 298, outerLeft: false },
+			compactOuter: { width: 498, height: 298, outerLeft: true },
+			fractionalBorder: { width: 499.2, height: 298.4, outerLeft: false },
+			restoredDefault: { width: 490, height: 294, outerLeft: false },
+			classic: { width: 500, height: 300, outerLeft: false },
+		});
 	});
 
 	test('centeredLayout', async function () {

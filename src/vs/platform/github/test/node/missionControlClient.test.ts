@@ -734,22 +734,24 @@ suite('Mission Control client', () => {
 
 	test('cancelling a queued mutation does not claim it was dispatched', async () => {
 		const started = new DeferredPromise<void>();
-		const response = new DeferredPromise<Response>();
-		const { client, requests } = setup(() => {
+		const response = new DeferredPromise<void>();
+		const { client, requests } = setup(async () => {
 			void started.complete();
-			return response.p;
+			await response.p;
+			return Response.json(emptyPage);
 		});
-		const read = client.automations.list(repository, signal());
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, name: `repo-${index}` }, signal()));
 		await started.p;
+		await timeout(0);
 		const controller = new AbortController();
 		const reason = new Error('cancel queued write');
 		const rejected = assert.rejects(client.automations.create(repository, automation, controller.signal), error => error === reason);
 		await timeout(0);
 		controller.abort(reason);
 		await rejected;
-		await response.complete(Response.json(emptyPage));
-		await read;
-		assert.strictEqual(requests.length, 1);
+		await response.complete();
+		await Promise.all(reads);
+		assert.strictEqual(requests.length, 8);
 	});
 
 	test('invalidates mapped caches and cancels in-flight work on credential replacement', async () => {

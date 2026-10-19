@@ -250,8 +250,10 @@ export interface MainThreadConfigurationShape extends IDisposable {
 	$removeConfigurationOption(target: ConfigurationTarget | null, key: string, overrides: IConfigurationOverrides | undefined, scopeToLanguage: boolean | undefined): Promise<void>;
 }
 
+export type IMarkerChange = [uri: UriComponents, markers: IMarkerData[] | undefined, isTruncated?: boolean];
+
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void;
+	$changeMany(owner: string, entries: IMarkerChange[]): void;
 	$clear(owner: string): void;
 }
 

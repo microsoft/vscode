@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../common/configurations.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -502,7 +503,9 @@ suite('PolicyConfiguration', () => {
 				localization: { description: { key: '', value: '' }, },
 			}
 		};
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(deepClone(policyConfigurationNode));
+		const registeredNode = deepClone(policyConfigurationNode);
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(registeredNode);
+		disposables.add(toDisposable(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([registeredNode])));
 		await promise;
 
 		const acutal = testObject.configurationModel;

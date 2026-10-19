@@ -61,16 +61,16 @@ const COMPARE_ORIGINAL_TEMPLATE_VARIABLE = '{originalTurnId}';
 const COMPARE_MODIFIED_TEMPLATE_VARIABLE = '{modifiedTurnId}';
 
 /** Localized human-readable label for the branch changeset entry. */
-export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch Changes");
+export const branchChangesetLabel = (): string => localize('branchChangeset.label', "Branch");
 
 /** Localized human-readable label for the session-wide changeset entry. */
-export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session Changes");
+export const sessionChangesetLabel = (): string => localize('sessionChangeset.label', "Session");
 
 /** Localized human-readable description for the session-wide changeset entry. */
 export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
 
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
-export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted Changes");
+export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted");
 
 /** Localized human-readable description for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetDescription = (): string => localize('uncommittedChangeset.description', "Show uncommitted changes in this session");
@@ -88,7 +88,7 @@ export const compareTurnsChangesetLabel = (): string => localize('compareTurnsCh
 export const compareTurnsChangesetDescription = (): string => localize('compareTurnsChangeset.description', "Show changes made between different turns");
 
 /** Localized human-readable label for the Agent Merge changeset entry. */
-const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.label', "Agent Merge Changes");
+const agentMergeChangesetLabel = (): string => localize('agentMergeChangeset.label', "Agent Merge");
 
 /** Localized human-readable description for the Agent Merge changeset entry. */
 const agentMergeChangesetDescription = (): string => localize('agentMergeChangeset.description', "Show changes made by Agent Merge since the last user message");
@@ -392,7 +392,7 @@ export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; origin
  * advertise their own Session Changes entry, scoped to the edits made in that
  * chat, in place of the session's cumulative entry.
  *
- * The first two chat entries (`Branch Changes`, `Uncommitted Changes`) are
+ * The first two chat entries (`Branch`, `Uncommitted`) are
  * included only when Git state is available. The backing per-changeset states
  * are still registered for every owner; only the catalogue advertisement is
  * conditional.

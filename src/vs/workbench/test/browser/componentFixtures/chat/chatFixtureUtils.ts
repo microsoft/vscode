@@ -20,6 +20,7 @@ import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/tes
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -56,7 +57,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { TestPathService, TestRemoteAgentService } from '../../workbenchTestServices.js';
+import { TestPathService, TestProgressService, TestRemoteAgentService } from '../../workbenchTestServices.js';
 import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ICodexAccountService } from '../../../../services/agentHost/browser/codexAccountService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
@@ -226,6 +227,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly repositoryCount = 0;
 	}());
 	reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
+	reg.defineInstance(IProgressService, new TestProgressService());
 	reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 	reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
 	reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {

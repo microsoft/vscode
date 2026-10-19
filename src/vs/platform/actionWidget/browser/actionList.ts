@@ -294,6 +294,7 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 interface ISeparatorTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
+	readonly detail: HTMLElement;
 	readonly badges: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 }
@@ -310,13 +311,17 @@ class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparat
 		const text = document.createElement('span');
 		container.append(text);
 		const badges = dom.append(container, dom.$('span.action-item-additional-badges', { 'aria-hidden': 'true' }));
+		const detail = dom.append(container, dom.$('span.detail'));
 
-		return { container, text, badges, elementDisposables: new DisposableStore() };
+		return { container, text, detail, badges, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
 		templateData.container.classList.toggle('has-label', !!element.label);
 		templateData.text.textContent = element.label ?? '';
+		templateData.container.classList.toggle('has-detail', !!element.detail);
+		templateData.detail.textContent = element.detail ?? '';
+		templateData.detail.style.display = element.detail ? '' : 'none';
 		templateData.elementDisposables.clear();
 		renderAdditionalBadges(element.additionalBadges, templateData.badges, templateData.elementDisposables, this._hoverService);
 	}
@@ -2131,7 +2136,7 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
 			case ActionListItemKind.Separator:
-				return item.label ? this._actionLineHeight : this._separatorLineHeight;
+				return item.detail ? (options?.detailItemHeight ?? 48) : item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
 				if (item.inlineToggle) {
 					return options?.inlineToggleItemHeight ?? 70;
