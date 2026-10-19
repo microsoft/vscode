@@ -10,7 +10,7 @@ import { animateChatProgress } from '../../../../../workbench/contrib/chat/brows
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
 import { LabelFuzzyScore, RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
@@ -3275,7 +3275,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			this.delegate.setDropTargetHeader(undefined);
 			const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
 			this.delegate.setMoveDropFeedback(!!chatDrop);
-			return chatDrop ? this.toChatDropReaction(chatDrop.drop, targetElement, targetSector) : false;
+			return chatDrop ? this.toChatDropReaction(chatDrop.drop) : false;
 		}
 
 		const draggedHeader = this.draggedHeader(data);
@@ -3289,7 +3289,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		this.delegate.setMoveDropFeedback(!!sessionMove);
 		if (sessionMove) {
 			this.delegate.setDropTargetHeader(undefined);
-			return { accept: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
+			return intoSessionDropReaction();
 		}
 
 		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
@@ -3397,34 +3397,33 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (targetElement && isSessionChatItem(targetElement)) {
 			target = { session: targetElement.session, chat: targetElement.chat, chatRows: this.delegate.getChatRows(targetElement.session), position: sectorToPosition(targetSector) };
 		} else if (targetElement && isSessionItem(targetElement)) {
-			const position = isCenterSector(targetSector) ? 'center' : targetSector === ListViewTargetSector.TOP ? 'before' : 'after';
-			target = { session: targetElement, chat: undefined, chatRows: this.delegate.getChatRows(targetElement), position };
+			target = { session: targetElement, chat: undefined, chatRows: this.delegate.getChatRows(targetElement), position: 'before' };
 		}
 		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
 		return drop ? { ...dragged, drop } : undefined;
 	}
 
-	private toChatDropReaction(drop: SessionsListChatDrop, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ITreeDragOverReaction {
-		if (drop.kind === 'session') {
-			const position = drop.position === 'over' ? ListDragOverEffectPosition.Over : drop.position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before;
-			return { accept: true, effect: { type: ListDragOverEffectType.Move, position } };
-		}
-		if (!targetElement) {
-			// Empty space: the whole list shows it receives the chat as a new session.
+	private toChatDropReaction(drop: SessionsListChatDrop): ITreeDragOverReaction {
+		if (drop.kind === 'newSession') {
+			// The whole list shows it receives the chat as a new session.
 			return { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 		}
-		return {
-			accept: true,
-			effect: {
-				type: ListDragOverEffectType.Move,
-				position: sectorToPosition(targetSector) === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before,
-			},
-		};
+		if (drop.position === 'over') {
+			return intoSessionDropReaction();
+		}
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: drop.position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before } };
 	}
 
-	/** The session a single dragged session moves under when dropped onto the middle of that session's row. */
+	/**
+	 * The session a single dragged session moves under when dropped on that session's row: anywhere on it, or only on
+	 * its middle half when the row is pinned or grouped, whose edges keep reordering, pinning and grouping sessions.
+	 */
 	private resolveSessionMoveTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly target: ISession } | undefined {
-		if (!targetElement || !isSessionItem(targetElement) || !isCenterSector(targetSector)) {
+		if (!targetElement || !isSessionItem(targetElement)) {
+			return undefined;
+		}
+		const keepsEdges = this.delegate.isSessionPinned(targetElement) || this.delegate.getGroupIdOfSession(targetElement) !== undefined;
+		if (keepsEdges && !isCenterSector(targetSector)) {
 			return undefined;
 		}
 		const dragged = this.draggedSessions(data);
@@ -3640,6 +3639,14 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+/**
+ * Dropping into a session, like into a folder in the Explorer: the session's row and its shown nested rows highlight,
+ * and a collapsed session expands after a moment so the drop can go between its nested rows.
+ */
+function intoSessionDropReaction(): ITreeDragOverReaction {
+	return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 }
 
 /** Whether the pointer is over the middle half of a row, rather than near the boundary between two rows. */

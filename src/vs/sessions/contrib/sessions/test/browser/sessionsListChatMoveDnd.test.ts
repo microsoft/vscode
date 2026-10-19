@@ -7,7 +7,6 @@ import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
-import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -16,7 +15,15 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { canMoveIntoSession, getChatMoveAppendAnchor, getChatReorder, getSessionsListChatDrop, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove } from '../../browser/views/sessionsListChatMove.js';
-import { createTestSession, ITestSession } from './sessionsListTestUtils.js';
+import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+
 
 function multiChatSession(title: string, options?: { readonly providerId?: string; readonly status?: SessionStatus; readonly isArchived?: boolean; readonly chats?: readonly IChat[] }): ITestSession {
 	const test = createTestSession(title, { status: options?.status, isArchived: options?.isArchived });
@@ -73,27 +80,28 @@ suite('Move Chats Drag and Drop', () => {
 			return `${drop.position} -> ${drop.session.title.get()} after ${drop.after?.title.get() ?? '(first)'}`;
 		}
 
-		test('reorders within the chat rows of the dragged chat\'s own session', () => {
+		test('reorders within the chat rows of the dragged chat\'s own session, or to its end anywhere on its row', () => {
 			const own = listSession('Own', ['a', 'b', 'c']);
 			const [a, b, c] = own.rows;
-			const drop = (moved: IChat, target: IChat | undefined, position: 'before' | 'after' | 'center') =>
+			const drop = (moved: IChat, target: IChat | undefined, position: 'before' | 'after') =>
 				describe(getSessionsListChatDrop(own.session, moved, { session: own.session, chat: target, chatRows: own.rows, position }));
 			assert.deepStrictEqual({
 				firstBeforeFirstRow: drop(c, a, 'before'),
-				belowSessionRow: drop(c, undefined, 'after'),
 				middle: drop(a, c, 'before'),
 				last: drop(a, c, 'after'),
-				onOwnRowAppends: drop(a, undefined, 'center'),
-				onOwnRowWhenLast: drop(c, undefined, 'center'),
+				onOwnRowTopHalf: drop(a, undefined, 'before'),
+				onOwnRowBottomHalf: drop(a, undefined, 'after'),
+				onOwnRowWhenLast: drop(c, undefined, 'before'),
 				staysPutBefore: drop(b, c, 'before'),
 				staysPutAfter: drop(b, a, 'after'),
 				onItself: drop(b, b, 'before'),
 			}, {
 				firstBeforeFirstRow: 'before -> Own after Own/main',
-				belowSessionRow: 'after -> Own after Own/main',
 				middle: 'before -> Own after Own/b',
 				last: 'after -> Own after Own/c',
-				onOwnRowAppends: 'over -> Own after Own/c',
+				// Anywhere on the session's row: to its end.
+				onOwnRowTopHalf: 'over -> Own after Own/c',
+				onOwnRowBottomHalf: 'over -> Own after Own/c',
 				// Dropping where the chat already is would not move it.
 				onOwnRowWhenLast: 'none',
 				staysPutBefore: 'none',
@@ -119,49 +127,56 @@ suite('Move Chats Drag and Drop', () => {
 			});
 		});
 
-		test('moves into another session at the insertion point, or appended onto its row', () => {
+		test('moves into another session before or after a nested row, or to its end anywhere on its row', () => {
 			const source = listSession('Source', ['moved']);
 			const target = listSession('Target', ['x', 'y']);
+			const collapsed = listSession('Collapsed', []);
 			const otherProvider = listSession('Other', ['z'], { providerId: 'other' });
 			const [moved] = source.rows;
 			const [x, y] = target.rows;
-			const drop = (session: ReturnType<typeof listSession>, row: IChat | undefined, position: 'before' | 'after' | 'center') =>
-				describe(getSessionsListChatDrop(source.session, moved, { session: session.session, chat: row, chatRows: session.rows, position }));
+			const drop = (session: ReturnType<typeof listSession>, row: IChat | undefined, position: 'before' | 'after', chatRows = session.rows) =>
+				describe(getSessionsListChatDrop(source.session, moved, { session: session.session, chat: row, chatRows, position }));
 			assert.deepStrictEqual({
 				beforeFirstRow: drop(target, x, 'before'),
 				betweenRows: drop(target, y, 'before'),
 				afterLastRow: drop(target, y, 'after'),
-				belowSessionRow: drop(target, undefined, 'after'),
-				ontoRow: drop(target, undefined, 'center'),
+				onRowTopHalf: drop(target, undefined, 'before'),
+				onRowBottomHalf: drop(target, undefined, 'after'),
+				onCollapsedRow: drop(target, undefined, 'before', []),
+				onRowWithoutNestedRows: drop(collapsed, undefined, 'after'),
 				otherProviderRow: drop(otherProvider, otherProvider.rows[0], 'after'),
-				otherProviderOnto: drop(otherProvider, undefined, 'center'),
+				otherProviderOnto: drop(otherProvider, undefined, 'before'),
 			}, {
 				beforeFirstRow: 'before -> Target after Target/main',
 				betweenRows: 'before -> Target after Target/x',
 				afterLastRow: 'after -> Target after Target/y',
-				belowSessionRow: 'after -> Target after Target/main',
-				ontoRow: 'over -> Target after Target/y',
+				// The whole session row takes it in, at the end of the session's chats, also while collapsed.
+				onRowTopHalf: 'over -> Target after Target/y',
+				onRowBottomHalf: 'over -> Target after Target/y',
+				onCollapsedRow: 'over -> Target after Target/y',
+				onRowWithoutNestedRows: 'over -> Collapsed after Collapsed/main',
+				// Neither its rows nor its row: another provider's session never takes the chat.
 				otherProviderRow: 'none',
 				otherProviderOnto: 'none',
 			});
 		});
 
-		test('promotes to a new session only outside any session\'s chat rows', () => {
+		test('promotes to a new session only on empty space or a header, not on a session\'s row edges', () => {
 			const source = listSession('Source', ['moved']);
 			const [moved] = source.rows;
-			const collapsed = listSession('Collapsed', []);
 			const target = listSession('Target', ['x']);
 			const drop = (target: ISessionsListChatDropTarget | undefined) => describe(getSessionsListChatDrop(source.session, moved, target));
 			assert.deepStrictEqual({
-				emptySpaceOrHeader: drop(undefined),
-				aboveSessionRow: drop({ session: target.session, chat: undefined, chatRows: target.rows, position: 'before' }),
-				aboveOwnSessionRow: drop({ session: source.session, chat: undefined, chatRows: source.rows, position: 'before' }),
-				belowRowWithoutChatRows: drop({ session: collapsed.session, chat: undefined, chatRows: [], position: 'after' }),
+				emptySpace: drop(undefined),
+				headerRow: drop({ session: undefined, chat: undefined, chatRows: [], position: 'before' }),
+				sessionRowTopEdge: drop({ session: target.session, chat: undefined, chatRows: target.rows, position: 'before' }),
+				ownSessionRowTopEdge: drop({ session: source.session, chat: undefined, chatRows: source.rows, position: 'before' }),
 			}, {
-				emptySpaceOrHeader: 'new session',
-				aboveSessionRow: 'new session',
-				aboveOwnSessionRow: 'new session',
-				belowRowWithoutChatRows: 'new session',
+				emptySpace: 'new session',
+				headerRow: 'new session',
+				sessionRowTopEdge: 'over -> Target after Target/x',
+				// Already at the end of its own session: no move.
+				ownSessionRowTopEdge: 'none',
 			});
 		});
 	});
@@ -325,6 +340,230 @@ suite('Move Chats Drag and Drop', () => {
 			withSubagent: 'test-chat://peer',
 			mainOnly: 'test-chat://main',
 			empty: undefined,
+		});
+	});
+});
+
+suite('Move Chats Drag and Drop - sessions list feedback', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function listChat(id: string): IChat {
+		return upcastPartial<IChat>({
+			resource: URI.parse(`test-chat://${id}`),
+			createdAt: new Date(0),
+			workspace: constObservable(undefined),
+			title: constObservable(id),
+			updatedAt: constObservable(new Date(0)),
+			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+			changes: constObservable([]),
+			changesets: constObservable([]),
+			interactivity: constObservable(ChatInteractivity.Full),
+			origin: { kind: ChatOriginKind.User },
+		});
+	}
+
+	/** A session of `title` whose own row is its main chat `<title> main` and whose nested rows are `ids`. */
+	function listSession(title: string, ids: readonly string[]): ISession {
+		const test = createTestSession(title);
+		test.capabilities.set({ supportsMultipleChats: true }, undefined);
+		const main = listChat(`${title} main`);
+		return { ...test.session, chats: constObservable([main, ...ids.map(listChat)]), mainChat: constObservable(main) };
+	}
+
+	/** Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. */
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[] }) {
+		const moves: string[] = [];
+		const harness = createListHarness(disposables, sessions, { pinnedSessionIds: new Set(options?.pinned) });
+		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true, [ChatMoveSettingId.ConfirmDragAndDrop]: false });
+		harness.instantiationService.stub(IConfigurationService, configurationService);
+		harness.instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
+			override contextMatchesRules(rules: ContextKeyExpression): boolean { return rules === ChatContextKeys.enabled || super.contextMatchesRules(rules); }
+		}());
+		harness.instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
+			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get(); }
+			override canMoveSessionUnder(session: ISession): boolean { return session.chats.get().length <= 1; }
+			override async moveChat(_session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
+				moves.push(`${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
+			}
+			override async moveSessionUnder(session: ISession, destination: ISession): Promise<void> {
+				moves.push(`session ${session.title.get()} -> ${destination.title.get()}`);
+			}
+		}(sessions));
+		const container = harness.createContainer(300, 600);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Date,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(600, 300);
+
+		const labelOf = (row: HTMLElement) => row.querySelector('.session-title, .session-chat-title, .session-section-label')?.textContent;
+		const rowOf = (label: string) => {
+			const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')];
+			const row = rows.find(candidate => labelOf(candidate) === label);
+			if (!row) {
+				throw new Error(`No row '${label}' in ${JSON.stringify(rows.map(labelOf))}`);
+			}
+			return row;
+		};
+		const setExpanded = (title: string, expanded: boolean) => {
+			const row = rowOf(title);
+			if (row.getAttribute('aria-expanded') !== String(expanded)) {
+				row.querySelector<HTMLElement>('.session-chat-twistie.collapsible')!.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			}
+		};
+		/** Drags `source` over `target` (a row label, or `undefined` for the list's empty space) at `fraction` of the row's height. */
+		const dragOver = (source: string, target: string | undefined, fraction = 0.5) => {
+			const dataTransfer = new DataTransfer();
+			rowOf(source).dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			const targetElement = target ? rowOf(target) : container.querySelector<HTMLElement>('.monaco-list-rows')!;
+			const bounds = targetElement.getBoundingClientRect();
+			const clientY = target ? bounds.top + bounds.height * fraction : bounds.bottom - 2;
+			const init = { bubbles: true, cancelable: true, dataTransfer, clientX: bounds.left + 10, clientY };
+			// Synthetic events don't compute `offsetY`, which the list reads for the row's sector.
+			const event = (type: string) => {
+				const dragEvent = new DragEvent(type, init);
+				Object.defineProperty(dragEvent, 'offsetY', { value: clientY - bounds.top });
+				return dragEvent;
+			};
+			targetElement.dispatchEvent(event('dragover'));
+			const feedback = {
+				moveDrag: container.querySelector('.sessions-list-control')?.classList.contains('move-drag') ?? false,
+				list: container.querySelector('.monaco-list')?.classList.contains('drop-target') ?? false,
+				rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => /drop-target/.test(row.className))
+					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`),
+			};
+			return {
+				feedback,
+				drop: async () => {
+					targetElement.dispatchEvent(event('drop'));
+					rowOf(source).dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+					await timeout(0);
+				},
+				end: () => rowOf(source).dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer })),
+			};
+		};
+		const expandSection = (label: string) => {
+			if (rowOf(label).getAttribute('aria-expanded') === 'false') {
+				rowOf(label).querySelector<HTMLElement>('.session-section')!.click();
+			}
+		};
+		return { moves, setExpanded, expandSection, dragOver, sortChanges: harness.sortChanges, rowOf };
+	}
+
+	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
+		const target = listSession('Target', ['t1', 't2']);
+		const source = listSession('Source', ['s1']);
+		const list = render([target, source]);
+		list.setExpanded('Target', true);
+		list.setExpanded('Source', true);
+
+		const nearTopEdge = list.dragOver('s1', 'Target', 0.1);
+		const feedback = nearTopEdge.feedback;
+		await nearTopEdge.drop();
+		const nearBottomEdge = list.dragOver('s1', 'Target', 0.9);
+		const bottomFeedback = nearBottomEdge.feedback;
+		await nearBottomEdge.drop();
+
+		assert.deepStrictEqual({ feedback, bottomFeedback, moves: list.moves }, {
+			// The session's row and its nested rows, not an insertion line.
+			feedback: { moveDrag: true, list: false, rows: ['Target: drop-target', 't1: drop-target', 't2: drop-target'] },
+			bottomFeedback: { moveDrag: true, list: false, rows: ['Target: drop-target', 't1: drop-target', 't2: drop-target'] },
+			moves: ['s1 -> Target after t2', 's1 -> Target after t2'],
+		});
+	});
+
+	test('a nested session dropped on a nested row goes before or after it, with an insertion line', async () => {
+		const own = listSession('Own', ['a', 'b', 'c']);
+		const other = listSession('Other', ['x']);
+		const list = render([own, other]);
+		list.setExpanded('Own', true);
+		list.setExpanded('Other', true);
+
+		const results: unknown[] = [];
+		for (const [source, target, fraction] of [['c', 'a', 0.4], ['a', 'c', 0.6], ['a', 'x', 0.3], ['a', 'x', 0.8]] as const) {
+			const drag = list.dragOver(source, target, fraction);
+			results.push(drag.feedback.rows);
+			await drag.drop();
+		}
+
+		assert.deepStrictEqual({ results, moves: list.moves }, {
+			// The list draws a line after a row as the line before the next row, where there is one.
+			results: [['a: drop-target-before'], ['Other: drop-target-before'], ['x: drop-target-before'], ['x: drop-target-after']],
+			moves: ['c -> Own after Own main', 'a -> Own after c', 'a -> Other after Other main', 'a -> Other after x'],
+		});
+	});
+
+	test('hovering a collapsed session expands it after a moment, so the drop can go between its nested rows', async () => {
+		const target = listSession('Target', ['t1', 't2']);
+		const source = listSession('Source', ['s1']);
+		const list = render([target, source]);
+		list.setExpanded('Target', false);
+		list.setExpanded('Source', true);
+
+		const drag = list.dragOver('s1', 'Target', 0.5);
+		const before = list.rowOf('Target').getAttribute('aria-expanded');
+		await timeout(600);
+		const after = list.rowOf('Target').getAttribute('aria-expanded');
+		drag.end();
+
+		assert.deepStrictEqual({ before, after }, { before: 'false', after: 'true' });
+	});
+
+	test('a nested session dropped on empty space or a header moves into a new session', async () => {
+		const own = listSession('Own', ['a', 'b']);
+		const list = render([own]);
+		list.setExpanded('Own', true);
+
+		const emptySpace = list.dragOver('a', undefined);
+		const emptyFeedback = emptySpace.feedback;
+		await emptySpace.drop();
+		const header = list.dragOver('b', 'Recent');
+		const headerFeedback = header.feedback;
+		await header.drop();
+
+		assert.deepStrictEqual({ emptyFeedback, headerFeedback, moves: list.moves }, {
+			// The whole list receives it.
+			emptyFeedback: { moveDrag: true, list: true, rows: [] },
+			headerFeedback: { moveDrag: true, list: true, rows: [] },
+			moves: ['a -> new session', 'b -> new session'],
+		});
+	});
+
+	test('a session dropped anywhere on a normal session row nests in it; on a pinned row its edges keep reordering', async () => {
+		const normal = render([listSession('Target', []), createTestSession('Single').session]);
+		const normalEdge = normal.dragOver('Single', 'Target', 0.1);
+		const normalFeedback = normalEdge.feedback;
+		await normalEdge.drop();
+
+		const target = listSession('Target', []);
+		const single = createTestSession('Single').session;
+		const pinned = render([target, single], { pinned: [target.sessionId, single.sessionId] });
+		pinned.expandSection('Pinned');
+		const pinnedEdge = pinned.dragOver('Single', 'Target', 0.1);
+		const pinnedEdgeFeedback = pinnedEdge.feedback;
+		await pinnedEdge.drop();
+		const pinnedMiddle = pinned.dragOver('Single', 'Target', 0.5);
+		const pinnedMiddleFeedback = pinnedMiddle.feedback;
+		await pinnedMiddle.drop();
+
+		assert.deepStrictEqual({
+			normal: { feedback: normalFeedback, moves: normal.moves },
+			pinned: { edge: pinnedEdgeFeedback, middle: pinnedMiddleFeedback, moves: pinned.moves, reordered: pinned.sortChanges.length },
+		}, {
+			normal: { feedback: { moveDrag: true, list: false, rows: ['Target: drop-target'] }, moves: ['session Single -> Target'] },
+			pinned: {
+				// Main's reorder, with main's feedback.
+				edge: { moveDrag: false, list: false, rows: ['Target: drop-target-before'] },
+				middle: { moveDrag: true, list: false, rows: ['Target: drop-target'] },
+				moves: ['session Single -> Target'],
+				reordered: 1,
+			},
 		});
 	});
 });

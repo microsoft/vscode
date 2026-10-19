@@ -93,22 +93,22 @@ export function getChatReorder(order: readonly string[], dragged: string, insert
 }
 
 /**
- * Where the pointer is in the sessions list during a chat drag: over the row of `session` (`chat` undefined) or over
- * its chat row `chat`, or over no session (`session` undefined: empty space, a section or folder header, ...).
+ * Where the pointer is in the sessions list during a chat drag: over the row of `session` (`chat` undefined), over its
+ * nested chat row `chat`, or over no session (`session` undefined: empty space, a section or folder header, ...).
  */
 export interface ISessionsListChatDropTarget {
 	readonly session: ISession | undefined;
 	readonly chat: IChat | undefined;
 	/** The chat rows `session` shows under its row, in order; empty when collapsed. Its main chat is its own row. */
 	readonly chatRows: readonly IChat[];
-	/** On the top or bottom edge of the row, or its middle (a chat row has no middle: its halves are before and after). */
-	readonly position: 'before' | 'after' | 'center';
+	/** The half of the nested chat row `chat` the pointer is over; ignored over a session's own row. */
+	readonly position: 'before' | 'after';
 }
 
 /**
- * Where a chat dropped in the sessions list moves: into `session` after `after` (first when `undefined`), at the
- * insertion point (`position` `'before'`/`'after'` the row under the pointer) or appended when dropped onto the
- * middle of the session's row (`'over'`); or into a new session.
+ * Where a chat dropped in the sessions list moves: into `session` after `after` (first when `undefined`), either at the
+ * insertion point before or after a nested chat row (`position` `'before'`/`'after'`) or at its end when dropped
+ * anywhere on the session's row (`'over'`); or into a new session.
  */
 export type SessionsListChatDrop =
 	| { readonly kind: 'session'; readonly session: ISession; readonly after: IChat | undefined; readonly position: 'before' | 'after' | 'over' }
@@ -116,11 +116,11 @@ export type SessionsListChatDrop =
 
 /**
  * Where `chat` of `source` moves when dropped on `target` in the sessions list, or `undefined` when it can't move there
- * or would stay put:
- * - between, before or after the chat rows of a session (including just below its row while it shows chat rows):
- *   into that session at that position, which reorders it within its own session;
- * - onto the middle of a session's row: appended to that session (to the end of its own session);
- * - anywhere else (empty space, a header, between top-level session rows): into a new session.
+ * or would stay put. Like a folder in the Explorer:
+ * - anywhere on a session's row: into that session, at its end (to the end of its own session);
+ * - on the top or bottom half of a session's nested chat row: into that session before or after that row, which
+ *   reorders it within its own session;
+ * - anywhere else (empty space, a section or folder header): into a new session.
  */
 export function getSessionsListChatDrop(source: ISession, chat: IChat, target: ISessionsListChatDropTarget | undefined): SessionsListChatDrop | undefined {
 	const session = target?.session;
@@ -128,35 +128,24 @@ export function getSessionsListChatDrop(source: ISession, chat: IChat, target: I
 		return { kind: 'newSession' };
 	}
 	const isOwnSession = session.sessionId === source.sessionId;
-	const accepts = isOwnSession || canMoveIntoSession(source, session);
-	const rows = [session.mainChat.get(), ...target.chatRows];
+	if (!isOwnSession && !canMoveIntoSession(source, session)) {
+		return undefined;
+	}
 
-	let insertIndex: number;
-	if (target.chat) {
-		const index = rows.findIndex(row => row.resource.toString() === target.chat!.resource.toString());
-		if (index === -1) {
-			return undefined;
-		}
-		insertIndex = target.position === 'before' ? index : index + 1;
-	} else if (target.position === 'center') {
-		if (!accepts) {
-			return undefined;
-		}
+	if (!target.chat) {
 		const after = getChatMoveAppendAnchor(session, chat);
 		if (isOwnSession && !changesChatOrder(session, chat, after)) {
 			return undefined;
 		}
 		return { kind: 'session', session, after, position: 'over' };
-	} else if (target.position === 'after' && target.chatRows.length > 0) {
-		// Just below the session's row, above its first chat row.
-		insertIndex = 1;
-	} else {
-		return { kind: 'newSession' };
 	}
 
-	if (!accepts) {
+	const rows = [session.mainChat.get(), ...target.chatRows];
+	const index = rows.findIndex(row => row.resource.toString() === target.chat!.resource.toString());
+	if (index === -1) {
 		return undefined;
 	}
+	const insertIndex = target.position === 'before' ? index : index + 1;
 	const ids = rows.map(row => row.resource.toString());
 	const draggedId = chat.resource.toString();
 	let after: IChat | undefined;
@@ -172,8 +161,7 @@ export function getSessionsListChatDrop(source: ISession, chat: IChat, target: I
 	} else {
 		after = rows[insertIndex - 1];
 	}
-	const position = target.chat ? (target.position === 'before' ? 'before' : 'after') : 'after';
-	return { kind: 'session', session, after, position };
+	return { kind: 'session', session, after, position: target.position };
 }
 
 /** A move started by dropping in the sessions list: a chat to another place, or a single-chat session under another session. */
