@@ -1435,8 +1435,8 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 

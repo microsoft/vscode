@@ -13,7 +13,9 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListItemInlineToggle, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -167,6 +169,17 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
 				this.items = items;
 			}
+			focused: string[] = [];
+			override focusItemById(itemId: string): void {
+				this.focused.push(itemId);
+			}
+			sections: string[] = [];
+			override collapseSection(): void {
+				this.sections.push('collapse');
+			}
+			override expandSection(): void {
+				this.sections.push('expand');
+			}
 			override hide(): void {
 				this.isVisible = false;
 				const onHide = this.onHide;
@@ -253,6 +266,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced, managedSandboxAllowsBypass });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
+		const menu = dom.$('div');
+		instantiationService.stub(IContextViewService, { getContextViewElement: () => menu });
 		const modePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Mode));
 		const permissionPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.AutoApprove));
 		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -293,7 +308,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
 
 	test('reads its chat\'s own values and sends a property the chat may set to that chat', async () => {
@@ -1278,6 +1293,53 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		]);
 	});
 
+	test('showSection opens a section, moves the open menu between sections, and hands off between separate pickers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { modePicker, actionWidget, menu } = setup();
+		const closedMenu = modePicker.menuElement;
+		await modePicker.showSection('mode', CancellationToken.None);
+		const opened = { showCount: actionWidget.showCount, collapsed: [...actionWidget.options?.collapsedByDefault ?? []], menu: modePicker.menuElement === menu };
+		await modePicker.showSection('permissions', CancellationToken.None);
+		await modePicker.showSection('mode', CancellationToken.Cancelled);
+		const separate = setup(false);
+		await separate.modePicker.showSection('mode', CancellationToken.None);
+		await separate.permissionPicker.showSection('permissions', CancellationToken.None);
+
+		assert.deepStrictEqual({ closedMenu, opened, showCount: actionWidget.showCount, focused: actionWidget.focused, sections: actionWidget.sections, separate: { showCount: separate.actionWidget.showCount, open: separate.permissionPicker.menuElement === separate.menu } }, {
+			closedMenu: undefined,
+			opened: { showCount: 1, collapsed: ['agentHostModePicker.permissions'], menu: true },
+			showCount: 1,
+			focused: ['agentHostModePicker.mode', 'agentHostModePicker.mode', 'agentHostModePicker.permissions'],
+			sections: ['collapse', 'expand'],
+			separate: { showCount: 2, open: true },
+		});
+	}));
+
+	test('showSection does not open the menu once the step is cancelled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { modePicker, permissionPicker, actionWidget } = setup(false);
+		const whileLoading = new CancellationTokenSource();
+		const cancelledWhileLoading = modePicker.showSection('mode', whileLoading.token);
+		whileLoading.cancel();
+		await cancelledWhileLoading;
+		const showCountAfterLoading = actionWidget.showCount;
+
+		await modePicker.showSection('mode', CancellationToken.None);
+		// The mode menu stays visible while it animates closed.
+		const hide = actionWidget.hide.bind(actionWidget);
+		actionWidget.hide = () => {
+			hide();
+			actionWidget.isVisible = true;
+		};
+		const whileClosing = new CancellationTokenSource();
+		const cancelledWhileClosing = permissionPicker.showSection('permissions', whileClosing.token);
+		whileClosing.cancel();
+		actionWidget.isVisible = false;
+		await cancelledWhileClosing;
+		whileLoading.dispose();
+		whileClosing.dispose();
+
+		assert.deepStrictEqual({ showCountAfterLoading, showCount: actionWidget.showCount, menu: permissionPicker.menuElement }, { showCountAfterLoading: 0, showCount: 1, menu: undefined });
+	}));
+
 	test('does not handle touch taps on the non-interactive combined group', async () => {
 		const { modeContainer, actionWidget } = setup();
 		modeContainer.querySelector('.action-label')!.dispatchEvent(new CustomEvent(TouchEventType.Tap));
@@ -1639,6 +1701,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly remoteAuthority = undefined;
 			}(),
+			new class extends mock<IContextViewService>() { }(),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });

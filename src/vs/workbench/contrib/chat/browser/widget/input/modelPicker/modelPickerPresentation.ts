@@ -15,6 +15,30 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+export function getInlineFusionTierLabel(value: unknown, label: string): string {
+	if (value === 'balance' || value === 'intelligence') {
+		return getFusionAutoModeTierLabel(value);
+	}
+	return value === COPILOT_HYDRA_FUSION_MODEL_ID ? getFusionAutoModeTierLabel('intelligence') : label;
+}
+
+/**
+ * The description under an inline Fusion tier: why it is unavailable, else what it is for. A tier
+ * Fusion does not know keeps the provider's description.
+ */
+export function getInlineFusionTierDetail(value: unknown, choice?: { readonly description?: string; readonly unavailable?: boolean }): string | undefined {
+	if (choice?.unavailable) {
+		return choice.description || localize('chat.modelPicker.fusionTierUnavailable', "Not available for your account.");
+	}
+	switch (value) {
+		case 'balance': return localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute");
+		case 'intelligence':
+		case COPILOT_HYDRA_FUSION_MODEL_ID: return localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute");
+		case COPILOT_HYDRA_FUSION_MAX_MODEL_ID: return localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
+		default: return choice?.description || undefined;
+	}
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
@@ -38,13 +62,13 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 	if (hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID) {
 		return localize('chat.modelPicker.fusionMax', "Max");
 	}
-	// Fusion's Balance runs as the runtime's intelligence tier.
-	const balance: AutoModeTier = 'intelligence';
+	// Fusion's High runs as the runtime's intelligence tier.
+	const high: AutoModeTier = 'intelligence';
 	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelFusion.balanceUsesHydraFusion) {
 		return undefined;
 	}
-	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(balance));
-	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(balance)] ?? getFusionAutoModeTierLabel(balance) : undefined;
+	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(high));
+	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(high)] ?? getFusionAutoModeTierLabel(high) : undefined;
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */

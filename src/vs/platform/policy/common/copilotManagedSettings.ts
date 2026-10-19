@@ -205,6 +205,9 @@ export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
 /** Managed-settings key for the enterprise OTLP collector endpoint. */
 export const COPILOT_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
 
+/** Managed-settings key for the enterprise OTel file export destination. */
+export const COPILOT_OTEL_FILE_PATH_KEY = 'telemetry.filePath';
+
 /** Managed-settings key for the enterprise OTLP protocol (`http/json`, `http/protobuf`, or `grpc`). */
 export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
 

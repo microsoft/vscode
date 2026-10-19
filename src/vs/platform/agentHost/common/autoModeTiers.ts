@@ -63,6 +63,26 @@ export function isAutoModeTier(value: unknown): value is AutoModeTier {
 	return autoModeTiers.some(tier => tier === value);
 }
 
+export const DynamicAutoTiersFeatureFlag = 'DYNAMIC_AUTO_TIERS';
+
+/** Only populated in the agent host process. */
+let advertisedAutoModeTiers: ReadonlySet<string> | undefined;
+
+/** `undefined` means no provider metadata, so the built-in tiers apply; `[]` accepts nothing. */
+export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined): void {
+	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
+}
+
+export function isSupportedAutoModeTier(value: unknown): value is string {
+	return advertisedAutoModeTiers
+		? typeof value === 'string' && advertisedAutoModeTiers.has(value)
+		: isAutoModeTier(value);
+}
+
+export function getSupportedAutoModeTiers(): readonly string[] {
+	return advertisedAutoModeTiers ? [...advertisedAutoModeTiers] : autoModeTiers;
+}
+
 /** Maps retired picker and override values to the current runtime names, matching the Copilot extension. */
 export function normalizeAutoModeTier(value: unknown): unknown {
 	switch (value) {
@@ -86,11 +106,17 @@ export function getAutoModeTierLabel(tier: string): string {
 	}
 }
 
-/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Lite and its intelligence tier Balance. */
+export function isFusionNamedAutoModeTier(tier: string): boolean {
+	return tier === 'balance' || tier === 'intelligence' || tier === 'hydrafusion' || tier === 'hydrafusion-max';
+}
+
+/** Localized picker label for a routing profile when Auto is presented as Fusion, which names the runtime's balance tier Standard, its intelligence or HydraFusion tier High, and HydraFusion Max Max. */
 export function getFusionAutoModeTierLabel(tier: string): string {
 	switch (tier) {
-		case 'balance': return localize('autoModeTier.fusionLite', "Lite");
-		case 'intelligence': return localize('autoModeTier.fusionBalance', "Balance");
+		case 'balance': return localize('autoModeTier.fusionStandard', "Standard");
+		case 'intelligence':
+		case 'hydrafusion': return localize('autoModeTier.fusionHigh', "High");
+		case 'hydrafusion-max': return localize('autoModeTier.fusionMax', "Max");
 		default: return getAutoModeTierLabel(tier);
 	}
 }

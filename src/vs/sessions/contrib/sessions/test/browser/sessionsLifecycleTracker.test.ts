@@ -329,6 +329,29 @@ suite('SessionsLifecycleTracker', () => {
 		assert.strictEqual(tracker.isTracked(session.sessionId), false);
 	});
 
+	test('sync and merge-changes counters start from zero for sessions persisted before they existed', () => {
+		const session = createSession('s1');
+		tracker.bumpCounter(session, 'commit');
+
+		// Rewrite the stored row the way an earlier build wrote it.
+		const stored = JSON.parse(storage.get(SESSIONS_KEY, StorageScope.APPLICATION)!);
+		delete stored[session.sessionId].syncChanges;
+		delete stored[session.sessionId].mergeChanges;
+		stored[session.sessionId].updatePullRequest = 2;
+		storage.store(SESSIONS_KEY, JSON.stringify(stored), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const reloaded = createTracker();
+		reloaded.bumpCounter(session, 'mergeChanges');
+
+		const summary = reloaded.finalize(session.sessionId, 'archived', session)!;
+		assert.deepStrictEqual({
+			commit: summary.commit,
+			syncChanges: summary.syncChanges,
+			mergeChanges: summary.mergeChanges,
+			hasUpdatePullRequest: Object.hasOwn(summary, 'updatePullRequest'),
+		}, { commit: 1, syncChanges: 0, mergeChanges: 1, hasUpdatePullRequest: false });
+	});
+
 	test('changesSummary observable takes precedence over the changes list', () => {
 		const session = createSession('s1', {
 			changes: [

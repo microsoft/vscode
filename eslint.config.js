@@ -939,6 +939,7 @@ export default defineConfig(
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
+			'local/code-no-nested-test': 'error',
 			'local/code-must-use-result': [
 				'warn',
 				[
@@ -973,7 +974,8 @@ export default defineConfig(
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
 					]
 				}
-			]
+			],
+			'local/code-run-with-faked-timers-whole-test': 'warn'
 		}
 	},
 	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
