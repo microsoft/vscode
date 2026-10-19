@@ -1729,8 +1729,6 @@ suite('ChatWidget', () => {
 	});
 
 	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
-		const configuration = new TestConfigurationService();
-		store.add(configuration.onDidChangeConfigurationEmitter);
 		let allowLocal = true;
 		const managedSettings = new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
@@ -1740,14 +1738,28 @@ suite('ChatWidget', () => {
 		let calls = 0;
 		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
 		fixture.visible.set(true, undefined);
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
 		await timeout(0);
 		const before = calls;
 		allowLocal = false;
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
 	});
+
+	for (const [key, value] of [['permissions.allow', '[]'], ['permissions.defaultMode', 'manual'], ['sandbox.enabled', true]] as const) {
+		test(`${key} does not automatically migrate displayed Local history`, async () => {
+			const managedSettings = new class extends NullManagedSettingsService {
+				override getManagedSettingValue(candidate: string) { return candidate === key ? value : undefined; }
+				override getManagedSettings() { return { [key]: value }; }
+			}();
+			const fixture = createAutomaticMigrationFixture();
+			fixture.visible.set(true, undefined);
+			fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ calls: fixture.automaticCalls, errors: fixture.errors }, { calls: [], errors: [] });
+		});
+	}
 
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
 		test(`does not automatically migrate ${scenario} chats`, async () => {
