@@ -113,6 +113,7 @@ import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelem
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotProjectExtensionLaunchPolicy, parseCopilotProjectExtensionTrustGrant, serializeCopilotProjectExtensionTrustGrant, type ICopilotProjectExtensionTrustGrant } from './copilotProjectExtensionLaunchPolicy.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -364,6 +365,7 @@ interface ICopilotProvisionalLaunch {
 	/** The session that owned the chat at launch, for owner-level state such as the baseline checkpoint. */
 	readonly owner: URI;
 	readonly project: Promise<IAgentSessionProjectInfo | undefined>;
+	readonly projectExtensionTrustGrant: ICopilotProjectExtensionTrustGrant | undefined;
 }
 
 /**
@@ -477,6 +479,7 @@ interface IWorkingDirectoryMetadataSnapshot {
 	readonly projectUri?: string;
 	readonly projectDisplayName?: string;
 	readonly projectResolved?: string;
+	readonly projectExtensionTrustGrant?: string;
 }
 
 /**
@@ -488,6 +491,21 @@ interface IWorkingDirectoryMetadataSnapshot {
 interface ICopilotMetadataScope {
 	readonly storage: URI;
 	readonly owner: URI;
+}
+
+interface ICopilotSessionMetadataUpdate {
+	readonly model?: ModelSelection;
+	readonly workingDirectory?: URI;
+	readonly workingDirectories?: readonly URI[];
+	readonly customizationDirectory?: URI;
+	readonly project?: IAgentSessionProjectInfo;
+	readonly projectResolved?: boolean;
+	readonly configValues?: Record<string, unknown>;
+	readonly archived?: boolean;
+	readonly ehcliAdopted?: boolean;
+	readonly lastMigratedTurnId?: string;
+	/** `null` clears an existing persisted grant; `undefined` leaves it unchanged. */
+	readonly projectExtensionTrustGrant?: ICopilotProjectExtensionTrustGrant | null;
 }
 
 /** The metadata scope of `session` itself: its own state. */
@@ -1090,12 +1108,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Canvases a configuration refresh is handing from a chat's previous runtime to its replacement. */
 	private readonly _canvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
-	/**
-	 * Canonical filesystem roots with active project-extension launch admission.
-	 * The value is the number of live admissions for the root, so disposing one
-	 * session cannot revoke a root that another session still admits.
-	 */
-	private readonly _extensionLaunchRoots = new Map<string, number>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
 
 	/** Exact chat -> its owner as the host context recorded it (read at use), for fork/restore paths that only know the chat URI. */
@@ -1178,6 +1190,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _isShuttingDown = false;
 	private readonly _plugins: PluginController;
 	private readonly _sessionLauncher: CopilotSessionLauncher;
+	private readonly _projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
 	private readonly _gitHubTelemetryForwarder: CopilotGitHubTelemetryForwarder;
 	private readonly _secondaryAssignmentContext: CopilotSecondaryAssignmentContext;
 	private readonly _githubTelemetryRouter: AgentHostGitHubTelemetryRouter | undefined;
@@ -1253,6 +1266,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._projectExtensionLaunchPolicy = new CopilotProjectExtensionLaunchPolicy(this._configurationService, this._logService);
 		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),
@@ -2138,59 +2152,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return new CopilotClient(options);
 	}
 
-	private async _acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable> {
-		const roots: string[] = [];
-		for (const directory of directories) {
-			if (directory.scheme !== Schemas.file) {
-				continue;
-			}
-			try {
-				roots.push(await fs.realpath(directory.fsPath));
-			} catch (error) {
-				this._logService.warn(`[Copilot] Failed to canonicalize extension launch root '${directory.fsPath}': ${getErrorMessage(error)}`);
-			}
-		}
-		for (const root of roots) {
-			this._extensionLaunchRoots.set(root, (this._extensionLaunchRoots.get(root) ?? 0) + 1);
-		}
-		return toDisposable(() => {
-			for (const root of roots) {
-				const count = this._extensionLaunchRoots.get(root);
-				if (count === undefined || count <= 1) {
-					this._extensionLaunchRoots.delete(root);
-				} else {
-					this._extensionLaunchRoots.set(root, count - 1);
-				}
-			}
-		});
-	}
-
-	private async _resolveExtensionLaunch(modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
-		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
-			return {};
-		}
-		if (source === 'project') {
-			let canonicalModulePath: string;
-			try {
-				canonicalModulePath = await fs.realpath(modulePath);
-			} catch {
-				return {};
-			}
-			if (resourceBasename(URI.file(canonicalModulePath)) !== 'extension.mjs'
-				|| ![...this._extensionLaunchRoots.keys()].some(root => isEqualOrParent(URI.file(canonicalModulePath), URI.file(root)))) {
-				return {};
-			}
-		}
-		return {
-			launch: {
-				executable: process.execPath,
-				args: [extensionBootstrapPath],
-				env: {
-					EXTENSION_PATH: modulePath,
-					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
-				},
-			},
-		};
+	protected _acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<IDisposable> {
+		return this._projectExtensionLaunchPolicy.acquireAdmission(session.extensionLaunchDirectories, session.projectExtensionTrustGrant);
 	}
 
 	// ---- auth ---------------------------------------------------------------
@@ -2471,7 +2434,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			// A declined write means a value exists; only empty placeholder rows left by a rolled-back move still need the pin.
 			if (!pinned && !(await this._readSessionMetadata(siblingScope)).workingDirectories) {
-				await this._storeSessionMetadata(siblingScope, undefined, workingDirectory, [workingDirectory], undefined, undefined);
+				await this._storeSessionMetadata(siblingScope, { workingDirectory, workingDirectories: [workingDirectory] });
 			}
 		}
 	}
@@ -2496,6 +2459,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory: directory.toString(),
 				workingDirectories: JSON.stringify([directory.toString()]),
 				customizationDirectory: directory.toString(),
+				projectExtensionTrustGrant: '',
 				sharedCustomizationDirectories: options.sharedCustomizationDirectories
 					? JSON.stringify(options.sharedCustomizationDirectories.map(directory => directory.toString()))
 					: undefined,
@@ -3860,7 +3824,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				enableRemoteSessions: scoped?.kind !== 'storage' && startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
-						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
+						resolve: request => this._projectExtensionLaunchPolicy.resolveLaunch(request.modulePath, request.source, extensionBootstrapPath),
 					},
 				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
@@ -5440,7 +5404,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Persist metadata before resume so `_resumeSession` can resolve the
 			// working directory and model.
 			const project = await projectPromise;
-			await this._storeSessionMetadata(sessionMetadataScope(sessionUri), model, workingDirectory, options.workingDirectories ?? ([workingDirectory]), workingDirectory, project);
+			await this._storeSessionMetadata(sessionMetadataScope(sessionUri), {
+				model,
+				workingDirectory,
+				workingDirectories: options.workingDirectories ?? [workingDirectory],
+				customizationDirectory: workingDirectory,
+				project,
+			});
 			if (options.agent !== undefined) {
 				await this._storeSessionAgentMetadata(sessionUri, options.agent);
 			}
@@ -5882,7 +5852,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// chat editor can substitute the session-wide changeset for that migrated
 			// (checkpoint-less) turn without misattributing it to a later, post-adoption turn.
 			const lastMigratedTurnId = await this._readExtensionHostCliLastTurnId(sessionId);
-			await this._storeSessionMetadata(sessionMetadataScope(session), undefined, workingDirectory, [workingDirectory], workingDirectory, project, workspacelessFallback || project !== undefined, { [SessionConfigKey.Isolation]: 'folder' }, archived, /* ehcliAdopted */ true, lastMigratedTurnId);
+			await this._storeSessionMetadata(sessionMetadataScope(session), {
+				workingDirectory,
+				workingDirectories: [workingDirectory],
+				customizationDirectory: workingDirectory,
+				project,
+				projectResolved: workspacelessFallback || project !== undefined,
+				configValues: { [SessionConfigKey.Isolation]: 'folder' },
+				archived,
+				ehcliAdopted: true,
+				lastMigratedTurnId,
+			});
 			const titleSource: 'user' | 'auto' = adoptedTitle === customTitle ? 'user' : AGENT_HOST_TITLE_SOURCE_AUTO;
 			const listVisible: IAgentChatAdoptionResult['listVisible'] = adoptedTitle !== undefined
 				? { title: adoptedTitle, titleSource, isRead: true }
@@ -6101,6 +6081,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const snapshot = await activeClient.snapshot(chat.toString(), anchor?.object, provisional.agent?.uri);
 			const shellManager = this._instantiationService.createInstance(ShellManager, owner, chat, storage, workingDirectory);
 			const resolvedAgent = provisional.isEphemeral ? undefined : await this._resolveAgentWhenMaterializing(provisional, snapshot, workingDirectory);
+			const projectExtensionTrustGrant = this._configurationService.getSessionConfigValues(owner.toString())?.[SessionConfigKey.Isolation] === 'worktree'
+				? await this._projectExtensionLaunchPolicy.resolveTrustGrant(workingDirectory, {
+					kind: 'hostCreatedWorktree',
+					repositoryRoot: provisional.project?.uri,
+				})
+				: undefined;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'create',
 				client,
@@ -6110,6 +6096,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				hasScopedEditSurface: provisional.hasScopedEditSurface,
 				workingDirectory,
 				additionalDirectories: this._additionalCustomizationDirectories(resolvedWorkingDirectories),
+				projectExtensionTrustGrant,
 				resolvedAgentName: resolvedAgent?.name,
 				snapshot,
 				disabledRootMcpServers: await this._disabledRootMcpServers(owner, snapshot),
@@ -6136,7 +6123,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._initializeAndRegisterSession(initializingSession, () => {
 				this._registerInitializedSession(sdkSessionId, initializingSession, activeClient, launchPlan.client);
 			}, undefined, token);
-			return { session: agentSession, agent: resolvedAgent?.agent, workingDirectory, customizationDirectory, storage, owner, project };
+			return { session: agentSession, agent: resolvedAgent?.agent, workingDirectory, customizationDirectory, storage, owner, project, projectExtensionTrustGrant };
 		} catch (error) {
 			agentSession?.dispose();
 			throw error;
@@ -6152,7 +6139,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private async _completeProvisionalMaterialization(provisional: IProvisionalSession, launch: ICopilotProvisionalLaunch, resolvedWorkingDirectories: readonly URI[] | undefined, stageRecorder: IAgentProviderSendStageRecorder | undefined): Promise<CopilotAgentSession> {
 		const { sessionId, sdkSessionId, chat } = provisional;
-		const { session: agentSession, agent, workingDirectory, customizationDirectory, storage, owner } = launch;
+		const { session: agentSession, agent, workingDirectory, customizationDirectory, storage, owner, projectExtensionTrustGrant } = launch;
 		stageRecorder?.mark('persist');
 		const project = await launch.project;
 
@@ -6162,7 +6149,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const materializedWorkingDirectories = resolvedWorkingDirectories ?? ([workingDirectory]);
 
 		this._provisionalSessions.delete(sessionId);
-		await this._storeSessionMetadata({ storage, owner }, provisional.model, workingDirectory, materializedWorkingDirectories, customizationDirectory, project, true);
+		await this._storeSessionMetadata({ storage, owner }, {
+			model: provisional.model,
+			workingDirectory,
+			workingDirectories: materializedWorkingDirectories,
+			customizationDirectory,
+			project,
+			projectResolved: true,
+			projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
+		});
 		await deferCopilotSdkExecution(this._sessionDataService, storage, sdkSessionId, this._logService);
 		if (agent !== undefined) {
 			await this._storeSessionAgentMetadata(storage, agent);
@@ -7160,6 +7155,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sourceMetadata = inheritsFromOtherSession ? await this._readSessionMetadata(sessionMetadataScope(forkSourceScope!)) : undefined;
 			const model = options.model ?? sourceMetadata?.model;
 			const agent = options.agent ?? sourceMetadata?.agent;
+			const additionalWorktree = context.sessionSettings?.additionalWorktrees.find(worktree => isEqual(URI.parse(worktree.workingDirectory), workingDirectory));
+			const additionalWorktreeRepository = additionalWorktree ? URI.parse(additionalWorktree.repositoryRoot) : undefined;
+			const launchProject = additionalWorktreeRepository
+				? { uri: additionalWorktreeRepository, displayName: resourceBasename(additionalWorktreeRepository) }
+				: options.project ?? sourceMetadata?.project;
 			const client = await this._ensureClientForChat(chat);
 			const chatSdkId = generateUuid();
 			// Chat backings share the owning session's ActiveClient so that
@@ -7184,6 +7184,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const storageScope = context.resource;
 			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
 			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
+			const hasWorktreeProvenance = isEqual(storageScope, session) || additionalWorktree !== undefined;
+			const projectExtensionTrustGrant = hasWorktreeProvenance && launchProject?.uri
+				? await this._projectExtensionLaunchPolicy.resolveTrustGrant(workingDirectory, {
+					kind: 'knownRepository',
+					repositoryRoot: launchProject.uri,
+				})
+				: await this._projectExtensionLaunchPolicy.resolvePersistedTrustGrant(
+					workingDirectory,
+					(await this._readSessionMetadata(sessionMetadataScope(session))).projectExtensionTrustGrant,
+				);
+			const effectiveProject = projectExtensionTrustGrant
+				? { uri: projectExtensionTrustGrant.repositoryRoot, displayName: resourceBasename(projectExtensionTrustGrant.repositoryRoot) }
+				: launchProject;
 
 			// Forking: mint the new chat's backing by forking the source chat's
 			// SDK conversation at the requested turn (copying its database into
@@ -7208,6 +7221,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					extensionSdkPath: this._extensionSdkPathByClient.get(client),
 					sessionId: sdkSessionId,
 					workingDirectory,
+					projectExtensionTrustGrant,
 					resolvedAgentName: undefined,
 					snapshot,
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, snapshot),
@@ -7226,6 +7240,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					extensionSdkPath: this._extensionSdkPathByClient.get(client),
 					sessionId: chatSdkId,
 					workingDirectory,
+					projectExtensionTrustGrant,
 					resolvedAgentName: undefined,
 					snapshot,
 					disabledRootMcpServers: await this._disabledRootMcpServers(session, snapshot),
@@ -7243,15 +7258,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// The inherited history now lives in a session the agent has no
 			// metadata for, so persist what a later resume needs before the
 			// runtime starts.
-			let project: IAgentSessionProjectInfo | undefined;
+			let project = effectiveProject;
 			if (inheritsFromOtherSession) {
-				project = await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
+				project ??= await projectFromCopilotContext({ cwd: workingDirectory.fsPath }, this._gitService);
 				inheritedWorkingDirectories = sourceMetadata?.workingDirectories
 					?? (sourceEntry?.workingDirectory ? [sourceEntry.workingDirectory] : [workingDirectory]);
-				await this._storeSessionMetadata(sessionMetadataScope(session), model, workingDirectory, inheritedWorkingDirectories, workingDirectory, project);
+				await this._storeSessionMetadata(sessionMetadataScope(session), {
+					model,
+					workingDirectory,
+					workingDirectories: inheritedWorkingDirectories,
+					customizationDirectory: workingDirectory,
+					project,
+					projectResolved: true,
+					projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
+				});
 				if (agent !== undefined) {
 					await this._storeSessionAgentMetadata(session, agent);
 				}
+			} else if (project) {
+				await this._storeSessionMetadata({ storage: storageScope, owner: session }, {
+					project,
+					projectResolved: true,
+					projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
+				});
 			}
 
 			let agentSession: CopilotAgentSession | undefined;
@@ -7849,6 +7878,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const snapshot = await activeClient.snapshot(chatKey, anchor?.object, info.agent?.uri);
 			const disabledRootMcpServers = await this._disabledRootMcpServers(ownerSession, snapshot);
 			const shellManager = this._instantiationService.createInstance(ShellManager, ownerSession, chat, context.resource, workingDirectory);
+			const projectExtensionTrustGrant = await this._projectExtensionLaunchPolicy.resolvePersistedTrustGrant(workingDirectory, storedMetadata.projectExtensionTrustGrant);
+			const project = storedMetadata.project;
+			const effectiveProject = projectExtensionTrustGrant
+				? { uri: projectExtensionTrustGrant.repositoryRoot, displayName: resourceBasename(projectExtensionTrustGrant.repositoryRoot) }
+				: project;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'resume',
 				client,
@@ -7856,6 +7890,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId: info.sdkSessionId,
 				workingDirectory,
 				additionalDirectories,
+				projectExtensionTrustGrant,
 				resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
 				snapshot,
 				disabledRootMcpServers,
@@ -7876,7 +7911,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			stageRecorder?.mark('persist');
 			// An archived worktree's repository-root fallback is for history, not a workspace change.
 			if (launchWorkingDirectories && isEqual(workingDirectory, persistedWorkingDirectory)) {
-				await this._storeSessionMetadata({ storage: context.resource, owner: ownerSession }, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined);
+				await this._storeSessionMetadata({ storage: context.resource, owner: ownerSession }, {
+					model: info.model,
+					workingDirectory,
+					workingDirectories: launchWorkingDirectories,
+					project: effectiveProject,
+					projectResolved: effectiveProject !== undefined,
+					projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
+				});
 			}
 			this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for configuration ${ownerSession.toString()}`);
 			return agentSession;
@@ -8035,7 +8077,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
 				if (current.resource.toString() === current.ownerSession.toString()) {
-					await this._storeSessionMetadata({ storage: current.resource, owner: current.ownerSession }, model, undefined, undefined, undefined, undefined);
+					await this._storeSessionMetadata({ storage: current.resource, owner: current.ownerSession }, { model });
 				}
 			}
 			const backing = this._chatBackings.get(current.chatKey);
@@ -8537,7 +8579,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			session.dispose();
 			throw new CancellationError();
 		}
-		const extensionLaunchAdmission = await this._acquireExtensionLaunchAdmission(session.extensionLaunchDirectories);
+		const extensionLaunchAdmission = await this._acquireProjectExtensionLaunchAdmission(session);
 		if (this._isShuttingDown || token.isCancellationRequested) {
 			extensionLaunchAdmission.dispose();
 			session.dispose();
@@ -8654,6 +8696,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (storedMetadata.agent && !resolvedAgentName) {
 				this._logService.info(`[Copilot:${sessionId}] Stored custom agent is not available in the current plugin snapshot; resuming without a custom agent`);
 			}
+			const projectExtensionTrustGrant = await this._projectExtensionLaunchPolicy.resolvePersistedTrustGrant(resolvedWorkingDirectory, storedMetadata.projectExtensionTrustGrant);
+			const effectiveProject = projectExtensionTrustGrant
+				? { uri: projectExtensionTrustGrant.repositoryRoot, displayName: resourceBasename(projectExtensionTrustGrant.repositoryRoot) }
+				: storedMetadata.project;
 			const launchPlan: CopilotSessionLaunchPlan = {
 				kind: 'resume',
 				client,
@@ -8661,6 +8707,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				sessionId,
 				workingDirectory: resolvedWorkingDirectory,
 				additionalDirectories,
+				projectExtensionTrustGrant,
 				resolvedAgentName,
 				snapshot,
 				disabledRootMcpServers,
@@ -8682,7 +8729,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 					this._registerInitializedSession(sessionId, agentSession, activeClient, launchPlan.client);
 				}, async () => {
 					stageRecorder?.mark('persist');
-					await this._storeSessionMetadata({ storage: sessionUri, owner: owner.get() }, undefined, undefined, launchWorkingDirectories, undefined, undefined);
+					await this._storeSessionMetadata({ storage: sessionUri, owner: owner.get() }, {
+						workingDirectories: launchWorkingDirectories,
+						project: effectiveProject,
+						projectResolved: effectiveProject !== undefined,
+						projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
+					});
 				}, token);
 			} catch (err) {
 				agentSession.dispose();
@@ -8724,6 +8776,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_PROJECT_RESOLVED = 'copilot.project.resolved';
 	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
 	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
+	private static readonly _META_PROJECT_EXTENSION_TRUST_GRANT = 'copilot.projectExtensionTrustGrant';
 	/** Legacy persisted catalog of concrete chat backings, keyed by chatId. */
 	private static readonly _META_CHATS = 'copilot.chats';
 
@@ -8764,7 +8817,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 
 	/** Persists supplied metadata in one transaction, leaving omitted fields unchanged. */
-	private async _storeSessionMetadata(scope: ICopilotMetadataScope, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, archived?: boolean, ehcliAdopted?: boolean, lastMigratedTurnId?: string): Promise<void> {
+	private async _storeSessionMetadata(scope: ICopilotMetadataScope, update: ICopilotSessionMetadataUpdate): Promise<void> {
+		const {
+			model,
+			workingDirectory,
+			workingDirectories,
+			customizationDirectory,
+			project,
+			projectResolved = project !== undefined,
+			configValues,
+			archived,
+			ehcliAdopted,
+			lastMigratedTurnId,
+			projectExtensionTrustGrant,
+		} = update;
 		const metadata: Record<string, string> = {};
 		if (model) {
 			metadata[CopilotAgent._META_MODEL] = this._serializeModelSelection(model);
@@ -8807,6 +8873,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (project) {
 			metadata[CopilotAgent._META_PROJECT_URI] = project.uri.toString();
 			metadata[CopilotAgent._META_PROJECT_DISPLAY_NAME] = project.displayName;
+		}
+		if (projectExtensionTrustGrant !== undefined) {
+			metadata[CopilotAgent._META_PROJECT_EXTENSION_TRUST_GRANT] = serializeCopilotProjectExtensionTrustGrant(projectExtensionTrustGrant ?? undefined);
 		}
 		// Persisted the same way `AgentService._persistConfigValues` writes them,
 		// so restore's config resolution overlays them (used by adopt to force
@@ -8855,6 +8924,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[CopilotAgent._META_PROJECT_URI]: true,
 				[CopilotAgent._META_PROJECT_DISPLAY_NAME]: true,
 				[CopilotAgent._META_PROJECT_RESOLVED]: true,
+				[CopilotAgent._META_PROJECT_EXTENSION_TRUST_GRANT]: true,
 			});
 			const workingDirectory = metadata[CopilotAgent._META_CWD];
 			const customizationDirectory = metadata[CopilotAgent._META_CUSTOMIZATION_DIRECTORY];
@@ -8870,6 +8940,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					projectUri: metadata[CopilotAgent._META_PROJECT_URI],
 					projectDisplayName: metadata[CopilotAgent._META_PROJECT_DISPLAY_NAME],
 					projectResolved: metadata[CopilotAgent._META_PROJECT_RESOLVED],
+					projectExtensionTrustGrant: metadata[CopilotAgent._META_PROJECT_EXTENSION_TRUST_GRANT],
 				},
 			};
 		} finally {
@@ -8886,6 +8957,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[CopilotAgent._META_PROJECT_URI]: metadata.projectUri ?? '',
 			[CopilotAgent._META_PROJECT_DISPLAY_NAME]: metadata.projectDisplayName ?? '',
 			[CopilotAgent._META_PROJECT_RESOLVED]: metadata.projectResolved ?? '',
+			[CopilotAgent._META_PROJECT_EXTENSION_TRUST_GRANT]: metadata.projectExtensionTrustGrant ?? '',
 		};
 		if (isSessionStateScope(scope)) {
 			// The customization directories and project are session state: central first, then the session database mirror.
@@ -8953,7 +9025,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Reads chat metadata, preferring the host's workspaceless state over legacy provider storage. */
-	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; workspaceless?: boolean }> {
+	private async _readSessionMetadata(scope: ICopilotMetadataScope): Promise<{ model?: ModelSelection; agent?: AgentSelection; workingDirectory?: URI; workingDirectories?: readonly URI[]; customizationDirectory?: URI; project?: IAgentSessionProjectInfo; projectExtensionTrustGrant?: ICopilotProjectExtensionTrustGrant; workspaceless?: boolean }> {
 		const workspaceless = this._sessionSettings.get(scope.owner)?.workspaceless;
 		const ref = await this._openMetadata(scope);
 		if (!ref) {
@@ -8966,10 +9038,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[CopilotAgent._META_CWD]: true,
 				[CopilotAgent._META_CWDS]: true,
 				[CopilotAgent._META_CUSTOMIZATION_DIRECTORY]: true,
+				[CopilotAgent._META_PROJECT_URI]: true,
+				[CopilotAgent._META_PROJECT_DISPLAY_NAME]: true,
+				[CopilotAgent._META_PROJECT_EXTENSION_TRUST_GRANT]: true,
 				[AH_META_WORKSPACELESS_DB_KEY]: true,
 			});
 			const cwd = m[CopilotAgent._META_CWD];
 			const customizationDirectory = m[CopilotAgent._META_CUSTOMIZATION_DIRECTORY];
+			const projectUri = m[CopilotAgent._META_PROJECT_URI];
+			const projectDisplayName = m[CopilotAgent._META_PROJECT_DISPLAY_NAME];
+			const projectExtensionTrustGrant = parseCopilotProjectExtensionTrustGrant(m[CopilotAgent._META_PROJECT_EXTENSION_TRUST_GRANT]);
 			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			return {
 				model: this._parseModelSelection(m[CopilotAgent._META_MODEL]),
@@ -8977,6 +9055,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				workingDirectories: this._parseWorkingDirectories(m[CopilotAgent._META_CWDS], workingDirectory),
 				customizationDirectory: customizationDirectory ? URI.parse(customizationDirectory) : undefined,
+				project: projectUri && projectDisplayName ? { uri: URI.parse(projectUri), displayName: projectDisplayName } : undefined,
+				projectExtensionTrustGrant,
 				workspaceless: workspaceless ?? m[AH_META_WORKSPACELESS_DB_KEY] === 'true',
 			};
 		} finally {
@@ -9046,7 +9126,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _storeSessionProjectResolution(scope: ICopilotMetadataScope, project: IAgentSessionProjectInfo | undefined): Promise<void> {
-		await this._storeSessionMetadata(scope, undefined, undefined, undefined, undefined, project, true);
+		await this._storeSessionMetadata(scope, { project, projectResolved: true });
 	}
 
 	/**

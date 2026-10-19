@@ -15,7 +15,7 @@ import { retry, timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCanvasesEnabledConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../../common/agentHostSchema.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
@@ -328,11 +328,11 @@ session = await joinSession({
 });
 `, 'utf8');
 
-		const setCanvasesEnabled = async (enabled: boolean, clientSeq: number) => {
+		const setRootConfig = async (config: Record<string, unknown>, clientSeq: number, replace = false) => {
 			client.dispatch({
 				channel: ROOT_STATE_URI,
 				clientSeq,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } },
+				action: { type: ActionType.RootConfigChanged, config, ...(replace ? { replace } : {}) },
 			});
 			await client.waitForNotification(n =>
 				isActionNotification(n, ActionType.RootConfigChanged)
@@ -340,6 +340,7 @@ session = await joinSession({
 			);
 		};
 		let previousCanvasesEnabled: boolean | undefined;
+		let previousWorkspaceTrust: unknown;
 		try {
 			const sessionUri = await createProviderSession(
 				client,
@@ -349,8 +350,13 @@ session = await joinSession({
 				URI.file(workspaceDir),
 				async () => {
 					const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-					previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
-					await setCanvasesEnabled(true, 1);
+					const rootConfig = (result.snapshot!.state as RootState).config?.values;
+					previousCanvasesEnabled = rootConfig?.[AgentHostCanvasesEnabledConfigKey] === true;
+					previousWorkspaceTrust = rootConfig?.[AgentHostWorkspaceTrustConfigKey];
+					await setRootConfig({
+						[AgentHostCanvasesEnabledConfigKey]: true,
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspaceDir).toString()] },
+					}, 1);
 				},
 			);
 			dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
@@ -433,7 +439,15 @@ session = await joinSession({
 			});
 		} finally {
 			if (previousCanvasesEnabled !== undefined) {
-				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+				const currentState = (await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI })).snapshot!.state as RootState;
+				const config = { ...currentState.config?.values };
+				config[AgentHostCanvasesEnabledConfigKey] = previousCanvasesEnabled;
+				if (previousWorkspaceTrust === undefined) {
+					delete config[AgentHostWorkspaceTrustConfigKey];
+				} else {
+					config[AgentHostWorkspaceTrustConfigKey] = previousWorkspaceTrust;
+				}
+				await setRootConfig(config, 3, true);
 			}
 		}
 	});
