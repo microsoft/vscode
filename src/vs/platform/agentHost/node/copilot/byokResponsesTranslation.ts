@@ -613,6 +613,8 @@ type OpenByokResponsesReasoning = {
 	readonly id: string;
 	/** The renderer's thinking-part id, used to decide whether text continues the open item. */
 	readonly sourceId: string | undefined;
+	/** Renderer-side opaque state (provider signature) carried by progress, if any. */
+	encryptedContent: string | undefined;
 	summaryIndex: number;
 	/** Accumulated text per summary part; the last entry is the part being written. */
 	readonly parts: string[];
@@ -655,7 +657,7 @@ export class ByokResponsesStreamEmitter {
 			case 'text':
 				return this._appendText(progress.value);
 			case 'thinking':
-				return this._appendThinking(progress.id, progress.value, progress.startsNewSummaryPart);
+				return this._appendThinking(progress.id, progress.value, progress.startsNewSummaryPart, progress.encryptedContent);
 			case 'toolCall':
 				return this._appendToolCall(progress.item);
 		}
@@ -677,6 +679,22 @@ export class ByokResponsesStreamEmitter {
 			type: 'response.completed',
 			sequence_number: this._sequence.value++,
 			response: completed,
+		}));
+		return frames;
+	}
+
+	/** Terminates the stream with a Responses-compatible failure event. */
+	fail(message: string): string[] {
+		const frames = this._closeOpen();
+		const failed = {
+			...responseEnvelope(this._mintedResponseId, this._model, 'completed', [], undefined),
+			status: 'failed',
+			error: { code: 'server_error', message },
+		};
+		frames.push(sseEvent('response.failed', {
+			type: 'response.failed',
+			sequence_number: this._sequence.value++,
+			response: failed,
 		}));
 		return frames;
 	}
@@ -721,10 +739,7 @@ export class ByokResponsesStreamEmitter {
 		return frames;
 	}
 
-	private _appendThinking(id: string | undefined, value: string, startsNewSummaryPart: boolean): string[] {
-		if (value.length === 0) {
-			return [];
-		}
+	private _appendThinking(id: string | undefined, value: string, startsNewSummaryPart: boolean, encryptedContent?: string): string[] {
 		const frames: string[] = [];
 		let open = this._open;
 		if (open?.kind !== 'reasoning' || open.sourceId !== id) {
@@ -734,10 +749,10 @@ export class ByokResponsesStreamEmitter {
 				type: 'reasoning',
 				status: 'completed',
 				summary: [],
-				encrypted_content: null,
+				encrypted_content: encryptedContent ?? null,
 			};
 			frames.push(...this._beginItem(item));
-			open = { kind: 'reasoning', index: this._outputIndex, id: item.id, sourceId: id, summaryIndex: 0, parts: [''] };
+			open = { kind: 'reasoning', index: this._outputIndex, id: item.id, sourceId: id, encryptedContent, summaryIndex: 0, parts: [''] };
 			this._open = open;
 			frames.push(...this._beginSummaryPart(open));
 		} else if (startsNewSummaryPart) {
@@ -745,6 +760,15 @@ export class ByokResponsesStreamEmitter {
 			open.summaryIndex++;
 			open.parts.push('');
 			frames.push(...this._beginSummaryPart(open));
+		}
+		if (encryptedContent !== undefined) {
+			open.encryptedContent = encryptedContent;
+		}
+		// A metadata-only reasoning item (e.g. a signed block with no text) still
+		// occupies an output position. Announce it, but emit no delta, so item
+		// indices and ids announced while streaming match the completed payload.
+		if (value.length === 0) {
+			return frames;
 		}
 		open.parts[open.summaryIndex] += value;
 		frames.push(sseEvent('response.reasoning_summary_text.delta', {
@@ -854,7 +878,7 @@ export class ByokResponsesStreamEmitter {
 				type: 'reasoning',
 				status: 'completed',
 				summary: open.parts.map(text => ({ type: 'summary_text', text })),
-				encrypted_content: null,
+				encrypted_content: open.encryptedContent ?? null,
 			};
 		}
 		frames.push(sseEvent('response.output_item.done', {

@@ -303,10 +303,13 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		const startFrames = emitter?.start() ?? [];
 		let headersSent = false;
 		/**
-		 * Writes frames, opening the SSE response lazily so a request that produces
-		 * nothing can still answer with a JSON error (502) or an empty-reply 422.
+		 * Frames produced before the reply has any visible content. Held back so a
+		 * whitespace-only reply still reaches the empty-response path below instead
+		 * of opening a 200 that then closes with nothing in it.
 		 */
-		const flush = (frames: readonly string[]): void => {
+		let pendingFrames: string[] = [];
+		let sawVisibleContent = false;
+		const writeFrames = (frames: readonly string[]): void => {
 			if (frames.length === 0 || entry.ac.signal.aborted || res.writableEnded) {
 				return;
 			}
@@ -325,7 +328,34 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				res.write(frame);
 			}
 		};
-		const reportProgress: IByokLmChatProgressReporter = progress => flush(emitter?.progress(progress) ?? []);
+		/**
+		 * Writes frames, opening the SSE response lazily so a request that produces
+		 * nothing can still answer with a JSON error (502) or an empty-reply 422.
+		 */
+		const flush = (frames: readonly string[], visible: boolean): void => {
+			if (entry.ac.signal.aborted || res.writableEnded) {
+				return;
+			}
+			if (visible) {
+				sawVisibleContent = true;
+			}
+			if (!sawVisibleContent) {
+				pendingFrames.push(...frames);
+				return;
+			}
+			if (pendingFrames.length > 0) {
+				const held = pendingFrames;
+				pendingFrames = [];
+				writeFrames(held);
+			}
+			writeFrames(frames);
+		};
+		const reportProgress: IByokLmChatProgressReporter = progress => {
+			// `hasVisibleBridgeOutput` ignores whitespace-only text and reasoning, so
+			// progress must use the same definition before opening the response.
+			const visible = progress.kind === 'toolCall' || progress.value.trim().length > 0;
+			flush(emitter?.progress(progress) ?? [], visible);
+		};
 		const cancellation = bridgeCancellation(entry.ac.signal);
 
 		try {
@@ -336,6 +366,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			if (result.error) {
 				if (headersSent) {
 					// Frames are already on the wire, so a JSON error would be unparseable.
+					// Terminate with a Responses failure carrying the provider's message
+					// instead of closing a stream that never completes.
+					if (emitter) {
+						writeFrames(emitter.fail(result.error));
+					}
 					try { res.end(); } catch { /* ignore */ }
 					return;
 				}
@@ -362,7 +397,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._addToolContinuation(runtime.state, continuationScope, result);
 			}
 			if (emitter) {
-				flush(emitter.finish(result));
+				flush(emitter.finish(result), true);
 				res.end();
 			} else {
 				res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -376,6 +411,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			if (!res.headersSent) {
 				this._writeJsonError(res, 502, message, 'api_error');
 			} else {
+				// Same as a provider-reported error: terminate the open stream with a
+				// Responses failure instead of closing a half-written response.
+				if (emitter) {
+					writeFrames(emitter.fail(message));
+				}
 				try { res.end(); } catch { /* ignore */ }
 			}
 		} finally {

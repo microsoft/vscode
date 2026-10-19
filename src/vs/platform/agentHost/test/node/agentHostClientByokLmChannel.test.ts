@@ -38,11 +38,11 @@ suite('agentHostClientByokLmChannel', () => {
 			call<T>(command: string, arg?: unknown, token?: CancellationToken): Promise<T> {
 				return server.call<T>(null, command, arg, token);
 			},
-			listen<T>(event: string, arg?: unknown): Event<T> {
+			listen<T>(event: string, _arg?: unknown): Event<T> {
 				// Mirror ChannelClient.listen: defer to the server channel only when
 				// the returned event is actually subscribed (lazy), so a connection
 				// that never listens allocates nothing.
-				return (listener, thisArgs?, disposables?) => server.listen<T>(null, event, arg)(listener, thisArgs, disposables);
+				return (listener, thisArgs?, disposables?) => server.listen<T>(null, event)(listener, thisArgs, disposables);
 			},
 		};
 		return createAgentHostClientByokLmConnection(channel);
@@ -103,6 +103,32 @@ suite('agentHostClientByokLmChannel', () => {
 			{ kind: 'thinking', id: 'rs_1', value: 'hmm', startsNewSummaryPart: false },
 			{ kind: 'text', value: 'pong' },
 		]);
+	});
+
+	test('routes progress per request over one connection-level event', async () => {
+		const seen: Record<string, IByokLmChatProgress[]> = { a: [], b: [] };
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => release = resolve);
+
+		const connection = bridge(handlerOf(async (request, _token, progress) => {
+			progress?.({ kind: 'text', value: request.modelId });
+			await gate;
+			return { output: [] };
+		}));
+
+		const first = connection.chat({ vendor: 'v', modelId: 'a', input: [] }, CancellationToken.None, p => seen.a.push(p));
+		const second = connection.chat({ vendor: 'v', modelId: 'b', input: [] }, CancellationToken.None, p => seen.b.push(p));
+		release();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual(seen.a, [{ kind: 'text', value: 'a' }]);
+		assert.deepStrictEqual(seen.b, [{ kind: 'text', value: 'b' }]);
+
+		// The subscription is released once no request is in flight, and a later
+		// chat must still receive progress after it is re-established.
+		const after: IByokLmChatProgress[] = [];
+		await connection.chat({ vendor: 'v', modelId: 'c', input: [] }, CancellationToken.None, p => after.push(p));
+		assert.deepStrictEqual(after, [{ kind: 'text', value: 'c' }]);
 	});
 
 	test('forwards a bridge error result unchanged', async () => {

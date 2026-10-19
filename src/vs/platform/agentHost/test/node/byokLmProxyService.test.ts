@@ -845,6 +845,47 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
+	test('returns 422 instead of opening a stream when every progress part is whitespace', async () => {
+		await withProxy(
+			async (_request, _token, progress) => {
+				progress?.({ kind: 'text', value: '   ' });
+				progress?.({ kind: 'thinking', id: 'rs_1', value: '\n', startsNewSummaryPart: false });
+				return { output: [{ type: 'message', content: [{ type: 'text', text: '   ' }] }] };
+			},
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input: 'hi', stream: true }),
+				});
+				const text = await response.text();
+				assert.strictEqual(response.status, 422, `expected the empty-response status, got ${response.status}: ${text}`);
+				assert.ok(!text.includes('response.created'), `must not open an SSE stream: ${text}`);
+			},
+		);
+	});
+
+	test('terminates a started stream with a failure event when the bridge reports an error', async () => {
+		await withProxy(
+			async (_request, _token, progress) => {
+				progress?.({ kind: 'text', value: 'partial answer' });
+				return { output: [], error: 'model unavailable' };
+			},
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'm', input: 'hi', stream: true }),
+				});
+				const text = await response.text();
+				assert.strictEqual(response.status, 200, text);
+				assert.ok(text.includes('event: response.failed'), `expected a terminal failure event: ${text}`);
+				assert.ok(text.includes('model unavailable'), text);
+				assert.ok(!text.includes('event: response.completed'), `must not claim completion: ${text}`);
+			},
+		);
+	});
+
 	test('returns a 502 when the bridge reports an error', async () => {
 		await withProxy(
 			async () => ({ output: [], error: 'model unavailable' }),

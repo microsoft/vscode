@@ -154,11 +154,28 @@ export interface IByokLmChatResult {
  */
 export type IByokLmChatProgress =
 	| { readonly kind: 'text'; readonly value: string }
-	| { readonly kind: 'thinking'; readonly id?: string; readonly value: string; readonly startsNewSummaryPart: boolean }
+	| {
+		readonly kind: 'thinking';
+		readonly id?: string;
+		readonly value: string;
+		readonly startsNewSummaryPart: boolean;
+		/** Renderer-side opaque state (encrypted content or provider signature) for replay. */
+		readonly encryptedContent?: string;
+	}
 	| { readonly kind: 'toolCall'; readonly item: IByokLmFunctionCallItem | IByokLmCustomToolCallItem };
 
 /** Receives {@link IByokLmChatProgress} as the renderer's LM stream advances. */
 export type IByokLmChatProgressReporter = (progress: IByokLmChatProgress) => void;
+
+/**
+ * One progress notification on the bridge's connection-level stream. Progress
+ * is multiplexed by {@link requestId} so a single long-lived event carries
+ * every in-flight request instead of allocating a per-call emitter.
+ */
+export interface IByokLmChatProgressEvent {
+	readonly requestId: string;
+	readonly progress: IByokLmChatProgress;
+}
 
 /**
  * Metadata for a renderer BYOK model, enumerated over the bridge so the node

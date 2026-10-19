@@ -428,6 +428,75 @@ suite('byokResponsesTranslation', () => {
 		assert.strictEqual((frames[3].data.item as { call_id: string }).call_id, 'call_1');
 	});
 
+	test('announces a metadata-only reasoning item so indices and ids stay aligned', () => {
+		type ParsedSse = { readonly event: string; readonly data: Record<string, unknown> };
+		const parse = (frames: readonly string[]): ParsedSse[] => frames.map(frame => {
+			const lines = frame.trim().split('\n');
+			return {
+				event: lines[0].slice('event: '.length),
+				data: JSON.parse(lines[1].slice('data: '.length)) as Record<string, unknown>,
+			};
+		});
+
+		const emitter = new ByokResponsesStreamEmitter('gpt-5');
+		emitter.start();
+
+		// A signed reasoning block with no text: the renderer keeps the item, so the
+		// stream must announce it even though it produces no delta.
+		const signed = parse(emitter.progress({
+			kind: 'thinking', id: 'rs_signed', value: '', startsNewSummaryPart: false, encryptedContent: 'signature',
+		}));
+		assert.deepStrictEqual(signed.map(e => e.event), [
+			'response.output_item.added',
+			'response.reasoning_summary_part.added',
+		]);
+		const reasoningId = (signed[0].data.item as { id: string }).id;
+		assert.strictEqual(signed[0].data.output_index, 0);
+
+		const text = parse(emitter.progress({ kind: 'text', value: 'hello' }));
+		const messageAdded = text.find(e => e.event === 'response.output_item.added')!;
+		assert.strictEqual(messageAdded.data.output_index, 1);
+		const messageId = (messageAdded.data.item as { id: string }).id;
+
+		// Starting the message finalizes the reasoning item, so its `done` frame is
+		// in this batch rather than in `finish()`.
+		const reasoningDone = text.find(e => e.event === 'response.output_item.done' && (e.data.item as { type: string }).type === 'reasoning')!;
+		assert.ok(reasoningDone, 'the metadata-only reasoning item must be finalized');
+		// The finalized item carries the provider signature rather than null.
+		assert.strictEqual((reasoningDone.data.item as { encrypted_content: string }).encrypted_content, 'signature');
+
+		const finished = parse(emitter.finish({
+			output: [
+				{ type: 'reasoning', id: 'rs_signed', summary: [], encryptedContent: 'signature' },
+				{ type: 'message', content: [{ type: 'text', text: 'hello' }] },
+			],
+		}));
+
+		const completed = finished.at(-1)!.data.response as { output: Array<{ id: string; type: string }> };
+		assert.deepStrictEqual(completed.output.map(item => item.id), [reasoningId, messageId]);
+	});
+
+	test('terminates the stream with a failure event when the provider reports an error', () => {
+		type ParsedSse = { readonly event: string; readonly data: Record<string, unknown> };
+		const parse = (frames: readonly string[]): ParsedSse[] => frames.map(frame => {
+			const lines = frame.trim().split('\n');
+			return {
+				event: lines[0].slice('event: '.length),
+				data: JSON.parse(lines[1].slice('data: '.length)) as Record<string, unknown>,
+			};
+		});
+
+		const emitter = new ByokResponsesStreamEmitter('gpt-5');
+		emitter.start();
+		emitter.progress({ kind: 'text', value: 'partial' });
+
+		const failed = parse(emitter.fail('model unavailable'));
+		assert.strictEqual(failed.at(-1)!.event, 'response.failed');
+		const response = failed.at(-1)!.data.response as { status: string; error: { message: string } };
+		assert.strictEqual(response.status, 'failed');
+		assert.strictEqual(response.error.message, 'model unavailable');
+	});
+
 	test('encodes a completed non-streaming Responses body', () => {
 		const body = JSON.parse(bridgeResultToResponsesBody({
 			responseId: 'resp_provider',

@@ -124,15 +124,21 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 						} else if (p.type === 'thinking') {
 							if (p.metadata?.[VSCODE_REASONING_SUMMARY_PART_DONE] === true) {
 								completedReasoningSummaryParts.add(p.id);
+							} else if (p.metadata?.vscode_reasoning_done === true) {
+								// Metadata-only terminator; `_appendReasoningOutput` ignores it,
+								// so it must not occupy an output position on the stream either.
 							} else {
 								const startsNewSummaryPart = p.value.length > 0 && completedReasoningSummaryParts.delete(p.id);
+								// Carry the opaque provider state so the emitted item can be
+								// finalized with it rather than with a null placeholder.
+								const encryptedContent = this._encodeReasoningMetadata(p.metadata);
 								if (Array.isArray(p.value)) {
 									// Each entry is its own summary part; see _appendReasoningOutput.
 									for (const value of p.value) {
-										progress({ kind: 'thinking', id: p.id, value, startsNewSummaryPart: true });
+										progress({ kind: 'thinking', id: p.id, value, startsNewSummaryPart: true, encryptedContent });
 									}
 								} else {
-									progress({ kind: 'thinking', id: p.id, value: p.value, startsNewSummaryPart });
+									progress({ kind: 'thinking', id: p.id, value: p.value, startsNewSummaryPart, encryptedContent });
 								}
 								this._appendReasoningOutput(output, p, startsNewSummaryPart);
 							}
