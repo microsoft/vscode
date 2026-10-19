@@ -163,18 +163,6 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
-	/**
-	 * Whether the host can move the session under another session of this provider (Block 4): the host moves sessions
-	 * (`vscode.sessionMove`) and the session is unarchived with one chat. Answered from list data alone; the host
-	 * restores the session and refuses at move time when it can't move.
-	 */
-	canMoveSessionUnder(sessionId: string): boolean;
-	/**
-	 * Moves the session under `destinationSessionId` (Block 4): its chat becomes a chat of the destination, placed
-	 * after the destination's chat `after` (`undefined`: first), and the session ends. Rejects when the host refuses.
-	 */
-	moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void>;
-
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
