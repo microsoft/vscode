@@ -70,6 +70,7 @@ import { LocalCommandContribution } from '../../node/chatContributions/localComm
 import { MarkUnreadContribution } from '../../node/chatContributions/markUnread/markUnreadContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { SessionTitleContribution } from '../../node/chatContributions/sessionTitle/sessionTitleContribution.js';
@@ -977,6 +978,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		cancel: () => { },
 		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { observed?.push('scheduledChatMoves'); } } satisfies IAgentHostScheduledChatMoves);
 	services.set(IAgentHostSessionTitleController, new RecordingTitleController(observed, enableSendInstructions ? 'rename instruction' : undefined));
 	const queueAgent = new MockAgent();
 	const providerService = createTestAgentHostProviderService(() => queueAgent);
@@ -1069,6 +1071,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		},
 		updateSessionWorkspace: async () => { },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves);
 	const mockAgent = new MockAgent();
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
@@ -2150,7 +2153,7 @@ suite('AgentHostChatContributions', () => {
 		const contributions = createBuiltInContributions(disposables, observed);
 		contributions.service.turnEnd(turnEnd('built-in-order'));
 
-		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
+		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'scheduledChatMoves', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
 	for (const source of ['direct', 'queued'] as const) {
@@ -2436,12 +2439,14 @@ suite('AgentHostChatContributions', () => {
 			githubReferences: observed.includes('githubReferences'),
 			sessionTitle: observed.includes('sessionTitle'),
 			markUnread: observed.includes('markUnread'),
+			scheduledChatMoves: observed.includes('scheduledChatMoves'),
 		}, {
 			checkpointAndChangeset: false,
 			queueDrain: false,
 			githubReferences: false,
 			sessionTitle: false,
 			markUnread: false,
+			scheduledChatMoves: false,
 		});
 	});
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey } from '../../common/agentHostChatMove.js';
+import type { IAgentServiceSessionServerToolAccessor } from '../../node/shared/sessionServerTools.js';
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
@@ -36597,6 +36598,103 @@ suite('AgentService (node dispatcher)', () => {
 					result: result.toString(),
 					chats: getStateManager(service).getSessionState(source.toString())?.chats.map(chat => chat.resource),
 				}, { result: source.toString(), chats: [peer.toString(), buildDefaultChatUri(source)] });
+			});
+
+			suite('move_session (Block 6)', () => {
+				/** The accessor the `move_session` tool runs moves through. */
+				function moveToolAccessor(service: AgentService): IAgentServiceSessionServerToolAccessor {
+					return (service as unknown as { _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor })._createSessionServerToolAccessor();
+				}
+
+				async function refusalOf(check: Promise<unknown>): Promise<string> {
+					try {
+						await check;
+						return 'none';
+					} catch (error) {
+						return error instanceof AgentChatMoveRefusedError ? error.reason : String(error);
+					}
+				}
+
+				test('checks a move as the host would refuse it, changing nothing, and places a chat at the end of its destination', async () => {
+					const { service, source, target, peer } = await setupMove();
+					const stateManager = getStateManager(service);
+					const second = URI.parse(buildChatUri(target, 'second'));
+					await service.createChat(target, second);
+					await timeout(0);
+					const accessor = moveToolAccessor(service);
+					const checks = {
+						move: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: 'end' } })),
+						reorder: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: source, after: URI.parse(buildDefaultChatUri(source)) } })),
+						mainSession: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: URI.parse(buildDefaultChatUri(source)), destination: { kind: 'newSession' } })),
+						afterItself: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: source, after: peer } })),
+						foreignAnchor: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: URI.parse(buildDefaultChatUri(source)) } })),
+						notStarted: await refusalOf(accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'newSession' } })),
+						notSingleChat: await refusalOf(accessor.checkChatMove({ kind: 'session', session: target, destination: source, after: 'end' })),
+					};
+					const checkedChats = [source, target].map(session => stateManager.getSessionState(session.toString())?.chats.map(chat => chat.resource));
+
+					const moved = await accessor.applyChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: 'end' } });
+
+					assert.deepStrictEqual({
+						checks,
+						checkedChats,
+						moved: moved.toString(),
+						targetChats: stateManager.getSessionState(target.toString())?.chats.map(chat => chat.resource),
+					}, {
+						checks: {
+							move: 'none',
+							reorder: 'none',
+							mainSession: AgentChatMoveRefusal.NotMovable,
+							afterItself: AgentChatMoveRefusal.InvalidAnchor,
+							foreignAnchor: AgentChatMoveRefusal.InvalidAnchor,
+							notStarted: AgentChatMoveRefusal.NotStarted,
+							notSingleChat: AgentChatMoveRefusal.NotSingleChat,
+						},
+						checkedChats: [[buildDefaultChatUri(source), peer.toString()], [buildDefaultChatUri(target), second.toString()]],
+						moved: target.toString(),
+						targetChats: [buildDefaultChatUri(target), second.toString(), peer.toString()],
+					});
+				});
+
+				test('moves another chat while its turn waits for a confirmation: the turn, its question and the session status go along (D4)', async () => {
+					const { service, agent, source, target, peer } = await setupMove();
+					const stateManager = getStateManager(service);
+					const flags = (session: URI) => {
+						const status = stateManager.getSessionState(session.toString())?.status ?? 0;
+						return { inProgress: (status & SessionStatus.InProgress) !== 0, inputNeeded: (status & SessionStatus.InputNeeded) !== 0 };
+					};
+					stateManager.dispatchServerAction(peer.toString(), {
+						type: ActionType.ChatTurnStarted, turnId: 'running', startedAt: new Date(0).toISOString(),
+						message: { text: 'Working', origin: { kind: MessageKind.User } },
+					});
+					agent.fireProgress({ kind: 'action', resource: peer, action: { type: ActionType.ChatToolCallStart, turnId: 'running', toolCallId: 'tc-1', toolName: 'runTests', displayName: 'Run tests', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
+					agent.fireProgress({
+						kind: 'pending_confirmation', chat: peer,
+						state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc-1', toolName: 'runTests', displayName: 'Run tests', invocationMessage: 'Run tests', confirmationTitle: 'Allow tests?' },
+						permissionKind: 'custom-tool', permissionPath: undefined,
+					});
+					await timeout(0);
+					const beforeMove = { source: flags(source), target: flags(target) };
+
+					await moveToolAccessor(service).applyChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: 'end' } });
+					const afterMove = { source: flags(source), target: flags(target), activeTurn: stateManager.getChatState(peer.toString())?.activeTurn?.id };
+
+					service.dispatchAction(peer.toString(), { type: ActionType.ChatToolCallConfirmed, turnId: 'running', toolCallId: 'tc-1', approved: true, confirmed: ToolCallConfirmationReason.UserAction }, 'client-1', 1);
+					agent.fireProgress({ kind: 'action', resource: peer, action: { type: ActionType.ChatTurnComplete, turnId: 'running', duration: 1 } });
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						beforeMove,
+						afterMove,
+						answered: agent.respondToPermissionCalls,
+						afterTurn: { target: flags(target), turns: stateManager.getChatState(peer.toString())?.turns.map(turn => turn.id) },
+					}, {
+						beforeMove: { source: { inProgress: true, inputNeeded: true }, target: { inProgress: false, inputNeeded: false } },
+						afterMove: { source: { inProgress: false, inputNeeded: false }, target: { inProgress: true, inputNeeded: true }, activeTurn: 'running' },
+						answered: [{ requestId: 'tc-1', approved: true }],
+						afterTurn: { target: { inProgress: false, inputNeeded: false }, turns: ['running'] },
+					});
+				});
 			});
 
 			test('refuses moves it does not support and changes nothing', async () => {

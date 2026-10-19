@@ -41,7 +41,7 @@ const maxCreatedChats = 50;
 /** Process-wide backstop against runaway `send_message` fan-out. */
 const maxSentMessages = 100;
 
-const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession]);
+const sessionConfirmationToolNames: ReadonlySet<string> = new Set([SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.CreateChat, SessionServerToolName.SendMessage, SessionServerToolName.DeleteSession, SessionServerToolName.MoveSession]);
 const createSessionRelationshipValues = ['currentSession', 'independent'] as const;
 export type CreateSessionRelationship = typeof createSessionRelationshipValues[number];
 
@@ -343,12 +343,48 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly getSessionSpawnDepth: (session: URI) => number;
 	/** Records the spawn depth of a freshly-created session so its own `create_session` calls can enforce the recursion limit. */
 	readonly setSessionSpawnDepth: (session: URI, depth: number) => void;
+	/** Whether moving chats is enabled (`chatMoves.enabled`), read on every call. */
+	readonly isChatMoveEnabled: () => boolean;
+	/** Whether the session's agent supports more than one chat per session, so its chats can move. */
+	readonly supportsChatMoves: (session: URI) => boolean;
+	/**
+	 * Refuses, with an `AgentChatMoveRefusedError`, a move the host would refuse now, without changing anything.
+	 * The move validates everything again when it is applied.
+	 */
+	readonly checkChatMove: (move: ISessionServerToolMove) => Promise<void>;
+	/** Applies a move through the same host operations as AHP `moveChat` and `vscode/moveSession`; returns the session it is in now. */
+	readonly applyChatMove: (move: ISessionServerToolMove) => Promise<URI>;
 }
+
+/**
+ * Where `move_session` places a chat in its destination session: after a chat of
+ * that session, or after its last visible chat (`end`).
+ */
+export type SessionServerToolMoveAnchor = URI | 'end';
+
+/** A move requested by `move_session`. */
+export type ISessionServerToolMove =
+	/** A nested session moves within its session, into another session, or to a new session of its own. */
+	| {
+		readonly kind: 'chat';
+		readonly session: URI;
+		readonly chat: URI;
+		readonly destination: { readonly kind: 'session'; readonly session: URI; readonly after: SessionServerToolMoveAnchor } | { readonly kind: 'newSession' };
+	}
+	/** A session whose main session is its only chat moves into another session as a nested session. */
+	| {
+		readonly kind: 'session';
+		readonly session: URI;
+		readonly destination: URI;
+		readonly after: SessionServerToolMoveAnchor;
+	};
 
 /** Complete dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
 	/** Returns whether a workspace change was scheduled. */
 	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, credentials?: IAgentHostCredentialSource) => boolean;
+	/** Schedules a move of the calling chat for when its turn {@link turnId} ends successfully. */
+	readonly scheduleChatMove: (chat: ProtocolURI, turnId: string, move: ISessionServerToolMove) => void;
 	/** The recorded owning session of a registered chat. */
 	readonly getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined;
 	/** The recorded default chat of a session, if any. */
@@ -356,7 +392,7 @@ export interface ISessionServerToolAccessor extends IAgentServiceSessionServerTo
 }
 
 /** Resolves the chat a link's chat id addresses against the session's recorded chats. */
-function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: URI, chatId: string): URI | undefined {
+export function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: URI, chatId: string): URI | undefined {
 	const chats = sessions.find(candidate => candidate.session.toString() === session.toString())?.chats ?? [];
 	return (chats.find(entry => entry.chat.toString() === chatId) ?? chats.find(entry => getAgentHostChatId(entry.chat) === chatId))?.chat;
 }
@@ -366,7 +402,7 @@ function resolveLinkedChat(sessions: readonly IAgentSessionMetadata[], session: 
  * else, for a session that records none, the default chat its listing names.
  * `undefined` when neither names one.
  */
-function resolveDefaultChat(sessions: readonly IAgentSessionMetadata[], session: URI, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): URI | undefined {
+export function resolveDefaultChat(sessions: readonly IAgentSessionMetadata[], session: URI, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): URI | undefined {
 	const defaultChat = getDefaultChat(session.toString())
 		?? sessions.find(candidate => candidate.session.toString() === session.toString())?.chats?.find(chat => chat.kind === 'default')?.chat.toString();
 	return defaultChat === undefined ? undefined : URI.parse(defaultChat);
@@ -1072,7 +1108,7 @@ interface IResolvedCreateChatArgs {
  * link (as returned by `create_session`/`get_current_session`) — against the
  * set of known sessions. Returns `undefined` when it matches no known session.
  */
-function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
+export function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
 	// Normalize an open-session link back to its backend session URI.
 	const fromLink = parseOpenSessionLinkUri(sessionInput);
 	const candidate = fromLink?.toString() ?? sessionInput;
