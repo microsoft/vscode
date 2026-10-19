@@ -14,6 +14,7 @@ import { IGitHubService } from '../../browser/githubService.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { IPullRequestIconCache } from '../../browser/pullRequestIconCache.js';
 import { computePullRequestRefPresentation, SessionPullRequestPresentationModel } from '../../browser/pullRequestIconStatus.js';
+import { GitHubPullRequestState, IGitHubPullRequest } from '../../common/types.js';
 
 suite('Pull request presentation origin isolation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,4 +54,38 @@ suite('Pull request presentation origin isolation', () => {
 			});
 		}
 	}
+});
+
+suite('Pull request presentation state', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('presents a closed draft pull request as closed', () => {
+		const livePullRequest: IGitHubPullRequest = {
+			number: 42, title: 'Closed draft', body: '', state: GitHubPullRequestState.Closed,
+			author: { login: 'author', avatarUrl: '' }, headRef: 'feature', headSha: 'head', baseRef: 'main',
+			isDraft: true, createdAt: '', updatedAt: '', mergedAt: undefined, mergeable: undefined, mergeableState: 'unknown',
+		};
+		const service = new class extends mock<IGitHubService>() {
+			override readonly enterpriseHost = undefined;
+			override createPullRequestModelReference = () => new ImmortalReference(new class extends mock<GitHubPullRequestModel>() {
+				override readonly pullRequest = constObservable(livePullRequest);
+			}());
+		}();
+		const cache = new class extends mock<IPullRequestIconCache>() {
+			override set = () => { };
+		}();
+		const ref = {
+			owner: 'owner', repo: 'repo', number: 42, title: 'Closed draft',
+			uri: URI.parse('https://github.com/owner/repo/pull/42'), icon: Codicon.gitPullRequestDraft,
+		};
+		const presentation = store.add(new SessionPullRequestPresentationModel(constObservable([ref]), service));
+		const provider = derived(reader => computePullRequestRefPresentation(reader, service, cache, ref)).get();
+		assert.deepStrictEqual({
+			pillIcon: presentation.pullRequests.get()[0].icon?.id,
+			providerIcon: provider.icon?.id,
+		}, {
+			pillIcon: Codicon.gitPullRequestClosed.id,
+			providerIcon: Codicon.gitPullRequestClosed.id,
+		});
+	});
 });
