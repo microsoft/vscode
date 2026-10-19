@@ -49,6 +49,8 @@ import {
 	authenticateMcpServer,
 	createBuiltinActiveSessionMcpEntries,
 	createProviderMcpEntries,
+	getUnverifiedConnectorNotice,
+	renderUnverifiedConnectorNotice,
 	createInstalledMcpServerDetailInput,
 	getActiveSessionServerLifecycleAction,
 	getActiveSessionServerPresentation,
@@ -433,6 +435,69 @@ suite('mcpListWidget', () => {
 				config: undefined,
 			},
 			noQueryMatch: [],
+		});
+	});
+
+	test('explains connector MCP servers hidden while their connection status is not checked', () => {
+		const connectorResource = (identifier: string, displayName: string): ICustomizationMarketplaceResource => ({
+			sourceId: 'copilotConnectors',
+			identifier,
+			displayName,
+			description: '',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'copilotConnector', name: identifier },
+		});
+		const connectorInstallation = (identifier: string, displayName: string, kind: 'unverified' | 'checking' | 'installed') => ({
+			resource: connectorResource(identifier, displayName),
+			state: { kind, target: { kind: 'copilotConnector' as const, name: identifier } },
+		});
+		const unverified = [
+			connectorInstallation('mail', 'Mail', 'unverified'),
+			connectorInstallation('notes', 'Acme Notes', 'unverified'),
+			connectorInstallation('calendar', 'Calendar', 'installed'),
+		];
+		const container = document.createElement('div');
+		const store = disposables.add(new DisposableStore());
+		let checks = 0;
+		const render = (installations: typeof unverified) => {
+			store.clear();
+			renderUnverifiedConnectorNotice(container, getUnverifiedConnectorNotice(installations)!, store, () => checks++);
+			const button = container.querySelector<HTMLElement>('.monaco-button');
+			assert.ok(button);
+			return {
+				message: container.querySelector('.mcp-connector-notice-message')?.textContent,
+				button: button.textContent,
+				disabled: button.classList.contains('disabled'),
+				busy: button.getAttribute('aria-busy'),
+			};
+		};
+		const actionable = render(unverified);
+		container.querySelector<HTMLElement>('.monaco-button')!.click();
+		const checking = render([connectorInstallation('mail', 'Mail', 'checking'), connectorInstallation('notes', 'Acme Notes', 'checking')]);
+
+		assert.deepStrictEqual({
+			actionable,
+			checks,
+			checking,
+			noNoticeWhenKnown: getUnverifiedConnectorNotice([connectorInstallation('calendar', 'Calendar', 'installed')]),
+		}, {
+			actionable: {
+				message: 'MCP servers from Copilot connectors (Mail, Acme Notes) are hidden until their connection status is checked.',
+				button: 'Check Connection',
+				disabled: false,
+				busy: 'false',
+			},
+			checks: 1,
+			checking: {
+				message: 'MCP servers from Copilot connectors (Mail, Acme Notes) are hidden until their connection status is checked.',
+				button: 'Checking...',
+				disabled: true,
+				busy: 'true',
+			},
+			noNoticeWhenKnown: undefined,
 		});
 	});
 

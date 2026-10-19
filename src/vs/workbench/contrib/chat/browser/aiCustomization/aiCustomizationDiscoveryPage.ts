@@ -60,6 +60,7 @@ import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentatio
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
+import { getConnectorActionLabel, getConnectorStatusLabel } from './connectorPresentation.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
@@ -249,6 +250,7 @@ function getInstallationStateLabel(state: CustomizationMarketplaceInstallState, 
 		switch (state.kind) {
 			case 'missing': return localize('customizationDiscovery.connectorDisconnected', "Disconnected");
 			case 'checking': return localize('customizationDiscovery.connectorChecking', "Checking connection");
+			case 'unverified': return getConnectorStatusLabel('unknown');
 			case 'repairing': return localize('customizationDiscovery.connectorReconnecting', "Reconnecting");
 			case 'uninstalling': return localize('customizationDiscovery.connectorDisconnecting', "Disconnecting");
 			case 'error': return localize('customizationDiscovery.connectorVerificationFailed', "Could not verify connection");
@@ -258,6 +260,7 @@ function getInstallationStateLabel(state: CustomizationMarketplaceInstallState, 
 	switch (state.kind) {
 		case 'missing': return localize('customizationDiscovery.missingFiles', "Missing files");
 		case 'checking': return localize('customizationDiscovery.checking', "Checking installation");
+		case 'unverified': return localize('customizationDiscovery.unverified', "Installation not verified");
 		case 'repairing': return localize('customizationDiscovery.repairing', "Repairing");
 		case 'uninstalling': return localize('customizationDiscovery.uninstallingState', "Uninstalling");
 		case 'error': return localize('customizationDiscovery.verificationFailed', "Could not verify installation");
@@ -273,6 +276,7 @@ function getInstallActionLabel(state: CustomizationMarketplaceInstallState, hasS
 			case 'repairing':
 			case 'installing': return localize('customizationDiscovery.connectorCancel', "Cancel");
 			case 'checking': return localize('customizationDiscovery.connectorCheckingProgress', "Checking...");
+			case 'unverified': return getConnectorActionLabel('check');
 			case 'uninstalling': return localize('customizationDiscovery.connectorDisconnectingProgress', "Disconnecting...");
 			case 'error': return localize('customizationDiscovery.unavailable', "Unavailable");
 			default: return localize('customizationDiscovery.connectorConnect', "Connect");
@@ -283,6 +287,7 @@ function getInstallActionLabel(state: CustomizationMarketplaceInstallState, hasS
 		case 'missing': return operationError ? localize('customizationDiscovery.retryRepair', "Retry Repair") : localize('customizationDiscovery.repair', "Repair");
 		case 'repairing': return localize('customizationDiscovery.repairingProgress', "Repairing...");
 		case 'checking': return localize('customizationDiscovery.checkingProgress', "Checking...");
+		case 'unverified': return localize('customizationDiscovery.check', "Check");
 		case 'uninstalling': return localize('customizationDiscovery.uninstalling', "Uninstalling...");
 		case 'installing': return localize('customizationDiscovery.installing', "Installing...");
 		case 'error': return localize('customizationDiscovery.unavailable', "Unavailable");
@@ -299,7 +304,7 @@ function isCancellableConnectorOperation(resource: ICustomizationMarketplaceReso
 }
 
 function isInstallActionEnabled(resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState, hasSetupUrl: boolean): boolean {
-	return isCancellableConnectorOperation(resource, state) || state.kind === 'available' || state.kind === 'missing' && !state.repairUnavailableMessage || hasSetupUrl;
+	return isCancellableConnectorOperation(resource, state) || state.kind === 'available' || state.kind === 'unverified' || state.kind === 'missing' && !state.repairUnavailableMessage || hasSetupUrl;
 }
 
 function isInstallActionBusy(state: CustomizationMarketplaceInstallState): boolean {
@@ -319,11 +324,21 @@ function renderRecordedCustomizationActions(
 	disposables: DisposableStore,
 	hoverService: IHoverService,
 	onRepair: () => void,
+	onCheckConnection: () => void,
 	onCancel: () => void,
 	onUninstall: () => void,
 ): void {
 	const connector = isCopilotConnectorResource(resource);
-	if (state.kind === 'missing') {
+	if (state.kind === 'unverified') {
+		const check = disposables.add(new Button(container, { ...defaultButtonStyles, small: true }));
+		check.label = getInstallActionLabel(state, false, operationError, connector);
+		check.setAriaLabel(localize('customizationDiscovery.checkConnectionLabel', "{0} {1}", check.label, name));
+		disposables.add(DOM.addDisposableListener(check.element, DOM.EventType.CLICK, event => event.stopPropagation()));
+		disposables.add(check.onDidClick(onCheckConnection));
+		if (operationError) {
+			disposables.add(hoverService.setupDelayedHover(check.element, { content: operationError }));
+		}
+	} else if (state.kind === 'missing') {
 		const repair = disposables.add(new Button(container, { ...defaultButtonStyles, small: true }));
 		repair.label = getInstallActionLabel(state, false, operationError, connector);
 		repair.enabled = !state.repairUnavailableMessage;
@@ -348,12 +363,12 @@ function renderRecordedCustomizationActions(
 				? localize('customizationDiscovery.checkingProgress', "Checking...")
 				: state.kind === 'uninstalling'
 					? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-					: operationError && state.kind === 'installed'
+					: operationError && (state.kind === 'installed' || state.kind === 'unverified')
 						? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
 						: connector
 							? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
 							: localize('customizationDiscovery.uninstall', "Uninstall");
-	button.enabled = cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
+	button.enabled = cancellable || state.kind === 'installed' || state.kind === 'unverified' || state.kind === 'missing' || state.kind === 'error';
 	button.setAriaLabel(cancellable
 		? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", name)
 		: connector
@@ -402,6 +417,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		private readonly getSourceLabel: (resource: ICustomizationMarketplaceResource) => string,
 		private readonly onInstall: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onRepair: (resource: ICustomizationMarketplaceResource) => void,
+		private readonly onCheckConnection: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onCancel: (resource: ICustomizationMarketplaceResource) => void,
 		private readonly onUninstall: (item: IInstalledDiscoveryItem) => void,
 		private readonly onOpen: (resource: URI | string) => void,
@@ -541,7 +557,9 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 					? this.onOpen(setupUrl)
 					: state.kind === 'missing'
 						? this.onRepair(element.resource)
-						: this.onInstall(element.resource)));
+						: state.kind === 'unverified'
+							? this.onCheckConnection(element.resource)
+							: this.onInstall(element.resource)));
 			const actionError = getInstallActionError(state, installError);
 			if (actionError) {
 				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: actionError }));
@@ -558,6 +576,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				templateData.elementDisposables,
 				this.hoverService,
 				() => this.onRepair(element.catalogResource!),
+				() => this.onCheckConnection(element.catalogResource!),
 				() => this.onCancel(element.catalogResource!),
 				() => this.onUninstall(element),
 			);
@@ -746,6 +765,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			resource => this.getMarketplaceResourceLabel(resource),
 			resource => void this.install(resource),
 			resource => void this.repair(resource),
+			resource => void this.checkConnectorConnections(resource),
 			resource => this.installService.cancelConnectorOperation(resource),
 			item => void this.uninstall(item),
 			resource => void this.openExternal(resource),
@@ -1665,6 +1685,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.browseDisposables,
 				this.hoverService,
 				() => void this.repair(item),
+				() => void this.checkConnectorConnections(item),
 				() => this.installService.cancelConnectorOperation(item),
 				() => void this.uninstallMarketplaceResource(item),
 			);
@@ -1742,6 +1763,44 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		} finally {
 			this.pendingInstalls.delete(resourceKey);
+			if (!this._store.isDisposed) {
+				this.refreshInstalledItems();
+				this.render();
+			}
+		}
+	}
+
+	private async checkConnectorConnections(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
+		if (this.installService.getInstallState(resource).kind !== 'unverified') {
+			return;
+		}
+		this.installErrors.delete(resourceKey);
+		status(localize('customizationDiscovery.connectorCheckStarted', "Checking connection for {0}.", resource.displayName));
+		this.render();
+		try {
+			await this.installService.checkConnectorConnections();
+			if (this._store.isDisposed) {
+				return;
+			}
+			status(localize('customizationDiscovery.connectorCheckComplete', "{0}: {1}", resource.displayName, getInstallationStateLabel(this.installService.getInstallState(resource), true)));
+		} catch (error) {
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (isCancellationError(error)) {
+				status(localize('customizationDiscovery.connectorCheckCancelled', "Connection check cancelled for {0}.", resource.displayName));
+			} else {
+				const message = localize('customizationDiscovery.connectorCheckFailed', "Could not check the connection for {0}. {1}", resource.displayName, getErrorMessage(error));
+				this.installErrors.set(resourceKey, message);
+				if (this.visible) {
+					alert(message);
+					void this.accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed, { modality: 'sound' }).catch(onUnexpectedError);
+				} else {
+					this.notificationService.error(message);
+				}
+			}
+		} finally {
 			if (!this._store.isDisposed) {
 				this.refreshInstalledItems();
 				this.render();

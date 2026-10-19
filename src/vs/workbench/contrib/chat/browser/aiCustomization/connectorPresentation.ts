@@ -6,7 +6,7 @@
 import { localize } from '../../../../../nls.js';
 import { CopilotConnectorConnectionStatus, ICopilotConnector } from './copilotConnectorsService.js';
 
-type ConnectorPrimaryAction = 'connect' | 'disconnect' | 'reconnect' | 'refresh';
+type ConnectorPrimaryAction = 'check' | 'connect' | 'disconnect' | 'reconnect' | 'refresh';
 export type ConnectorRowAction = 'check' | 'connect' | 'sign_in' | 'reconnect' | 'review' | 'retry' | 'more';
 type ConnectorRowStatusIcon = 'connected' | 'attention' | 'pending' | 'error' | 'info';
 
@@ -34,6 +34,8 @@ export function getConnectorStatusLabel(connectionStatus: CopilotConnectorConnec
 
 export function getConnectorActionLabel(action: ConnectorPrimaryAction): string {
 	switch (action) {
+		case 'check':
+			return localize('connectors.action.check', "Check Connection");
 		case 'connect':
 			return localize('connectors.action.connect', "Connect");
 		case 'refresh':
@@ -51,7 +53,7 @@ export function getConnectorRowPresentation(connector: ICopilotConnector): IConn
 			statusLabel: getConnectorStatusLabel('unknown'),
 			statusIcon: 'info',
 			action: 'check',
-			actionLabel: localize('connectors.action.check', "Check Connection"),
+			actionLabel: getConnectorActionLabel('check'),
 		};
 	}
 	switch (connector.connectionStatusDetail) {

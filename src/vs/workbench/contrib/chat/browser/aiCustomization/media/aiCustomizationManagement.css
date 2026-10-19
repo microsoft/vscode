@@ -2613,6 +2613,32 @@ per-word capitalization does not survive translation. */
 	flex-shrink: 0;
 }
 
+.mcp-list-widget .mcp-connector-notice {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.mcp-list-widget .mcp-connector-notice-icon {
+	flex-shrink: 0;
+	color: var(--vscode-editorInfo-foreground);
+}
+
+.mcp-list-widget .mcp-connector-notice-message {
+	flex: 1;
+	min-width: 0;
+}
+
+.mcp-list-widget .mcp-connector-notice .monaco-button {
+	flex-shrink: 0;
+}
+
 /* MCP Disabled (access blocked) state */
 .mcp-list-widget .mcp-disabled-state {
 	display: none;

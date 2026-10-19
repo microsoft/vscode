@@ -1508,6 +1508,41 @@ function getWorkbenchServerMatchKeys(server: IWorkbenchMcpServer): string[] {
 	return getUniqueMcpMatchKeys([server.id, server.name, server.label]);
 }
 
+interface IUnverifiedConnectorNotice {
+	readonly connectorNames: readonly string[];
+	readonly checking: boolean;
+}
+
+/** Recorded connectors whose MCP servers are hidden because their connection status is not known. */
+export function getUnverifiedConnectorNotice(installations: readonly IRecordedCustomizationMarketplaceResource[]): IUnverifiedConnectorNotice | undefined {
+	const connectors = installations.filter(installation => installation.state.target.kind === 'copilotConnector'
+		&& (installation.state.kind === 'unverified' || installation.state.kind === 'checking'));
+	if (connectors.length === 0) {
+		return undefined;
+	}
+	return {
+		connectorNames: connectors.map(installation => installation.resource.displayName),
+		checking: connectors.some(installation => installation.state.kind === 'checking'),
+	};
+}
+
+export function renderUnverifiedConnectorNotice(container: HTMLElement, notice: IUnverifiedConnectorNotice, disposables: DisposableStore, onCheck: () => void): void {
+	DOM.clearNode(container);
+	const icon = DOM.append(container, $('span.mcp-connector-notice-icon'));
+	icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+	icon.setAttribute('aria-hidden', 'true');
+	DOM.append(container, $('span.mcp-connector-notice-message')).textContent = localize(
+		'mcpUnverifiedConnectorNotice',
+		"MCP servers from Copilot connectors ({0}) are hidden until their connection status is checked.",
+		notice.connectorNames.join(', '),
+	);
+	const button = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
+	button.label = notice.checking ? localize('mcpConnectorCheckingProgress', "Checking...") : getConnectorActionLabel('check');
+	button.enabled = !notice.checking;
+	button.element.setAttribute('aria-busy', String(notice.checking));
+	disposables.add(button.onDidClick(onCheck));
+}
+
 export function createProviderMcpEntries(
 	installations: readonly IRecordedCustomizationMarketplaceResource[],
 	existingMatchKeys: readonly string[],
@@ -2028,6 +2063,8 @@ export class McpListWidget extends Disposable {
 	private emptyText!: HTMLElement;
 	private emptySubtext!: HTMLElement;
 	private disabledContainer!: HTMLElement;
+	private connectorNoticeContainer!: HTMLElement;
+	private readonly connectorNoticeDisposables = this._register(new DisposableStore());
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
@@ -2277,6 +2314,10 @@ export class McpListWidget extends Disposable {
 				}
 			}
 		}));
+
+		this.connectorNoticeContainer = DOM.append(this.element, $('.mcp-connector-notice'));
+		this.connectorNoticeContainer.setAttribute('role', 'status');
+		this.connectorNoticeContainer.style.display = 'none';
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
@@ -3066,6 +3107,31 @@ export class McpListWidget extends Disposable {
 		this.browseCustomizationsButton.element.style.display = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService) ? '' : 'none';
 	}
 
+	private updateConnectorNotice(installations: readonly IRecordedCustomizationMarketplaceResource[]): void {
+		const notice = this.mcpAccessEnabled && this.isConnectorsEnabled() ? getUnverifiedConnectorNotice(installations) : undefined;
+		const wasVisible = this.connectorNoticeContainer.style.display !== 'none';
+		this.connectorNoticeDisposables.clear();
+		if (notice) {
+			renderUnverifiedConnectorNotice(this.connectorNoticeContainer, notice, this.connectorNoticeDisposables, () => void this.checkConnectorConnections());
+		} else {
+			DOM.clearNode(this.connectorNoticeContainer);
+		}
+		this.connectorNoticeContainer.style.display = notice ? '' : 'none';
+		if (wasVisible !== !!notice && this.lastHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
+		}
+	}
+
+	private async checkConnectorConnections(): Promise<void> {
+		try {
+			await this.marketplaceInstallService.checkConnectorConnections();
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(localize('mcpConnectorCheckFailed', "Could not check Copilot connector connections. {0}", getErrorMessage(error)));
+			}
+		}
+	}
+
 	private startConnectorAction(): CancellationTokenSource {
 		this.connectorActionCancellation.value?.cancel();
 		const cancellation = new CancellationTokenSource();
@@ -3402,6 +3468,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionMatcher = new ActiveSessionMcpServerMatcher(activeSessionServers);
 		const localServerMatcher = new LocalMcpServerMatcher(runtimeServers);
 		const marketplaceInstallations = this.marketplaceInstallService.installations.get();
+		this.updateConnectorNotice(marketplaceInstallations.installations);
 		const providerEntries = createProviderMcpEntries(marketplaceInstallations.installations, [
 			...this.mcpWorkbenchService.local.flatMap(getWorkbenchServerMatchKeys),
 			...runtimeServers.flatMap(getRuntimeServerMatchKeys),
