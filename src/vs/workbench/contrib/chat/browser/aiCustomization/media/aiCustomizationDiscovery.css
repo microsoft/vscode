@@ -222,6 +222,48 @@
 	background: transparent;
 }
 
+.customization-discovery-card-group {
+	min-width: 0;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-discovery-card-group > .customization-discovery-card,
+.customization-discovery-card-alternative > .customization-discovery-card {
+	border-radius: 0;
+}
+
+.customization-discovery-card-alternative {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+}
+
+.customization-discovery-card-linked-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+	width: 100%;
+	min-height: var(--vscode-spacing-size200);
+	padding: 0 var(--vscode-spacing-size40);
+	border: 0;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	font: inherit;
+	font-size: var(--vscode-fontSize-label2);
+	text-align: left;
+	cursor: pointer;
+}
+
+.customization-discovery-card-linked-label:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.customization-discovery-card-linked-label:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .customization-discovery-card-primary,
 .customization-discovery-result-primary {
 	position: absolute;
@@ -598,6 +640,13 @@
 .hc-light .customization-discovery-card:focus-within {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.hc-black .customization-discovery-card-group,
+.hc-light .customization-discovery-card-group,
+.hc-black .customization-discovery-card-alternative,
+.hc-light .customization-discovery-card-alternative {
+	border-color: var(--vscode-contrastBorder);
 }
 
 .hc-black .customization-discovery-section.featured,

@@ -100,16 +100,17 @@ function isFirstPartyBrowseItem(resource: ICustomizationMarketplaceResource): bo
 	return firstPartyMcpNamespaces.has(namespace);
 }
 
-function getLeadingBrowseItems(resources: readonly ICustomizationMarketplaceResource[]): readonly ICustomizationMarketplaceResource[] {
-	const firstParty = resources.filter(isFirstPartyBrowseItem).slice(0, leadingBrowseItemCount);
+function getLeadingBrowseItems(resources: readonly IPrioritizedMarketplaceResource[]): readonly IPrioritizedMarketplaceResource[] {
+	const groups = groupPrioritizedMarketplaceResources(resources);
+	const firstParty = groups.filter(group => group.some(({ resource }) => isFirstPartyBrowseItem(resource))).slice(0, leadingBrowseItemCount);
 	if (firstParty.length === leadingBrowseItemCount) {
-		return firstParty;
+		return firstParty.flat();
 	}
-	const firstPartyKeys = new Set(firstParty.map(getCustomizationMarketplaceResourceKey));
+	const firstPartyKeys = new Set(firstParty.flatMap(group => group.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource))));
 	return [
 		...firstParty,
-		...resources.filter(resource => !firstPartyKeys.has(getCustomizationMarketplaceResourceKey(resource))),
-	].slice(0, leadingBrowseItemCount);
+		...groups.filter(group => group.every(({ resource }) => !firstPartyKeys.has(getCustomizationMarketplaceResourceKey(resource)))),
+	].slice(0, leadingBrowseItemCount).flat();
 }
 
 interface IInstalledDiscoveryItem {
@@ -151,6 +152,8 @@ interface IPrioritizedMarketplaceResource {
 	readonly resource: ICustomizationMarketplaceResource;
 	readonly linkedConnectionRole?: LinkedConnectionRole;
 }
+
+type PrioritizedMarketplaceResourceGroup = readonly IPrioritizedMarketplaceResource[];
 
 interface ICatalogPageState {
 	readonly items: readonly ICustomizationMarketplaceResource[];
@@ -284,57 +287,66 @@ function prioritizeLinkedCopilotConnectors(resources: readonly ICustomizationMar
 	}
 	if (!connectorsById.size) {
 		return resources
-			.map(resource => ({ resource }))
-			.sort((left, right) => getMarketplaceResourcePriority(right.resource) - getMarketplaceResourcePriority(left.resource));
+			.map((resource, originalIndex) => ({ resource, originalIndex }))
+			.sort((left, right) => getMarketplaceResourcePriority(right.resource) - getMarketplaceResourcePriority(left.resource) || left.originalIndex - right.originalIndex)
+			.map(({ resource }) => ({ resource }));
 	}
-	const linkedConnectorKeys = new Set(resources.flatMap(resource =>
-		(resource.connectorIds ?? []).flatMap(connectorId => {
-			const connector = connectorsById.get(normalizedName(connectorId));
-			return connector ? [getCustomizationMarketplaceResourceKey(connector)] : [];
-		})
-	));
-	const emitted = new Set<string>();
-	const groups: IPrioritizedMarketplaceResource[][] = [];
-	const append = (group: IPrioritizedMarketplaceResource[], resource: ICustomizationMarketplaceResource, linkedConnectionRole?: LinkedConnectionRole) => {
-		const key = getCustomizationMarketplaceResourceKey(resource);
-		if (!emitted.has(key)) {
-			emitted.add(key);
-			group.push({ resource, linkedConnectionRole });
-		}
-	};
+	const alternativeByConnectorKey = new Map<string, ICustomizationMarketplaceResource>();
+	const connectorKeyByAlternativeKey = new Map<string, string>();
 	for (const resource of resources) {
-		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
-		if (linkedConnectorKeys.has(resourceKey)) {
+		if (isCopilotConnectorResource(resource) || !resource.connectorIds?.length) {
 			continue;
 		}
-		const group: IPrioritizedMarketplaceResource[] = [];
 		const linkedConnectors = (resource.connectorIds ?? [])
 			.map(connectorId => connectorsById.get(normalizedName(connectorId)))
 			.filter((connector): connector is ICustomizationMarketplaceResource => connector !== undefined)
 			.filter((connector, index, connectors) => connectors.indexOf(connector) === index);
-		if (linkedConnectors.length === 1 && !emitted.has(getCustomizationMarketplaceResourceKey(linkedConnectors[0]))) {
-			append(group, linkedConnectors[0], 'connector');
-			append(group, resource, 'alternative');
-		} else {
-			for (const connector of linkedConnectors) {
-				append(group, connector);
-			}
-			append(group, resource);
+		if (linkedConnectors.length !== 1) {
+			continue;
 		}
-		if (group.length) {
-			groups.push(group);
+		const connectorKey = getCustomizationMarketplaceResourceKey(linkedConnectors[0]);
+		if (alternativeByConnectorKey.has(connectorKey)) {
+			continue;
 		}
+		alternativeByConnectorKey.set(connectorKey, resource);
+		connectorKeyByAlternativeKey.set(getCustomizationMarketplaceResourceKey(resource), connectorKey);
 	}
-	for (const resource of resources) {
-		const group: IPrioritizedMarketplaceResource[] = [];
-		append(group, resource);
-		if (group.length) {
-			groups.push(group);
+
+	const groups: { readonly priority: number; readonly originalIndex: number; readonly resources: PrioritizedMarketplaceResourceGroup }[] = [];
+	for (let originalIndex = 0; originalIndex < resources.length; originalIndex++) {
+		const resource = resources[originalIndex];
+		const key = getCustomizationMarketplaceResourceKey(resource);
+		if (connectorKeyByAlternativeKey.has(key)) {
+			continue;
 		}
+		const alternative = isCopilotConnectorResource(resource) ? alternativeByConnectorKey.get(key) : undefined;
+		groups.push({
+			priority: getMarketplaceResourcePriority(resource),
+			originalIndex,
+			resources: alternative
+				? [
+					{ resource, linkedConnectionRole: 'connector' },
+					{ resource: alternative, linkedConnectionRole: 'alternative' },
+				]
+				: [{ resource }],
+		});
 	}
 	return groups
-		.sort((left, right) => getMarketplaceResourcePriority(right[0].resource) - getMarketplaceResourcePriority(left[0].resource))
-		.flat();
+		.sort((left, right) => right.priority - left.priority || left.originalIndex - right.originalIndex)
+		.flatMap(group => group.resources);
+}
+
+function groupPrioritizedMarketplaceResources(resources: readonly IPrioritizedMarketplaceResource[]): readonly PrioritizedMarketplaceResourceGroup[] {
+	const groups: IPrioritizedMarketplaceResource[][] = [];
+	for (let index = 0; index < resources.length; index++) {
+		const resource = resources[index];
+		if (resource.linkedConnectionRole === 'connector' && resources[index + 1]?.linkedConnectionRole === 'alternative') {
+			groups.push([resource, resources[++index]]);
+		} else {
+			groups.push([resource]);
+		}
+	}
+	return groups;
 }
 
 function getMarketplaceResourcePriority(resource: ICustomizationMarketplaceResource): number {
@@ -514,6 +526,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		private readonly onOpenInstalled: (item: IInstalledDiscoveryItem) => void,
 		private readonly isDirectUninstalling: (item: IInstalledDiscoveryItem) => boolean,
 		private readonly onToggleAlternative: (item: IInstalledDiscoveryItem | ICatalogDiscoveryItem) => void,
+		private readonly onRenderAlternative: (item: IInstalledDiscoveryItem | ICatalogDiscoveryItem, disclosure: HTMLButtonElement) => void,
 		private readonly themeService: IThemeService,
 	) { }
 
@@ -609,6 +622,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const alternative = element.linkedConnectionRole === 'alternative';
 		templateData.linkedConnectionLabel.hidden = !alternative;
 		if (alternative) {
+			this.onRenderAlternative(element, templateData.linkedConnectionLabel);
 			const expanded = !!element.alternativeExpanded;
 			templateData.linkedConnectionText.textContent = getAlternativeDisclosureLabel();
 			templateData.linkedConnectionIcon.classList.toggle('codicon-chevron-down-compact', expanded);
@@ -620,6 +634,13 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.linkedConnectionLabel, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
 				this.onToggleAlternative(element);
+			}));
+			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.linkedConnectionLabel, DOM.EventType.KEY_DOWN, event => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					event.stopPropagation();
+					this.onToggleAlternative(element);
+				}
 			}));
 		} else {
 			templateData.linkedConnectionText.textContent = '';
@@ -748,6 +769,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private readonly resultStatus: HTMLElement;
 	private readonly browseDisposables = this._register(new DisposableStore());
 	private readonly browsePrimaryActions = new Map<string, HTMLButtonElement>();
+	private readonly browseAlternativeActions = new Map<string, HTMLButtonElement>();
+	private readonly resultAlternativeActions = new Map<string, HTMLButtonElement>();
 	private readonly resultStatusDisposables = this._register(new DisposableStore());
 	private readonly descriptionDisposables = this._register(new DisposableStore());
 	private readonly searchActionDisposables = this._register(new DisposableStore());
@@ -901,6 +924,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			item => this.openInstalledItem(item),
 			item => this.pendingDirectUninstalls.has(item.id),
 			item => this.toggleAlternative(item),
+			(item, disclosure) => this.resultAlternativeActions.set(item.id, disclosure),
 			this.themeService,
 		);
 		this.resultList = this._register(this.instantiationService.createInstance(
@@ -926,7 +950,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			},
 		));
 		this._register(this.resultList.onDidOpen(event => {
-			if (event.element?.kind === 'installed') {
+			if (event.element && event.element.kind !== 'loading' && event.element.linkedConnectionRole === 'alternative' && !event.element.alternativeExpanded) {
+				this.toggleAlternative(event.element);
+			} else if (event.element?.kind === 'installed') {
 				const resource = event.element.catalogResource;
 				if (!resource || this.getInstallState(resource).kind === 'installed') {
 					this.openInstalledItem(event.element);
@@ -1596,8 +1622,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				installedByMarketplaceRecord.set(marketplace, index);
 			}
 		}
-		const installedCatalog: IInstalledDiscoveryItem[] = [];
-		const available: ICatalogDiscoveryItem[] = [];
+		const consumedInstalledIndices = new Set<number>();
+		const marketplaceEntries: (IInstalledDiscoveryItem | ICatalogDiscoveryItem)[] = [];
 		for (const { resource, linkedConnectionRole } of this.getSearchMarketplaceResources()) {
 			const type = getCatalogType(resource)!;
 			const state = this.getInstallState(resource);
@@ -1605,15 +1631,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				const marketplace = marketplaceInstallations.findByResource(resource);
 				const matchingInstalledIndex = marketplace ? installedByMarketplaceRecord.get(marketplace) : undefined;
 				if (matchingInstalledIndex !== undefined) {
-					installed[matchingInstalledIndex] = {
+					consumedInstalledIndices.add(matchingInstalledIndex);
+					marketplaceEntries.push({
 						...installed[matchingInstalledIndex],
 						sourceLabel: this.getMarketplaceResourceLabel(resource),
 						catalogResource: resource,
 						linkedConnectionRole,
 						alternativeExpanded: linkedConnectionRole === 'alternative' && this.isAlternativeExpanded(resource),
-					};
+					});
 				} else {
-					installedCatalog.push({
+					marketplaceEntries.push({
 						kind: 'installed',
 						id: `installed:catalog:${getCustomizationMarketplaceResourceKey(resource)}`,
 						name: resource.displayName,
@@ -1629,8 +1656,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						alternativeExpanded: linkedConnectionRole === 'alternative' && this.isAlternativeExpanded(resource),
 					});
 				}
-			} else {
-				available.push({
+			} else if (!this.query.installed) {
+				marketplaceEntries.push({
 					kind: 'available',
 					id: `available:${getCustomizationMarketplaceResourceKey(resource)}`,
 					resource,
@@ -1640,8 +1667,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 		}
 
-		const allInstalled = [...installed, ...installedCatalog];
-		const entries: DiscoveryListEntry[] = this.query.installed ? allInstalled : [...allInstalled, ...available];
+		const unmatchedInstalled = installed.filter((_, index) => !consumedInstalledIndices.has(index));
+		const entries: DiscoveryListEntry[] = [...unmatchedInstalled, ...marketplaceEntries];
 		const resultCount = entries.length;
 		if (this.isLoadingMore() && resultCount > 0) {
 			entries.push({ kind: 'loading', id: 'loading' });
@@ -1694,6 +1721,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private renderBrowse(): void {
 		this.browseDisposables.clear();
 		this.browsePrimaryActions.clear();
+		this.browseAlternativeActions.clear();
 		DOM.clearNode(this.browseSections);
 		if (!this.isCatalogEnabled()) {
 			this.browseStatus.textContent = localize('customizationDiscovery.catalogDisabled', "Search your installed customizations, or enable a marketplace source to explore available items.");
@@ -1713,8 +1741,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.browseStatus.textContent = '';
-		const leading = getLeadingBrowseItems(this.catalogItems);
-		const leadingIds = new Set(leading.map(getCustomizationMarketplaceResourceKey));
+		const prioritizedResources = prioritizeLinkedCopilotConnectors(this.catalogItems);
+		const leading = getLeadingBrowseItems(prioritizedResources);
+		const leadingIds = new Set(leading.map(({ resource }) => getCustomizationMarketplaceResourceKey(resource)));
 		if (leading.length) {
 			this.renderBrowseSection(
 				localize('customizationDiscovery.leadingSection', "Expand your agent's horizons"),
@@ -1728,8 +1757,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			{ type: 'mcp', label: localize('customizationDiscovery.mcpsSection', "MCP servers") },
 			{ type: 'plugin', label: localize('customizationDiscovery.pluginsSection', "Plugins") },
 		];
+		const remainingGroups = groupPrioritizedMarketplaceResources(prioritizedResources)
+			.filter(group => group.every(({ resource }) => !leadingIds.has(getCustomizationMarketplaceResourceKey(resource))));
 		for (const group of groups) {
-			const items = this.catalogItems.filter(item => getCatalogType(item) === group.type && !leadingIds.has(getCustomizationMarketplaceResourceKey(item))).slice(0, leadingBrowseItemCount);
+			const items = remainingGroups
+				.filter(items => getCatalogType(items[0].resource) === group.type)
+				.slice(0, leadingBrowseItemCount)
+				.flat();
 			if (items.length) {
 				this.renderBrowseSection(group.label, items, group.type, false);
 			}
@@ -1755,7 +1789,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
-	private renderBrowseSection(label: string, items: readonly ICustomizationMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
+	private renderBrowseSection(label: string, items: readonly IPrioritizedMarketplaceResource[], type: CustomizationDiscoveryType | undefined, elevated: boolean): void {
 		const section = DOM.append(this.browseSections, $('.customization-discovery-section'));
 		section.classList.toggle('featured', elevated);
 		const header = DOM.append(section, $('.customization-discovery-section-header'));
@@ -1767,8 +1801,54 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.browseDisposables.add(DOM.addDisposableListener(showAll, DOM.EventType.CLICK, () => this.setQuery(this.query.withType(type, true))));
 		}
 		const grid = DOM.append(section, $('.customization-discovery-grid'));
-		for (const item of items) {
-			this.renderBrowseCard(grid, item);
+		for (const group of groupPrioritizedMarketplaceResources(items)) {
+			if (group.length === 2) {
+				this.renderBrowseCardGroup(grid, group[0].resource, group[1].resource);
+			} else {
+				this.renderBrowseCard(grid, group[0].resource);
+			}
+		}
+	}
+
+	private renderBrowseCardGroup(parent: HTMLElement, connector: ICustomizationMarketplaceResource, alternative: ICustomizationMarketplaceResource): void {
+		const group = DOM.append(parent, $('.customization-discovery-card-group'));
+		this.renderBrowseCard(group, connector);
+		const alternativeContainer = DOM.append(group, $('.customization-discovery-card-alternative'));
+		const alternativeKey = getCustomizationMarketplaceResourceKey(alternative);
+		const expanded = this.isAlternativeExpanded(alternative);
+		alternativeContainer.classList.toggle('expanded', expanded);
+		const disclosure = DOM.append(alternativeContainer, $<HTMLButtonElement>('button.customization-discovery-card-linked-label'));
+		disclosure.type = 'button';
+		disclosure.setAttribute('aria-expanded', String(expanded));
+		disclosure.setAttribute('aria-label', expanded
+			? localize('customizationDiscovery.hideAlternativeAriaLabel', "Hide 1 alternative customization")
+			: localize('customizationDiscovery.showAlternativeAriaLabel', "Show 1 alternative customization"));
+		const disclosureIcon = DOM.append(disclosure, $('.codicon'));
+		disclosureIcon.classList.add(...ThemeIcon.asClassNameArray(expanded ? Codicon.chevronDownCompact : Codicon.chevronRightCompact));
+		disclosureIcon.setAttribute('aria-hidden', 'true');
+		DOM.append(disclosure, $('span')).textContent = getAlternativeDisclosureLabel();
+		this.browseAlternativeActions.set(alternativeKey, disclosure);
+		const toggle = () => {
+			const shouldExpand = !this.expandedAlternatives.delete(alternativeKey);
+			if (shouldExpand) {
+				this.expandedAlternatives.add(alternativeKey);
+			}
+			this.renderBrowse();
+			this.browseAlternativeActions.get(alternativeKey)?.focus();
+		};
+		this.browseDisposables.add(DOM.addDisposableListener(disclosure, DOM.EventType.CLICK, event => {
+			event.stopPropagation();
+			toggle();
+		}));
+		this.browseDisposables.add(DOM.addDisposableListener(disclosure, DOM.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				event.stopPropagation();
+				toggle();
+			}
+		}));
+		if (expanded) {
+			this.renderBrowseCard(alternativeContainer, alternative);
 		}
 	}
 
@@ -2167,7 +2247,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		for (let index = 0; index < this.resultList.length; index++) {
 			if (this.resultList.element(index).id === item.id) {
 				this.resultList.setFocus([index]);
-				this.resultList.domFocus();
+				this.resultAlternativeActions.get(item.id)?.focus();
 				break;
 			}
 		}
@@ -2263,7 +2343,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const recorded = visibleSearchResources
 			.map(({ resource, linkedConnectionRole }) => ({ resource, linkedConnectionRole, state: this.getInstallState(resource) }))
 			.filter(entry => hasInstallationTarget(entry.state));
-		const recordedInstallations = new Set(recorded.flatMap(({ resource }) => {
+		const recordedInstallations = new Set(searchResources.flatMap(({ resource }) => {
+			const state = this.getInstallState(resource);
+			if (!hasInstallationTarget(state)) {
+				return [];
+			}
 			const installation = marketplaceInstallations.findByResource(resource);
 			return installation ? [installation] : [];
 		}));

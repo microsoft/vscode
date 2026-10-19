@@ -470,7 +470,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			featured: Array.from(fixture.container.querySelectorAll('.customization-discovery-section.featured .customization-discovery-card-name')).map(element => element.textContent),
 		}, {
 			pageSize: 100,
-			featured: ['azure-mcp', 'github-plugin', 'microsoft-skill', 'fabric-mcp'],
+			featured: ['azure-mcp', 'github-plugin', 'fabric-mcp', 'microsoft-skill'],
 		});
 	});
 
@@ -942,6 +942,196 @@ suite('AICustomizationDiscoveryPage', () => {
 			expandedLabel: '1 alternative customization',
 			hasExpandedChevron: true,
 			expandedAlternativeContent: '1 alternative customizationatlassian-mcpMCP server · GitHub FeedInstall',
+		});
+	});
+
+	test('orders linked groups by their primary connectors without grouping connector self aliases', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setSearchQuery('connector');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('connector-self', {
+					sourceId: 'copilotConnectors',
+					connectorIds: ['connector-self'],
+					installation: { kind: 'copilotConnector', name: 'connector-self' },
+				}),
+				resource('connector-a', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'connector-a' },
+				}),
+				resource('connector-b', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'connector-b' },
+				}),
+				resource('connector-mcp-b', { connectorIds: ['connector-b'] }),
+				resource('connector-mcp-a', { connectorIds: ['connector-a'] }),
+			],
+		});
+		await timeout(0);
+
+		while (true) {
+			const disclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label[aria-expanded="false"]');
+			if (!disclosure) {
+				break;
+			}
+			disclosure.click();
+			await timeout(0);
+		}
+		assert.deepStrictEqual(
+			fixture.page.getAccessibilityContent().match(/^connector-(?:self|a|b|mcp-[ab])$/gm),
+			['connector-self', 'connector-a', 'connector-mcp-a', 'connector-b', 'connector-mcp-b']
+		);
+	});
+
+	test('toggles linked alternatives with activation keys and restores disclosure focus', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setSearchQuery('atlassian');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('atlassian-mcp', { connectorIds: ['atlassian'] }),
+				resource('atlassian-connector', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'atlassian' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		let disclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label');
+		assert.ok(disclosure);
+		disclosure.focus();
+		const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		disclosure.dispatchEvent(enterEvent);
+		await timeout(0);
+		disclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label');
+		assert.deepStrictEqual({
+			enterPrevented: enterEvent.defaultPrevented,
+			expanded: disclosure?.getAttribute('aria-expanded'),
+			focusRestored: mainWindow.document.activeElement === disclosure,
+		}, {
+			enterPrevented: true,
+			expanded: 'true',
+			focusRestored: true,
+		});
+
+		const spaceEvent = new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true });
+		disclosure?.dispatchEvent(spaceEvent);
+		await timeout(0);
+		disclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label');
+		assert.deepStrictEqual({
+			spacePrevented: spaceEvent.defaultPrevented,
+			expanded: disclosure?.getAttribute('aria-expanded'),
+			focusRestored: mainWindow.document.activeElement === disclosure,
+		}, {
+			spacePrevented: true,
+			expanded: 'false',
+			focusRestored: true,
+		});
+
+		disclosure?.closest('.monaco-list-row')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+		await timeout(0);
+		disclosure = fixture.container.querySelector<HTMLButtonElement>('.linked-alternative .customization-discovery-result-linked-label');
+		assert.deepStrictEqual({
+			expanded: disclosure?.getAttribute('aria-expanded'),
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			focusRestored: mainWindow.document.activeElement === disclosure,
+		}, {
+			expanded: 'true',
+			openedDetails: [],
+			focusRestored: true,
+		});
+	});
+
+	test('keeps linked search rows adjacent across mixed installation states', async () => {
+		const connector = resource('mixed-connector', {
+			sourceId: 'copilotConnectors',
+			installation: { kind: 'copilotConnector', name: 'mixed' },
+		});
+		const alternative = resource('mixed-mcp', { connectorIds: ['mixed'] });
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.setInstallState(alternative, { kind: 'installed', target: { kind: 'mcp', id: 'mixed' } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('mixed');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [alternative, connector] });
+		await timeout(0);
+
+		const rows = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-content.linked-connector, .customization-discovery-result-content.linked-alternative')];
+		assert.deepStrictEqual(rows.map(row => ({
+			name: row.querySelector('.customization-discovery-result-name')?.textContent,
+			kind: row.classList.contains('linked-connector') ? 'connector' : 'alternative',
+		})), [
+			{ name: 'mixed-connector', kind: 'connector' },
+			{ name: 'mixed-mcp', kind: 'alternative' },
+		]);
+	});
+
+	test('groups linked alternatives in empty-query Browse cards', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('browse-mcp', { connectorIds: ['browse'] }),
+				resource('browse-connector', {
+					sourceId: 'copilotConnectors',
+					installation: { kind: 'copilotConnector', name: 'browse' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const group = fixture.container.querySelector<HTMLElement>('.customization-discovery-card-group');
+		assert.ok(group);
+		let disclosure = group.querySelector<HTMLButtonElement>('.customization-discovery-card-linked-label');
+		assert.ok(disclosure);
+		assert.deepStrictEqual({
+			cards: [...group.querySelectorAll('.customization-discovery-card-name')].map(element => element.textContent),
+			expanded: disclosure.getAttribute('aria-expanded'),
+		}, {
+			cards: ['browse-connector'],
+			expanded: 'false',
+		});
+		disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		await timeout(0);
+		disclosure = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-linked-label');
+		assert.deepStrictEqual({
+			cards: [...fixture.container.querySelectorAll('.customization-discovery-card-group .customization-discovery-card-name')].map(element => element.textContent),
+			expanded: disclosure?.getAttribute('aria-expanded'),
+			focusRestored: mainWindow.document.activeElement === disclosure,
+		}, {
+			cards: ['browse-connector', 'browse-mcp'],
+			expanded: 'true',
+			focusRestored: true,
+		});
+	});
+
+	test('does not repeat a collapsed installed alternative in accessible content', async () => {
+		const connector = resource('accessible-connector', {
+			sourceId: 'copilotConnectors',
+			installation: { kind: 'copilotConnector', name: 'accessible' },
+		});
+		const alternative = resource('accessible-mcp', { connectorIds: ['accessible'] });
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.setInstallState(alternative, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('accessible');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [alternative, connector] });
+		await timeout(0);
+
+		const content = fixture.page.getAccessibilityContent();
+		assert.deepStrictEqual({
+			connector: content.match(/^accessible-connector$/gm),
+			alternative: content.match(/^accessible-mcp$/gm),
+			installedFallback: content.match(/^Local mail skill$/gm),
+			disclosure: content.match(/^1 alternative customization$/gm),
+		}, {
+			connector: ['accessible-connector'],
+			alternative: null,
+			installedFallback: null,
+			disclosure: ['1 alternative customization'],
 		});
 	});
 
