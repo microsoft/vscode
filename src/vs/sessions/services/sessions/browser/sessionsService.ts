@@ -430,7 +430,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * Where removed sessions were shown, for a while: a session that ends by moving its chat under another session may be
 	 * removed before the move is known, and its slot then goes to the session the chat moved to.
 	 */
-	private readonly _departedSessions = new ResourceMap<{ readonly index: number; readonly sticky: boolean; readonly activeChat: URI | undefined }>();
+	private readonly _departedSessions = new ResourceMap<{ readonly index: number; readonly sticky: boolean; readonly activeChat: URI | undefined; readonly newSessionSlots: readonly (string | undefined)[] }>();
 	private readonly _departedSessionTimeouts = this._register(new DisposableMap<URI>());
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _pendingExplicitChatOpens = new ResourceMap<{ readonly chatResource: URI; readonly token: CancellationToken }>();
@@ -618,7 +618,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (!slot || !visible) {
 			return;
 		}
-		this._departedSessions.set(session.resource, { index: slot.index, sticky: slot.sticky, activeChat: visible.activeChat.get()?.resource });
+		this._departedSessions.set(session.resource, { index: slot.index, sticky: slot.sticky, activeChat: visible.activeChat.get()?.resource, newSessionSlots: this._getNewSessionSlots() });
 		this._departedSessionTimeouts.set(session.resource, disposableTimeout(() => {
 			this._departedSessions.delete(session.resource);
 			this._departedSessionTimeouts.deleteAndDispose(session.resource);
@@ -655,6 +655,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));
 	}
 
+	/** The grid slots showing the new-session composer: the empty slot (`undefined`) and the new-session draft's. */
+	private _getNewSessionSlots(): (string | undefined)[] {
+		const slots: (string | undefined)[] = [];
+		if (this.visibleSessions.get().some(session => session === undefined)) {
+			slots.push(undefined);
+		}
+		const draft = this.sessionsManagementService.newSession.get();
+		if (draft && this._visibility.getSlot(draft.sessionId)) {
+			slots.push(draft.sessionId);
+		}
+		return slots;
+	}
+
 	/** A session that ended by moving its shown chat under another session, and was removed before the move was known. */
 	private _onDidMoveChatFromDepartedSession({ from, to }: IChatMovedEvent): void {
 		const extUri = this.uriIdentityService.extUri;
@@ -665,7 +678,13 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._departedSessions.delete(from.session.resource);
 		this._departedSessionTimeouts.deleteAndDispose(from.session.resource);
 		if (!this.visibleSessions.get().some(session => session && extUri.isEqual(session.resource, to.session.resource))) {
-			this._visibility.insertAtIndex(to.session, departed.index, departed.sticky);
+			// Its removal may have opened the new-session fallback (the empty slot or the new-session draft) in its
+			// slot: the moved chat's session takes that slot over instead of adding another.
+			const fallback = this._getNewSessionSlots().filter(slotId => !departed.newSessionSlots.includes(slotId) && this._visibility.getSlot(slotId)?.index === departed.index);
+			const replaced = fallback.length ? this._visibility.replaceSlot(fallback[0], to.session, departed.sticky) : undefined;
+			if (!replaced) {
+				this._visibility.insertAtIndex(to.session, departed.index, departed.sticky);
+			}
 		}
 		void this._openChatSession(to.session, to.chat, { preserveFocus: true }, 'automatic').catch(onUnexpectedError);
 		status(localize('sessions.chatMoved', "Chat moved to {0}", to.session.title.get()));

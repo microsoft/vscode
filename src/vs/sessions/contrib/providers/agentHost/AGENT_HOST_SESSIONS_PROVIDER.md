@@ -151,6 +151,8 @@ The host moves a chat between sessions by removing it from one session's catalog
 
 A VS Code host can also move a session whose default chat is its only chat under another session (`vscode/moveSession`, advertised by `vscode.sessionMove`; the host publishes `_meta['vscode.movable']` only for sessions it has loaded, so the provider doesn't consult it). The provider offers it through `canMoveSessionUnder` and `moveSessionUnder` for an unarchived single-chat session when the capability is present, from list data alone, so other hosts never see it. The host restores an unloaded source at move time and refuses there when it can't move. The moved chat becomes a peer of the destination and the session ends; its views follow it like any moved chat.
 
+The provider moves individual chats with AHP `moveChat` through `canMoveChat` and `moveChat`: only a chat whose `ChatSummary.movable` the host set can be a source, and the destination (a position in its own session, another session of the provider, or a new session) is resolved to host resources from the provider's recorded sessions and chats, never from client URIs. A host refusal (`AgentChatMoveRefusal`) rejects with a user-facing explanation instead of the host's diagnostic message.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is committed.
