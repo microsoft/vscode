@@ -99,7 +99,6 @@ suite('CopilotCustomizationsWidget', () => {
 				session: URI.parse('vendor-session:/opaque-backend'),
 				chat: URI.parse('vendor-chat:/opaque-chat'),
 			},
-			frontendSessionResource,
 			canvases: constObservable(options?.initialCanvases?.(definition) ?? []),
 			definitionProvider: {
 				onDidChangeDefinitions: Event.None,
@@ -117,6 +116,7 @@ suite('CopilotCustomizationsWidget', () => {
 			override readonly onDidRemoveOwner = Event.None;
 			override isOwnerVisible() { return true; }
 			override getContext() { return context; }
+			override getFrontendSessionResource() { return frontendSessionResource; }
 			override getEditorGroup() { return undefined; }
 		}();
 		const canvasService = new class extends mock<ICanvasService>() {

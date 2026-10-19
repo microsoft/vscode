@@ -7,6 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, IReader } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
@@ -59,7 +60,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
 				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
 			} : undefined;
-			return [{ owner, frontendSessionResource: session.resource, canvases, openRequests, definitionProvider }];
+			return [{ owner, canvases, openRequests, definitionProvider }];
 		});
 		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
@@ -89,7 +90,12 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		const chat: IChat | undefined = isEqual(activeChat.resource, owner.chat)
 			? activeChat
 			: session.chats.read(reader).find(candidate => isEqual(candidate.resource, owner.chat));
-		return { owner, frontendSessionResource: session.resource, canvases: chat?.canvases ?? constObservable(undefined) };
+		return { owner, canvases: chat?.canvases ?? constObservable(undefined) };
+	}
+
+	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined {
+		const session = this.sessionsService.activeSession.read(reader);
+		return session && ownsSession(owner, session) ? session.resource : undefined;
 	}
 
 	getEditorGroup(_owner: ICanvasOwner, input: CanvasInput, restore: boolean): IEditorGroup | undefined {

@@ -72,8 +72,6 @@ export interface ICanvasReopenTarget {
 
 export interface ICanvasContext {
 	readonly owner: ICanvasOwner;
-	/** Frontend chat-session resource used for navigation and customization management. */
-	readonly frontendSessionResource: URI;
 	readonly canvases: IObservable<readonly ICanvas[] | undefined>;
 	readonly openRequests?: IObservable<ReadonlyMap<string, ICanvasOpenRequest>>;
 	/** Present when this chat can list and directly open registered canvas types. */
@@ -142,6 +140,8 @@ export interface ICanvasContextService {
 	 * `undefined` means the owner is outside this window's live scope.
 	 */
 	getContext(owner: ICanvasOwner, reader?: IReader): ICanvasContext | undefined;
+	/** Resolves the frontend chat-session resource that owns this opaque Canvas context. */
+	getFrontendSessionResource(owner: ICanvasOwner, reader?: IReader): URI | undefined;
 	/**
 	 * Selects the group that presents `input`, or `undefined` to let the editor
 	 * service choose. `restore` reopens a canvas that its working set could not

@@ -83,7 +83,7 @@ suite('EditorCanvasContextService', () => {
 				resource: URI.parse('canvas:/preview'), instanceId: 'preview', title: 'Preview', source: URI.parse('https://example.test'),
 			};
 			const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [canvas]);
-			const context: ICanvasContext = { owner, frontendSessionResource: resource, canvases };
+			const context: ICanvasContext = { owner, canvases };
 			const canvasContext = observableValue<ICanvasContext | undefined>('context', context);
 			const model = upcastPartial<IChatModel>({ sessionResource: resource, canvasContext });
 			const viewModel = upcastPartial<IChatViewModel>({ sessionResource: resource, model });
@@ -134,9 +134,10 @@ suite('EditorCanvasContextService', () => {
 			const owner = harness.createOwner('materialized', harness.groups[0], editorResource);
 			assert.deepStrictEqual({
 				visible: harness.service.isOwnerVisible(owner.owner),
+				sessionResource: harness.service.getFrontendSessionResource(owner.owner)?.toString(),
 				target: harness.service.getEditorGroup(owner.owner, owner.input)?.id,
 				additions: harness.additions,
-			}, { visible: true, target: 2, additions: [1] });
+			}, { visible: true, sessionResource: 'agent-host-copilotcli:/materialized', target: 2, additions: [1] });
 		});
 	}
 

@@ -24,7 +24,6 @@ import { ICanvas, ICanvasContext, ICanvasOwner } from '../../common/canvas.js';
 suite('CanvasesPillControl', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const owner: ICanvasOwner = { providerId: 'local/copilotcli', session: URI.parse('ahp-session:/42'), chat: URI.parse('ahp-session:/42/chats/main') };
-	const frontendSessionResource = URI.parse('agent-host-copilotcli:/frontend-session');
 	const canvas = (instanceId: string, title: string): ICanvas => ({
 		resource: URI.parse(`agent-host-canvas:/${title.toLowerCase()}`),
 		instanceId,
@@ -49,7 +48,6 @@ suite('CanvasesPillControl', () => {
 		const preview = canvas('preview', 'Preview');
 		const { errors, closeActions } = createControl({
 			owner,
-			frontendSessionResource,
 			canvases: observableValue<readonly ICanvas[] | undefined>('canvases', [preview]),
 			closeCanvas: async closing => {
 				closed.push(closing.resource.toString());
@@ -78,8 +76,8 @@ suite('CanvasesPillControl', () => {
 
 	test('reports a failed close and omits the action when the host cannot close canvases', async () => {
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [canvas('preview', 'Preview')]);
-		const failing = createControl({ owner, frontendSessionResource, canvases, closeCanvas: async () => { throw new Error('provider unavailable'); } });
-		const unsupported = createControl({ owner, frontendSessionResource, canvases });
+		const failing = createControl({ owner, canvases, closeCanvas: async () => { throw new Error('provider unavailable'); } });
+		const unsupported = createControl({ owner, canvases });
 
 		await failing.closeActions()[0]?.run();
 

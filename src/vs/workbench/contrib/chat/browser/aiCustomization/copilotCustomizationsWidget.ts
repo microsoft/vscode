@@ -952,7 +952,7 @@ class CopilotCustomizationsWidget extends Disposable implements IAICustomization
 	private openCanvasProvider(item: ICopilotCanvasItem): void {
 		const section = this.getCanvasManagementSection(item.canvas);
 		if (section) {
-			this.openSection(section, item.context.frontendSessionResource);
+			this.openSection(section, this.canvasContextService?.getFrontendSessionResource(item.context.owner) ?? this.sessionResource);
 		}
 	}
 

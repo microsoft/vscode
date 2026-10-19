@@ -54,23 +54,23 @@ suite('CustomizationMarketplaceService', () => {
 			themedEqual: true,
 			crossSyntaxEqual: false,
 		});
+	});
 
-		test('classifies canvas-capable Copilot plugins by catalog tags', () => {
-			const resource = (mediaType: string, tags: readonly string[]) => ({ mediaType, tags });
+	test('classifies canvas-capable Copilot plugins by catalog tags', () => {
+		const resource = (mediaType: string, tags: readonly string[]) => ({ mediaType, tags });
 
-			assert.deepStrictEqual({
-				canvasOnly: isCustomizationMarketplaceCanvasOnlyResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas', 'canvas-only'])),
-				canvasCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas'])),
-				canvasOnlyImpliesCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas-only'])),
-				ordinaryPlugin: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['github-copilot'])),
-				otherMediaType: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.ClaudePlugin, ['canvas', 'canvas-only'])),
-			}, {
-				canvasOnly: true,
-				canvasCapable: true,
-				canvasOnlyImpliesCapable: true,
-				ordinaryPlugin: false,
-				otherMediaType: false,
-			});
+		assert.deepStrictEqual({
+			canvasOnly: isCustomizationMarketplaceCanvasOnlyResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas', 'canvas-only'])),
+			canvasCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas'])),
+			canvasOnlyImpliesCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas-only'])),
+			ordinaryPlugin: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['github-copilot'])),
+			otherMediaType: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.ClaudePlugin, ['canvas', 'canvas-only'])),
+		}, {
+			canvasOnly: true,
+			canvasCapable: true,
+			canvasOnlyImpliesCapable: true,
+			ordinaryPlugin: false,
+			otherMediaType: false,
 		});
 	});
 

@@ -1339,7 +1339,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			session: options.sessionResource,
 			chat: URI.parse('ahp-chat:/fixture-chat'),
 		},
-		frontendSessionResource: options.sessionResource,
 		canvases: constObservable([]),
 		definitionProvider: {
 			onDidChangeDefinitions: Event.None,
@@ -1354,6 +1353,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		override readonly onDidRemoveOwner = Event.None;
 		override isOwnerVisible() { return true; }
 		override getContext() { return copilotCanvasDefinitions.length ? copilotCanvasContext : undefined; }
+		override getFrontendSessionResource() { return options.sessionResource; }
 		override getEditorGroup() { return undefined; }
 	}();
 	const canvasService = new class extends mock<ICanvasService>() {

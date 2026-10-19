@@ -809,7 +809,6 @@ suite('CloudSandboxSessionHandler', () => {
 		live.backgroundShellCount.set(2, undefined);
 		const canvas: ICanvasContext = {
 			owner: { providerId: 'copilot', session: resource, chat: URI.parse(peerChat) },
-			frontendSessionResource: resource,
 			canvases: observableValue('canvases', []),
 		};
 		live.canvasContext.set(canvas, undefined);

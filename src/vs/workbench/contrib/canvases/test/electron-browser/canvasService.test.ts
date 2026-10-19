@@ -35,7 +35,7 @@ suite('CanvasService', () => {
 		};
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', []);
 		const openRequests = observableValue<ReadonlyMap<string, ICanvasOpenRequest>>('openRequests', new Map());
-		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, frontendSessionResource: owner.session, canvases, openRequests }]);
+		const contexts = observableValue<readonly ICanvasContext[]>('contexts', [{ owner, canvases, openRequests }]);
 		const visible = observableValue<ReadonlySet<string>>('visible', new Set([canvasOwnerKey(owner)]));
 		const removed = store.add(new Emitter<ICanvasOwner>());
 		const contextService = upcastPartial<ICanvasContextService>({
@@ -178,8 +178,8 @@ suite('CanvasService', () => {
 		const hiddenCount = harness.opened.length;
 		const peerOwner = { ...harness.owner, chat: URI.parse('chat:/peer') };
 		harness.contexts.set([
-			{ owner: harness.owner, frontendSessionResource: harness.owner.session, canvases: harness.canvases },
-			{ owner: peerOwner, frontendSessionResource: peerOwner.session, canvases: harness.canvases },
+			{ owner: harness.owner, canvases: harness.canvases },
+			{ owner: peerOwner, canvases: harness.canvases },
 		], undefined);
 		harness.visible.set(new Set([canvasOwnerKey(harness.owner), canvasOwnerKey(peerOwner)]), undefined);
 		await timeout(0);
