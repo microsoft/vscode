@@ -237,6 +237,7 @@ export class TabbedModelPicker extends Disposable {
 		if (options.startComparison) {
 			const comparison = this._context?.comparison;
 			if (comparison?.available.get()) {
+				this._selectionVersion++;
 				if (!comparison.state.get()) {
 					comparison.start();
 				}
@@ -466,6 +467,12 @@ export class TabbedModelPicker extends Disposable {
 				...(step ? ['model-picker-comparison'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
+			renderWidget: comparison ? widget => {
+				const context = this._contextKeyService.createScoped(widget);
+				ModelComparisonAvailableContext.bindTo(context).set(true);
+				ModelComparisonPickerFocusedContext.bindTo(context).set(true);
+				return context;
+			} : undefined,
 			tabLabels: 'active',
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
@@ -811,7 +818,7 @@ export class TabbedModelPicker extends Disposable {
 	private _renderStartComparisonFooter(container: HTMLElement, comparison: IModelPickerComparison): DisposableStore {
 		const store = new DisposableStore();
 		const label = localize('modelPicker.comparison.start', "Send Query to Multiple Models");
-		const context = store.add(this._contextKeyService.createScoped(container.closest<HTMLElement>('.chat-model-picker-widget') ?? container));
+		const context = store.add(this._contextKeyService.createScoped(container));
 		ModelComparisonAvailableContext.bindTo(context).set(true);
 		ModelComparisonPickerFocusedContext.bindTo(context).set(true);
 		const keybinding = comparison.startCommandId ? this._keybindingService.lookupKeybinding(comparison.startCommandId, context)?.getLabel() : undefined;
