@@ -2431,7 +2431,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.copilotCliCommand.enabled.policy',
-						value: nls.localize('chat.copilotCliCommand.enabled.policy', "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows doesn't add the command to PATH and removes the entry it added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."),
+						value: nls.localize('chat.copilotCliCommand.enabled.policy', "Controls whether VS Code provides the copilot command for GitHub Copilot CLI. When disabled, VS Code setup on Windows and the Linux DEB and RPM packages don't add the command to PATH and remove the entry they added, VS Code doesn't install GitHub Copilot CLI, and integrated terminals don't include the command. A GitHub Copilot CLI that was installed separately isn't affected."),
 					}
 				},
 			}
