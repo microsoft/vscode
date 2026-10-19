@@ -1832,6 +1832,21 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('Free plans do not upsell HydraFusion while Fusion presents it', () => {
+		const fusion = createFusionModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [fusion, hydra, ...models],
+			selectedModelId: fusion.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+		});
+		assert.strictEqual(result.popup.querySelector('.chat-model-picker-unavailable'), null);
+	});
+
 	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
 		const auto = createAutoModel();
 		const hydra = createHydraFusionModel();
