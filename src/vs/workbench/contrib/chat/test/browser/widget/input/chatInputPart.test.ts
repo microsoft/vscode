@@ -119,6 +119,7 @@ suite('ChatInputPart', () => {
 			_sessionWorkingSetDiffs: observableValue<readonly IEditSessionEntryDiff[]>('sessionDiffs', []),
 			_workingSetCollapsed: legacyCollapsed,
 			_sessionWorkingSetCollapsed: observableValue('sessionCollapsed', false),
+			_sessionWorkingSetEditingSession: observableValue<IChatEditingSession | undefined>('sessionEditingSession', undefined),
 			_workingSetLinesAddedSpan: new Lazy(() => dom.$('.working-set-lines-added')),
 			_workingSetLinesRemovedSpan: new Lazy(() => dom.$('.working-set-lines-removed')),
 			_chatEditsListPool: store.add(instantiationService.createInstance(CollapsibleListPool, Event.None, MenuId.ChatEditingWidgetModifiedFilesToolbar, undefined)),
@@ -184,6 +185,37 @@ suite('ChatInputPart', () => {
 		diffs.set([], undefined);
 		states.push(container.style.display !== 'none');
 		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
+	test('shows changes to review before Session Changes list them', async () => {
+		const { inputPart, container, sessionResource, setEnabled } = createWorkingSetInput();
+		store.add(inputPart.registerSessionFileChanges(constObservable([])));
+		const pending = new class extends mock<IModifiedFileEntry>() {
+			override readonly modifiedURI = URI.file('/repo/pending.ts');
+			override readonly originalURI = URI.parse('snapshot:/before/pending.ts');
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override readonly isCurrentlyBeingModifiedBy = constObservable(undefined);
+			override readonly linesAdded = constObservable(3);
+			override readonly linesRemoved = constObservable(1);
+		}();
+		const editingSession = new class extends mock<IChatEditingSession>() {
+			override readonly supportsKeepUndo = true;
+			override readonly chatSessionResource = sessionResource;
+			override readonly entries = constObservable([pending]);
+			override getEntry() { return pending; }
+		}();
+		await setEnabled(true);
+		inputPart.renderChatEditingSessionState(editingSession);
+
+		assert.deepStrictEqual({
+			visible: container.style.display !== 'none',
+			tabs: [...container.querySelectorAll('.working-set-tab')].map(tab => `${tab.getAttribute('aria-label')}${tab.getAttribute('aria-selected') === 'true' ? ' (selected)' : ''}`),
+			review: [...container.querySelectorAll('.chat-editing-session-list')[1]?.querySelectorAll('.monaco-list-row') ?? []].map(row => row.getAttribute('aria-label')),
+		}, {
+			visible: true,
+			tabs: ['Session Changes, 0 files changed, 0 lines added, 0 lines removed', 'To Review, 1 file to review, 3 lines added, 1 line removed (selected)'],
+			review: ['/repo/pending.ts, 3 lines added, 1 line removed'],
+		});
 	});
 
 	test('leaves Local controls, pending files, and live-editor opening unchanged when enabled', async () => {

@@ -20,6 +20,7 @@ import { ContextViewService } from '../../../../../platform/contextview/browser/
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
 import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { ChatEditingShowChangesAction } from '../../../../contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
@@ -283,6 +284,15 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		menuService.addItem(MenuId.ChatExecute, { command: { id: 'fixture.voiceControl', title: 'Voice', icon: voiceControlRenderings[voiceControl].icon }, group: 'navigation', order: 2 });
 	}
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.arrowUpCompact, precondition: fixtureOptions.sendEnabled === false ? ContextKeyExpr.false() : undefined }, group: 'navigation', order: 4 });
+	if (editingSession?.supportsKeepUndo) {
+		// The commands the chat editing contribution adds for undecided changes.
+		menuService.addItem(MenuId.ChatEditingWidgetToolbar, { command: { id: 'chatEditing.acceptAllFiles', title: 'Keep' }, group: 'navigation', order: 0 });
+		menuService.addItem(MenuId.ChatEditingWidgetToolbar, { command: { id: 'chatEditing.discardAllFiles', title: 'Undo' }, group: 'navigation', order: 1 });
+		menuService.addItem(MenuId.ChatEditingWidgetToolbar, { command: { id: ChatEditingShowChangesAction.ID, title: 'View All Edits', icon: Codicon.diffMultiple }, group: 'navigation', order: 3 });
+		menuService.addItem(MenuId.ChatEditingWidgetModifiedFilesToolbar, { command: { id: 'chatEditing.acceptFile', title: 'Keep', icon: Codicon.check }, group: 'navigation', order: 0 });
+		menuService.addItem(MenuId.ChatEditingWidgetModifiedFilesToolbar, { command: { id: 'chatEditing.discardFile', title: 'Undo', icon: Codicon.discard }, group: 'navigation', order: 1 });
+		menuService.addItem(MenuId.ChatEditingWidgetModifiedFilesToolbar, { command: { id: 'chatEditing.openFileInDiff', title: 'Open Changes in Diff Editor', icon: Codicon.diffSingle }, group: 'navigation', order: 2 });
+	}
 	const hasCustomSecondaryPickerLabels = fixtureOptions.secondaryPickerLabels !== undefined;
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: hasCustomSecondaryPickerLabels ? 'fixture.secondaryTarget' : 'workbench.action.chat.openSessionTargetPicker', title: secondaryPickerLabels[0] }, group: 'navigation', order: 0 });
 	if (hasCustomSecondaryPickerLabels) {

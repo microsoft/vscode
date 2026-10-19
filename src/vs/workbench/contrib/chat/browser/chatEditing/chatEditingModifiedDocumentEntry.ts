@@ -21,6 +21,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -83,7 +84,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	readonly originalURI: URI;
-	private readonly _textModelChangeService: ChatEditingTextModelChangeService;
+	protected readonly _textModelChangeService: ChatEditingTextModelChangeService;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -135,7 +136,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this._textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
-			this.originalModel, this.modifiedModel, this._stateObs, () => this._isExternalEditInProgress));
+			this.originalModel, this.modifiedModel, this._stateObs, event => this._isExternalEdit(event)));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
@@ -186,6 +187,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	getDiffInfo(): Promise<IDocumentDiff> {
 		return this._textModelChangeService.getDiffInfo();
+	}
+
+	/**
+	 * Whether a change of the document is an external edit, which is attributed
+	 * to the agent rather than the user.
+	 */
+	protected _isExternalEdit(_event: IModelContentChangedEvent): boolean {
+		return this._isExternalEditInProgress;
 	}
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {

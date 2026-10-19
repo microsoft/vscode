@@ -3308,6 +3308,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* Next to Keep and Undo, the heading shortens its label before its line counts. */
+.interactive-session .chat-session-working-set .working-set-title .monaco-button {
+	max-width: 100%;
+}
+
+.interactive-session .chat-session-working-set .working-set-title .monaco-button-mdlabel {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.interactive-session .chat-session-working-set .working-set-title .working-set-line-counts {
+	flex-shrink: 0;
+}
+
 .interactive-session .chat-session-working-set .insertions-and-deletions {
 	display: flex;
 	flex-shrink: 0;
@@ -3327,6 +3342,93 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-session-working-set .deletions {
 	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Tabs that switch between the session's changes and the changes waiting for Keep or Undo. */
+.interactive-session .chat-session-working-set .working-set-tabs {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	margin-block: var(--vscode-spacing-size20);
+	container-type: inline-size;
+}
+
+/* Where both labels and their icons don't fit, the icons go first. */
+@container (width < 290px) {
+	.interactive-session .chat-session-working-set .working-set-tab-icon {
+		display: none;
+	}
+}
+
+.interactive-session .chat-session-working-set .working-set-tab {
+	display: flex;
+	flex: 0 1 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	box-sizing: border-box;
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size60) 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 22px;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.interactive-session .chat-session-working-set .working-set-tab:is(:hover, .hovered):not(.selected) {
+	color: var(--vscode-modernTab-hoverForeground);
+	background-color: var(--vscode-modernTab-hoverBackground);
+}
+
+/* The selected tab keeps its label; the other one is shortened first. */
+.interactive-session .chat-session-working-set .working-set-tab.selected {
+	flex-shrink: 0;
+	max-width: 100%;
+	color: var(--vscode-modernTab-activeForeground);
+	background-color: var(--vscode-modernTab-activeBackground);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);
+}
+
+.hc-black .interactive-session .chat-session-working-set .working-set-tab:is(:hover, .hovered):not(.selected),
+.hc-light .interactive-session .chat-session-working-set .working-set-tab:is(:hover, .hovered):not(.selected) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* The focus ring only shows for keyboard focus. */
+.interactive-session .chat-session-working-set .working-set-tab:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* Like the files below, the icon is followed by a wider gap than the count. */
+.interactive-session .chat-session-working-set .working-set-tab-icon {
+	flex-shrink: 0;
+	margin-inline-end: var(--vscode-spacing-size20);
+}
+
+.interactive-session .chat-session-working-set .working-set-tab-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.interactive-session .chat-session-working-set .working-set-tab-count {
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-session-working-set .working-set-empty {
+	height: 22px;
+	padding: 0 var(--vscode-spacing-size40);
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 22px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {

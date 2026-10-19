@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -14,7 +15,9 @@ import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } fro
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IModifiedFileEntry } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
+import { AgentHostEditReview } from '../../../browser/agentSessions/agentHost/agentHostEditReview.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 
 function makeToolCall(opts: {
@@ -425,5 +428,66 @@ suite('AgentHostSnapshotController', () => {
 		const fakeResponseModel = {} as IChatResponseModel;
 		assert.throws(() => controller.startStreamingEdits(URI.file('/x'), fakeResponseModel, undefined));
 		assert.throws(() => controller.applyWorkspaceEdit({ kind: 'workspaceEdit', edits: [] }, fakeResponseModel, 'stop'));
+	});
+
+	suite('keep and undo review', () => {
+
+		function createReview(log: string[]) {
+			const entry = new class extends mock<IModifiedFileEntry>() {
+				override readonly modifiedURI = URI.file('/file.ts');
+			}();
+			return new class extends mock<AgentHostEditReview>() {
+				override readonly entries = constObservable([entry]);
+				override getEntry(uri: URI) {
+					return uri.toString() === entry.modifiedURI.toString() ? entry : undefined;
+				}
+				override async accept(...uris: URI[]) {
+					log.push(`keep ${uris.map(uri => uri.path).join()}`);
+				}
+				override async reject(...uris: URI[]) {
+					log.push(`undo ${uris.map(uri => uri.path).join()}`);
+				}
+				override clear() {
+					log.push('clear');
+				}
+				override dispose() { }
+			}();
+		}
+
+		test('is a global keep/undo session only while reviewing', async () => {
+			const log: string[] = [];
+			const controller = createController(store, new Map());
+			const before = { global: controller.isGlobalEditingSession, keepUndo: controller.supportsKeepUndo, entries: controller.entries.get().length };
+			controller.attachReview(createReview(log));
+			await controller.accept(URI.file('/file.ts'));
+			await controller.reject();
+
+			assert.deepStrictEqual({
+				before,
+				after: { global: controller.isGlobalEditingSession, keepUndo: controller.supportsKeepUndo, entries: controller.entries.get().length },
+				entry: controller.getEntry(URI.file('/file.ts'))?.modifiedURI.path,
+				log,
+			}, {
+				before: { global: false, keepUndo: false, entries: 0 },
+				after: { global: true, keepUndo: true, entries: 1 },
+				entry: '/file.ts',
+				log: ['keep /file.ts', 'undo '],
+			});
+		});
+
+		test('drops the review before restoring a checkpoint rewrites files', async () => {
+			const log: string[] = [];
+			const before = URI.file('/snap/before-1').toString();
+			const after = URI.file('/snap/after-1').toString();
+			const file = URI.file('/file.ts').toString();
+			const contentMap = new Map([[before, 'original'], [after, 'modified'], [file, 'modified']]);
+			const controller = createController(store, contentMap);
+			controller.attachReview(createReview(log));
+			controller.addToolCallEdits('req-1', makeToolCall({ toolCallId: 'tc-1', filePath: '/file.ts', beforeURI: before, afterURI: after }));
+
+			await controller.restoreSnapshot('req-1', undefined);
+
+			assert.deepStrictEqual({ log, content: contentMap.get(file) }, { log: ['clear'], content: 'original' });
+		});
 	});
 });

@@ -113,10 +113,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const tasks: Promise<any>[] = [];
 
 			for (const session of this._editingSessions.values()) {
-				if (!session.isGlobalEditingSession) {
+				// Provider sessions (e.g. agent host review) can be global but own their persistence.
+				if (!session.isGlobalEditingSession || !(session instanceof ChatEditingSession)) {
 					continue;
 				}
-				tasks.push((session as ChatEditingSession).storeState());
+				tasks.push(session.storeState());
 			}
 
 			storageTask = Promise.resolve(storageTask)
@@ -174,7 +175,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const provider = this._providers.get(getChatSessionType(chatModel.sessionResource));
 		const session = provider
-			? provider.createEditingSession(chatModel.sessionResource)
+			? provider.createEditingSession(chatModel.sessionResource, global)
 			: this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this), initFrom);
 
 		const list = this._sessionsObs.get();

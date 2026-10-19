@@ -34,8 +34,12 @@ const sampleArtifacts = [
 	{ label: 'Plan', uri: 'file:///tmp/plan.md', type: 'plan' as const },
 ];
 
-function createMockEditingSession(files: { uri: string; added: number; removed: number }[]): IChatEditingSession {
-	const entries = files.map(f => {
+/**
+ * @param reviewFiles Changes that wait for Keep or Undo. Without them, the
+ * session's files are its entries and the session cannot keep or undo them.
+ */
+function createMockEditingSession(files: { uri: string; added: number; removed: number }[], reviewFiles?: { uri: string; added: number; removed: number }[]): IChatEditingSession {
+	const entries = (reviewFiles ?? files).map(f => {
 		const entry = new class extends mock<IModifiedFileEntry>() {
 			override readonly entryId = f.uri;
 			override readonly modifiedURI = URI.parse(f.uri);
@@ -57,6 +61,7 @@ function createMockEditingSession(files: { uri: string; added: number; removed: 
 
 	return new class extends mock<IChatEditingSession>() {
 		override readonly isGlobalEditingSession = false;
+		override readonly supportsKeepUndo = reviewFiles !== undefined;
 		override readonly chatSessionResource = URI.parse('chat-session:test-session');
 		override readonly onDidDispose = Event.None;
 		override readonly state = observableValue('state', ChatEditingSessionState.Idle);
@@ -308,6 +313,33 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 				added: index + 1,
 				removed: index,
 			}))),
+		})
+	}),
+	// Agent Host edits that wait for Keep or Undo, in a tab next to Session Changes.
+	WithSessionWorkingSetReview: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([
+				{ uri: 'file:///workspace/src/math.ts', added: 9, removed: 0 },
+				{ uri: 'file:///workspace/src/greeting.ts', added: 2, removed: 1 },
+				{ uri: 'file:///workspace/README.md', added: 4, removed: 0 },
+			], [
+				{ uri: 'file:///workspace/src/math.ts', added: 1, removed: 0 },
+				{ uri: 'file:///workspace/README.md', added: 4, removed: 0 },
+			]),
+		})
+	}),
+	WithSessionWorkingSetReviewNarrow: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			width: 280,
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([
+				{ uri: 'file:///workspace/src/math.ts', added: 9, removed: 0 },
+				{ uri: 'file:///workspace/src/greeting.ts', added: 2, removed: 1 },
+			], [
+				{ uri: 'file:///workspace/src/math.ts', added: 1, removed: 0 },
+			]),
 		})
 	}),
 	WithTodos: defineComponentFixture({

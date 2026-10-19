@@ -161,6 +161,8 @@ suite('FileEditTracker', () => {
 
 		const fileEdit = await tracker.takeCompletedEdit('turn-1', 'tc-2', '/workspace/new-file.txt', '', undefined, undefined, false);
 		assert.ok(fileEdit);
+		// Like an edit restored from the database, a created file has no before state.
+		assert.deepStrictEqual({ before: fileEdit.before, after: fileEdit.after?.uri }, { before: undefined, after: URI.file('/workspace/new-file.txt').toString() });
 
 		// Wait for the fire-and-forget DB write to complete
 		await new Promise(r => setTimeout(r, 50));

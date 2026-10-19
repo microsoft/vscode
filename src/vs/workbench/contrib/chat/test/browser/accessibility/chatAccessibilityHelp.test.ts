@@ -35,6 +35,15 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
 	});
 
+	test('documents the review tabs only when the working set can show them', () => {
+		const describesReview = (sessionWorkingSet: boolean, editReview: boolean) => getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, sessionWorkingSet, editReview).includes('two tabs below its heading: Session Changes and To Review');
+		assert.deepStrictEqual({
+			reviewInWorkingSet: describesReview(true, true),
+			workingSetWithoutReview: describesReview(true, false),
+			reviewWithoutWorkingSet: describesReview(false, true),
+		}, { reviewInWorkingSet: true, workingSetWithoutReview: false, reviewWithoutWorkingSet: false });
+	});
+
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

@@ -27,7 +27,14 @@ import { IChatAgentResult } from '../participants/chatAgents.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingSessionProvider {
-	createEditingSession(chatSessionResource: URI): IChatEditingSession;
+	/**
+	 * Creates the editing session of a chat. The chat model may not be
+	 * registered with the chat service yet.
+	 *
+	 * @param isGlobalEditingSession Whether the session is the long lived one of
+	 * a chat in the chat view or an editor, rather than a short lived one.
+	 */
+	createEditingSession(chatSessionResource: URI, isGlobalEditingSession: boolean): IChatEditingSession;
 }
 
 export interface IChatEditingService {

@@ -607,6 +607,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
+		[ChatConfiguration.EditorKeepUndoEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editor.keepUndo.enabled', "Review the file edits of Agent Host chat sessions in the editor window with **Keep** and **Undo**, like local chat edits. Keeping a change only marks it as reviewed. Undoing a change reverts it on disk as your own edit, so the session's changesets are not rewritten. Takes effect for chats opened after the setting changes."),
+			default: false,
+			tags: ['experimental'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,

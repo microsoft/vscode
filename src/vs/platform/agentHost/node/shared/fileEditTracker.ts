@@ -196,14 +196,18 @@ export class FileEditTracker {
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 
+		const fileUri = URI.file(filePath).toString();
 		const content: ToolResultFileEditContent = {
 			type: ToolResultContentType.FileEdit,
-			before: {
-				uri: URI.file(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
-			},
+			// Like edits restored from the database, a created file has no before state.
+			...(isCreate ? {} : {
+				before: {
+					uri: fileUri,
+					content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
+				},
+			}),
 			after: {
-				uri: URI.file(filePath).toString(),
+				uri: fileUri,
 				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
 			},
 			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,

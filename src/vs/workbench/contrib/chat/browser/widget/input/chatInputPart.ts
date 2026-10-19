@@ -911,6 +911,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _sessionWorkingSetView = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _sessionWorkingSetDiffs = observableValue<readonly IEditSessionEntryDiff[]>(this, []);
 	private readonly _sessionWorkingSetCollapsed = observableValue(this, false);
+	/** The editing session whose undecided changes the session working set can keep or undo. */
+	private readonly _sessionWorkingSetEditingSession = observableValue<IChatEditingSession | undefined>(this, undefined);
 	private _lastSessionWorkingSetResource: URI | undefined;
 
 	private _chatEditsListPool: CollapsibleListPool;
@@ -4954,6 +4956,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._sessionWorkingSetCollapsed.set(false, undefined);
 			this._lastSessionWorkingSetResource = sessionResource;
 		}
+		this._sessionWorkingSetEditingSession.set(chatEditingSession ?? undefined, undefined);
 
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
 			// Background chat sessions render the working set based on the session files, and not the editing session
@@ -5052,7 +5055,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.clearNode(this.chatEditingSessionWidgetContainer);
 
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
-					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed));
+					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
+						editingSession: this._sessionWorkingSetEditingSession,
+						getActionArg: sessionResource => ({
+							$mid: MarshalledId.ChatViewContext,
+							sessionResource,
+							inputUri: this.inputUri,
+						} satisfies IChatViewTitleActionContext),
+					}));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));
 					store.add(toDisposable(() => {
@@ -5067,7 +5077,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				reader.store.add(autorun(r => {
 					const diffs = sessionDiffs.read(r) ?? [];
 					this._sessionWorkingSetDiffs.set(diffs, undefined);
-					const visible = diffs.length > 0;
+					// Agent edits can be under review before Session Changes list them.
+					const hasPendingReview = !!chatEditingSession?.supportsKeepUndo && editSessionEntries.read(r).length > 0;
+					const visible = diffs.length > 0 || hasPendingReview;
 					if (!visible && dom.isAncestorOfActiveElement(this.chatEditingSessionWidgetContainer)) {
 						this.focus();
 					}
