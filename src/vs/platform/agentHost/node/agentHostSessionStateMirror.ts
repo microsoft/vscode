@@ -10,7 +10,6 @@
  * on-disk format; renaming one breaks downgrades.
  */
 
-import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { META_CHANGES_SUMMARY, getChatChangesSummaryMetadataKey } from '../common/agentHostChangesetService.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -70,8 +69,6 @@ export const SESSION_STATE_VALUE_KEYS: readonly ISessionStateValueKey[] = [
 	{ key: AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, projected: true },
 	{ key: SESSION_META_MULTI_ROOT_KEY, projected: true },
 	{ key: SESSION_META_FOLDER_PICKER_KEY, projected: true },
-	// Written with the session that inherits it, in the commit that creates it (a promoted chat), and restored from there.
-	{ key: SESSION_CREDENTIAL_PRINCIPAL_KEY, projected: false },
 ];
 
 /**

@@ -1984,13 +1984,6 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					await super.setMetadataValues(values);
 				}
-				override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
-					if (this.pause && set[SESSION_CREDENTIAL_PRINCIPAL_KEY]) {
-						this.started.complete();
-						await this.release.p;
-					}
-					await super.applyMetadataChanges(set, remove);
-				}
 			}
 			const database = new GatedPrincipalDatabase();
 			const scopedService = disposables.add(createTestAgentService(
@@ -35165,47 +35158,48 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual(await resolveAfterRestore(restarted, env.source, env.defaultChat(env.source)), { principal: '1', resolved: AhpErrorCodes.AuthRequired });
 				});
 
-				test('downgrade: a promoted session mirrors its principal to its session.db for older builds', async () => {
+				const principalOf = (userId: string) => ({ apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId });
+
+				test('a promoted session has its principal in its session.db when the promotion returns (older builds read it there) and a restarted host restores it, never the ambient token', async () => {
 					const env = await setupCredentials({ source: '1', target: undefined });
 					completeTurn(env.service, env.peer);
 					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
-					await (env.service as unknown as { _sessionStateStore: { whenIdle(session: URI | undefined): Promise<void> } })._sessionStateStore.whenIdle(undefined);
 					const stored = await env.data.database(promoted).getMetadata(SESSION_CREDENTIAL_PRINCIPAL_KEY);
-					assert.deepStrictEqual(stored && JSON.parse(stored), { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' });
+					const restarted = restartedHost(env, env.orchestrator);
+					assert.deepStrictEqual({ stored: stored && JSON.parse(stored), restored: await resolveAfterRestore(restarted, promoted, env.peer.toString()) }, {
+						stored: principalOf('1'),
+						restored: { principal: '1', resolved: AhpErrorCodes.AuthRequired },
+					});
 				});
 
-				test('a promoted session gets its credential owner in the promote commit, so a restarted host never falls back to the ambient token', async () => {
+				test('a promotion whose principal cannot be saved is refused, and the chat keeps resolving under its source', async () => {
 					const env = await setupCredentials({ source: '1', target: undefined });
 					completeTurn(env.service, env.peer);
-					const store = (env.service as unknown as { _sessionStateStore: { promoteChat(promotion: { readonly values: Readonly<Record<string, string>> }): Promise<unknown> } })._sessionStateStore;
-					const promoteChat = store.promoteChat.bind(store);
-					const committed: Readonly<Record<string, string>>[] = [];
-					store.promoteChat = async promotion => {
-						committed.push(promotion.values);
-						return promoteChat(promotion);
+					const openDatabase = env.data.service.openDatabase.bind(env.data.service);
+					env.data.service.openDatabase = session => {
+						const reference = openDatabase(session);
+						const setMetadataValues = reference.object.setMetadataValues.bind(reference.object);
+						reference.object.setMetadataValues = async values => {
+							if (values[SESSION_CREDENTIAL_PRINCIPAL_KEY] !== undefined && session.toString() !== env.source.toString()) {
+								throw new Error('disk full');
+							}
+							return setMetadataValues(values);
+						};
+						return reference;
 					};
-					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
+					const footprint = async () => ({ owner: env.owner(env.peer), sessions: (await env.service.listSessions()).length, source: env.principal(env.source), token: env.token(env.peer.toString()) });
+					const before = await footprint();
+					const reason = await refusalOf(env.service.moveChat(env.source, env.peer, { kind: 'newSession' }));
+					assert.deepStrictEqual({ reason, footprint: await footprint() }, { reason: AgentChatMoveRefusal.Conflict, footprint: before });
+				});
 
-					const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, env.data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, env.orchestrator));
-					registerTestAgentProvider(restarted, disposables.add(new SponsoredAgent('copilot')));
+				test('a malformed persisted principal fails closed: the session does not load, so nothing resolves to the ambient token', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					await env.data.database(env.source).setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: '{"userId":"0"}' });
+					const restarted = restartedHost(env, disposables.add(new AgentHostDatabase(':memory:')));
 					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
-					await restarted.restoreSession(promoted);
-					const authentication = getTestAgentServiceComposition(restarted).authenticationService;
-					let resolved: string | number | undefined;
-					try {
-						resolved = authentication.getAuthToken({ session: env.peer.toString(), resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
-					} catch (error) {
-						resolved = (error as ProtocolError).code;
-					}
-					assert.deepStrictEqual({
-						committedPrincipal: committed.map(values => JSON.parse(values[SESSION_CREDENTIAL_PRINCIPAL_KEY])),
-						restoredPrincipal: authentication.getSessionCredentialPrincipal(promoted.toString())?.userId,
-						resolved,
-					}, {
-						committedPrincipal: [{ apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' }],
-						restoredPrincipal: '1',
-						resolved: AhpErrorCodes.AuthRequired,
-					});
+					const restored = await restarted.restoreSession(env.source).then(() => 'loaded', () => 'rejected');
+					assert.deepStrictEqual({ restored, principal: getTestAgentServiceComposition(restarted).authenticationService.getSessionCredentialPrincipal(env.source.toString()), state: getStateManager(restarted).getSessionState(env.source.toString()) }, { restored: 'rejected', principal: undefined, state: undefined });
 				});
 
 				test('a credential owner cannot be set on a session while a move into it is committing', async () => {

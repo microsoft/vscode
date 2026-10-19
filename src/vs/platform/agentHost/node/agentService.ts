@@ -7138,10 +7138,23 @@ export class AgentService extends Disposable implements IAgentService {
 				for (const [key, value] of carried) {
 					values[key] = value;
 				}
-				// The new session inherits the chat's credential owner in the commit that creates it: a restart restores it.
+				// The new session inherits the chat's credential owner. It is written to the session's own database before the commit
+				// creates the session, so a committed promotion always has it on disk (for older builds too) and a failed write
+				// refuses the promotion with nothing changed; the orphan left by a failed commit belongs to no session.
 				const credentialPrincipal = this._authService.getSessionCredentialPrincipal(chatKey);
 				if (credentialPrincipal) {
-					values[SESSION_CREDENTIAL_PRINCIPAL_KEY] = JSON.stringify(credentialPrincipal);
+					try {
+						// Straight to the session's own database: the state store would create central state for a session that doesn't exist yet.
+						const reference = this._sessionDataService.openDatabase(target);
+						try {
+							await reference.object.setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify(credentialPrincipal) });
+						} finally {
+							reference.dispose();
+						}
+					} catch (error) {
+						this._logService.error(error, `[AgentService] The credential owner of chat ${chatKey} couldn't be persisted for its new session`);
+						refuse(AgentChatMoveRefusal.Conflict, `Chat ${chatKey} couldn't be promoted: its credential owner couldn't be saved; try again.`);
+					}
 				}
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
@@ -7204,7 +7217,6 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
-			await this._mirrorPromotedCredentialPrincipal(targetKey);
 			await this._completeMovedWorktrees(session, target, worktreePlan, undefined, false);
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
 			await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
@@ -7231,27 +7243,6 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _allocatePromotedSession(provider: IAgent): Promise<URI> {
 		return this._mintSessionUri(provider, undefined);
-	}
-
-	/**
-	 * The promote commit already holds the new session's principal centrally; this writes the same value again so its
-	 * session.db copy, which older builds read, exists now: the store's own mirror of a promotion lags until the session loads. Never fails the promotion.
-	 */
-	private async _mirrorPromotedCredentialPrincipal(target: string): Promise<void> {
-		const principal = this._authService.getSessionCredentialPrincipal(target);
-		if (!principal) {
-			return;
-		}
-		try {
-			const reference = await this._sessionDataService.openDatabase(URI.parse(target));
-			try {
-				await reference.object.setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify(principal) });
-			} finally {
-				reference.dispose();
-			}
-		} catch (error) {
-			this._logService.error(error, `[AgentService] The credential owner of ${target} couldn't be mirrored for older builds`);
-		}
 	}
 
 	/**
@@ -7810,21 +7801,18 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _restoreCredentialPrincipal(session: string): Promise<void> {
-		// A principal inherited at promotion lives centrally until its mirror reaches session.db; one written by an older
-		// build (or before the session was imported) exists in session.db only, so that is the fallback.
-		let serialized = (await this._sessionStateStore.readWithoutImport(URI.parse(session), [SESSION_CREDENTIAL_PRINCIPAL_KEY])).get(SESSION_CREDENTIAL_PRINCIPAL_KEY);
-		if (serialized === undefined) {
-			const reference = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
-			if (reference) {
-				try {
-					serialized = (await reference.object.getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true }))[SESSION_CREDENTIAL_PRINCIPAL_KEY];
-				} finally {
-					reference.dispose();
-				}
-			}
+		const reference = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
+		if (!reference) {
+			return;
 		}
-		if (serialized !== undefined) {
-			this._authService.restoreSessionCredentialPrincipal(session, parseCredentialPrincipal(serialized));
+		try {
+			const metadata = await reference.object.getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
+			const serialized = metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY];
+			if (serialized !== undefined) {
+				this._authService.restoreSessionCredentialPrincipal(session, parseCredentialPrincipal(serialized));
+			}
+		} finally {
+			reference.dispose();
 		}
 	}
 
