@@ -134,7 +134,7 @@ suite('CustomizationMigrationDashboard', () => {
 		dashboard.showOverview(overview());
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
-		const agentMigrationButton = button(parent, 'Start an agent-guided customization migration');
+		const agentMigrationButton = button(parent, 'Start a guided migration of all customization files that need migration');
 		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
@@ -199,7 +199,7 @@ suite('CustomizationMigrationDashboard', () => {
 		const { parent, dashboard } = createDashboard();
 		dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
 
-		assert.strictEqual(parent.querySelector('[aria-label="Start an agent-guided customization migration"]'), null);
+		assert.strictEqual(parent.querySelector('[aria-label="Start a guided migration of all customization files that need migration"]'), null);
 	});
 
 	test('moves initial loading focus to the first migrate action when the overview loads', () => {
