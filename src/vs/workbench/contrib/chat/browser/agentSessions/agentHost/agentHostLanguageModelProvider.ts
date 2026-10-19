@@ -4,12 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { localize } from '../../../../../../nls.js';
+import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
+import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
+import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
+import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
+import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -32,6 +44,15 @@ export function agentHostProviderSupportsAutoModel(provider: string): boolean {
 }
 
 /**
+ * Read-only view of the workbench model catalogue an agent host's models are enriched from.
+ *
+ * Narrowed to the reads {@link AgentHostLanguageModelProvider} performs (all plain lookups into
+ * already-registered models, so none of them re-enter a provider) plus the change signal, both so
+ * the dependency stays obviously side-effect free and so tests can supply a small fake.
+ */
+export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguageModelIds' | 'lookupLanguageModel' | 'onDidChangeLanguageModels'>;
+
+/**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
  * root state (via {@link AgentInfo.models}) rather than via RPC.
@@ -39,14 +60,32 @@ export function agentHostProviderSupportsAutoModel(provider: string): boolean {
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _promotionChange = this._register(new MutableDisposable());
 
 	private _models: readonly SessionModelInfo[] = [];
+	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
+		private readonly _catalogue?: IAgentHostModelCatalogue,
 	) {
 		super();
+
+		// The catalogue is populated independently of the host — a sandbox can advertise its models
+		// before the Copilot vendor has resolved, and CAPI can refresh prices later — so re-publish
+		// whenever it changes to pick up the enrichment.
+		//
+		// Scoped to the enriched-from vendor, which also keeps this from looping: the service fires
+		// this event for every provider that publishes, including this one, but a host's vendor is
+		// always a session-type id (`agent-host-…`) and never `copilot`.
+		if (this._catalogue) {
+			this._register(this._catalogue.onDidChangeLanguageModels(vendor => {
+				if (vendor === COPILOT_VENDOR_ID) {
+					this._onDidChange.fire();
+				}
+			}));
+		}
 	}
 
 	/**
@@ -55,14 +94,81 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	updateModels(models: readonly SessionModelInfo[]): void {
 		this._models = models;
 		this._onDidChange.fire();
+		this._schedulePromotionChange();
+	}
+
+	private _schedulePromotionChange(): void {
+		const now = Date.now();
+		const next = Math.min(...this._models
+			.filter(model => model.id === AUTO_RAW_MODEL_ID)
+			.flatMap(model => readAgentModelAutoTierPromotionsMeta(model))
+			.flatMap(promotion => [promotion.startsAt, promotion.endsAt])
+			.map(date => date ? Date.parse(date) : NaN)
+			.filter(time => time > now));
+		this._promotionChange.value = Number.isFinite(next)
+			// Timers cannot wait longer than about 24.8 days.
+			? disposableTimeout(() => { this._onDidChange.fire(); this._schedulePromotionChange(); }, Math.min(next - now, AgentHostLanguageModelProvider._maxPromotionWaitMs))
+			: undefined;
+	}
+
+	private static readonly _maxPromotionWaitMs = 24 * 60 * 60 * 1000;
+
+	/** A running promotion's discount when it covers every tier Auto offers. */
+	private static _wholeModelPromotionDiscount(model: SessionModelInfo, promotions: readonly IAgentModelAutoTierPromotion[], now: number): number | undefined {
+		const tiers = (model.configSchema?.properties.tier?.enum ?? []).filter((tier): tier is string => typeof tier === 'string');
+		if (!tiers.length) {
+			return undefined;
+		}
+		const discounts = promotions
+			.filter(promotion => promotion.discountPercent > 0 && tiers.every(tier => promotion.tierIds.includes(tier)) && ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+			.map(promotion => promotion.discountPercent);
+		return discounts.length ? Math.max(...discounts) : undefined;
+	}
+
+	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
+		this._additionalModels = models;
+		this._onDidChange.fire();
 	}
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
-		return this._models
+		const hostModelIds = new Set(this._models.map(model => model.id));
+		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
-				const pricing = readAgentModelPricingMeta(m._meta);
+				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
+				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
+				const isAuto = m.id === AUTO_RAW_MODEL_ID;
+				const fusion = isAuto ? readAgentModelFusionMeta(m) : undefined;
+				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
+				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
+				const discountPercent = pricing.discountPercent;
+				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
+				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
+				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
+				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
+				const now = Date.now();
+				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, now);
+				// Ended promotions are dropped and the rest carry their state, so each boundary changes the metadata.
+				const publishedPromotions = tierPromotions
+					.filter(({ endsAt }) => !endsAt || now < Date.parse(endsAt))
+					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt, upcoming: !!startsAt && now < Date.parse(startsAt) }));
+				// While the service promotes Auto's tiers, its promotions alone decide the discount: Auto's own would contradict them.
+				const modelDiscount = hasDiscount && !publishedPromotions.length ? discountPercent : undefined;
+				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
+				const tooltip = notices?.rowWarning ?? description;
+				const modelGroup = this._modelGroupFor(m);
+				const byokModelIdentifier = readAgentModelByokIdentifier(m);
+				// A host that derives its list from the Copilot SDK advertises no billing and no
+				// token counts, so fall back to the workbench's own catalogue entry for the same
+				// model. See `_catalogueEntryFor`.
+				const known = this._catalogueEntryFor(m, modelGroup);
+				const maxOutputTokens = m.maxOutputTokens ?? known?.maxOutputTokens ?? 0;
+				// BYOK models can advertise only a total window; the workbench expects separate input/output limits.
+				const maxInputTokens = m.maxPromptTokens
+					?? (m.maxContextWindow !== undefined ? Math.max(0, m.maxContextWindow - maxOutputTokens) : undefined)
+					?? known?.maxInputTokens ?? 0;
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
@@ -72,59 +178,261 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						vendor: this._vendor,
 						version: '1.0',
 						family: m.id,
-						maxInputTokens: m.maxContextWindow ?? 0,
-						maxOutputTokens: 0,
+						...(tooltip !== undefined && { tooltip }),
+						...(detail !== undefined && { detail }),
+						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
+						...(fusion && { autoModelFusion: fusion }),
+						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
+						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
+						maxInputTokens,
+						maxOutputTokens,
+						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
 						isDefaultForLocation: {},
 						isUserSelectable: true,
-						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : undefined,
-						multiplierNumeric,
-						inputCost: pricing.inputCost,
-						cacheCost: pricing.cacheCost,
-						outputCost: pricing.outputCost,
-						longContextInputCost: pricing.longContextInputCost,
-						longContextCacheCost: pricing.longContextCacheCost,
-						longContextOutputCost: pricing.longContextOutputCost,
-						priceCategory: pricing.priceCategory,
+						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
+						warningText: notices?.warningText,
+						infoText: notices?.infoText,
+						pricing: multiplierNumeric !== undefined ? `${multiplierNumeric}x` : known?.pricing,
+						multiplierNumeric: multiplierNumeric ?? known?.multiplierNumeric,
+						inputCost: pricing.inputCost ?? known?.inputCost,
+						cacheCost: pricing.cacheCost ?? known?.cacheCost,
+						cacheWriteCost: pricing.cacheWriteCost ?? known?.cacheWriteCost,
+						outputCost: pricing.outputCost ?? known?.outputCost,
+						longContextInputCost: pricing.longContextInputCost ?? known?.longContextInputCost,
+						longContextCacheCost: pricing.longContextCacheCost ?? known?.longContextCacheCost,
+						longContextCacheWriteCost: pricing.longContextCacheWriteCost ?? known?.longContextCacheWriteCost,
+						longContextOutputCost: pricing.longContextOutputCost ?? known?.longContextOutputCost,
+						priceCategory: pricing.priceCategory ?? known?.priceCategory,
+						category: pricing.category ?? known?.category,
+						promo: pricing.promo ?? known?.promo,
 						targetChatSessionType: this._sessionType,
+						// Group agent-host models in the picker by their upstream provider
+						// (Copilot CLI, OpenAI, a 3p BYOK provider, …). All of a host's
+						// models share one vendor, so without this they'd render as a single
+						// undifferentiated bucket. Presentation-only; routing stays by vendor.
+						...(modelGroup ? { modelGroup } : {}),
+						...(byokModelIdentifier !== undefined && { byokModelIdentifier }),
 						capabilities: {
-							vision: m.supportsVision ?? false,
+							vision: m.supportsVision ?? known?.capabilities?.vision ?? false,
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, isAuto ? readAgentModelAutoTiersMeta(m) : undefined),
+						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
+						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
 				};
 			});
 	}
 
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
+	/**
+	 * The picker detail and description of a model that routes across others: Auto advertises its
+	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 */
+	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
+		if (model.id === AUTO_RAW_MODEL_ID) {
+			return {
+				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
+				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelFusionMeta(model)),
+			};
+		}
+		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
+			return {
+				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
+				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models.", model.name),
+			};
+		}
+		return {};
+	}
+
+	/**
+	 * The workbench catalogue entry describing the same model, when one is known.
+	 *
+	 * A host driving the Copilot SDK advertises no billing and, where the SDK omits them, no token
+	 * limits — so the CAPI-backed Copilot catalogue fills the gaps.
+	 *
+	 * Matching by raw model id does not prove the two describe the same offering — they can differ
+	 * by entitlement, policy, rollout or billing route — so this is restricted to models billed
+	 * through Copilot and only ever fills fields the host left absent.
+	 *
+	 * The token-limit half is a shim: those are native protocol fields, and a host that populates
+	 * them makes the fallback dead. The billing half is not. Pricing is deliberately kept off the
+	 * agent host protocol as operator-sensitive, so a client that wants to show it has to source it
+	 * itself. Removing this join therefore means dropping pricing for these models, which is a
+	 * product decision rather than a cleanup.
+	 */
+	private _catalogueEntryFor(model: SessionModelInfo, group: ILanguageModelChatMetadata['modelGroup']): ILanguageModelChatMetadata | undefined {
+		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID) {
+			return undefined;
+		}
+		for (const identifier of this._catalogue.getLanguageModelIds()) {
+			const metadata = this._catalogue.lookupLanguageModel(identifier);
+			if (metadata?.vendor === COPILOT_VENDOR_ID && metadata.id === model.id) {
+				return metadata;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Translate a host's model {@link ConfigSchema} into the picker's schema shape.
+	 *
+	 * Values and display text belong to the producer; the workbench only picks the group
+	 * ({@link _groupForConfigKey}). The one exception is a reasoning-effort enum with no display
+	 * text at all, labelled locally rather than rendering raw values like `xhigh`.
+	 *
+	 * A property is never dropped for want of local enrichment: a host advertises one because it
+	 * will honour it, and a new model, a staged rollout and an unresolved catalogue all look
+	 * identical from here.
+	 */
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, autoTiers?: IAgentModelAutoTiersMeta): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
 
-		return {
-			type: schema.type,
-			required: schema.required,
-			properties: Object.fromEntries(Object.entries(schema.properties).map(([key, property]) => [key, {
+		const properties: ILanguageModelConfigurationSchema['properties'] = {};
+		for (const [key, property] of Object.entries(schema.properties)) {
+			// Only when the producer supplied no display text at all. Filling in half of it
+			// would mix sources and override a producer that deliberately labels its values
+			// without describing them.
+			const effortDisplay = property.enumLabels === undefined && property.enumDescriptions === undefined
+				? AgentHostLanguageModelProvider._reasoningEffortDisplay(key, property.enum)
+				: undefined;
+
+			properties[key] = {
 				type: property.type,
 				title: property.title,
 				description: property.description,
 				default: property.default,
 				enum: property.enum,
-				enumItemLabels: property.enumLabels,
-				enumDescriptions: property.enumDescriptions,
+				enumItemLabels: property.enumLabels ?? effortDisplay?.labels,
+				enumDescriptions: property.enumDescriptions ?? effortDisplay?.descriptions,
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
-			}])),
+			};
+			if (key === 'tier' && autoTiers) {
+				properties[key] = AgentHostLanguageModelProvider._withUnavailableAutoTiers(properties[key], autoTiers);
+			}
+		}
+
+		return {
+			type: schema.type,
+			required: schema.required,
+			properties,
+		};
+	}
+
+	/** Adds the provider's unavailable tiers as disabled entries; enabled tiers missing from `enum` stay out. */
+	private static _withUnavailableAutoTiers(property: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], autoTiers: IAgentModelAutoTiersMeta): NonNullable<ILanguageModelConfigurationSchema['properties']>[string] {
+		const selectable = property.enum ?? [];
+		if (!autoTiers.tiers.some(tier => !tier.enabled && !selectable.includes(tier.id))) {
+			return property;
+		}
+		const entries: { value: unknown; label: string | undefined; description: string | undefined; disabled: boolean }[] = [];
+		const listed = new Set<unknown>();
+		const pushSelectable = (value: unknown) => {
+			const index = selectable.indexOf(value);
+			entries.push({ value, label: property.enumItemLabels?.[index], description: property.enumDescriptions?.[index], disabled: false });
+			listed.add(value);
+		};
+		for (const tier of autoTiers.tiers) {
+			if (selectable.includes(tier.id)) {
+				pushSelectable(tier.id);
+			} else if (!tier.enabled && !listed.has(tier.id)) {
+				entries.push({ value: tier.id, label: tier.label, description: tier.message ?? localize('agentHost.autoTierUnavailable', "Not available for your account."), disabled: true });
+				listed.add(tier.id);
+			}
+		}
+		for (const value of selectable) {
+			if (!listed.has(value)) {
+				pushSelectable(value);
+			}
+		}
+		return {
+			...property,
+			enum: entries.map(entry => entry.value),
+			enumItemLabels: entries.map(entry => entry.label ?? String(entry.value)),
+			enumDescriptions: entries.map(entry => entry.description ?? ''),
+			enumItemDisabled: entries.map(entry => entry.disabled),
+		};
+	}
+
+	/** Config keys whose enum values are reasoning-effort levels, whatever the producer named them. */
+	private static readonly _reasoningEffortKeys: ReadonlySet<string> = new Set(['reasoningEffort', 'thinkingLevel']);
+
+	/**
+	 * Localized labels and descriptions for a reasoning-effort enum whose producer supplied none.
+	 *
+	 * A host that derives its schema from an upstream SDK advertises the accepted effort values
+	 * without display text, because it has none the SDK did not give it — the Copilot agent host
+	 * inside a cloud sandbox does exactly that. Deriving the text here keeps the picker from
+	 * rendering raw values like `xhigh`, and matches what the agents that build their schema
+	 * locally already emit.
+	 *
+	 * Only synthesized when every enum value is a string, since labels align with `enum` by index
+	 * and a partial list would mislabel the rest.
+	 *
+	 * No `default` is synthesized: schema defaults are merged into the configuration that is sent
+	 * (see `resolveModelConfiguration`), so inventing one would send an explicit effort where the
+	 * host expects the value omitted and the backend to choose.
+	 */
+	private static _reasoningEffortDisplay(key: string, values: readonly unknown[] | undefined): { readonly labels: string[]; readonly descriptions: string[] } | undefined {
+		if (!AgentHostLanguageModelProvider._reasoningEffortKeys.has(key) || !values?.length) {
+			return undefined;
+		}
+		const levels = values.filter((value): value is string => typeof value === 'string');
+		if (levels.length !== values.length) {
+			return undefined;
+		}
+		return {
+			labels: levels.map(getReasoningEffortLabel),
+			descriptions: levels.map(level => getReasoningEffortDescription(level) ?? ''),
 		};
 	}
 
 	private static _groupForConfigKey(key: string): string | undefined {
 		switch (key) {
-			case 'thinkingLevel': return 'navigation';
+			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
+			// matching how the Copilot Chat extension groups it.
+			case 'tier':
+			case 'autoTier':
+			case 'thinkingLevel':
+			// `reasoningEffort` / `contextTier` are what the Copilot agent host inside a cloud
+			// sandbox names the same two knobs. Without them the picker finds no property in
+			// either group and hides itself entirely, so a sandbox session offers no way to
+			// choose a thinking level or a context window.
+			case 'reasoningEffort': return 'navigation';
+			case 'contextSize':
 			case 'contextTier': return 'tokens';
 			default: return undefined;
 		}
+	}
+
+	/**
+	 * Derives the picker group id for a model — the vendor its models are bucketed
+	 * under. A producer may pin the group id explicitly in `_meta` (e.g. Claude
+	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
+	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
+	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
+	 * `synthesizeByokSessionConfig`), so their upstream vendor is the id prefix; native
+	 * harness models have no prefix and group under their `provider` (the harness,
+	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
+	 * registry — no name mapping lives here.
+	 */
+	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
+		const explicitGroupId = readAgentModelGroupId(model);
+		const slash = model.id.indexOf('/');
+		// An on-device model's direct row is the harness's own model; its id's
+		// `vscode-on-device/` prefix names the sentinel provider that serves it,
+		// not a vendor the user added.
+		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
+		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
+		if (!groupVendorId) {
+			return undefined;
+		}
+		const sourceId = readAgentModelSourceId(model);
+		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 
 	async sendChatRequest(): Promise<never> {

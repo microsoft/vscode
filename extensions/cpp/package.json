@@ -47,6 +47,8 @@
           ".inl",
           ".ipp",
           ".ixx",
+          ".mpp",
+          ".mxx",
           ".tpp",
           ".txx",
           ".hpp.in",

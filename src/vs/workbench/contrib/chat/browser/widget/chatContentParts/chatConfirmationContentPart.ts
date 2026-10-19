@@ -49,7 +49,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = e.label;
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
-				options.userSelectedModelId = widget?.input.currentLanguageModel;
+				Object.assign(options, widget?.getSelectedModelRequestOptions());
 				options.modeInfo = widget?.input.currentModeInfo;
 				options.location = widget?.location;
 				Object.assign(options, widget?.getModeRequestOptions());

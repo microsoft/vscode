@@ -49,7 +49,7 @@ suite('agentHostRenameCommand', () => {
 
 		function run(text: string, hasHistory = true, offset = text.length) {
 			const provider = new AgentHostRenameCompletionProvider(() => hasHistory);
-			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
+			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, { chat: undefined }, CancellationToken.None);
 		}
 
 		test('offers /rename for a lone "/" when the session has history', async () => {
@@ -59,6 +59,11 @@ suite('agentHostRenameCommand', () => {
 
 		test('offers /rename when "/r" is typed', async () => {
 			const items = await run('/r');
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/rename ']);
+		});
+
+		test('offers /rename when fuzzily matched', async () => {
+			const items = await run('/rae');
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/rename ']);
 		});
 

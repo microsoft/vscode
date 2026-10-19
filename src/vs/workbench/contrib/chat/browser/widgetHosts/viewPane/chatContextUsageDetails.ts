@@ -7,12 +7,14 @@ import './media/chatContextUsageDetails.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { toAction, type IAction } from '../../../../../../base/common/actions.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { formatCopilotCreditsLabel, type IChatUsage } from '../../../common/chatService/chatService.js';
 import type { IChatWidget } from '../../chat.js';
 
 const $ = dom.$;
@@ -26,12 +28,16 @@ export interface IChatContextUsagePromptTokenDetail {
 }
 
 export interface IChatContextUsageData {
+	/** False for aggregate billing received before any context-window usage. */
+	hasContextUsage?: boolean;
 	usedTokens: number;
 	completionTokens: number;
 	totalContextWindow: number;
 	percentage: number;
 	outputBufferPercentage?: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
+	sessionCost?: number;
+	sessionCostStatus?: IChatUsage['sessionCopilotCreditsStatus'];
 }
 
 /**
@@ -42,6 +48,9 @@ export class ChatContextUsageDetails extends Disposable {
 
 	readonly domNode: HTMLElement;
 
+	private readonly sessionCostSection: HTMLElement;
+	private readonly sessionCostValue: HTMLElement;
+	private readonly contextHeader: HTMLElement;
 	private readonly quotaItem: HTMLElement;
 	private readonly percentageLabel: HTMLElement;
 	private readonly tokenCountLabel: HTMLElement;
@@ -54,6 +63,7 @@ export class ChatContextUsageDetails extends Disposable {
 
 	constructor(
 		private _chatWidget: IChatWidget | undefined,
+		private readonly _dataObservable: IObservable<IChatContextUsageData | undefined>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -62,12 +72,24 @@ export class ChatContextUsageDetails extends Disposable {
 
 		this.domNode = $('.chat-context-usage-details');
 
+		// Top-level header
+		const topHeader = this.domNode.appendChild($('div.header'));
+		topHeader.textContent = localize('sessionInfo', "Session Info");
+
+		// Session cost section (hidden until cost data is available)
+		this.sessionCostSection = this.domNode.appendChild($('.session-cost-section'));
+		this.sessionCostSection.style.display = 'none';
+		const sessionCostRow = this.sessionCostSection.appendChild($('.session-cost-row'));
+		const sessionCostLabel = sessionCostRow.appendChild($('span.session-cost-label'));
+		sessionCostLabel.textContent = localize('sessionCost', "Session Cost");
+		this.sessionCostValue = sessionCostRow.appendChild($('span.session-cost-value'));
+
 		// Quota indicator — using same structure as ChatStatusDashboard
 		this.quotaItem = this.domNode.appendChild($('.quota-indicator'));
 
-		// Header row
-		const header = this.domNode.insertBefore($('div.header'), this.quotaItem);
-		header.textContent = localize('contextWindow', "Context Window");
+		// Context Window header
+		this.contextHeader = this.domNode.insertBefore($('div.header'), this.quotaItem);
+		this.contextHeader.textContent = localize('contextWindow', "Context Window");
 
 		// Quota label row with token count + percentage
 		const quotaLabel = this.quotaItem.appendChild($('.quota-label'));
@@ -104,7 +126,7 @@ export class ChatContextUsageDetails extends Disposable {
 		// Listen to menu changes to show/hide actions section
 		const menu = this._register(this.menuService.createMenu(MenuId.ChatContextUsageActions, this.contextKeyService));
 		const updateActions = () => {
-			const actions = getActionBarActions(menu.getActions(), () => true);
+			const actions = getActionBarActions(menu.getActions({ shouldForwardArgs: true }), () => true);
 			const primaryActions = actions.primary.map(action => this.withActionContext(action));
 			const secondaryActions = actions.secondary.map(action => this.withActionContext(action));
 			buttonBar.update(primaryActions, secondaryActions);
@@ -112,6 +134,14 @@ export class ChatContextUsageDetails extends Disposable {
 		};
 		this._register(menu.onDidChange(updateActions));
 		updateActions();
+
+		this._register(autorun(reader => {
+			const data = this._dataObservable.read(reader);
+			// Re-render when the usage data changes; keep the last-rendered DOM when data becomes undefined.
+			if (data) {
+				this._render(data);
+			}
+		}));
 	}
 
 	setChatWidget(widget: IChatWidget): void {
@@ -136,8 +166,29 @@ export class ChatContextUsageDetails extends Disposable {
 		});
 	}
 
-	update(data: IChatContextUsageData): void {
-		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails } = data;
+	private _render(data: IChatContextUsageData): void {
+		const { percentage, usedTokens, totalContextWindow, outputBufferPercentage, promptTokenDetails, sessionCost, sessionCostStatus } = data;
+
+		// Update session cost — hide section when no cost data is available
+		if (typeof sessionCost === 'number' && (sessionCost > 0 || sessionCostStatus !== undefined)) {
+			this.sessionCostValue.textContent = sessionCostStatus === 'unavailable'
+				? localize('sessionCost.unavailable', "Unavailable")
+				: sessionCostStatus === 'partial'
+					? localize('sessionCost.partial', "{0} (partial)", formatCopilotCreditsLabel(sessionCost))
+					: formatCopilotCreditsLabel(sessionCost);
+			this.sessionCostSection.style.display = '';
+		} else {
+			this.sessionCostSection.style.display = 'none';
+		}
+
+		const hasContextUsage = data.hasContextUsage !== false;
+		this.contextHeader.style.display = hasContextUsage ? '' : 'none';
+		this.quotaItem.style.display = hasContextUsage ? '' : 'none';
+		if (!hasContextUsage) {
+			this.tokenDetailsContainer.style.display = 'none';
+			this.warningMessage.style.display = 'none';
+			return;
+		}
 
 		// Update token count and percentage — reflects actual usage only
 		this.tokenCountLabel.textContent = localize(

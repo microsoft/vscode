@@ -108,8 +108,6 @@ export enum ContributedToolName {
 	Codebase = 'copilot_searchCodebase',
 	SearchWorkspaceSymbols = 'copilot_searchWorkspaceSymbols',
 	VSCodeAPI = 'copilot_getVSCodeAPI',
-	/** @deprecated moving to core soon */
-	RunTests = 'copilot_runTests1',
 	FindFiles = 'copilot_findFiles',
 	FindTextInFiles = 'copilot_findTextInFiles',
 	ReadFile = 'copilot_readFile',
@@ -134,7 +132,6 @@ export enum ContributedToolName {
 	FindTestFiles = 'copilot_findTestFiles',
 	GithubSemanticRepoSearch = 'copilot_githubRepo',
 	GithubTextSearch = 'copilot_githubTextSearch',
-	CreateAndRunTask = 'copilot_createAndRunTask',
 	CreateDirectory = 'copilot_createDirectory',
 	RunVscodeCmd = 'copilot_runVscodeCommand',
 	EditFilesPlaceholder = 'copilot_editFiles',
@@ -268,15 +265,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.Skill]: ToolCategory.Core,
 	[ToolName.SessionStoreSql]: ToolCategory.Core,
 } as const;
-
-
-
-/**
- * Get the category for a tool, checking both ToolName enum and external tools.
- */
-export function getToolCategory(toolName: string): ToolCategory | undefined {
-	return toolCategories.hasOwnProperty(toolName) ? toolCategories[toolName as ToolName] : undefined;
-}
 
 /**
  * Get all tools for a specific category.

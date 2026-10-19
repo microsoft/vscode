@@ -157,6 +157,13 @@ export class GlyphMarginWidgets extends ViewPart {
 	public override dispose(): void {
 		this._managedDomNodes = [];
 		this._decorationGlyphsToRender = [];
+		// Widgets outlive the view, so detach their dom nodes to not keep this view's DOM alive (#146841)
+		for (const widgetData of Object.values(this._widgets)) {
+			const domNode = widgetData.domNode.domNode;
+			if (domNode.parentElement === this.domNode.domNode) {
+				domNode.remove();
+			}
+		}
 		this._widgets = {};
 		super.dispose();
 	}

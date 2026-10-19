@@ -5,13 +5,16 @@
 
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ClientToolSetsContribution } from '../../../browser/tools/clientToolSetsContribution.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { createToolSetFileContents, deleteToolSetFromFileContents, getEnabledSelectionReferences } from '../../../browser/tools/toolSetsContribution.js';
-import { IToolData, IToolSet, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ToolSetsContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,6 +25,72 @@ suite('ToolSetsContribution', () => {
 		}, store);
 		return store.add(instaService.createInstance(LanguageModelToolsService));
 	}
+
+	test('ClientToolSetsContribution exposes only Tool Search from vscode-general in the Sessions window', () => {
+		const makeTool = (name: string): IToolData => ({
+			id: name,
+			modelDescription: name,
+			displayName: name,
+			toolReferenceName: name,
+			source: ToolDataSource.Internal,
+		});
+		const general = ['runTests', 'testFailure', 'rename', 'usages', 'toolSearch'].map(makeTool);
+		const removed = ['extensions', 'installExtension', 'newWorkspace', 'runCommand', 'vscodeAPI'].map(makeTool);
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const tool of [...general, ...removed]) {
+				store.add(toolsService.registerToolData(tool));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		const sessionsToolsService = createContribution(true);
+		const coreToolsService = createContribution(false);
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreMembers: Array.from(coreToolsService.getToolSet('vscode-general')?.getTools() ?? [], tool => tool.toolReferenceName),
+		}, {
+			sessionsMembers: ['toolSearch'],
+			coreMembers: ['runTests', 'testFailure', 'rename', 'usages', 'toolSearch'],
+		});
+	});
+
+	test('ClientToolSetsContribution exposes Automations only in the Sessions window', () => {
+		const makeTool = (name: string): IToolData => ({
+			id: name,
+			modelDescription: name,
+			displayName: name,
+			toolReferenceName: name,
+			source: ToolDataSource.Internal,
+		});
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const tool of ['listAutomations', 'configureAutomation', 'runAutomation', 'deleteAutomation'].map(makeTool)) {
+				store.add(toolsService.registerToolData(tool));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		const sessionsToolsService = createContribution(true);
+		const coreToolsService = createContribution(false);
+
+		assert.deepStrictEqual({
+			sessionsMembers: Array.from(sessionsToolsService.getToolSet('vscode-automations')?.getTools() ?? [], tool => tool.toolReferenceName),
+			coreHasSet: !!coreToolsService.getToolSet('vscode-automations'),
+		}, {
+			sessionsMembers: ['listAutomations', 'configureAutomation', 'runAutomation', 'deleteAutomation'],
+			coreHasSet: false,
+		});
+	});
 
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {
 		const toolsService = createToolsService();
@@ -53,7 +122,7 @@ suite('ToolSetsContribution', () => {
 		));
 		store.add(userToolSet.addTool(coveredTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[userToolSet, true],
 			[coveredTool, true],
 			[standaloneTool, true],
@@ -96,7 +165,7 @@ suite('ToolSetsContribution', () => {
 		store.add(userToolSet.addTool(enabledTool));
 		store.add(userToolSet.addTool(disabledTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[userToolSet, true],
 			[enabledTool, true],
 			[disabledTool, false],
@@ -130,7 +199,7 @@ suite('ToolSetsContribution', () => {
 		));
 		store.add(vscodeToolSet.addTool(memoryTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[vscodeToolSet, false],
 			[memoryTool, true],
 		]);
@@ -157,7 +226,7 @@ suite('ToolSetsContribution', () => {
 		const vscodeToolSet = store.add(toolsService.createToolSet(ToolDataSource.Internal, 'vscode', 'vscode'));
 		store.add(vscodeToolSet.addTool(subTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[vscodeToolSet, false],
 			[subTool, true],
 		]);
@@ -225,7 +294,7 @@ suite('ToolSetsContribution', () => {
 		store.add(readToolSet.addTool(readFileTool));
 		store.add(githubToolSet.addTool(githubIssuesTool));
 
-		const selection = new Map<IToolData | IToolSet, boolean>([
+		const selection = ToolAndToolSetEnablementMap.fromEntries([
 			[vscodeToolSet, false],
 			[executeToolSet, false],
 			[readToolSet, false],

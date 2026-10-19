@@ -5,8 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createSchema, platformSessionSchema, schemaProperty, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
-import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 /**
@@ -28,6 +30,84 @@ function captureProtocolError(fn: () => void): ProtocolError {
 suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a chat may set its approvals, mode, tool permissions and sandbox; workspace settings stay with the session', () => {
+		const properties = platformSessionSchema.toProtocol().properties;
+		assert.deepStrictEqual(Object.keys(properties).filter(key => properties[key].chatMutable).sort(), [
+			SessionConfigKey.AutoApprove,
+			SessionConfigKey.Mode,
+			SessionConfigKey.Permissions,
+			SessionConfigKey.SandboxEnabled,
+		].sort());
+	});
+
+	test('automatic title generation root settings default to utility naming', () => {
+		const properties = platformRootSchema.toProtocol().properties;
+		assert.deepStrictEqual({
+			strategy: {
+				type: properties[AgentHostTitleGenerationConfigKey].type,
+				enum: properties[AgentHostTitleGenerationConfigKey].enum,
+				default: properties[AgentHostTitleGenerationConfigKey].default,
+				rejectsUnselectableStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'deferred'),
+			},
+			legacyActiveAgent: {
+				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
+				default: properties[AgentHostActiveAgentTitleGenerationConfigKey].default,
+			},
+			legacyDeferred: {
+				type: properties[AgentHostDeferredTitleGenerationConfigKey].type,
+				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
+			},
+		}, {
+			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'agentReview'], default: 'utility', rejectsUnselectableStrategy: true },
+			legacyActiveAgent: { type: 'boolean', default: false },
+			legacyDeferred: { type: 'boolean', default: false },
+		});
+	});
+
+	test('Markdown plan rich links are an additive boolean root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, false);
+	});
+
+	test('agent orchestration limits are on by default and can be turned off', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostAgentOrchestrationLimitsConfigKey];
+		assert.deepStrictEqual({ type: property.type, enum: property.enum, default: property.default }, { type: 'string', enum: ['on', 'off'], default: 'on' });
+	});
+
+	test('GitHub MCP is an additive enabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostGitHubMcpServerEnabledConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, true);
+	});
+
+	test('MCP sampling approval is a host-owned list of server identities, disabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMcpSamplingAllowedServersConfigKey];
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			acceptsNames: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, ['test-server', 'other-server']),
+			acceptsEmpty: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, []),
+			rejectsInvalid: ['test-server', { server: true }, [true], [1]].map(value => !platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, value)),
+		}, { type: 'array', default: [], acceptsNames: true, acceptsEmpty: true, rejectsInvalid: [true, true, true, true] });
+	});
+
+	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
+		assert.strictEqual(property.type, 'boolean');
+		assert.strictEqual(property.default, true);
+	});
+
+	test('BYOK models are enabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostByokModelsEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: true });
+	});
+
+	test('Canvases are an additive disabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostCanvasesEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
+	});
 
 	// ---- schemaProperty / individual validators ---------------------------
 
@@ -283,12 +363,30 @@ suite('agentHostSchema', () => {
 
 	suite('platformSessionSchema', () => {
 
-		test('validates the three autoApprove levels', () => {
-			const levels: AutoApproveLevel[] = ['default', 'autoApprove', 'autopilot'];
+		test('validates the autoApprove levels', () => {
+			const levels: AutoApproveLevel[] = ['default', 'assisted', 'autoApprove'];
 			for (const level of levels) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, level), true, level);
 			}
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, 'bogus'), false);
+		});
+
+		test('exposes approval choices in picker order with current copy', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.AutoApprove];
+			assert.deepStrictEqual({
+				enum: property.enum,
+				enumLabels: property.enumLabels,
+				enumDescriptions: property.enumDescriptions,
+			}, {
+				enum: ['default', 'assisted', 'autoApprove'],
+				enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
+				enumDescriptions: [
+					'Asks when approval settings don\'t apply',
+					'Evaluates risk before running tools',
+					'Runs tool calls without asking',
+				],
+			});
 		});
 
 		test('validates permissions shape', () => {
@@ -299,15 +397,163 @@ suite('agentHostSchema', () => {
 		});
 
 		test('validates the agent modes', () => {
-			const modes: SessionMode[] = ['interactive', 'plan'];
+			const modes: SessionMode[] = ['interactive', 'plan', 'autopilot'];
 			for (const mode of modes) {
 				assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, mode), true, mode);
 			}
-			// `autopilot` is intentionally NOT in the AHP mode enum \u2014 it's
-			// modeled on the orthogonal `autoApprove` axis instead.
-			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'autopilot'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 'shell'), false);
 			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, 42), false);
+		});
+
+		test('validates the shellInitScripts shape', () => {
+			assert.deepStrictEqual([
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, []),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'zsh', script: 'x' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash' }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, [{ shell: 'bash', script: 1 }]),
+				platformSessionSchema.validate(SessionConfigKey.ShellInitScripts, 'nope'),
+			], [true, true, false, false, false, false]);
+		});
+
+		test('validates sensitive edit locations as read-only mutable session config', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.SensitiveEditLocations];
+			assert.deepStrictEqual({
+				results: [
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, []),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 'custom-hooks', isDirectory: true }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 'custom-hooks' }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, [{ path: 42, isDirectory: true }]),
+					platformSessionSchema.validate(SessionConfigKey.SensitiveEditLocations, 'custom-hooks'),
+				],
+				readOnly: property.readOnly,
+				sessionMutable: property.sessionMutable,
+			}, {
+				results: [true, true, false, false, false],
+				readOnly: true,
+				sessionMutable: true,
+			});
+		});
+
+		test('omits client-derived values from persisted session config', () => {
+			assert.deepStrictEqual(omitTransientSessionConfigValues({
+				[SessionConfigKey.Mode]: 'interactive',
+				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'x' }],
+				[SessionConfigKey.SensitiveEditLocations]: [{ path: 'custom-hooks', isDirectory: true }],
+			}), {
+				[SessionConfigKey.Mode]: 'interactive',
+			});
+		});
+
+		test('is marked read-only so it stays out of the session settings file', () => {
+			const property = platformSessionSchema.toProtocol().properties[SessionConfigKey.ShellInitScripts];
+			assert.deepStrictEqual({ readOnly: property.readOnly, type: property.type }, { readOnly: true, type: 'array' });
+		});
+
+		test('keeps a pushed shellInitScripts value and has no default of its own', () => {
+			const scripts = [{ shell: 'bash', script: 'x' }];
+			// Mirrors `resolveChatConfig`, which supplies defaults only for
+			// autoApprove and mode. An absent value must stay absent so it is
+			// distinguishable from an explicit empty array (clear).
+			const defaults: { [SessionConfigKey.AutoApprove]: AutoApproveLevel;[SessionConfigKey.Mode]: SessionMode;[SessionConfigKey.ShellInitScripts]?: readonly IShellInitScript[] } = {
+				[SessionConfigKey.AutoApprove]: 'default',
+				[SessionConfigKey.Mode]: 'interactive',
+			};
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitScripts]: scripts }, defaults), {
+				...defaults,
+				[SessionConfigKey.ShellInitScripts]: scripts,
+			});
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({}, defaults), defaults);
+			// An invalid pushed value must not survive into the resolved config.
+			assert.deepStrictEqual(platformSessionSchema.validateOrDefault({ [SessionConfigKey.ShellInitScripts]: 'nope' }, defaults), defaults);
+		});
+	});
+
+	// ---- legacy autopilot migration ----------------------------------------
+
+	suite('migrateLegacyAutopilotConfig', () => {
+
+		test('maps legacy autoApprove=autopilot to mode=autopilot + autoApprove=default', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'autopilot', autoApprove: 'default' });
+		});
+
+		test('preserves plan mode (legacy plan took precedence over autopilot)', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.Mode]: 'plan', [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'plan', autoApprove: 'default' });
+		});
+
+		test('overwrites a stale interactive mode with autopilot', () => {
+			const result = migrateLegacyAutopilotConfig({ [SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'autopilot' });
+			assert.deepStrictEqual(result, { mode: 'autopilot', autoApprove: 'default' });
+		});
+
+		test('passes through configs without the legacy value untouched', () => {
+			const input = { [SessionConfigKey.AutoApprove]: 'assisted', [SessionConfigKey.Mode]: 'interactive' };
+			assert.strictEqual(migrateLegacyAutopilotConfig(input), input);
+		});
+
+		test('migrated config validates against the schema', () => {
+			const input: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'autopilot' };
+			const result = migrateLegacyAutopilotConfig(input)!;
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.Mode, result[SessionConfigKey.Mode]), true);
+			assert.strictEqual(platformSessionSchema.validate(SessionConfigKey.AutoApprove, result[SessionConfigKey.AutoApprove]), true);
+		});
+
+		test('handles undefined', () => {
+			assert.strictEqual(migrateLegacyAutopilotConfig(undefined), undefined);
+		});
+	});
+
+	// ---- terminal auto-approve rule forwarding -----------------------------
+
+	suite('normalizeAgentHostTerminalAutoApproveRulesConfig', () => {
+
+		test('keeps null entries and object rules', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			}, inspectValue, false);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+				'/^npm run build$/': { approve: true, matchCommandLine: true },
+			});
+		});
+
+		test('removes default-only entries when default rules are ignored', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true, python: false } },
+				user: { value: { echo: null } },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: null,
+				ls: true,
+				python: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				echo: null,
+				python: true,
+			});
+		});
+
+		test('keeps entries that match defaults when they come from a non-default target', () => {
+			const inspectValue: IConfigurationValue<Readonly<AgentHostTerminalAutoApproveRules>> = {
+				default: { value: { echo: true, ls: true } },
+				userValue: { ls: true },
+			};
+			const result = normalizeAgentHostTerminalAutoApproveRulesConfig({
+				echo: true,
+				ls: true,
+			}, inspectValue, true);
+
+			assert.deepStrictEqual(result, {
+				ls: true,
+			});
 		});
 	});
 });

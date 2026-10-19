@@ -134,11 +134,20 @@ suite('Objects', () => {
 						friend: '[Circular]'
 					}
 				},
-				'[Circular]'
+				{
+					friend: {
+						friend: '[Circular]'
+					}
+				}
 			],
 			d: [1, '[Circular]', '[Circular]'],
 			e: '[BigInt 42]'
 		});
+	});
+
+	test('safeStringify does not treat shared references as circular', () => {
+		const shared = { a: 1 };
+		assert.strictEqual(objects.safeStringify([shared, { x: shared, y: [shared] }]), '[{"a":1},{"x":{"a":1},"y":[{"a":1}]}]');
 	});
 
 	test('stableStringify', () => {
@@ -180,6 +189,16 @@ suite('Objects', () => {
 		assert.strictEqual(
 			objects.stableStringify(circular),
 			'{"a":1,"self":"[Circular]"}'
+		);
+
+		const shared = { a: 1 };
+		assert.strictEqual(
+			objects.stableStringify({ x: shared, y: shared }),
+			'{"x":{"a":1},"y":{"a":1}}'
+		);
+		assert.strictEqual(
+			objects.stableStringify([shared, shared]),
+			'[{"a":1},{"a":1}]'
 		);
 	});
 

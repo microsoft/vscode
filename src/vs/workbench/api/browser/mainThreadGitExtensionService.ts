@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../base/common/async.js'; import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -73,7 +73,7 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 	private readonly _openRepositorySequencer = new Sequencer();
 
 	private _repositoryHandles = new ResourceMap<number>();
-	private _repositories = new Map<number, IGitRepository>();
+	private readonly _repositories = this._register(new DisposableMap<number, GitRepository>());
 
 	get repositories(): Iterable<IGitRepository> {
 		return this._repositories.values();

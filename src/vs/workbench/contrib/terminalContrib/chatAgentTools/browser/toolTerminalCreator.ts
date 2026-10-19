@@ -13,6 +13,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { AiAgentEnvValue, AiAgentEnvVar } from '../../../../../platform/chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -154,7 +155,7 @@ export class ToolTerminalCreator {
 			// See https://github.com/microsoft/vscode/issues/311734
 			// `AI_AGENT` is the cross-vendor standard; `COPILOT_AGENT` is kept
 			// for back-compat with CLIs that already adopted it.
-			AI_AGENT: 'github_copilot_vscode_agent',
+			[AiAgentEnvVar]: AiAgentEnvValue,
 			COPILOT_AGENT: '1',
 			// Avoid making `git diff` interactive when called from copilot
 			GIT_PAGER: 'cat',

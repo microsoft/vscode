@@ -16,6 +16,12 @@ import {
 } from '../../common/chatErrorMessages.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel } from '../../common/chatService/chatService.js';
+import type { ErrorInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+
+/** Wraps a `_meta` bag in a minimal {@link ErrorInfo} so the reader sees the right source type. */
+function errorInfo(meta: Record<string, unknown> | undefined): ErrorInfo {
+	return { errorType: 'e', message: 'm', _meta: meta };
+}
 
 suite('ChatErrorMessages', () => {
 
@@ -23,15 +29,42 @@ suite('ChatErrorMessages', () => {
 
 	suite('getChatErrorDetailsFromMeta', () => {
 
+		test('renders Copilot error detail when VS Code metadata is invalid without allowing command links', () => {
+			const copilot = { errorCode: 'limited', statusCode: 429, url: 'command:unsafe', providerCallId: 'request' };
+			const error: ErrorInfo = { errorType: 'rate_limit', message: 'Slow down', _meta: { 'copilot.errorDetail': copilot } };
+			const expected = {
+				message: 'Slow&nbsp;down', code: 'limited', isRateLimited: true, isQuotaExceeded: false, isExpectedError: true,
+			};
+			assert.deepStrictEqual([
+				getChatErrorDetailsFromMeta(error),
+				getChatErrorDetailsFromMeta({ ...error, _meta: { ...error._meta, chatError: null } }),
+				getChatErrorDetailsFromMeta({ ...error, _meta: { ...error._meta, chatError: { fetchError: {} } } }),
+			], [expected, expected, expected]);
+		});
+
+		test('valid VS Code error metadata keeps its existing formatting when both styles are present', () => {
+			const forwarded = {
+				fetchError: { type: ChatFetchResponseType.RateLimited, retryAfter: 60 },
+				copilotPlan: 'free',
+			};
+			assert.deepStrictEqual(
+				getChatErrorDetailsFromMeta(errorInfo({
+					chatError: forwarded,
+					'copilot.errorDetail': { errorCode: 'ignored', statusCode: 500 },
+				})),
+				getChatErrorDetailsFromMeta(errorInfo({ chatError: forwarded })),
+			);
+		});
+
 		test('returns undefined when no meta or no chatError', () => {
 			assert.strictEqual(getChatErrorDetailsFromMeta(undefined), undefined);
-			assert.strictEqual(getChatErrorDetailsFromMeta({}), undefined);
-			assert.strictEqual(getChatErrorDetailsFromMeta({ chatError: {} }), undefined);
-			assert.strictEqual(getChatErrorDetailsFromMeta({ chatError: { fetchError: {} } }), undefined);
+			assert.strictEqual(getChatErrorDetailsFromMeta(errorInfo(undefined)), undefined);
+			assert.strictEqual(getChatErrorDetailsFromMeta(errorInfo({ chatError: {} })), undefined);
+			assert.strictEqual(getChatErrorDetailsFromMeta(errorInfo({ chatError: { fetchError: {} } })), undefined);
 		});
 
 		test('formats a forwarded rate-limit error', () => {
-			const details = getChatErrorDetailsFromMeta({
+			const details = getChatErrorDetailsFromMeta(errorInfo({
 				chatError: {
 					fetchError: {
 						type: ChatFetchResponseType.RateLimited,
@@ -40,7 +73,7 @@ suite('ChatErrorMessages', () => {
 					},
 					copilotPlan: 'free',
 				},
-			});
+			}));
 			assert.deepStrictEqual(details, {
 				code: ChatFetchResponseType.RateLimited,
 				message: 'You\'ve hit your session rate limit. Please upgrade your plan or wait 60 seconds for your limit to reset. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
@@ -50,12 +83,12 @@ suite('ChatErrorMessages', () => {
 		});
 
 		test('context overrides the forwarded plan (free user)', () => {
-			const details = getChatErrorDetailsFromMeta({
+			const details = getChatErrorDetailsFromMeta(errorInfo({
 				chatError: {
 					fetchError: { type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'quota_exceeded' } },
 					copilotPlan: 'business',
 				},
-			}, { copilotPlan: 'free' });
+			}), { copilotPlan: 'free' });
 			assert.strictEqual(details?.message, 'You\'ve reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.');
 		});
 
@@ -66,7 +99,7 @@ suite('ChatErrorMessages', () => {
 		// side is caught here instead of silently failing to render.
 		test('accepts the payload shape and every type the node layer emits', () => {
 			const nodeTypes = ['quotaExceeded', 'rateLimited', 'canceled', 'badRequest', 'agent_unauthorized', 'notFound', 'failed', 'length'];
-			const resolved = nodeTypes.map(type => getChatErrorDetailsFromMeta({
+			const resolved = nodeTypes.map(type => getChatErrorDetailsFromMeta(errorInfo({
 				chatError: {
 					fetchError: {
 						type,
@@ -78,7 +111,7 @@ suite('ChatErrorMessages', () => {
 					copilotPlan: 'free',
 					isUsageBasedBilling: false,
 				},
-			})?.code);
+			}))?.code);
 			// Every node-emitted type resolves to a defined details object whose code is
 			// the fetch type (or, for quota, the more specific capiError code).
 			assert.deepStrictEqual(resolved, ['some_code', 'rateLimited', 'canceled', 'badRequest', 'agent_unauthorized', 'notFound', 'failed', 'length']);
@@ -211,6 +244,23 @@ suite('ChatErrorMessages', () => {
 				'You\'ve exhausted your premium model quota. For additional paid premium requests, please reach out to your organization\'s Copilot admin or wait for your allowance to renew.',
 			);
 		});
+
+		test('edu plan with usage-based billing', () => {
+			assert.deepStrictEqual(
+				[getQuotaMessageForPlan('edu', true, '2030-01-15T00:00:00.000Z'), getQuotaMessageForPlan('edu', true)],
+				[
+					`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait until your credits reset on ${new Date('2030-01-15T00:00:00.000Z').toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+					'You\'ve reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro, or wait for your credits to reset.',
+				],
+			);
+		});
+
+		test('edu plan without usage-based billing', () => {
+			assert.strictEqual(
+				getQuotaMessageForPlan('edu'),
+				'You\'ve exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro, or wait for your allowance to renew.',
+			);
+		});
 	});
 
 	suite('getCopilotPlanFromEntitlement', () => {
@@ -226,7 +276,7 @@ suite('ChatErrorMessages', () => {
 				ChatEntitlement.EDU,
 				ChatEntitlement.Unknown,
 			].map(getCopilotPlanFromEntitlement);
-			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'individual', undefined]);
+			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'edu', undefined]);
 		});
 	});
 });

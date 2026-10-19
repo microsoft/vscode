@@ -135,7 +135,7 @@ steps:
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
           VSCODE_CLI_COMMIT: $(Build.SourceVersion)
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          GITHUB_TOKEN: "$(github-token-code-oss)"
           RUSTC_WRAPPER: sccache
           SCCACHE_DIR: $(Pipeline.Workspace)/sccache
           ${{ each pair in parameters.VSCODE_CLI_ENV }}:

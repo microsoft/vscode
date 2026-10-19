@@ -16,7 +16,8 @@ import { join } from '../../../common/path.js';
 import { Platform, platform } from '../../../common/platform.js';
 import { generateUuid } from '../../../common/uuid.js';
 import { ClientConnectionEvent, IPCServer } from '../common/ipc.js';
-import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
+import { Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
+import { encodeWebSocketFrame, WebSocketFrameParser, WebSocketOpcode } from '../common/webSocketFraming.js';
 
 export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	debugLabel,
@@ -266,7 +267,6 @@ export class NodeSocket implements ISocket {
 }
 
 const enum Constants {
-	MinHeaderByteSize = 2,
 	/**
 	 * If we need to write a large buffer, we will split it into 256KB chunks and
 	 * send each chunk as a websocket message. This is to prevent that the sending
@@ -277,20 +277,13 @@ const enum Constants {
 	MaxWebSocketMessageLength = 256 * 1024 // 256 KB
 }
 
-const enum ReadState {
-	PeekHeader = 1,
-	ReadHeader = 2,
-	ReadBody = 3,
-	Fin = 4
-}
-
 interface ISocketTracer {
 	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void;
 }
 
 interface FrameOptions {
 	compressed: boolean;
-	opcode: number;
+	opcode: WebSocketOpcode;
 }
 
 /**
@@ -300,21 +293,12 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 	public readonly socket: NodeSocket;
 	private readonly _flowManager: WebSocketFlowManager;
-	private readonly _incomingData: ChunkStream;
+	private readonly _frameParser = new WebSocketFrameParser({ unmaskInPlace: true });
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
 	private readonly _maxSocketMessageLength: number;
 	private _isEnded = false;
-
-	private readonly _state = {
-		state: ReadState.PeekHeader,
-		readLen: Constants.MinHeaderByteSize,
-		fin: 0,
-		compressed: false,
-		firstFrameOfMessage: true,
-		mask: 0,
-		opcode: 0
-	};
+	private _compressedMessage = false;
 
 	public get permessageDeflate(): boolean {
 		return this._flowManager.permessageDeflate;
@@ -367,7 +351,6 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 				error: err
 			});
 		}));
-		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
 		this._register(this.socket.onClose(async (e) => {
 			// Delay surfacing the close event until the async inflating is done
@@ -418,7 +401,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 		let start = 0;
 		while (start < buffer.byteLength) {
-			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + this._maxSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + this._maxSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: WebSocketOpcode.Binary });
 			start += this._maxSocketMessageLength;
 		}
 	}
@@ -430,41 +413,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		}
 
 		this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketWrite, buffer);
-		let headerLen = Constants.MinHeaderByteSize;
-		if (buffer.byteLength < 126) {
-			headerLen += 0;
-		} else if (buffer.byteLength < 2 ** 16) {
-			headerLen += 2;
-		} else {
-			headerLen += 8;
-		}
-		const header = VSBuffer.alloc(headerLen);
-
-		// The RSV1 bit indicates a compressed frame
-		const compressedFlag = compressed ? 0b01000000 : 0;
-		const opcodeFlag = opcode & 0b00001111;
-		header.writeUInt8(0b10000000 | compressedFlag | opcodeFlag, 0);
-		if (buffer.byteLength < 126) {
-			header.writeUInt8(buffer.byteLength, 1);
-		} else if (buffer.byteLength < 2 ** 16) {
-			header.writeUInt8(126, 1);
-			let offset = 1;
-			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
-		} else {
-			header.writeUInt8(127, 1);
-			let offset = 1;
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8(0, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 24) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 16) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 8) & 0b11111111, ++offset);
-			header.writeUInt8((buffer.byteLength >>> 0) & 0b11111111, ++offset);
-		}
-
-		this.socket.write(VSBuffer.concat([header, buffer]));
+		this.socket.write(encodeWebSocketFrame(buffer, { compressed, opcode }));
 	}
 
 	public end(): void {
@@ -473,100 +422,25 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	}
 
 	private _acceptChunk(data: VSBuffer): void {
-		if (data.byteLength === 0) {
-			return;
-		}
+		for (const frame of this._frameParser.acceptChunk(data)) {
+			const compressed = frame.opcode === WebSocketOpcode.Continuation ? this._compressedMessage : frame.compressed;
+			if (frame.opcode === WebSocketOpcode.Text || frame.opcode === WebSocketOpcode.Binary) {
+				this._compressedMessage = frame.compressed;
+			}
 
-		this._incomingData.acceptChunk(data);
+			this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { bodySize: frame.payload.byteLength, compressed, fin: Number(frame.final), mask: frame.mask, opcode: frame.opcode });
+			this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketReadData, frame.payload);
+			if (frame.mask !== undefined) {
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketUnmaskedData, frame.payload);
+			}
 
-		while (this._incomingData.byteLength >= this._state.readLen) {
-
-			if (this._state.state === ReadState.PeekHeader) {
-				// peek to see if we can read the entire header
-				const peekHeader = this._incomingData.peek(this._state.readLen);
-				const firstByte = peekHeader.readUInt8(0);
-				const finBit = (firstByte & 0b10000000) >>> 7;
-				const rsv1Bit = (firstByte & 0b01000000) >>> 6;
-				const opcode = (firstByte & 0b00001111);
-
-				const secondByte = peekHeader.readUInt8(1);
-				const hasMask = (secondByte & 0b10000000) >>> 7;
-				const len = (secondByte & 0b01111111);
-
-				this._state.state = ReadState.ReadHeader;
-				this._state.readLen = Constants.MinHeaderByteSize + (hasMask ? 4 : 0) + (len === 126 ? 2 : 0) + (len === 127 ? 8 : 0);
-				this._state.fin = finBit;
-				if (this._state.firstFrameOfMessage) {
-					// if the frame is compressed, the RSV1 bit is set only for the first frame of the message
-					this._state.compressed = Boolean(rsv1Bit);
+			if (frame.opcode === WebSocketOpcode.Continuation || frame.opcode === WebSocketOpcode.Text || frame.opcode === WebSocketOpcode.Binary) {
+				this._flowManager.acceptFrame(frame.payload, compressed, frame.final);
+				if (frame.final) {
+					this._compressedMessage = false;
 				}
-				this._state.firstFrameOfMessage = Boolean(finBit);
-				this._state.mask = 0;
-				this._state.opcode = opcode;
-
-				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { headerSize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin, opcode: this._state.opcode });
-
-			} else if (this._state.state === ReadState.ReadHeader) {
-				// read entire header
-				const header = this._incomingData.read(this._state.readLen);
-				const secondByte = header.readUInt8(1);
-				const hasMask = (secondByte & 0b10000000) >>> 7;
-				let len = (secondByte & 0b01111111);
-
-				let offset = 1;
-				if (len === 126) {
-					len = (
-						header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
-					);
-				} else if (len === 127) {
-					len = (
-						header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 0
-						+ header.readUInt8(++offset) * 2 ** 24
-						+ header.readUInt8(++offset) * 2 ** 16
-						+ header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
-					);
-				}
-
-				let mask = 0;
-				if (hasMask) {
-					mask = (
-						header.readUInt8(++offset) * 2 ** 24
-						+ header.readUInt8(++offset) * 2 ** 16
-						+ header.readUInt8(++offset) * 2 ** 8
-						+ header.readUInt8(++offset)
-					);
-				}
-
-				this._state.state = ReadState.ReadBody;
-				this._state.readLen = len;
-				this._state.mask = mask;
-
-				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { bodySize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin, mask: this._state.mask, opcode: this._state.opcode });
-
-			} else if (this._state.state === ReadState.ReadBody) {
-				// read body
-
-				const body = this._incomingData.read(this._state.readLen);
-				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketReadData, body);
-
-				unmask(body, this._state.mask);
-				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketUnmaskedData, body);
-
-				this._state.state = ReadState.PeekHeader;
-				this._state.readLen = Constants.MinHeaderByteSize;
-				this._state.mask = 0;
-
-				if (this._state.opcode <= 0x02 /* Continuation frame or Text frame or binary frame */) {
-					this._flowManager.acceptFrame(body, this._state.compressed, !!this._state.fin);
-				} else if (this._state.opcode === 0x09 /* Ping frame */) {
-					// Ping frames could be send by some browsers e.g. Firefox
-					this._flowManager.writeMessage(body, { compressed: false, opcode: 0x0A /* Pong frame */ });
-				}
+			} else if (frame.opcode === WebSocketOpcode.Ping) {
+				this._flowManager.writeMessage(frame.payload, { compressed: false, opcode: WebSocketOpcode.Pong });
 			}
 		}
 	}
@@ -855,31 +729,6 @@ class ZlibDeflateStream extends Disposable {
 			// ignore errors while disposing
 		}
 		super.dispose();
-	}
-}
-
-function unmask(buffer: VSBuffer, mask: number): void {
-	if (mask === 0) {
-		return;
-	}
-	const cnt = buffer.byteLength >>> 2;
-	for (let i = 0; i < cnt; i++) {
-		const v = buffer.readUInt32BE(i * 4);
-		buffer.writeUInt32BE(v ^ mask, i * 4);
-	}
-	const offset = cnt * 4;
-	const bytesLeft = buffer.byteLength - offset;
-	const m3 = (mask >>> 24) & 0b11111111;
-	const m2 = (mask >>> 16) & 0b11111111;
-	const m1 = (mask >>> 8) & 0b11111111;
-	if (bytesLeft >= 1) {
-		buffer.writeUInt8(buffer.readUInt8(offset) ^ m3, offset);
-	}
-	if (bytesLeft >= 2) {
-		buffer.writeUInt8(buffer.readUInt8(offset + 1) ^ m2, offset + 1);
-	}
-	if (bytesLeft >= 3) {
-		buffer.writeUInt8(buffer.readUInt8(offset + 2) ^ m1, offset + 2);
 	}
 }
 

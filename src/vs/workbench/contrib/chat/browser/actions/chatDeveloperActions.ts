@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -20,10 +20,15 @@ import { IChatWidgetService } from '../chat.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
-import { OpenCopilotCliStateFileAction } from './openCopilotCliStateFileAction.js';
-import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { OpenAgentHostStateFileAction } from './openAgentHostStateFileAction.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostSandboxNotification } from '../agentSessions/agentHost/agentHostSandboxNotification.js';
+import { IChatInputNotificationService } from '../widget/input/chatInputNotificationService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
 	if (URI.isUri(value)) {
@@ -46,7 +51,108 @@ export function registerChatDeveloperActions() {
 	registerAction2(InspectAgentHostSubscriptionsAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 	registerAction2(ResetChatPermissionWarningDialogsAction);
-	registerAction2(OpenCopilotCliStateFileAction);
+	registerAction2(OpenAgentHostStateFileAction);
+	registerAction2(ManageTrustedCAAction);
+	registerAction2(InstallTrustedCAAction);
+	registerAction2(RotateTrustedCAAction);
+	registerAction2(RemoveTrustedCAAction);
+}
+
+export class InstallTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.installTrustedCA',
+			title: localize2('workbench.action.chat.installTrustedCA.label', "Install Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: false,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor, 'install');
+	}
+}
+
+export class RemoveTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.removeTrustedCA',
+			title: localize2('workbench.action.chat.removeTrustedCA.label', "Remove Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: false,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor, 'remove');
+	}
+}
+
+export class RotateTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.rotateTrustedCA',
+			title: localize2('workbench.action.chat.rotateTrustedCA.label', "Rotate Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: false,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor, 'rotate');
+	}
+}
+
+export class ManageTrustedCAAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.manageTrustedCA',
+			title: localize2('workbench.action.chat.manageTrustedCA.label', "Manage Trusted CA"),
+			category: localize2('sandbox', "Sandbox"),
+			f1: true,
+			precondition: AGENT_HOST_ENABLED_CONTEXT_KEY,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await runSandboxCertificateCommand(accessor);
+	}
+}
+
+type CertificateOperation = 'install' | 'rotate' | 'remove';
+
+async function runSandboxCertificateCommand(accessor: ServicesAccessor, operation?: CertificateOperation): Promise<void> {
+	const dialogService = accessor.get(IDialogService);
+	const connectionsService = accessor.get(IAgentHostConnectionsService);
+	const notificationService = accessor.get(IChatInputNotificationService);
+	const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+	if (!sessionResource || !connectionsService.resolveSessionResource(sessionResource)
+		|| !AgentHostSandboxNotification.hasCertificateController(sessionResource, notificationService)) {
+		await dialogService.info(localize('agentHost.sandboxCertificate.noAgentHost', "No agent host detected."));
+		return;
+	}
+	if (!operation) {
+		const selected = await accessor.get(IQuickInputService).pick<IQuickPickItem & { operation: CertificateOperation }>([
+			{ label: localize('agentHost.sandboxCertificate.installChoice', "Install"), description: localize('agentHost.sandboxCertificate.installDescription', "Trust the sandbox CA"), operation: 'install' },
+			{ label: localize('agentHost.sandboxCertificate.rotateChoice', "Rotate"), description: localize('agentHost.sandboxCertificate.rotateDescription', "Replace and trust the sandbox CA"), operation: 'rotate' },
+			{ label: localize('agentHost.sandboxCertificate.removeChoice', "Remove"), description: localize('agentHost.sandboxCertificate.removeDescription', "Remove OS trust; keep the certificate"), operation: 'remove' },
+		], {
+			title: localize('agentHost.sandboxCertificate.manageTitle', "Manage Trusted CA"),
+			placeHolder: localize('agentHost.sandboxCertificate.managePlaceholder', "Select an action for this chat's agent host"),
+		});
+		if (!selected) {
+			return;
+		}
+		operation = selected.operation;
+	}
+	const handled = !!connectionsService.resolveSessionResource(sessionResource)
+		&& await AgentHostSandboxNotification.tryRunCertificateOperation(sessionResource, notificationService, operation);
+	if (!handled) {
+		await dialogService.info(localize('agentHost.sandboxCertificate.noAgentHost', "No agent host detected."));
+	}
 }
 
 function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {
@@ -287,27 +393,22 @@ function formatConnectionSubscriptions(label: string, details: string, connectio
 }
 
 function formatAgentHostSubscriptionsInspection(accessor: ServicesAccessor): string {
-	const agentHostService = accessor.get(IAgentHostService);
-	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const connectionsService = accessor.get(IAgentHostConnectionsService);
 
-	const remoteConnections = remoteAgentHostService.connections;
+	const connections = connectionsService.connections;
+	const remoteCount = connections.filter(c => !c.isAmbient).length;
 
 	let output = '# Agent Host Subscriptions\n\n';
-	output += `- Connections: ${1 + remoteConnections.length} (1 local, ${remoteConnections.length} remote)\n`;
+	output += `- Connections: ${connections.length} (1 ambient, ${remoteCount} remote)\n`;
 	output += 'Lists every resource each connected agent host is currently subscribed to. The always-live root state is summarized separately from the per-resource subscription table.\n\n';
 
-	output += formatConnectionSubscriptions(
-		'Local agent host',
-		`clientId: ${agentHostService.clientId || '(none)'}`,
-		agentHostService,
-	);
-
-	for (const info of remoteConnections) {
-		output += formatConnectionSubscriptions(
-			`Remote: ${info.name}`,
-			`address: ${info.address} · status: ${info.status} · clientId: ${info.clientId || '(none)'}`,
-			remoteAgentHostService.getConnection(info.address),
-		);
+	for (const info of connections) {
+		const heading = info.isAmbient ? 'Ambient agent host' : `Remote: ${info.name}`;
+		const details = [
+			...(info.address ? [`address: ${info.address}`] : []),
+			`clientId: ${info.connection?.clientId || '(none)'}`,
+		].join(' · ');
+		output += formatConnectionSubscriptions(heading, details, info.connection);
 	}
 
 	return output;

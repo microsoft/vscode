@@ -1,0 +1,85 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Invoke the probe-skill skill exactly once, follow its instructions, then reply with only the customization probe result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: skill
+          input:
+            skill: probe-skill
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Invoke the probe-skill skill exactly once, follow its instructions, then reply with only the customization probe result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: skill
+              input:
+                skill: probe-skill
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Skill "probe-skill" loaded successfully. Follow the instructions in the skill context.
+        - role: user
+          content: |-
+            <skill-context name="probe-skill">
+            Base directory for this skill: ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/probe-skill
+
+            Call customization_probe.
+            </skill-context>
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: customization_probe_server-customization_probe
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Invoke the probe-skill skill exactly once, follow its instructions, then reply with only the customization probe result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: skill
+              input:
+                skill: probe-skill
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Skill "probe-skill" loaded successfully. Follow the instructions in the skill context.
+        - role: user
+          content: |-
+            <skill-context name="probe-skill">
+            Base directory for this skill: ${homedir}/user-data/agentPlugins/${plugin_copy}/1/skills/probe-skill
+
+            Call customization_probe.
+            </skill-context>
+        - role: assistant
+          content:
+            - type: tool_use
+              name: customization_probe_server-customization_probe
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: MCP_PLUGIN_RESULT
+    response:
+      content: MCP_PLUGIN_RESULT
+      stopReason: end_turn

@@ -92,6 +92,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'merge',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.IsMergeBaseBranchProtected.negate(),
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -100,12 +101,13 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 	},
 	{
 		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}createPR`,
-		title: localize2('agentSessions.runSkill.createPR', "Create Pull Request"),
+		title: localize2('agentSessions.runSkill.createPR', "Create PR"),
 		skill: 'create-pr',
 		icon: Codicon.gitPullRequestCreate,
 		group: 'pull_request',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -114,12 +116,13 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 	},
 	{
 		id: `${AGENT_HOST_SKILL_BUTTON_ID_PREFIX}createDraftPR`,
-		title: localize2('agentSessions.runSkill.createDraftPR', "Create Draft Pull Request"),
+		title: localize2('agentSessions.runSkill.createDraftPR', "Create Draft PR"),
 		skill: 'create-draft-pr',
 		icon: Codicon.gitPullRequestDraft,
 		group: 'pull_request',
 		order: 2,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest.negate(),
@@ -134,6 +137,7 @@ const AGENT_HOST_SKILL_BUTTONS: readonly IAgentHostSkillButtonSpec[] = [
 		group: 'pull_request',
 		order: 1,
 		extraWhen: ContextKeyExpr.and(
+			ContextKeyExpr.false(),
 			ActiveSessionContextKeys.IsolationMode.isEqualTo(IsolationMode.Worktree),
 			ActiveSessionContextKeys.HasGitHubRemote,
 			ActiveSessionContextKeys.HasPullRequest,

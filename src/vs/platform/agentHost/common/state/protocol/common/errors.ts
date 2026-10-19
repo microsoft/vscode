@@ -49,12 +49,10 @@ export const AhpErrorCodes = {
 	/**
 	 * The server cannot speak any of the protocol versions offered by the
 	 * client in `InitializeParams.protocolVersions`. The `data` field of the
-	 * JSON-RPC error MAY be an `UnsupportedProtocolVersionErrorData` advertising
-	 * the protocol versions the server is willing to speak.
+	 * JSON-RPC error MUST carry an `UnsupportedProtocolVersionErrorData`
+	 * advertising the protocol versions the server is willing to speak.
 	 */
 	UnsupportedProtocolVersion: -32005,
-	/** The requested content URI does not exist */
-	ContentNotFound: -32006,
 	/**
 	 * A command failed because the client has not authenticated for a required
 	 * protected resource. The `data` field of the JSON-RPC error MUST be an
@@ -94,6 +92,8 @@ export const AhpErrorCodes = {
 	 * fresh token or surface the conflict to the user.
 	 */
 	Conflict: -32011,
+	/** The host could not open the requested TCP connection. */
+	TcpConnectionOpenFailed: -32012,
 } as const;
 
 /** Union type of all AHP application error codes. */
@@ -141,6 +141,8 @@ export interface PermissionDeniedErrorData {
 /**
  * Details carried in the `data` field of an `UnsupportedProtocolVersion`
  * (-32005) error.
+ *
+ * The data payload is required and always carries `supportedVersions`.
  *
  * @category Error Details
  * @version 1

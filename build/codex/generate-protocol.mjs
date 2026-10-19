@@ -19,7 +19,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync, statSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,9 +28,6 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const VERSION_FILE = path.join(REPO_ROOT, 'build', 'codex', 'codex-version.txt');
 const OUT_DIR = path.join(REPO_ROOT, 'src', 'vs', 'platform', 'agentHost', 'node', 'codex', 'protocol', 'generated');
 const FORMATTER = path.join(REPO_ROOT, 'build', 'lib', 'formatter.ts');
-
-const args = process.argv.slice(2);
-const noVersionCheck = args.includes('--no-version-check');
 
 function resolveCodexBinary() {
 	if (process.env.CODEX_BIN) {
@@ -76,6 +74,28 @@ function readPinnedVersion() {
 	return readFileSync(VERSION_FILE, 'utf8').trim();
 }
 
+/** Normalize en dashes in comments without changing TypeScript tokens. */
+function normalizeCommentDashes(text) {
+	if (!text.includes('\u2013')) {
+		return text;
+	}
+	const sourceFile = ts.createSourceFile('protocol.ts', text, ts.ScriptTarget.Latest);
+	let result = text;
+	const normalize = (pos, end) => {
+		// Both characters use one UTF-16 code unit, so offsets remain valid.
+		result = result.slice(0, pos) + result.slice(pos, end).replace(/\u2013/g, '-') + result.slice(end);
+	};
+	const visit = node => {
+		ts.forEachLeadingCommentRange(text, node.pos, normalize);
+		ts.forEachTrailingCommentRange(text, node.end, normalize);
+		for (const child of node.getChildren(sourceFile)) {
+			visit(child);
+		}
+	};
+	visit(sourceFile);
+	return result;
+}
+
 function formatGeneratedTypes(files) {
 	for (let i = 0; i < files.length; i += 100) {
 		const batch = files.slice(i, i + 100);
@@ -84,7 +104,7 @@ function formatGeneratedTypes(files) {
 			throw new Error(`formatting generated protocol files failed:\n${r.stderr || r.stdout}`);
 		}
 		for (const file of batch) {
-			const formatted = readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+			const formatted = normalizeCommentDashes(readFileSync(file, 'utf8').replace(/\r\n/g, '\n'));
 			writeFileSync(file, formatted);
 		}
 	}
@@ -151,6 +171,7 @@ function generate(bin, outDir, codexVersion) {
 }
 
 function main() {
+	const noVersionCheck = process.argv.slice(2).includes('--no-version-check');
 	const bin = resolveCodexBinary();
 	const binVersion = readBinaryVersion(bin);
 	const pinnedVersion = readPinnedVersion();
@@ -173,4 +194,10 @@ function main() {
 	console.log(`\nWrote ${count} files to ${path.relative(REPO_ROOT, OUT_DIR)}`);
 }
 
-main();
+// Only generate when invoked directly (e.g. `npm run codex:gen-protocol`), not when
+// imported by the freshness check (build/codex/check-protocol-sync.ts).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+	main();
+}
+
+export { REPO_ROOT, OUT_DIR, VERSION_FILE, resolveCodexBinary, readBinaryVersion, readPinnedVersion, normalizeCommentDashes, generate };

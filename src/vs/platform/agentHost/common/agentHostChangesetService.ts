@@ -3,52 +3,78 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { ISessionDatabase } from './sessionDataService.js';
 import type { ChangesSummary } from './state/protocol/state.js';
 import type { ISessionFileDiff, URI as ProtocolURI } from './state/sessionState.js';
 
-/** Metadata key under which the branch changeset's diff list is persisted. */
-export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
-
-/** Metadata key under which the session-wide changeset's diff list is persisted. */
-export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
-
-/**
- * Legacy metadata key used by older builds to persist the session-wide
- * changeset's diff list. Read-only fallback for {@link META_CHANGESET_SESSION}.
- */
-export const META_LEGACY_DIFFS = 'diffs';
-
-/**
- * Metadata key under which the session's changes is persisted.
- */
+/** Cached aggregate from Branch Changes for worktree sessions, otherwise Session Changes. */
 export const META_CHANGES_SUMMARY = 'agentHost.changes';
+
+/**
+ * Returns the containing-session metadata key for one chat's cached Session
+ * Changes aggregate, which session lists read without subscribing to the chat.
+ */
+export function getChatChangesSummaryMetadataKey(chat: string): string {
+	return `${META_CHANGES_SUMMARY}:${chat}`;
+}
+
+/** Reads the persisted summary aggregate, the only changeset state stored in the session database. */
+export const CHANGES_SUMMARY_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGES_SUMMARY]: true,
+};
 
 /** The two static changeset kinds we publish by default. */
 export type StaticChangesetKind = 'branch' | 'session';
 
+/** Selects Git-first computation with fallback, Git only, or tracked file edits only. */
+export type ChangesetDiffStrategy = 'auto' | 'git' | 'fileEditTracker';
+
 /**
- * Raw metadata values for the persisted changeset blobs, batch-read
- * by the caller (`AgentService.listSessions` / `AgentService.restoreSession`).
- * The caller owns the database read so multiple metadata keys can be
- * fetched in a single round-trip; the service owns parsing, applying,
- * and `seedIfEmpty` gating.
+ * The database holding a turn's tracked edits, opened by
+ * {@link IAgentHostChangesetService.openTrackedTurnDatabase}. Dispose it to
+ * release the database.
  */
-export interface IPersistedChangesetMetadata {
-	readonly branchRaw?: string;
-	readonly sessionRaw?: string;
-	readonly legacyRaw?: string;
+export interface ITrackedTurnDatabase extends IDisposable {
+	readonly db: ISessionDatabase;
+	/** Folders the turn's changeset is limited to, or `undefined` when it isn't limited. */
+	readonly folderScope: readonly URI[] | undefined;
+	/**
+	 * Databases of the session's other chats, whose edits its Session Changes
+	 * combine with {@link db}'s. They aren't ordered by time across databases,
+	 * so a discard can't be reconciled with another chat's edits to the file.
+	 */
+	readonly otherChatDatabases: readonly ISessionDatabase[];
+}
+
+/** A database holding tracked edits, and the chat whose turns recorded them. */
+export interface ITrackedEditSource {
+	/** Chat whose turns recorded the edits in {@link db}. */
+	readonly chat: ProtocolURI;
+	readonly db: ISessionDatabase;
 }
 
 /**
- * The parsed diffs returned from {@link IAgentHostChangesetService.restorePersistedStaticChangesets},
- * suitable for passing into {@link computeChangesSummaryFromPersistedDiffs}
- * when the caller needs to synthesise a `summary.changes` aggregate for
- * the session-list overlay.
+ * The databases holding the tracked edits of a Session Changes changeset,
+ * opened by {@link IAgentHostChangesetService.openTrackedSessionDatabases}.
+ * Dispose it to release the databases.
  */
-export interface IRestoredChangesetDiffs {
-	readonly branch?: readonly ISessionFileDiff[];
-	readonly session?: readonly ISessionFileDiff[];
+export interface ITrackedSessionDatabases extends IDisposable {
+	/** Databases the changeset is computed from: a chat's own, or for a session its own and every peer chat's. */
+	readonly sources: readonly ITrackedEditSource[];
+	/**
+	 * Databases of the session's other chats, whose edits its Session Changes
+	 * combine with {@link sources}'. Empty for a session's changeset, whose
+	 * sources already include every chat's.
+	 */
+	readonly otherChatDatabases: readonly ISessionDatabase[];
+	/** Working directories the changeset covers. */
+	readonly workingDirectories: readonly ProtocolURI[] | undefined;
+	/** Folders the changeset is limited to, or `undefined` when it isn't limited. */
+	readonly folderScope: readonly URI[] | undefined;
 }
 
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
@@ -72,69 +98,54 @@ export interface IAgentHostChangesetService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Registers the two static changeset URIs (`uncommitted`, `session`)
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`state.changesets`) is seeded
-	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
-	 * deals with the state-manager-side per-changeset entries.
+	 * Registers static repository changesets for any owner and the cumulative
+	 * Session Changes resource for session owners, initially in `Computing`.
 	 *
-	 * Idempotent; safe to call on every create and restore path.
+	 * Idempotent; safe to call on every create and restore path, and does not
+	 * modify catalogue entries.
 	 */
 	registerStaticChangesets(session: ProtocolURI): void;
 
 	/**
-	 * Re-seed a static changeset (`uncommitted` or `session`) from a
-	 * previously persisted file list (e.g. read out of the session DB on
-	 * restore / listSessions). Idempotently registers the changeset URI
-	 * on the state manager, fans the persisted files out as
+	 * Seeds a static changeset from a file list. Idempotently registers the changeset URI
+	 * on the state manager, fans the files out as
 	 * `changeset/fileSet` actions, and transitions the status to `Ready`.
+	 * Session Changes are restored only for session owners.
 	 */
 	restoreStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[]): void;
 
 	/**
-	 * Parses the persisted changeset metadata blobs (`uncommitted`,
-	 * `session`, and the legacy `diffs` fallback for `session`) without
-	 * mutating live state. Intended for list overlays that only need
-	 * aggregate catalogue counts and should not pin full changeset state in
-	 * memory.
-	 */
-	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
-
-	/**
-	 * Applies parsed persisted changeset diffs to live state via
-	 * {@link restoreStaticChangeset}. This is the side-effectful half of
-	 * persisted restore and should only be used on real restore/subscribe
-	 * paths that need a subscribable changeset snapshot.
-	 *
-	 * Honours `seedIfEmpty`: when a live changeset state already has files
-	 * for the same kind, persisted diffs are NOT applied (they would
-	 * otherwise overwrite the live state).
-	 */
-	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void;
-
-	/**
-	 * Compatibility wrapper that parses persisted changeset metadata and then
-	 * applies it to live state. New list-overlay callers should prefer
-	 * {@link parsePersistedStaticChangesets}; restore/subscribe callers can
-	 * use this method when they intentionally want both parse and seed.
-	 *
-	 * The `AgentService` orchestration boundary batches the metadata read
-	 * (custom title + read / archive flags + config values + these three
-	 * blobs) in a single database round-trip, then hands the raw values
-	 * here; the service does not open the database itself for this method.
-	 */
-	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
-
-	/**
 	 * Fire-and-forget persistence of the `summary.changes` aggregate to the
-	 * session DB under {@link META_CHANGES_SUMMARY}. Used both by the
-	 * happy-path turn-complete write and by the {@link ChangesetSessionCoordinator}
-	 * one-shot migration that reads the old `META_CHANGESET_SESSION` /
-	 * `META_LEGACY_DIFFS` blobs and projects them into the new key on
-	 * sessions written by older builds. Errors are logged, not thrown.
+	 * session DB under {@link META_CHANGES_SUMMARY}. Changeset file lists are never persisted;
+	 * only this aggregate is. Errors are logged, not thrown.
 	 */
 	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void;
+
+	/**
+	 * Returns the session-DB metadata keys to merge into a batched read for
+	 * `sessionUri` (so the session-list overlay can synthesise the `changes`
+	 * aggregate), OR `undefined` when live state already answers the
+	 * aggregate-counts question (a loaded session, or a ready live changeset
+	 * state the summary is derived from) so the caller can skip
+	 * reading the persisted aggregate.
+	 */
+	getListMetadataKeys(sessionUri: ProtocolURI): Record<string, true> | undefined;
+
+	/**
+	 * Computes the `summary.changes` aggregate (additions / deletions / files
+	 * for the session-wide changeset) for a single session-list entry, using
+	 * the already-batched DB `metadata` read. Returns `undefined` when no
+	 * aggregate should be advertised (loaded session whose `summary.changes`
+	 * the caller already projected, or no live/persisted source).
+	 *
+	 * Prefers live or persisted summary counts, falling back to the isolation-selected changeset.
+	 * Existing caches are refreshed from that changeset when opened.
+	 *
+	 * `persistMigration` writes a freshly derived summary back to the session
+	 * state; the catalog migration passes `false` because the catalog sync it
+	 * feeds persists the summary itself, and a separate write would supersede it.
+	 */
+	computeListEntryChanges(sessionUri: ProtocolURI, metadata: Record<string, string | undefined>, persistMigration: boolean): ChangesSummary | undefined;
 
 	/**
 	 * Returns true when the static changeset identified by `changesetUri` is
@@ -144,25 +155,49 @@ export interface IAgentHostChangesetService {
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean;
 
 	/**
+	 * Refreshes the list of changesets for the given session.
+	 */
+	refreshChangesetCatalog(session: ProtocolURI): void;
+
+	/**
 	 * Lazy refresh of the branch changeset, kicked off when a client
-	 * first subscribes to `<session>/changeset/branch`.
+	 * first subscribes to a folder-scoped Branch Changes resource. Skips computation while
+	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
+	 * recomputes the current subscriptions after materialization or restore.
+	 * Git-only; does not accept a strategy or fall back to tracked edits.
 	 */
 	refreshBranchChangeset(session: ProtocolURI): void;
 
 	/**
-	 * Lazy refresh of the session changeset, kicked off when a
-	 * client first subscribes to `<session>/changeset/session` or the
-	 * session URI itself (e.g. Agents Window observing the session). The
-	 * recompute keeps the catalogue chip fresh across session opens even
-	 * when no turn has run since process start.
+	 * Refreshes the session changeset once its working directory is available.
+	 * The strategy defaults to `fileEditTracker`; overrides apply only to this computation.
 	 */
-	refreshSessionChangeset(session: ProtocolURI): void;
+	refreshSessionChangeset(session: ProtocolURI, strategy?: ChangesetDiffStrategy): void;
+
+	/**
+	 * Recomputes every changeset currently subscribed when a session is
+	 * materialized or restored.
+	 */
+	onWorkingDirectoryAvailable(session: ProtocolURI): void;
+
+	/**
+	 * Recomputes every changeset currently subscribed for `session`, read
+	 * from the shared changeset subscription service. Each subscribed changeset
+	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
+	 * / turn); the individual recomputes skip when the working directory is
+	 * not yet known. Used as the session-level refresh entry point after
+	 * materialization and git-state changes.
+	 */
+	recomputeSubscribedChangesets(session: ProtocolURI): void;
 
 	/**
 	 * Computes and publishes the per-turn changeset for `turnId` on `session`.
+	 * A subscription starts this computation without waiting for the result;
+	 * the snapshot has `Computing` or `Recomputing` status until publication.
 	 * Per-turn changesets are not persisted.
+	 * The strategy defaults to `auto`; overrides apply only to this computation.
 	 */
-	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;
+	computeTurnChangeset(session: ProtocolURI, turnId: string, strategy?: ChangesetDiffStrategy): Promise<ProtocolURI>;
 
 	/**
 	 * Computes and publishes the compare-turns changeset between
@@ -184,7 +219,7 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Computes and publishes the uncommitted changeset for `session`
-	 * directly via git (`git status` against HEAD). The uncommitted slot
+	 * directly via git (`git status` against HEAD), without a strategy parameter. The uncommitted slot
 	 * has no SDK edit-tracker fallback — the aggregator answers a different
 	 * question than `git status` and would silently rebrand SDK-tracked
 	 * edits as uncommitted git changes. When the session has no working
@@ -201,14 +236,14 @@ export interface IAgentHostChangesetService {
 	 * Hook called by `AgentSideEffects` after a tool call that produced
 	 * file edits completes. Schedules a debounced session-changeset recompute.
 	 */
-	onToolCallEditsApplied(session: ProtocolURI, turnId: string): void;
+	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * Hook called by `AgentSideEffects` when a turn completes. Cancels any
 	 * pending mid-turn debounce, then schedules a final session + uncommitted
 	 * recompute. Ordering matters — see implementation.
 	 */
-	onTurnComplete(session: ProtocolURI, turnId: string | undefined): void;
+	onTurnComplete(session: ProtocolURI, turnId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): void;
 
 	/**
 	 * Hook called by `AgentSideEffects` when a session is truncated (turns
@@ -218,24 +253,40 @@ export interface IAgentHostChangesetService {
 	onSessionTruncated(session: ProtocolURI): void;
 
 	/**
-	 * Installs a predicate the service consults before scheduling a
-	 * per-turn changeset recompute. Owned by {@link ChangesetSessionCoordinator},
-	 * which tracks per-turn subscribers via `onFirstSubscriber` /
-	 * `onLastSubscriber`. Called exactly once at coordinator construction.
+	 * Opens the database holding the tracked edits that the per-turn changeset
+	 * of `turnId` on `owner` is computed from, together with that changeset's
+	 * folder scope. Returns `undefined` when the turn id is shared by more than
+	 * one chat, because its edits can't be attributed to one database.
 	 */
-	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
+	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined;
 
 	/**
-	 * Installs a predicate the service consults before scheduling an
-	 * uncommitted-changeset recompute on turn complete. Owned by
-	 * {@link ChangesetSessionCoordinator}, which tracks per-session
-	 * uncommitted subscribers via `onFirstSubscriber` / `onLastSubscriber`.
-	 * Called exactly once at coordinator construction.
-	 *
-	 * Uncommitted computes hit git on every recompute and produce no
-	 * catalogue-chip aggregate, so the cost of recomputing for an
-	 * unobserved session has no upside; the next subscriber will get a
-	 * fresh snapshot from the coordinator's `_triggerUncommittedRefresh`.
+	 * Opens the databases holding the tracked edits that the Session Changes
+	 * changeset of `owner` is computed from, together with that changeset's
+	 * working directories and folder scope: a chat's own database, or for a
+	 * session its database and every peer chat's. For a chat, also opens the
+	 * session's other databases, whose edits the session's Session Changes
+	 * combine with the chat's.
 	 */
-	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void;
+	openTrackedSessionDatabases(owner: ProtocolURI): ITrackedSessionDatabases;
+
+	/**
+	 * Hook called after edits of `turnIds` on `owner` were discarded. Recomputes
+	 * those turns' changesets and Session Changes from scratch, plus Uncommitted
+	 * Changes, Branch Changes, and the chat's changes summary.
+	 */
+	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void;
+
+	/** Cancels pending changeset work after a chat or folder owner is removed. */
+	onChangesetOwnerRemoved?(owner: ProtocolURI): void;
+
+	/**
+	 * Computes the chat's Session Changes aggregate when the chat has turns
+	 * but no aggregate yet, e.g. a chat restored from a build that did not
+	 * record per-chat aggregates.
+	 */
+	ensureChatChangesSummary(chat: ProtocolURI): void;
+
+	/** Recomputes a chat's Session Changes aggregate after its folder scope changes. */
+	refreshChatChangesSummary(chat: ProtocolURI): void;
 }

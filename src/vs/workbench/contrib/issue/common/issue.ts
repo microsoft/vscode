@@ -25,6 +25,7 @@ export const enum IssueType {
 
 export enum IssueSource {
 	VSCode = 'vscode',
+	AgentsWindow = 'agentsWindow',
 	Extension = 'extension',
 	Marketplace = 'marketplace',
 	Unknown = 'unknown'
@@ -127,6 +128,13 @@ export interface IIssueFormService {
 	sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined>;
 	closeReporter(): Promise<void>;
 	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string): Promise<boolean>;
+	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
+}
+
+export interface ISimilarIssue {
+	readonly html_url: string;
+	readonly title: string;
+	readonly state?: string;
 }
 
 export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('workbenchIssueService');

@@ -16,6 +16,12 @@ export interface INeighborFileSnippet {
 	readonly snippet: string;
 	readonly lineRange: LineRange0Based;
 	readonly score: number;
+	/**
+	 * `true` when the snippet comes from a language-service "related" file
+	 * (a non-open-tab file suggested by a language service) rather than from an
+	 * open tab. Related-file snippets omit line numbers in the prompt.
+	 */
+	readonly isFromRelatedFile: boolean;
 }
 
 export interface ISimilarFilesContextService {
@@ -23,15 +29,19 @@ export interface ISimilarFilesContextService {
 
 	/**
 	 * Computes GhostText-style similar files context (neighbor code snippets via Jaccard similarity).
+	 * @param includeRelatedFiles when `false`, language-service "related" (non-open-tab) files are
+	 * skipped and only open-tab neighbors are considered.
 	 * @returns JSON-serialized telemetry payload, or `undefined` on any error. Never throws.
 	 */
-	compute(uri: string, languageId: string, source: string, cursorOffset: number): Promise<string | undefined>;
+	compute(uri: string, languageId: string, source: string, cursorOffset: number, includeRelatedFiles: boolean): Promise<string | undefined>;
 
 	/**
 	 * Computes neighbor-file snippets (Jaccard-ranked) intended for inclusion in the prompt.
+	 * @param includeRelatedFiles when `false`, language-service "related" (non-open-tab) files are
+	 * skipped and only open-tab neighbors are considered.
 	 * @returns Snippets ordered with best (highest scores) last, or `undefined` on any error. Never throws.
 	 */
-	getSnippetsForPrompt(uri: string, languageId: string, source: string, cursorOffset: number): Promise<readonly INeighborFileSnippet[] | undefined>;
+	getSnippetsForPrompt(uri: string, languageId: string, source: string, cursorOffset: number, includeRelatedFiles: boolean): Promise<readonly INeighborFileSnippet[] | undefined>;
 }
 
 export const ISimilarFilesContextService = createServiceIdentifier<ISimilarFilesContextService>('ISimilarFilesContextService');

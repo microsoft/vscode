@@ -168,8 +168,6 @@ export const CopilotChatAttr = {
 	HOOK_RESULT_KIND: 'copilot_chat.hook_result_kind',
 	/** Custom chat mode name (when a custom mode is active) */
 	MODE_NAME: 'copilot_chat.mode_name',
-	/** Aggregated session cost in USD (Claude agent) */
-	TOTAL_COST_USD: 'copilot_chat.total_cost_usd',
 	/** Per-request cost from copilot_usage.total_nano_aiu */
 	COPILOT_USAGE_NANO_AIU: 'copilot_chat.copilot_usage_nano_aiu',
 } as const;
@@ -181,6 +179,9 @@ export type EditOutcome = 'accepted' | 'rejected' | 'saved' | 'unknown';
  * Standard OTel attributes used alongside GenAI attributes.
  */
 export const StdAttr = {
+	USER_NAME: 'user.name',
+	PROCESS_USER_NAME: 'process.user.name',
+	HOST_NAME: 'host.name',
 	ERROR_TYPE: 'error.type',
 	SERVER_ADDRESS: 'server.address',
 	SERVER_PORT: 'server.port',

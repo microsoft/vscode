@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IRectangle } from '../../window/common/window.js';
 
@@ -158,14 +159,11 @@ export enum EditorActivation {
 export enum EditorResolution {
 
 	/**
-	 * Displays a picker and allows the user to decide which editor to use.
-	 */
-	PICK,
-
-	/**
 	 * Only exclusive editors are considered.
+	 *
+	 * Note: the value is non-zero so that `override` is truthy when set.
 	 */
-	EXCLUSIVE_ONLY
+	EXCLUSIVE_ONLY = 1
 }
 
 export enum EditorOpenSource {
@@ -181,6 +179,23 @@ export enum EditorOpenSource {
 	 * via mouse or keyboard use.
 	 */
 	USER
+}
+
+/**
+ * An editor column or symbolic placement relative to the active editor.
+ */
+export enum ViewColumn {
+	Active = -1,
+	Beside = -2,
+	One = 1,
+	Two = 2,
+	Three = 3,
+	Four = 4,
+	Five = 5,
+	Six = 6,
+	Seven = 7,
+	Eight = 8,
+	Nine = 9
 }
 
 export interface IEditorOptions {
@@ -391,6 +406,11 @@ export interface IModalEditorOptions {
 	 * for editors that provide their own header chrome.
 	 */
 	readonly compactHeader?: boolean;
+
+	/**
+	 * Whether the modal editor can be moved into an editor area.
+	 */
+	readonly canMoveToEditorArea?: boolean;
 }
 
 /**
@@ -403,6 +423,10 @@ export interface IModalEditorOptionsProvider {
 
 export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
 	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
+}
+
+export function canMoveModalEditorToEditorArea(obj: unknown): boolean {
+	return !isModalEditorOptionsProvider(obj) || obj.getModalEditorOptions()?.canMoveToEditorArea !== false;
 }
 
 /**
@@ -426,9 +450,13 @@ export interface IModalEditorSidebar {
 	 * @param container The DOM element to render into.
 	 * @param onDidLayout An event that fires when the sidebar is
 	 * 		laid out with the available dimensions.
+	 * @param contextKeyService A context key service scoped to the modal
+	 * 		that content should descend from (e.g. when creating lists/trees)
+	 * 		so that modal-level context keys remain active while the content
+	 * 		has focus.
 	 * @returns A disposable to clean up when the modal closes.
 	 */
-	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => IDisposable;
+	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>, contextKeyService: IContextKeyService) => IDisposable;
 }
 
 /**

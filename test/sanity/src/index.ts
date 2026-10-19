@@ -30,6 +30,8 @@ if (options.help) {
 	console.info('  --timeout <sec>                 Set the test-case timeout in seconds (default: 600 seconds)');
 	console.info('  --screenshots-dir, -s <path>    Save failure screenshots to the specified directory');
 	console.info('  --crash-dumps-dir, -d <path>    Save crash dumps from desktop app runs to the specified directory');
+	console.info('  --artifacts-dir <path>          Resolve builds from downloaded pipeline artifacts instead of the update service');
+	console.info('  --setuid-sandbox                Test installed DEB/RPM apps using the setuid sandbox (requires a non-root user)');
 	console.info('  --verbose, -v                   Enable verbose logging');
 	console.info('  --help, -h                      Show this help message');
 	process.exit(0);

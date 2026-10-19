@@ -5,7 +5,7 @@
 
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ITaskEntry } from './sessionsTasksService.js';
 
 /**
@@ -25,13 +25,19 @@ export interface ISessionTaskRunner {
 	 * runners typically use a higher value (e.g. `100`).
 	 */
 	readonly priority: number;
-	/** Returns `true` if this runner can execute tasks for the given session. */
-	canRun(session: ISession): boolean;
+	/** Returns `true` if this runner can execute tasks for the given session and optional chat. */
+	canRun(session: ISession, chat?: IChat): boolean;
 	/**
 	 * Executes the given task in the session's runtime. The returned promise
 	 * resolves once the task has been launched (not when it has finished).
+	 *
+	 * May resolve to an {@link IDisposable} that stops the launched task (e.g.
+	 * kills its terminal/process). Callers that auto-dispatch tasks (such as
+	 * {@link WorktreeCreatedTaskDispatcher}) use it to stop long-running setup
+	 * processes when a session is marked done. Resolves to `undefined` when the
+	 * runner has nothing to stop.
 	 */
-	runTask(task: ITaskEntry, session: ISession): Promise<void>;
+	runTask(task: ITaskEntry, session: ISession, chat?: IChat): Promise<IDisposable | undefined>;
 }
 
 /**
@@ -54,7 +60,7 @@ export interface ISessionTaskRunnerRegistry {
 	 * Returns the highest-priority runner that claims the given session, or
 	 * `undefined` if no registered runner can run tasks for it.
 	 */
-	getRunner(session: ISession): ISessionTaskRunner | undefined;
+	getRunner(session: ISession, chat?: IChat): ISessionTaskRunner | undefined;
 }
 
 export const ISessionTaskRunnerRegistry = createDecorator<ISessionTaskRunnerRegistry>('sessionTaskRunnerRegistry');
@@ -75,11 +81,11 @@ export class SessionTaskRunnerRegistry implements ISessionTaskRunnerRegistry {
 		});
 	}
 
-	getRunner(session: ISession): ISessionTaskRunner | undefined {
+	getRunner(session: ISession, chat?: IChat): ISessionTaskRunner | undefined {
 		let best: ISessionTaskRunner | undefined;
 		// Iterate forward so later registrations beat earlier ones at equal priority.
 		for (const runner of this._runners) {
-			if (!runner.canRun(session)) {
+			if (!runner.canRun(session, chat)) {
 				continue;
 			}
 			if (!best || runner.priority >= best.priority) {

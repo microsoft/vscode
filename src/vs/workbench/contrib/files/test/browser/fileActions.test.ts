@@ -4,8 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { incrementFileName } from '../../browser/fileActions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { NullFilesConfigurationService } from '../../../../test/common/workbenchTestServices.js';
+import { cutFileHandler, incrementFileName, pasteFileHandler } from '../../browser/fileActions.js';
+import { IExplorerService } from '../../browser/files.js';
+import { ExplorerItem } from '../../common/explorerModel.js';
+
+suite('Files - Paste', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cut reports an existing destination without claiming the source was deleted (#206471)', async () => {
+		const configurationService = new TestConfigurationService({ explorer: { incrementalNaming: 'simple' } });
+		const instantiationService = workbenchInstantiationService({ configurationService: () => configurationService }, disposables);
+		const fileService = instantiationService.get(IFileService);
+		const clipboardService = new TestClipboardService();
+		instantiationService.stub(IClipboardService, clipboardService);
+		const notification = instantiationService.spy(INotificationService, 'error');
+
+		const source = new ExplorerItem(URI.file('/workspace/some-file'), fileService, configurationService, NullFilesConfigurationService, undefined, false);
+		const destination = new ExplorerItem(URI.file('/workspace/some-folder'), fileService, configurationService, NullFilesConfigurationService, undefined, true);
+		const error = new FileOperationError('The target already exists at the destination.', FileOperationResult.FILE_MOVE_CONFLICT);
+		let context = [source];
+		instantiationService.stub(IExplorerService, {
+			getContext: () => context,
+			getEditable: () => undefined,
+			setToCopy: async items => {
+				await clipboardService.writeResources(items.map(item => item.resource));
+			},
+			applyBulkEdit: async () => { throw error; }
+		});
+
+		await instantiationService.invokeFunction(cutFileHandler);
+		context = [destination];
+		await instantiationService.invokeFunction(pasteFileHandler);
+
+		assert.deepStrictEqual(notification.args, [[error.message]]);
+	});
+});
 
 suite('Files - Increment file name simple', () => {
 

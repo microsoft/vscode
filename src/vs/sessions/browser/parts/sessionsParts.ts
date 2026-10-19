@@ -14,7 +14,8 @@ import { SessionView } from './sessionView.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionsPartService, IToggleMaximizeSessionEvent } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { Direction } from '../../../base/browser/ui/grid/grid.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -35,8 +36,12 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
-	get onDidFocusSession(): Event<string> {
+	get onDidFocusSession(): Event<string | undefined> {
 		return this._mainPart.onDidFocusSession;
+	}
+
+	get shownChatCount() {
+		return this._mainPart.shownChatCount;
 	}
 
 	constructor(
@@ -50,8 +55,19 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}
 
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void {
-		this._mainPart.updateVisibleSessions(visible, active);
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		this._mainPart.updateVisibleSessions(visible, active, slots, request);
+	}
+
+	getGridLayout() { return this._mainPart.getGridLayout(); }
+	getSessionAtPosition(index: number) { return this._mainPart.getSessionAtPosition(index); }
+	getNeighborSession(sessionId: string | undefined, direction: Direction) { return this._mainPart.getNeighborSession(sessionId, direction); }
+	getSessionPlacement(sessionId: string) { return this._mainPart.getSessionPlacement(sessionId); }
+	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void { this._mainPart.resizeSession(sessionId, direction, amount); }
+	get onDidInteractWithGrid(): Event<void> { return this._mainPart.onDidInteractWithGrid; }
+
+	setContentVisible(visible: boolean): void {
+		this._mainPart.setContentVisible(visible);
 	}
 
 	toggleMaximizeSession(session: IActiveSession | undefined): void {
@@ -66,11 +82,15 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.focusSession(session?.sessionId);
+		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {
 		return this._mainPart.getSessionView(sessionId);
+	}
+
+	getFocusedSessionView(): SessionView | undefined {
+		return this._mainPart.getFocusedSessionView();
 	}
 
 	getProgressIndicator(): IProgressIndicator {

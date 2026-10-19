@@ -308,7 +308,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.initializeShowRefreshAction();
 		});
 
-		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id);
+		this.treeViewDnd = this._register(this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id));
 		if (this._dragAndDropController) {
 			this.treeViewDnd.controller = this._dragAndDropController;
 		}
@@ -1475,6 +1475,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
 				if (node.themeIcon.color) {
 					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.color.id)?.toString() ?? '';
+				} else {
+					iconClass = iconClass + ' codicon-colored';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
@@ -1677,6 +1679,12 @@ class Aligner extends Disposable {
 	private hasIcon(node: ITreeItem): boolean {
 		const icon = !isDark(this.themeService.getColorTheme().type) ? node.icon : node.iconDark;
 		if (icon) {
+			return true;
+		}
+		// `file` and `folder` ThemeIcons defer to the file icon theme only when the item has a resource.
+		// Any other ThemeIcon, or a `file`/`folder` ThemeIcon on an item without a resource, is always
+		// rendered as a codicon and therefore always has an icon regardless of the file icon theme.
+		if (node.themeIcon && (!node.resourceUri || (node.themeIcon.id !== FileThemeIcon.id && node.themeIcon.id !== FolderThemeIcon.id))) {
 			return true;
 		}
 		if (node.resourceUri || node.themeIcon) {
@@ -1911,7 +1919,7 @@ interface TreeDragSourceInfo {
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
 	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
-	private dragCancellationToken: CancellationTokenSource | undefined;
+	private dragOperation: { uuid: string; controller: ITreeViewDragAndDropController; cancellationToken: CancellationTokenSource } | undefined;
 
 	constructor(
 		private readonly treeId: string,
@@ -1924,7 +1932,22 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 	private dndController: ITreeViewDragAndDropController | undefined;
 	set controller(controller: ITreeViewDragAndDropController | undefined) {
+		this.cancelDragOperation();
 		this.dndController = controller;
+	}
+
+	private cancelDragOperation(): void {
+		const operation = this.dragOperation;
+		this.dragOperation = undefined;
+		if (!operation) {
+			return;
+		}
+		operation.cancellationToken.dispose(true);
+		this.treeViewsDragAndDropService.removeDragOperationTransfer(operation.uuid);
+		operation.controller.handleDragEnd?.(operation.uuid);
+		if (this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype)?.[0].identifier === operation.uuid) {
+			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
+		}
 	}
 
 	private handleDragAndLog(dndController: ITreeViewDragAndDropController, itemHandles: string[], uuid: string, dragCancellationToken: CancellationToken): Promise<VSDataTransfer | undefined> {
@@ -1950,8 +1973,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 		const uuid = generateUuid();
 
-		this.dragCancellationToken = new CancellationTokenSource();
-		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.handleDragAndLog(this.dndController, itemHandles, uuid, this.dragCancellationToken.token));
+		this.cancelDragOperation();
+		const cancellationToken = new CancellationTokenSource();
+		this.dragOperation = { uuid, controller: this.dndController, cancellationToken };
+		this.treeViewsDragAndDropService.addDragOperationTransfer(uuid, this.handleDragAndLog(this.dndController, itemHandles, uuid, cancellationToken.token));
 		this.treeItemsTransfer.setData([new DraggedTreeItemsIdentifier(uuid)], DraggedTreeItemsIdentifier.prototype);
 		originalEvent.dataTransfer.clearData(Mimes.text);
 		if (this.dndController.dragMimeTypes.find((element) => element === Mimes.uriList)) {
@@ -2101,11 +2126,17 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	onDragEnd(originalEvent: DragEvent): void {
 		// Check if the drag was cancelled.
 		if (originalEvent.dataTransfer?.dropEffect === 'none') {
-			this.dragCancellationToken?.cancel();
+			this.cancelDragOperation();
+		} else {
+			// A successful drop may still be awaiting its additional transfer data.
+			this.dragOperation?.cancellationToken.dispose();
+			this.dragOperation = undefined;
 		}
 	}
 
-	dispose(): void { }
+	dispose(): void {
+		this.cancelDragOperation();
+	}
 }
 
 function setCascadingCheckboxUpdates(items: readonly ITreeItem[]) {

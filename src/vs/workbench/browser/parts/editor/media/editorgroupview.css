@@ -210,12 +210,21 @@
 	z-index: 9;
 	pointer-events: none;
 	background-color: var(--title-border-bottom-color);
-	width: 100%;
+	width: var(--title-border-bottom-width, 100%);
 	height: 1px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container.empty > .title {
 	display: none;
+}
+
+/* Optional full-width header rendered in flow between the tab bar and the editor
+ * pane (used by the Agents window single-pane layout). Height is set inline. */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header {
+	position: relative;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
 }
 
 /* Toolbar */

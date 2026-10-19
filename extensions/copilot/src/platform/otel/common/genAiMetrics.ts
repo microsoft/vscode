@@ -226,7 +226,25 @@ export class GenAiMetrics {
 		});
 	}
 
-	static incrementCloudPrReadyCount(otel: IOTelService): void {
-		otel.incrementCounter('copilot_chat.cloud.pr_ready.count');
+	/**
+	 * Records a cloud task operation outcome and, when provided, its duration.
+	 */
+	static recordCloudOperation(otel: IOTelService, operation: string, success: boolean, durationMs?: number): void {
+		otel.incrementCounter('copilot_chat.cloud.operation.count', 1, {
+			'operation': operation,
+			'success': success,
+		});
+		if (durationMs !== undefined) {
+			otel.recordMetric('copilot_chat.cloud.operation.duration', durationMs, {
+				'operation': operation,
+			});
+		}
+	}
+
+	static incrementCloudError(otel: IOTelService, operation: string, errorType: string): void {
+		otel.incrementCounter('copilot_chat.cloud.error.count', 1, {
+			'operation': operation,
+			[StdAttr.ERROR_TYPE]: errorType,
+		});
 	}
 }

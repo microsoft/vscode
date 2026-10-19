@@ -15,7 +15,7 @@ import { escapeRegExpCharacters } from '../../../util/vs/base/common/strings';
 import { isUriComponents, URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { PromptReference } from '../../prompt/common/conversation';
-import { extractSymbolNamesInCode } from './findSymbol';
+import { extractQualifiedSymbolParts, extractSymbolNamesInCode } from './findSymbol';
 
 /**
  * How the word was resolved.
@@ -389,42 +389,25 @@ export class ReferencesSymbolResolver {
 
 		// But then try breaking up inline code into symbol parts
 		if (!wordMatches.length) {
-			// Extract all symbol parts from the code text
+			// Only text that really is a qualified name may be decomposed. Splitting arbitrary
+			// inline code links things like `mx:text` to an unrelated `text` declaration.
 			// For example: `TextModel.undo()` -> ['TextModel', 'undo']
-			const symbolParts = extractSymbolNamesInCode(codeText);
+			const symbolParts = extractQualifiedSymbolParts(codeText);
 
 			if (symbolParts.length >= 2) {
-				// For qualified names like `Class.method()`, search for both parts together
-				// This helps disambiguate when there are multiple methods with the same name
-				const firstPart = symbolParts[0];
-				const lastPart = symbolParts[symbolParts.length - 1];
-
-				// First, try to find the class
-				const classMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, firstPart, {
+				// Resolve the qualifier, e.g. the class. Click-time resolution narrows to the
+				// member. Without the qualifier there is nothing to disambiguate the member
+				// against, so a bare member match would be a guess.
+				wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, symbolParts[0], {
 					symbolMatchesOnly: true,
 					maxResultCount: this.findWordOptions.maxResultCount,
 				}, token, this.documentCache));
-
-				// If we found the class, we'll rely on the click-time resolution to find the method
-				if (classMatches.length) {
-					wordMatches = classMatches;
-				} else {
-					// If no class found, try just the method name as fallback
-					wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, lastPart, {
-						symbolMatchesOnly: true,
-						maxResultCount: this.findWordOptions.maxResultCount,
-					}, token));
-				}
-			} else if (symbolParts.length > 0) {
-				// For single names like `undo`, try to find the method directly
-				const lastPart = symbolParts[symbolParts.length - 1];
-
-				if (lastPart && lastPart !== codeText) {
-					wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, lastPart, {
-						symbolMatchesOnly: true,
-						maxResultCount: this.findWordOptions.maxResultCount,
-					}, token, this.documentCache));
-				}
+			} else if (symbolParts.length === 1 && symbolParts[0] !== codeText) {
+				// For names carrying a signature, like `undo()`, search the bare name.
+				wordMatches = await this.instantiationService.invokeFunction(accessor => findWordInReferences(accessor, references, symbolParts[0], {
+					symbolMatchesOnly: true,
+					maxResultCount: this.findWordOptions.maxResultCount,
+				}, token, this.documentCache));
 			}
 		}
 

@@ -4,24 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
+import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput, IEditorPane } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
-import { EditorResolution, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { EditorResolution, IResourceEditorInput, ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, fillActiveEditorSelection } from '../../../../browser/parts/editor/editor.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
+import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 suite('Workbench editor utils', () => {
 
@@ -52,6 +59,42 @@ suite('Workbench editor utils', () => {
 
 	teardown(() => {
 		disposables.clear();
+	});
+
+	test('fillActiveEditorSelection transfers the current selection only for the source editor', () => {
+		const source = disposables.add(new TestEditorInput(URI.file('/source'), 'test'));
+		const other = disposables.add(new TestEditorInput(URI.file('/other'), 'test'));
+		const selection = new Selection(30, 4, 32, 9);
+		const pane = new class extends mock<IEditorPane>() {
+			override readonly input = source;
+			override getSelection() { return new TextEditorPaneSelection(selection); }
+		};
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly activeEditor = source;
+			override readonly activeEditorPane = pane;
+		};
+		const options: ITextEditorOptions = { override: 'new-type', pinned: true, selection: { startLineNumber: 1, startColumn: 1 } };
+		assert.deepStrictEqual({
+			source: fillActiveEditorSelection(group, source, options),
+			other: fillActiveEditorSelection(group, other, options),
+			original: options
+		}, {
+			source: { override: 'new-type', pinned: true, selection, selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport },
+			other: { override: 'new-type', pinned: true, selection: { startLineNumber: 1, startColumn: 1 } },
+			original: { override: 'new-type', pinned: true, selection: { startLineNumber: 1, startColumn: 1 } }
+		});
+	});
+
+	test('fillActiveEditorSelection preserves options when selection is unsupported', () => {
+		const source = disposables.add(new TestEditorInput(URI.file('/source'), 'test'));
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly activeEditor = source;
+			override readonly activeEditorPane = new class extends mock<IEditorPane>() {
+				override readonly input = source;
+			};
+		};
+		const options = { override: 'new-type', pinned: true };
+		assert.strictEqual(fillActiveEditorSelection(group, source, options), options);
 	});
 
 	test('untyped check functions', () => {
@@ -361,13 +404,13 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(isEditorInputWithOptions(editorInput), false);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInput), false);
 
-		const editorInputWithOptions: EditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.PICK } };
+		const editorInputWithOptions: EditorInputWithOptions = { editor: editorInput, options: { override: EditorResolution.EXCLUSIVE_ONLY } };
 		assert.strictEqual(isEditorInput(editorInputWithOptions), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptions), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptions), false);
 
 		const service = accessor.editorGroupService;
-		const editorInputWithOptionsAndGroup: EditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.PICK }, group: service.activeGroup };
+		const editorInputWithOptionsAndGroup: EditorInputWithOptionsAndGroup = { editor: editorInput, options: { override: EditorResolution.EXCLUSIVE_ONLY }, group: service.activeGroup };
 		assert.strictEqual(isEditorInput(editorInputWithOptionsAndGroup), false);
 		assert.strictEqual(isEditorInputWithOptions(editorInputWithOptionsAndGroup), true);
 		assert.strictEqual(isEditorInputWithOptionsAndGroup(editorInputWithOptionsAndGroup), true);
@@ -395,6 +438,87 @@ suite('Workbench editor utils', () => {
 		};
 
 		assert.strictEqual(isTextEditorViewState(diffEditorViewState), true);
+	});
+
+	test('editor tab action space reservation reserves by default and can be configured or enforced', async () => {
+		assert.strictEqual(DEFAULT_EDITOR_PART_OPTIONS.tabActionReserveSpace, true);
+
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { tabActionReserveSpace: false } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+
+		const configured = part.partOptions.tabActionReserveSpace;
+		const enforcedOverride = part.enforcePartOptions({ tabActionReserveSpace: true });
+		assert.deepStrictEqual({
+			configured,
+			enforced: part.partOptions.tabActionReserveSpace,
+		}, {
+			configured: false,
+			enforced: true,
+		});
+
+		enforcedOverride.dispose();
+		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
+	});
+
+	test('title separator follows the inset editor content while tabs remain full width', async () => {
+		const part = await createEditorPart(instantiationService, disposables);
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench';
+		mainWindow.document.body.appendChild(root);
+		const partContainer = part.getContainer()!;
+		partContainer.classList.add('part', 'editor');
+		root.appendChild(partContainer);
+		disposables.add(toDisposable(() => root.remove()));
+		const group = part.activeGroup;
+		assert.ok(group instanceof EditorGroupView);
+		await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/title-separator.ts'), TEST_EDITOR_ID)), { pinned: true });
+		const title = root.querySelector<HTMLElement>('.editor-group-container > .title')!;
+		title.classList.add('title-border-bottom');
+		const results = [];
+		for (const { width, inset } of [{ width: 600, inset: 0 }, { width: 600, inset: 220 }, { width: 750, inset: 220 }, { width: 750, inset: 0 }, { width: 400, inset: 500 }]) {
+			group.layout(width, 400, 0, 0);
+			group.setContentRightInset(inset);
+			results.push({
+				width, inset,
+				separatorWidth: mainWindow.getComputedStyle(title, '::after').width,
+				editorWidth: root.querySelector<HTMLElement>('.editor-container')!.style.width,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			separatorWidth: `${Math.max(0, result.width - result.inset)}px`,
+			editorWidth: `${Math.max(0, result.width - result.inset)}px`,
+		})));
+	});
+
+	test('editor tab mode class follows configured and enforced part options', async () => {
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { showTabs: 'single' } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+		const hasMultipleTabs = () => part.getContainer()!.classList.contains('editor-tabs-multiple');
+		const states = [hasMultipleTabs()];
+		for (const showTabs of ['multiple', 'none', 'single'] as const) {
+			const override = disposables.add(part.enforcePartOptions({ showTabs }));
+			states.push(hasMultipleTabs());
+			override.dispose();
+			states.push(hasMultipleTabs());
+		}
+		assert.deepStrictEqual(states, [false, true, false, false, false, false, false]);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

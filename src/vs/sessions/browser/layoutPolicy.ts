@@ -83,6 +83,22 @@ export class SessionsLayoutPolicy extends Disposable {
 	/** Current viewport class derived from the most recent `update()` call. */
 	readonly viewportClass: IObservable<ViewportClass> = this._viewportClass;
 
+	/**
+	 * Whether the agents window uses the desktop layout (editor spans the
+	 * detail panel as a docked auxiliary bar). Fixed by the workbench selected at
+	 * startup. Never active on phone, which has its own mobile layout.
+	 */
+	private _desktop = false;
+
+	get isDesktop(): boolean {
+		return this._desktop && this._viewportClass.get() !== 'phone';
+	}
+
+	/** Set once at startup from the selected workbench before the first layout. */
+	setDesktop(value: boolean): void {
+		this._desktop = value;
+	}
+
 	/** `true` when the viewport class is `phone`. */
 	readonly isPhoneLayout: IObservable<boolean> = derived(this, reader => {
 		return this._viewportClass.read(reader) === 'phone';

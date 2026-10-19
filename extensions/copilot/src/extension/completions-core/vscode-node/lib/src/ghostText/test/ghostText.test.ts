@@ -14,7 +14,7 @@ import { SyncDescriptor } from '../../../../../../../util/vs/platform/instantiat
 import { ServicesAccessor } from '../../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { LlmNESTelemetryBuilder } from '../../../../../../inlineEdits/node/nextEditProviderTelemetry';
 import { GhostTextLogContext } from '../../../../../common/ghostTextContext';
-import { initializeTokenizers } from '../../../../prompt/src/tokenization';
+import { ensureTokenizersLoaded } from '../../../../prompt/src/tokenization';
 import { CompletionState, createCompletionState } from '../../completionState';
 import { ConfigKey, ICompletionsConfigProvider, InMemoryConfigProvider } from '../../config';
 import { ICompletionsFetcherService, Response } from '../../networking';
@@ -123,7 +123,7 @@ suite('Isolated GhostText tests', function () {
 	}
 
 	suiteSetup(async function () {
-		await initializeTokenizers;
+		await ensureTokenizersLoaded();
 	});
 
 	test('returns annotations in the result', async function () {

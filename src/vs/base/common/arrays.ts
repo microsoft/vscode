@@ -757,7 +757,7 @@ export class ArrayQueue<T> {
 		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
 
 		let startIdx = this.firstIdx;
-		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+		while (startIdx <= this.lastIdx && predicate(this.items[startIdx])) {
 			startIdx++;
 		}
 		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
@@ -775,7 +775,7 @@ export class ArrayQueue<T> {
 		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
 
 		let endIdx = this.lastIdx;
-		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+		while (endIdx >= this.firstIdx && predicate(this.items[endIdx])) {
 			endIdx--;
 		}
 		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);

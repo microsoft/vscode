@@ -9,6 +9,7 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
+import type { IStatelessNextEditModelTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { LogServiceImpl } from '../../../../platform/log/common/logService';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -19,6 +20,11 @@ import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offse
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { NextEditCache } from '../../node/nextEditCache';
 import { NextEditFetchRequest } from '../../node/nextEditProvider';
+
+const testModelTelemetry: IStatelessNextEditModelTelemetry = {
+	modelName: undefined,
+	modelConfig: undefined,
+};
 
 describe('NextEditCache cursor distance check', () => {
 
@@ -79,7 +85,7 @@ describe('NextEditCache cursor distance check', () => {
 			undefined, // nextEdits
 			undefined, // userEditSince
 			makeSource(),
-			{ isFromCursorJump: false, cursorOffset: lineStartOffset(cursorLine) },
+			{ isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: lineStartOffset(cursorLine) },
 		);
 	}
 
@@ -149,7 +155,7 @@ describe('NextEditCache cursor distance check', () => {
 				undefined,
 				undefined,
 				makeSource(),
-				{ isFromCursorJump: false, cursorOffset: lineStartOffset(5) },
+				{ isFromCursorJump: false, modelTelemetry: testModelTelemetry, cursorOffset: lineStartOffset(5) },
 			);
 
 			// Move cursor to line 1 (farther) — should still serve because it's subsequent
@@ -168,7 +174,7 @@ describe('NextEditCache cursor distance check', () => {
 				undefined,
 				undefined,
 				makeSource(),
-				{ isFromCursorJump: false }, // no cursorOffset
+				{ isFromCursorJump: false, modelTelemetry: testModelTelemetry }, // no cursorOffset
 			);
 
 			// Move cursor to line 1 (farther) — should still serve because no cursor offset recorded

@@ -7,7 +7,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { NesDatagenSampleTask } from '../../base/simulationOptions';
+import { NesDatagenInputFormat, NesDatagenSampleTask, PivotStrategy } from '../../base/simulationOptions';
 import { runInputPipeline, RunPipelineOptions } from '../pipeline';
 import { allCursorJumpRecords, cursorJumpFixtures } from './fixtures/cursorJumpFixtureData';
 
@@ -78,7 +78,11 @@ async function runCursorPipeline(sampleTask: NesDatagenSampleTask, nesDatagenOve
 			output: outputPath,
 			rowOffset: 0,
 			workerMode: false,
+			generateScoredEdits: false,
 			sampleTask,
+			inputFormat: NesDatagenInputFormat.AlternativeAction,
+			pivotStrategy: PivotStrategy.Random,
+			seed: 0,
 			sameFileJumpMinAbove: 5,
 			sameFileJumpMinBelow: 5,
 			...nesDatagenOverrides,

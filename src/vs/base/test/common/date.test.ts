@@ -4,12 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { fromNow, fromNowByDay, getDurationString, safeIntl } from '../../common/date.js';
+import { fromNow, fromNowByDay, getDurationString, getExpirationTime, getRemainingTimeInSeconds, isExpired, safeIntl } from '../../common/date.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { LANGUAGE_DEFAULT } from '../../common/platform.js';
 
 suite('Date', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('getRemainingTimeInSeconds', () => {
+		strictEqual(getRemainingTimeInSeconds(undefined, 1000), undefined);
+		strictEqual(getRemainingTimeInSeconds(1000, 1000), undefined);
+		strictEqual(getRemainingTimeInSeconds(1001, 1000), 1);
+		strictEqual(getRemainingTimeInSeconds(2001, 1000), 2);
+	});
+
+	test('getExpirationTime', () => {
+		strictEqual(getExpirationTime(undefined, 1000), undefined);
+		strictEqual(getExpirationTime(0, 1000), 1000);
+		strictEqual(getExpirationTime(2, 1000), 3000);
+	});
+
+	test('isExpired', () => {
+		strictEqual(isExpired(undefined, 1000), false);
+		strictEqual(isExpired(1000, 1000), true);
+		strictEqual(isExpired(1001, 1000), false);
+	});
 
 	suite('fromNow', () => {
 		test('appendAgoLabel', () => {
@@ -21,6 +40,7 @@ suite('Date', () => {
 			strictEqual(fromNow(Date.now() - 35000), '35 secs');
 			strictEqual(fromNow(Date.now() - 35000, undefined, false), '35 secs');
 			strictEqual(fromNow(Date.now() - 35000, undefined, true), '35 seconds');
+			strictEqual(fromNow(Date.now() + 4 * 60 * 60 * 1000, false, true), 'in 4 hours');
 		});
 		test('disallowNow', () => {
 			strictEqual(fromNow(Date.now() - 5000), 'now');
