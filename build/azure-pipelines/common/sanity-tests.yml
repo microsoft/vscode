@@ -25,6 +25,10 @@ parameters:
   - name: continueOnError
     type: boolean
     default: true
+  # Whether to rerun DEB/RPM desktop tests with the setuid sandbox. Jobs that don't run those tests turn it off.
+  - name: setuidSandbox
+    type: boolean
+    default: true
 
 jobs:
   - job: ${{ parameters.name }}
@@ -265,7 +269,7 @@ jobs:
             GITHUB_PASSWORD: $(sanity-tests-password)
 
       # Installed DEB/RPM packages must also work without the user namespace sandbox.
-      - ${{ if and(eq(parameters.os, 'linux'), ne(parameters.container, ''), ne(parameters.container, 'alpine'), ne(parameters.arch, 'arm'), ne(variables.SETUID_SANDBOX_GREP, '')) }}:
+      - ${{ if and(parameters.setuidSandbox, eq(parameters.os, 'linux'), ne(parameters.container, ''), ne(parameters.container, 'alpine'), ne(parameters.arch, 'arm'), ne(variables.SETUID_SANDBOX_GREP, '')) }}:
         - bash: |
             $(TEST_DIR)/scripts/run-docker.sh \
               --container "${{ parameters.container }}" \

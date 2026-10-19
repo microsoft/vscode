@@ -30,6 +30,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--timeout <sec>`||Set the test-case timeout in seconds (default: 600 seconds)|
 |`--artifacts-dir <path>`||Resolve builds from downloaded pipeline artifacts instead of the update service|
 |`--setuid-sandbox`||Launch installed DEB/RPM desktop apps with the namespace sandbox disabled; requires a non-root runner and a root owned `4755` sandbox helper|
+|`--installer`||Also run the installer tests, which install DEB/RPM packages and change `/etc/vscode` and `/usr/bin` (Linux, requires root) or the app's macOS preferences; skipped otherwise, even with `--no-detection`|
 |`--verbose`|`-v`|Enable verbose logging|
 |`--help`|`-h`|Show this help message|
 
@@ -233,6 +234,16 @@ Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pas
 The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. It installs `sudo` when needed and allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
 
 Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. ARM32 remains download/CLI-only: its QEMU emulated containers cannot execute Chromium's setuid sandbox.
+
+### Installer Tests
+
+The `installer-*` tests check how the packages handle the `copilot` command and the `CopilotCliCommand` policy. Because they change machine-wide state, they run only with `--installer`, in their own macOS arm64, Ubuntu 24.04 x64 DEB, and Fedora 43 x64 RPM jobs (published and artifact backed), and those jobs skip the setuid pass.
+
+- DEB and RPM: as root, the tests install, reinstall, and remove the package with `/etc/vscode/policy.json` present and absent, and check that `/usr/bin/copilot` links to the package's Copilot shim only when the policy allows it. The DEB test also reconfigures the `add-copilot-command` debconf answer and checks that purging removes it. Both check that a `/usr/bin/copilot` the package didn't create is preserved. Exploration packages never create the link.
+- macOS: the test sets `CopilotCliCommand` to `false` in the app's user preferences with `defaults write`, checks that the app's Copilot shim honors it, and deletes the value afterward.
+- All: the shim is run with only system directories on `PATH` and `PREFIX` pointing at an empty directory, so it reports that GitHub Copilot CLI is missing (exit code 127), or that the policy turned it off (exit code 10).
+
+The tests fail without changing anything if `/usr/bin/copilot`, `/etc/vscode/policy.json`, or the macOS preference already exist.
 
 ### Pipeline Parameters
 
