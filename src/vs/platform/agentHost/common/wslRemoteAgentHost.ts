@@ -128,11 +128,13 @@ export interface IWSLRemoteAgentHostMainService {
 	readonly onDidRelayActivity: Event<string /* connectionId */>;
 	readonly onDidRelayClose: Event<string /* connectionId */>;
 	relaySend(connectionId: string, message: string): Promise<void>;
+	/** Release one renderer-owned relay lease; the shared WSL bootstrap stops after its final lease is released. */
+	releaseRelay(connectionId: string): Promise<void>;
 
 	isWSLAvailable(): Promise<boolean>;
 	listDistros(): Promise<IWSLDistro[]>;
 	listRunningDistros(): Promise<string[]>;
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult>;
 	disconnect(distro: string): Promise<void>;
-	reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult>;
+	reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean, expectedConnectionId?: string): Promise<IWSLConnectResult>;
 }

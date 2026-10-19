@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -20,18 +22,29 @@ import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/ag
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AgentPluginManager } from '../../node/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
+import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -49,9 +62,31 @@ suite('AgentHostAutomationService', () => {
 	let writeFailures: number;
 	let writeAttempts: number;
 	let telemetry: RecordingAutomationTelemetry;
+	let fileService: FileService;
+	let pluginManager: AgentPluginManager;
+	let clientConnections: AgentHostClientConnectionService;
+	let systemWake: AgentHostSystemWakeService;
+	let authenticationRequests: IAgentHostMcpAuthenticationRequest[];
+	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		systemWake = new AgentHostSystemWakeService();
+		authenticationRequests = [];
+		authenticationResult = Promise.resolve(false);
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: () => false,
+			isClientConnected: () => false,
+			isLocalClient: () => false,
+			usesLegacyChatUris: () => false,
+			getConnectedClientTransportCounts: () => new Map(),
+			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: request => {
+				authenticationRequests.push(request);
+				return authenticationResult;
+			},
+		}));
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
@@ -60,6 +95,10 @@ suite('AgentHostAutomationService', () => {
 		writeFailures = 0;
 		writeAttempts = 0;
 		telemetry = new RecordingAutomationTelemetry();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		pluginManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
 		const writer: IAgentHostStorageWriter = {
 			mkdir: async () => { },
 			writeFile: async () => {
@@ -69,6 +108,8 @@ suite('AgentHostAutomationService', () => {
 					throw new Error('storage unavailable');
 				}
 			},
+			rename: async () => { },
+			rm: async () => { },
 		};
 		storageService = disposables.add(new AgentHostStorageService(
 			URI.file(`/agent-host-automation-service-${generateUuid()}.json`),
@@ -114,13 +155,199 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers);
+			resumeTurn: execution?.resumeTurn ?? (async () => false),
+		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
 		return disposables.add(service);
 	}
 
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
 		await service.handleCreate(createAction(resource));
 	}
+
+	test('silently authenticates run-linked MCP servers once per challenge', async () => {
+		const session = URI.parse('mock:/mcp-run');
+		const interactiveSession = URI.parse('mock:/interactive');
+		for (const resource of [session, interactiveSession]) {
+			stateManager.createSession({
+				resource: resource.toString(), provider: 'mock', title: '',
+				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(resource.toString()),
+			});
+		}
+		const started = new DeferredPromise<void>();
+		const pendingAuthentication = new DeferredPromise<boolean>();
+		authenticationResult = pendingAuthentication.p;
+		const service = createService({
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'mcp-run' });
+		await started.p;
+		const auth: McpAuthRequirement = {
+			resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			reason: McpAuthRequiredReason.Required,
+			requiredScopes: ['read'],
+		};
+		const customizations = (challenge: McpAuthRequirement): Customization[] => [
+			{ type: CustomizationType.McpServer, id: 'top', uri: 'mcp:/top', name: 'top', state: { kind: McpServerStatus.AuthRequired, ...challenge } },
+			{
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin', children: [
+					{ type: CustomizationType.McpServer, id: 'child', uri: 'mcp:/child', name: 'child', state: { kind: McpServerStatus.AuthRequired, ...challenge } },
+				]
+			},
+		];
+		const publish = (resource: URI, challenge: McpAuthRequirement) => stateManager.dispatchServerAction(resource.toString(), {
+			type: ActionType.SessionCustomizationsChanged, customizations: customizations(challenge),
+		});
+		publish(interactiveSession, auth);
+		publish(session, auth);
+		publish(session, auth);
+		const inflightRequests = [...authenticationRequests];
+		await pendingAuthentication.complete(false);
+		await Promise.resolve();
+		publish(session, auth);
+		const failedRequests = [...authenticationRequests];
+		const changedAuth = { ...auth, requiredScopes: ['read', 'write'] };
+		publish(session, changedAuth);
+		const changedChallenges: McpAuthRequirement[] = [
+			{ ...auth, resource: { ...auth.resource, resource: 'https://other.example.com' } },
+			{ ...auth, reason: McpAuthRequiredReason.Expired },
+			{ ...auth, oauthClient: { clientId: 'registered-client' } },
+		];
+		for (const challenge of changedChallenges) {
+			publish(session, challenge);
+			publish(session, challenge);
+		}
+		publish(session, auth);
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [] });
+		publish(session, auth);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false } });
+		publish(session, changedAuth);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true } });
+		publish(session, auth);
+		service.dispose();
+		publish(session, changedAuth);
+		assert.deepStrictEqual({ inflightRequests, failedRequests, requests: authenticationRequests }, {
+			inflightRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
+			failedRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
+			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(auth => [
+				{ serverName: 'top', auth }, { serverName: 'child', auth },
+			]),
+		});
+	});
+
+	test('captures plugins durably and seeds a disconnected run with the rewritten agent', async () => {
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
+		const service = createService({
+			createSession: async (template, _run, activeClient) => {
+				created.complete({ activeClient, agent: template.agent?.uri });
+				return AgentSession.uri('mock', 'customized');
+			},
+			startSession: async () => { },
+		});
+		const action = createAction();
+		action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
+		await service.handleCreate(action, 'author');
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		const copy = entry.customizations![0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
+		const run = await created.p;
+		assert.deepStrictEqual({
+			copy,
+			stored: storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0].customizations,
+			run,
+		}, {
+			copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
+			stored: [copy],
+			run: {
+				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
+				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
+			},
+		});
+	});
+
+	test('creates and updates local file customizations in place using connection service locality', async () => {
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: clientId => clientId === 'local',
+			isClientConnected: clientId => clientId === 'local',
+			isLocalClient: clientId => clientId === 'local',
+			usesLegacyChatUris: () => false,
+			getConnectedClientTransportCounts: () => new Map([['local', 1]]),
+			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
+		}));
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: URI.file('/local/bundle').toString(), name: 'Bundle', nonce: 'one' };
+		await fileService.writeFile(URI.joinPath(URI.parse(ref.uri), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const service = createService();
+		const action = createAction();
+		action.definition.session.customizations = [ref];
+		await service.handleCreate(action, 'local');
+		const created = stateManager.getAutomationCatalogState()!.entries[0].customizations;
+		const updatedRef = { ...ref, nonce: 'two' };
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource: action.resource,
+			changes: { session: { ...action.definition.session, customizations: [updatedRef] } },
+		}, 'local');
+		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		const [runSync] = await pluginManager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [{ ...updatedRef, uri: toAgentHostFileUri(URI.parse(updatedRef.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }]);
+		assert.deepStrictEqual({
+			createdUris: created?.map(copy => copy.uri),
+			updatedUris: updated.customizations?.map(copy => copy.uri),
+			refs: updated.definition.session.customizations,
+			copiesExist: await fileService.exists(URI.joinPath(pluginManager.hostPluginsPath, 'automations')),
+			runPluginDir: runSync.pluginDir?.toString(),
+		}, {
+			createdUris: [ref.uri], updatedUris: [ref.uri], refs: [updatedRef], copiesExist: false, runPluginDir: ref.uri,
+		});
+	});
+
+	test('keeps copies on unrelated updates and rejects failed captures atomically', async () => {
+		const service = createService();
+		const action = createAction();
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		action.definition.session.customizations = [ref];
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await service.handleCreate(action, 'author');
+		const original = stateManager.getAutomationCatalogState()!.entries[0].customizations;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { title: 'Updated' } });
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock', customizations: [{ ...ref, uri: 'virtual:/missing' }] } } }, 'author'));
+		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ copies: updated.customizations, session: updated.definition.session, title: updated.definition.title }, {
+			copies: original, session: action.definition.session, title: 'Updated',
+		});
+	});
+
+	test('collects unreferenced copies after mutations but retains copies used by runs', async () => {
+		const orphan = URI.joinPath(pluginManager.hostPluginsPath, 'automations', '.staging-orphan');
+		await fileService.createFolder(orphan);
+		const created = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => {
+				created.complete();
+				return AgentSession.uri('mock', 'run');
+			},
+			startSession: async () => { },
+		});
+		const action = createAction();
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		action.definition.session.customizations = [ref];
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await service.handleCreate(action, 'author');
+		const usedByRun = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'run' });
+		await created.p;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock', customizations: [{ ...ref, nonce: 'two' }] } } }, 'author');
+		const unused = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock' } } });
+		assert.deepStrictEqual({
+			orphan: await fileService.exists(orphan),
+			usedByRun: await fileService.exists(URI.parse(usedByRun.uri)),
+			unused: await fileService.exists(URI.parse(unused.uri)),
+		}, { orphan: false, usedByRun: true, unused: false });
+	});
 
 	function terminalRun(resource: string): Promise<void> {
 		const isTerminal = (status: AutomationRunStatus | undefined) => status === AutomationRunStatus.Completed || status === AutomationRunStatus.Cancelled || status === AutomationRunStatus.Failed;
@@ -321,7 +548,7 @@ suite('AgentHostAutomationService', () => {
 			startSession: async (_, message) => {
 				reporter.userMessageSent(
 					'copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
-					session.toString(), 'first-turn', undefined, 'direct', message, false,
+					session.toString(), session.toString(), 'first-turn', undefined, 'direct', message, false, false,
 				);
 				await started.complete();
 			},
@@ -348,6 +575,63 @@ suite('AgentHostAutomationService', () => {
 			legacyFields: [],
 		});
 	});
+
+	for (const { provider, telemetryProvider, scheme } of [
+		['copilotcli', 'copilotcli'], ['copilot', 'copilot'], ['claude', 'claude'], ['codex', 'codex'],
+		['copilot-cloud-agent', 'copilot-cloud'], ['openai-codex', 'codex'], ['custom-provider', 'other'],
+	].flatMap(([provider, telemetryProvider]) => [provider, 'ahp-session'].map(scheme => ({ provider, telemetryProvider, scheme })))) {
+		test(`run telemetry preserves ${provider} after ${scheme} primary session is removed`, async () => {
+			const session = AgentSession.uri(scheme, 'removed-session');
+			const defaultChat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			stateManager.createSession({
+				resource: session.toString(), provider, title: '',
+				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				defaultChat: buildDefaultChatUri(session.toString()),
+			});
+			const service = createService({
+				createSession: async () => session,
+				startSession: async () => {
+					stateManager.addChat(session.toString(), defaultChat, creationTimeChatStorageResource(session.toString(), defaultChat, buildDefaultChatUri(session.toString())));
+					stateManager.dispatchServerAction(defaultChat, {
+						type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(),
+						message: { text: 'Review changes', origin: { kind: MessageKind.Automation } },
+					});
+					await started.complete();
+				},
+				cancelSession: async () => {
+					stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'removal-race' });
+			await started.p;
+
+			stateManager.removeSession(session.toString());
+			assert.strictEqual(stateManager.getSessionSummary(session.toString()), undefined, 'session summary should be gone');
+
+			const completed = terminalRun(run.resource);
+			await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+			await completed;
+
+			const completedEvents = telemetry.events.filter(event => event.name === 'automation.runCompleted');
+			assert.deepStrictEqual({
+				completed: completedEvents.map(event => ({
+					provider: event.data.provider,
+					agentSessionId: event.data.agentSessionId,
+				})),
+				storedProviders: storageService.get<{ runProviders?: Record<string, string> }>('automations')?.runProviders,
+				runMeta: stateManager.getAutomationRunState(run.resource)?._meta,
+				summaryMeta: stateManager.getAutomationCatalogState()?.entries[0].runs[0]._meta,
+			}, {
+				completed: [{ provider: telemetryProvider, agentSessionId: 'removed-session' }],
+				storedProviders: { [run.resource]: provider },
+				runMeta: undefined,
+				summaryMeta: undefined,
+			});
+		});
+	}
 
 	test('logs pre-session failure once without inventing a run-start or session identifier', async () => {
 		const service = createService({ createSession: async () => { throw new Error('/private/startup-error'); } });
@@ -394,6 +678,30 @@ suite('AgentHostAutomationService', () => {
 			storedVersion: 2,
 		});
 	});
+
+	for (const { name, runProviders } of [
+		{ name: 'null', runProviders: null },
+		{ name: 'array', runProviders: [] },
+		{ name: 'non-string', runProviders: { run: 1 } },
+		{ name: 'empty provider', runProviders: { run: '' } },
+	]) {
+		test(`rejects ${name} run-provider storage without rewriting it`, async () => {
+			const stored = { version: 1, catalog: { automations: [] }, runProviders };
+			storageService.set('automations', stored);
+			await storageService.whenIdle();
+			const service = createService();
+
+			assert.deepStrictEqual({
+				isAvailable: service.isAvailable,
+				capabilities: service.capabilities,
+				stored: storageService.get('automations'),
+			}, {
+				isAvailable: false,
+				capabilities: undefined,
+				stored,
+			});
+		});
+	}
 
 	test('version 1 automation storage maps automations to protocol entries', async () => {
 		const resource = 'ahp-automation:/review-changes';
@@ -452,7 +760,7 @@ suite('AgentHostAutomationService', () => {
 			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
 			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
 		}, {
-			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
+			capabilities: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
 			triggers: { items: [] },
 			definition: savedDefinition,
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
@@ -576,6 +884,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -694,6 +1003,7 @@ suite('AgentHostAutomationService', () => {
 						status: SessionStatus.Idle,
 						createdAt: new Date().toISOString(),
 						modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -828,42 +1138,67 @@ suite('AgentHostAutomationService', () => {
 		}]);
 	});
 
-	test('logs interruption once on restart with the previously linked session', async () => {
-		const started = new DeferredPromise<void>();
-		const service = createService({
-			createSession: async () => URI.parse('copilotcli:/interrupted-session'),
-			startSession: async () => { await started.complete(); },
-		});
-		await enableAndCreate(service);
-		const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'restart' });
-		await started.p;
-		service.dispose();
-		createService();
-		await terminalRun(run.resource);
-		createService();
-		await storageService.whenIdle();
-
-		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, outcome: event.data.outcome, session: event.data.agentSessionId })), [
-			{ name: 'automation.created', outcome: undefined, session: undefined },
-			{ name: 'automation.runCreated', outcome: undefined, session: undefined },
-			{ name: 'automation.runStarted', outcome: undefined, session: 'interrupted-session' },
-			{ name: 'automation.runCompleted', outcome: 'interrupted', session: 'interrupted-session' },
-		]);
-	});
-
-	for (const outcome of ['success', 'error', 'cancelled', 'timeout'] as const) {
-		test(outcome === 'success' ? 'preserves successful completion when cancellation races it' : `records linked-session ${outcome} without error content`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+	for (const { scheme, hasSnapshot } of [
+		{ scheme: 'copilotcli', hasSnapshot: true },
+		{ scheme: 'ahp-session', hasSnapshot: true },
+		{ scheme: 'copilotcli', hasSnapshot: false },
+	]) {
+		test(`logs interruption once on restart with the previously linked ${scheme} session (${hasSnapshot ? 'snapshot' : 'legacy storage'})`, async () => {
+			const session = AgentSession.uri(scheme, 'interrupted-session');
+			const started = new DeferredPromise<void>();
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'copilotcli', title: '',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
+					});
+					return session;
+				},
+				startSession: async () => { await started.complete(); },
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'restart' });
+			await started.p;
+			service.dispose();
+			if (!hasSnapshot) {
+				const { runProviders, ...stored } = storageService.get<{ runProviders?: Record<string, string> }>('automations')!;
+				assert.ok(runProviders);
+				storageService.set('automations', stored);
+				await storageService.whenIdle();
+			}
+			stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			stateManager.dispatchServerAction(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
-				config: { [AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 1 },
+				config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
 			});
-			const session = URI.parse(`copilotcli:/${outcome}-session`);
+			createService();
+			await terminalRun(run.resource);
+			createService();
+			await storageService.whenIdle();
+
+			assert.deepStrictEqual(telemetry.events.map(event => ({
+				name: event.name, outcome: event.data.outcome, session: event.data.agentSessionId, provider: event.data.provider,
+			})), [
+				{ name: 'automation.created', outcome: undefined, session: undefined, provider: 'other' },
+				{ name: 'automation.runCreated', outcome: undefined, session: undefined, provider: 'other' },
+				{ name: 'automation.runStarted', outcome: undefined, session: 'interrupted-session', provider: 'copilotcli' },
+				{ name: 'automation.runCompleted', outcome: 'interrupted', session: 'interrupted-session', provider: 'copilotcli' },
+			]);
+		});
+	}
+
+	for (const { scheme, outcome } of ['copilotcli', 'ahp-session'].flatMap(scheme =>
+		(['success', 'error', 'cancelled'] as const).map(outcome => ({ scheme, outcome })))) {
+		test(`records ${scheme} linked-session ${outcome} after session removal without error content`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+			const session = AgentSession.uri(scheme, `${outcome}-session`);
 			const started = new DeferredPromise<void>();
 			const service = createService({
 				createSession: async () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'copilotcli', title: '', status: SessionStatus.Idle,
 						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -879,6 +1214,7 @@ suite('AgentHostAutomationService', () => {
 					} else {
 						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
 					}
+					stateManager.removeSession(session.toString());
 					return true;
 				},
 			});
@@ -894,6 +1230,7 @@ suite('AgentHostAutomationService', () => {
 			} else if (outcome === 'cancelled' || outcome === 'success') {
 				await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
 			}
+			stateManager.removeSession(session.toString());
 			await completed;
 
 			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data), [{
@@ -905,10 +1242,46 @@ suite('AgentHostAutomationService', () => {
 				agentSessionId: `${outcome}-session`,
 				sessionCreated: true,
 				outcome,
-				durationMs: outcome === 'timeout' ? 60_000 : 0,
+				durationMs: 0,
 			}]);
 		}));
 	}
+
+	test('failed session-link persistence does not publish provider identity or run-start telemetry', async () => {
+		let startCalls = 0;
+		const service = createService({
+			createSession: async () => {
+				const session = 'ahp-session:/failed-link';
+				stateManager.createSession({
+					resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session),
+				});
+				writeFailures = 1;
+				return URI.parse(session);
+			},
+			startSession: async () => { startCalls++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'failed-link',
+		});
+		await terminalRun(run.resource);
+
+		assert.deepStrictEqual({
+			startCalls,
+			providers: storageService.get<{ runProviders?: Record<string, string> }>('automations')?.runProviders,
+			started: telemetry.events.filter(event => event.name === 'automation.runStarted'),
+			completed: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
+				provider: event.data.provider, sessionCreated: event.data.sessionCreated, outcome: event.data.outcome,
+			})),
+		}, {
+			startCalls: 0,
+			providers: undefined,
+			started: [],
+			completed: [{ provider: 'default', sessionCreated: false, outcome: 'error' }],
+		});
+	});
 
 	test('run persistence failure prevents session side effects', async () => {
 		let createCalls = 0;
@@ -978,6 +1351,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1013,58 +1387,214 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	test('host timeout terminates a hung run so later occurrences cannot overlap', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
-		stateManager.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 1 },
-		});
-		const session = URI.parse('mock:/hung-session');
-		const started = new DeferredPromise<void>();
-
+	test('scheduled occurrences start independently while an earlier run is still active', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		let createCalls = 0;
+		let startCalls = 0;
+		let cancelCalls = 0;
 		const service = createService({
 			createSession: async () => {
+				const session = URI.parse(`mock:/hourly-${++createCalls}`);
 				stateManager.createSession({
-					resource: session.toString(),
-					provider: 'mock',
-					title: '',
-					status: SessionStatus.Idle,
-					createdAt: new Date().toISOString(),
-					modifiedAt: new Date().toISOString(),
+					resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
-			startSession: async () => {
-				await started.complete();
+			startSession: async (session, message) => {
+				// The turn never finishes, like a turn suspended while the machine sleeps.
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+					type: ActionType.ChatTurnStarted, turnId: 'hung-turn', startedAt: new Date().toISOString(), message,
+				});
+				await started[startCalls++].complete();
 			},
-			cancelSession: async () => false,
+			cancelSession: async () => {
+				cancelCalls++;
+				return false;
+			},
 		});
-		await enableAndCreate(service);
-		const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
-			envelope.action.type === ActionType.AutomationRunLifecycleChanged
-			&& envelope.action.lifecycle.status === AutomationRunStatus.Failed
-		));
-
-		const result = await service.runAutomation({
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+			},
+		});
+		await started[0].p;
+		await started[1].p;
+		const manualRun = await service.runAutomation({
 			channel: 'ahp-automations://',
 			automation: 'ahp-automation:/review-changes',
-			requestId: 'hung-request',
+			requestId: 'while-overlapping',
 		});
-		await started.p;
-		await failed;
 
-		const run = stateManager.getAutomationRunState(result.resource);
 		assert.deepStrictEqual({
-			status: run?.lifecycle.status,
-			error: run?.lifecycle.status === AutomationRunStatus.Failed ? run.lifecycle.error.message : undefined,
-			removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
-			outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+			runs: stateManager.getAutomationCatalogState()?.entries[0].runs.map(run => ({
+				status: run.lifecycle.status,
+				scheduledFor: run.origin.kind === AutomationRunOriginKind.Trigger ? run.origin.scheduledFor : undefined,
+				primarySession: run.primarySession,
+			})),
+			manualRunReusesNewest: manualRun.resource === stateManager.getAutomationCatalogState()?.entries[0].runs[0].resource,
+			cancelCalls,
+			completedRuns: telemetry.events.filter(event => event.name === 'automation.runCompleted').length,
 		}, {
-			status: AutomationRunStatus.Failed,
-			error: 'Automation run timed out.',
-			removeAvailable: true,
-			outcomes: ['timeout'],
+			runs: [
+				{ status: AutomationRunStatus.Running, scheduledFor: '2026-01-01T02:00:00.000Z', primarySession: 'mock:/hourly-2' },
+				{ status: AutomationRunStatus.Running, scheduledFor: '2026-01-01T01:00:00.000Z', primarySession: 'mock:/hourly-1' },
+			],
+			manualRunReusesNewest: true,
+			cancelCalls: 0,
+			completedRuns: 0,
 		});
 	}));
+
+	for (const emitNotification of [true, false]) {
+		// A provisional session is never announced to clients, so deleting it emits no `SessionRemoved`.
+		test(`deleting the ${emitNotification ? 'published' : 'provisional'} session of an active run cancels the run`, async () => {
+			const session = URI.parse('mock:/deleted-session');
+			const started = new DeferredPromise<void>();
+			let cancelCalls = 0;
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
+					}, { emitNotification });
+					return session;
+				},
+				startSession: async (createdSession, message) => {
+					stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+						type: ActionType.ChatTurnStarted, turnId: 'deleted-turn', startedAt: new Date().toISOString(), message,
+					});
+					await started.complete();
+				},
+				cancelSession: async () => {
+					cancelCalls++;
+					return false;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({
+				channel: 'ahp-automations://',
+				automation: 'ahp-automation:/review-changes',
+				requestId: 'deleted-session',
+			});
+			await started.p;
+			const completed = terminalRun(run.resource);
+
+			stateManager.deleteSession(session.toString());
+			await completed;
+
+			assert.deepStrictEqual({
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+				removeAvailable: stateManager.getAutomationCatalogState()?.entries[0].operations.includes(AutomationOperation.Remove),
+				outcomes: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data.outcome),
+				cancelCalls,
+			}, {
+				status: AutomationRunStatus.Cancelled,
+				removeAvailable: true,
+				outcomes: ['cancelled'],
+				cancelCalls: 0,
+			});
+		});
+	}
+
+	for (const { name, sleep, then, expected } of [
+		{
+			name: 'fails a run when its turn fails while the machine stays awake',
+			sleep: 'none', then: undefined,
+			expected: { afterFailure: AutomationRunStatus.Failed, resumedTurns: [], status: AutomationRunStatus.Failed },
+		},
+		{
+			name: 'resumes a turn that fails after a sleep once the machine is fully awake',
+			sleep: 'beforeFailure', then: 'complete',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: ['turn'], status: AutomationRunStatus.Completed },
+		},
+		{
+			name: 'fails a run when its turn fails again after resuming on wake',
+			sleep: 'throughFailure', then: 'error',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: ['turn'], status: AutomationRunStatus.Failed },
+		},
+		{
+			name: 'cancels a run that is waiting to resume after a wake',
+			sleep: 'throughFailure', then: 'cancel',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: [], status: AutomationRunStatus.Cancelled },
+		},
+		{
+			name: 'fails a run when its turn fails again after the user resumes it before the retry after wake',
+			sleep: 'throughFailure', then: 'userResume',
+			expected: { afterFailure: AutomationRunStatus.Running, resumedTurns: [], status: AutomationRunStatus.Failed },
+		},
+	] as const) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const session = URI.parse('mock:/sleeping-session');
+			const chat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			const resumedTurns: string[] = [];
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: chat,
+					});
+					return session;
+				},
+				startSession: async (_session, message) => {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message });
+					await started.complete();
+				},
+				resumeTurn: async (_session, turnId) => {
+					resumedTurns.push(turnId);
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: name });
+			await started.p;
+			const failTurn = () => stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatError, turnId: 'turn', duration: 0,
+				part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+			});
+
+			if (sleep !== 'none') {
+				systemWake.setFullyAwake(false);
+			}
+			if (sleep === 'beforeFailure') {
+				systemWake.setFullyAwake(true);
+			}
+			failTurn();
+			await timeout(1_000);
+			const afterFailure = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
+			if (then === 'cancel') {
+				await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+			} else if (then === 'userResume') {
+				// The user clicks Try Again before the host's own retry, and the turn fails again.
+				systemWake.setFullyAwake(true);
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnResume, turnId: 'turn' });
+				failTurn();
+			} else if (then) {
+				systemWake.setFullyAwake(true);
+				await timeout(60_000);
+				if (then === 'complete') {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+				} else {
+					failTurn();
+				}
+			}
+			// Outlasts any retry after wake, so a run that never ends fails the assertion instead of hanging the test.
+			await timeout(60_000);
+
+			assert.deepStrictEqual({
+				afterFailure,
+				resumedTurns,
+				status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+			}, expected);
+		}));
+	}
 
 	test('cancellation wins a session-creation race without sending the prompt', async () => {
 		const session = URI.parse('mock:/cancelled-session');
@@ -1083,6 +1613,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1142,6 +1673,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1208,6 +1740,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1289,6 +1822,7 @@ suite('AgentHostAutomationService', () => {
 					stateManager.createSession({
 						resource: session.toString(), provider: 'mock', title: '',
 						status: SessionStatus.Idle, createdAt: timestamp, modifiedAt: timestamp,
+						defaultChat: buildDefaultChatUri(session.toString()),
 					});
 					return session;
 				},
@@ -1349,6 +1883,57 @@ suite('AgentHostAutomationService', () => {
 		]);
 	}));
 
+	test('due schedules wait until the machine is fully awake, then catch up once', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/after-wake'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+			},
+		});
+		await timeout(3 * 60 * 60_000);
+		const asleep = stateManager.getAutomationCatalogState()?.entries[0];
+
+		systemWake.setFullyAwake(true);
+		await started.p;
+
+		const awake = stateManager.getAutomationCatalogState()?.entries[0];
+		assert.deepStrictEqual({
+			asleep: { runs: asleep?.runs.length, nextRunAt: asleep?.nextRunAt },
+			awake: { origins: awake?.runs.map(run => run.origin), nextRunAt: awake?.nextRunAt },
+		}, {
+			asleep: { runs: 0, nextRunAt: '2026-01-01T01:00:00.000Z' },
+			awake: {
+				origins: [{ kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z', catchUp: true }],
+				nextRunAt: '2026-01-01T04:00:00.000Z',
+			},
+		});
+	}));
+
+	test('manual runs start while the machine is not fully awake', async () => {
+		systemWake.setFullyAwake(false);
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('copilotcli:/manual-while-asleep'),
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'manual-while-asleep',
+		});
+		await started.p;
+
+		assert.strictEqual(stateManager.getAutomationRunState(run.resource)?.lifecycle.status, AutomationRunStatus.Running);
+	});
+
 	test('coalesces simultaneously-due schedule triggers on one Automation into a single run', async () => {
 		const now = new Date();
 		const firstScheduledFor = new Date(now.getTime() - 3 * 60_000).toISOString();
@@ -1405,6 +1990,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},
@@ -1486,6 +2072,7 @@ suite('AgentHostAutomationService', () => {
 					status: SessionStatus.Idle,
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
+					defaultChat: buildDefaultChatUri(session.toString()),
 				});
 				return session;
 			},

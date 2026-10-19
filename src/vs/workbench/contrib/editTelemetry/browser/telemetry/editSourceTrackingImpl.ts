@@ -27,8 +27,8 @@ import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownO
 const FOCUS_CORRELATION_DRAIN_TIMEOUT = 1_000;
 
 function getDetailsGroupingKey(source: TextModelEditSource, sourceKey = source.toKey(1)): string {
-	return source.props.$origin === 'agentHost' && source.props.$$chatSessionId !== undefined
-		? JSON.stringify([sourceKey, source.props.$$sessionId, source.props.$$chatSessionId])
+	return source.props.$origin === 'agentHost' && (source.props.$$agentSessionId !== undefined || source.props.$$chatSessionId !== undefined)
+		? JSON.stringify([sourceKey, source.props.$$agentSessionId, source.props.$$sessionId, source.props.$$chatSessionId])
 		: sourceKey;
 }
 
@@ -290,8 +290,8 @@ class TrackedDocumentInfo extends Disposable {
 				entry.modifiedCount += range.range.length;
 			}
 		}
-		// Apply the source cap before subdividing by Auto tier so no selected source loses contributions.
-		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => getDetailsGroupingKey(entry.representative, entry.representative.toKey(1, { $autoTier: false })));
+		// Apply the source cap before subdividing by Auto tier and HydraFusion model so no selected source loses contributions.
+		const sourceGroups = groupByMap(Array.from(telemetryKeys), ([, entry]) => getDetailsGroupingKey(entry.representative, entry.representative.toKey(1, { $autoTier: false, $fusionModel: false })));
 		const entries = Array.from(sourceGroups.values(), entries => ({
 			entries,
 			modifiedCount: sumBy(entries, ([, entry]) => entry.modifiedCount),
@@ -307,19 +307,21 @@ class TrackedDocumentInfo extends Disposable {
 			sendEditSourcesDetailsTelemetry(this._telemetryService, {
 				mode,
 				sourceKey: repr.toKey(1),
-				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false }),
+				sourceKeyCleaned: repr.toKey(1, { $extensionId: false, $extensionVersion: false, $modelId: false, $autoTier: false, $fusionModel: false }),
 				extensionId: repr.props.$extensionId,
 				extensionVersion: repr.props.$extensionVersion,
 				modelId: repr.props.$modelId,
 				autoTier: repr.props.$autoTier,
+				fusionModel: repr.props.$fusionModel,
 				trigger,
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
+				...(repr.props.$$agentSessionId !== undefined ? { agentSessionId: repr.props.$$agentSessionId } : {}),
 				...(repr.props.$$chatSessionId !== undefined ? { chatSessionId: repr.props.$$chatSessionId } : {}),
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,
-				harness: repr.props.$harness,
+				provider: repr.props.$origin === 'agentHost' ? repr.props.$harness || 'unknown' : undefined,
 				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,

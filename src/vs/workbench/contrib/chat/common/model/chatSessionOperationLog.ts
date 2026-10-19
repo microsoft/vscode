@@ -139,6 +139,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	agent: Adapt.v(m => m.response?.agent, (a, b) => a?.id === b?.id),
 	modelId: Adapt.v(m => m.modelId),
 	modelConfiguration: Adapt.v(m => m.modelConfiguration, objectsEqual),
+	agentHostMetadata: Adapt.v(m => m.agentHostMetadata, objectsEqual),
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
@@ -163,12 +164,16 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
 	completionTokens: Adapt.v(m => m.response?.completionTokenCount),
+	lastCallCompletionTokens: Adapt.v(m => m.response?.usage?.modelTotals?.length ? m.response.usage.completionTokens : undefined),
 	promptTokens: Adapt.v(m => m.response?.usage?.promptTokens),
 	outputBuffer: Adapt.v(m => m.response?.usage?.outputBuffer),
 	promptTokenDetails: Adapt.v(m => m.response?.usage?.promptTokenDetails, objectsEqual),
+	latestModelCall: Adapt.v(m => m.response?.usage?.latestModelCall, objectsEqual),
+	contextUsage: Adapt.v(m => m.response?.usage?.contextUsage, objectsEqual),
 	copilotCredits: Adapt.v(m => m.response?.usage?.copilotCredits),
 	modelTotals: Adapt.v(m => m.response?.usage?.modelTotals, objectsEqual),
 	sessionCopilotCredits: Adapt.v(m => m.response?.usage?.sessionCopilotCredits),
+	sessionCopilotCreditsStatus: Adapt.v(m => m.response?.usage?.sessionCopilotCreditsStatus),
 	elapsedMs: Adapt.v(m => m.response?.elapsedMs ?? (m.response?.completedAt ? Math.max(0, m.response.completedAt - m.response.confirmationAdjustedTimestamp.get()) : undefined)),
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
 	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
@@ -210,6 +215,7 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	repoData: Adapt.v(m => m.repoData, objectsEqual),
 	pendingRequests: Adapt.t(m => m.getPendingRequests(), Adapt.array(pendingRequestSchema)),
 	workingDirectory: Adapt.v(m => m.workingDirectory?.toString()),
+	sessionCostInfo: Adapt.v(m => m.sessionCostInfo, objectsEqual),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

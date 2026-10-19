@@ -18,6 +18,8 @@ export const SESSION_DB_FILENAME = 'session.db';
 
 export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 
+export const MAX_TOOL_RESULT_RESOURCE_BYTES = 8 * 1024 * 1024;
+
 /**
  * Subdirectory under a session's data directory that holds snapshotted
  * user-message attachments (e.g. pasted content, fetched file references).
@@ -70,6 +72,16 @@ export interface IFileEditContent {
 	afterContent?: Uint8Array;
 }
 
+/** Metadata for an MCP tool result resource, without its embedded content. */
+export interface IToolResultResource {
+	ordinal: number;
+	kind: 'embedded' | 'link';
+	name: string;
+	mimeType?: string;
+	uri: string;
+	size?: number;
+}
+
 // ---- Reviewed-file types ------------------------------------------------
 
 /**
@@ -111,6 +123,37 @@ interface ISessionCatalogSyncIdentity {
 	readonly projectionVersion: number;
 }
 
+/**
+ * Metadata key holding the recorded default chat (storage spelling) whose rows the
+ * database at a session's URI holds. Written once a newer build imported the session's
+ * state; host-persisted turns of other chats in that database are then ignored by its
+ * own-chat scans and deletions.
+ */
+export const SESSION_ROW_OWNER_CHAT_METADATA_KEY = 'agentHost.rowOwnerChat';
+
+/**
+ * Metadata key holding the JSON array of turn ids an older build recorded in the
+ * database at a session's URI on behalf of other chats. Those `turns` rows stay
+ * for older builds, but this build's turn scans and deletions ignore them.
+ */
+export const SESSION_FOREIGN_TURN_IDS_METADATA_KEY = 'agentHost.foreignTurnIds';
+
+/**
+ * Metadata key holding the JSON array of the repository roots (URI strings) in which the
+ * chat whose rows a database holds created turn checkpoint refs, appended at capture.
+ * Deleting the database deletes its rows' refs in exactly those repositories.
+ */
+export const SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY = 'agentHost.checkpointRepositories';
+
+/** A `turns` row that carries a checkpoint ref. */
+export interface ITurnCheckpointRecord {
+	readonly turnId: string;
+	readonly eventId: string | undefined;
+	readonly checkpointRef: string;
+	/** Whether the row is one of the {@link SESSION_FOREIGN_TURN_IDS_METADATA_KEY foreign rows}. */
+	readonly foreign: boolean;
+}
+
 /** Durable canonical catalog projection awaiting central acknowledgement. */
 export interface ISessionCatalogSyncPendingSnapshot extends ISessionCatalogSyncIdentity {
 	readonly payload: string;
@@ -138,7 +181,13 @@ export interface ISessionCatalogSyncAcknowledgement {
 }
 
 /** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
-export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed' | 'cancelled';
+
+/** Outcome of atomically transitioning catalog synchronization generations. */
+export type SessionCatalogSyncTransitionResult = 'applied' | 'generationMismatch' | 'cancelled';
+
+/** Synchronous lifetime check evaluated at catalog receipt write boundaries. */
+export type SessionCatalogSyncWriteValidator = () => boolean;
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -147,6 +196,12 @@ export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
  * Callers obtain an instance via {@link ISessionDataService.openDatabase} and
  * **must** dispose it when finished to close the underlying database connection.
  */
+/** See {@link ISessionDatabase.getRowsWatermark}. */
+export interface ISessionRowsWatermark {
+	readonly maxTurnRowid: number;
+	readonly drafts: ReadonlyMap<string, Message>;
+}
+
 export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Create a turn record. Must be called before storing file edits that
@@ -252,7 +307,7 @@ export interface ISessionDatabase extends IDisposable {
 
 	/**
 	 * Retrieves the checkpoint ref previously stored for a turn, or
-	 * `undefined` if none.
+	 * `undefined` if none. Foreign rows ({@link setForeignRows}) are ignored.
 	 */
 	getTurnCheckpointRef(turnId: string): Promise<string | undefined>;
 
@@ -270,6 +325,31 @@ export interface ISessionDatabase extends IDisposable {
 	 * (rather than scanning `for-each-ref` on the underlying repo).
 	 */
 	getAllCheckpointRefs(): Promise<string[]>;
+
+	/**
+	 * Returns every turn with a checkpoint ref in insertion order, including
+	 * foreign rows, flagged as such.
+	 */
+	getTurnsWithCheckpointRefs(): Promise<ITurnCheckpointRecord[]>;
+
+	/** Returns the largest `turns` rowid, or `0` when there are no turns. */
+	getMaxTurnRowid(): Promise<number>;
+
+	/**
+	 * Returns, in one read, the largest `turns` rowid (`0` when there are no turns) and every chat draft by chat
+	 * URI: what tells whether another build changed the rows mirrored here.
+	 */
+	getRowsWatermark(): Promise<ISessionRowsWatermark>;
+
+	/**
+	 * Records the chat whose rows this database holds and the complete list of
+	 * turn ids kept for older builds on behalf of other chats. From then on
+	 * every turn scan and deletion of this database (event-id lookups,
+	 * conversation checks, checkpoint lookups, truncation, fork remap) ignores
+	 * those turns, and host-persisted turns of other chats. Both are kept.
+	 * {@link getAllCheckpointRefs} still returns their refs.
+	 */
+	setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void>;
 
 	/**
 	 * Deletes the given turn and all turns inserted after it, along
@@ -302,6 +382,9 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
 
+	/** Retrieve the host-persisted turns of one chat, in `seq` order. */
+	getPersistedTurnsForChat(chatUri: string): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
+
 	/**
 	 * Delete host-persisted turns with the given ids. Ids not present are ignored.
 	 */
@@ -315,6 +398,15 @@ export interface ISessionDatabase extends IDisposable {
 	 * it is replaced.
 	 */
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
+
+	/**
+	 * Store several file-edit snapshots of a single file in one transaction,
+	 * in order: either all of them are stored or none is. When provided,
+	 * `beforeCommit` runs after the snapshots are inserted and before the
+	 * transaction commits, which is rolled back if it throws. It can make a
+	 * change that must only happen if the snapshots are stored.
+	 */
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void>;
 
 	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
@@ -365,6 +457,15 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
 
+	/** Atomically replaces the resources for a tool invocation within an existing turn. */
+	storeToolResultResources(turnId: string, toolCallId: string, rows: readonly (IToolResultResource & { content?: Uint8Array })[]): Promise<void>;
+
+	/** Retrieves resource metadata by tool call, ordered by ordinal, without loading content. */
+	getToolResultResources(toolCallIds: string[]): Promise<Map<string, IToolResultResource[]>>;
+
+	/** Reads one embedded resource's bytes and stored MIME type on demand. */
+	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined>;
+
 	// ---- Session metadata ------------------------------------------------
 
 	/**
@@ -378,10 +479,19 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
 
+	/** Gets every metadata value whose key starts with `prefix`. */
+	getMetadataByPrefix(prefix: string): Promise<Record<string, string>>;
+
+	/** Sets `set` and deletes `remove` in one transaction. */
+	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void>;
+
 	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
 	 */
 	setMetadata(key: string, value: string): Promise<void>;
+
+	/** Atomically replaces a metadata value using its latest stored value. */
+	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void>;
 
 	/**
 	 * Atomically store multiple metadata key-value pairs.
@@ -402,12 +512,12 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Atomically stores metadata and advances the durable catalog relay snapshot.
 	 */
-	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult>;
 
 	/**
 	 * Atomically transitions to a new session generation when the stored generation matches.
 	 */
-	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult>;
 
 	/**
 	 * Returns the durable catalog relay snapshot, if one has been stored.
@@ -431,7 +541,9 @@ export interface ISessionDatabase extends IDisposable {
 
 	/**
 	 * Bulk-remaps turn IDs using the provided old→new mapping.
-	 * Used after copying a database file for a forked session.
+	 * Used after copying a database file for a forked session. The copy is
+	 * another chat's database, so the source's foreign rows, other chats'
+	 * host-persisted turns and the row owner are dropped from it.
 	 * When provided, `eventIds` replaces the SDK event ID for each remapped
 	 * turn, keyed by the new turn ID.
 	 */
@@ -544,6 +656,14 @@ export interface ISessionDataService {
 	 * repositories they need to clean up.
 	 */
 	deleteSessionData(session: URI, workingDirectories?: readonly string[]): Promise<void>;
+
+	/**
+	 * Like {@link deleteSessionData}, but keeps the children of the session's
+	 * data directory named in `keep`: a deleted session keeps the attachments
+	 * that chats moved out of it still read. A later {@link deleteSessionData}
+	 * removes the rest.
+	 */
+	deleteSessionDataExcept(session: URI, keep: readonly string[], workingDirectories?: readonly string[]): Promise<void>;
 
 	/**
 	 * Fires immediately before a session's data directory (and the

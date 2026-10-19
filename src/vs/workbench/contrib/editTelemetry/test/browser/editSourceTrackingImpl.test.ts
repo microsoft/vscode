@@ -191,6 +191,58 @@ suite('Edit Source Tracking Windows', () => {
 		}
 	}));
 
+	test('Chat.applyEdits reports HydraFusion models as separate rows after applying the source cap', () => runWithFakedTimers({}, async () => {
+		const context = setup();
+		try {
+			await timeout(10);
+			const models = Array.from({ length: 16 }, (_, index) => `model-${index}`);
+			const fusionModels = ['hydrafusion', 'hydrafusion-max'];
+			let index = 0;
+			for (const modelId of models) {
+				for (const fusionModel of fusionModels) {
+					context.document.applyEdit(StringEditWithReason.replace(
+						OffsetRange.emptyAt(context.document.value.get().value.length),
+						'x',
+						EditSources.chatApplyEdits({
+							modelId,
+							fusionModel,
+							sessionId: 'session',
+							requestId: `request-${index++}`,
+							languageId: 'typescript',
+							mode: 'agent',
+							extensionId: undefined,
+							codeBlockSuggestionId: undefined,
+							origin: 'agentHost',
+							harness: 'copilotcli',
+						}),
+					));
+					await timeout(1500);
+				}
+			}
+			context.document.dispose();
+			await timeout(10);
+
+			const rows = context.allDetails.filter(event => event.mode === 'longterm' && event.sourceKey.startsWith('source:Chat.applyEdits'));
+			assert.deepStrictEqual({
+				count: rows.length,
+				sample: rows.filter(event => event.modelId === 'model-0').map(event => ({
+					sourceKey: event.sourceKey,
+					sourceKeyCleaned: event.sourceKeyCleaned,
+					fusionModel: event.fusionModel,
+				})).sort((a, b) => a.sourceKey.localeCompare(b.sourceKey)),
+			}, {
+				count: models.length * fusionModels.length,
+				sample: fusionModels.map(fusionModel => ({
+					sourceKey: `source:Chat.applyEdits-$modelId:model-0-$fusionModel:${fusionModel}-$harness:copilotcli-$origin:agentHost`,
+					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+					fusionModel,
+				})),
+			});
+		} finally {
+			context.disposables.dispose();
+		}
+	}));
+
 	test('starts after first visibility and keeps only the long-term tracker while hidden', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', false);
 		const context = setup(visible);
@@ -261,7 +313,7 @@ suite('Edit Source Tracking Windows', () => {
 				sourceKey: event.sourceKey,
 				sourceKeyCleaned: event.sourceKeyCleaned,
 				origin: event.origin,
-				harness: event.harness,
+				provider: event.provider,
 				modelId: event.modelId,
 				conversationId: event.conversationId,
 				requestId: event.requestId,
@@ -285,7 +337,7 @@ suite('Edit Source Tracking Windows', () => {
 					sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					origin: 'agentHost',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 					modelId: 'gpt-5',
 					conversationId: 'session-1',
 					requestId: 'turn-1',
@@ -298,7 +350,7 @@ suite('Edit Source Tracking Windows', () => {
 					sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					origin: 'agentHost',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 					modelId: 'gpt-5',
 					conversationId: 'session-1',
 					requestId: 'turn-1',
@@ -357,11 +409,11 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual(context.allDetails.map(event => ({
 			mode: event.mode,
-			harness: event.harness,
+			provider: event.provider,
 			requestId: event.requestId,
 		})).sort((a, b) => a.mode.localeCompare(b.mode)), [
-			{ mode: '10minFocusWindow', harness: 'claude', requestId: 'turn-late' },
-			{ mode: '20minFocusWindow', harness: 'claude', requestId: 'turn-late' },
+			{ mode: '10minFocusWindow', provider: 'claude', requestId: 'turn-late' },
+			{ mode: '20minFocusWindow', provider: 'claude', requestId: 'turn-late' },
 		]);
 
 		context.disposables.dispose();
@@ -392,6 +444,7 @@ suite('Edit Source Tracking Windows', () => {
 				modelId: 'model',
 				sessionId: chatSessionId !== undefined ? 'session-1' : `session-${index}`,
 				chatSessionId,
+				agentSessionId: chatSessionId !== undefined ? 'owner-session' : undefined,
 				requestId: `turn-${index}`,
 				harness: 'copilotcli',
 			}));
@@ -412,6 +465,7 @@ suite('Edit Source Tracking Windows', () => {
 				sourceKey: event.sourceKey,
 				conversationId: event.conversationId,
 				chatSessionId: event.chatSessionId,
+				agentSessionId: event.agentSessionId,
 				hasChatSessionId: Object.hasOwn(event, 'chatSessionId'),
 				modifiedCount: event.modifiedCount,
 				deltaModifiedCount: event.deltaModifiedCount,
@@ -421,6 +475,7 @@ suite('Edit Source Tracking Windows', () => {
 			sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
 			conversationId: chatSessionId !== undefined ? 'session-1' : 'session-12',
 			chatSessionId,
+			agentSessionId: chatSessionId !== undefined ? 'owner-session' : undefined,
 			hasChatSessionId: chatSessionId !== undefined,
 			modifiedCount: chatSessionId !== undefined ? index + 4 : 27,
 			deltaModifiedCount: chatSessionId !== undefined ? index + 4 : 27,
@@ -471,6 +526,44 @@ suite('Edit Source Tracking Windows', () => {
 			],
 		});
 
+		context.disposables.dispose();
+	}));
+
+	test('separates known owners with no chat provenance in both focus windows', () => runWithFakedTimers({}, async () => {
+		const visible = observableValue('visible', true);
+		const sources = new Map<string, TextModelEditSource>();
+		const correlation: IExternalEditCorrelation = {
+			onDidSuppress: Event.None,
+			onDidInvalidate: Event.None,
+			register: (_before, after) => after,
+			isSuppressed: id => sources.has(id),
+			getResolution: id => sources.has(id) ? { id, source: sources.get(id) } : undefined,
+			release: () => { },
+		};
+		const context = setup(visible, { createCorrelation: () => correlation, prepareFlush: async () => undefined });
+		await timeout(10);
+		let content = 'hello';
+		for (const [index, agentSessionId] of ['owner-one', 'owner-two'].entries()) {
+			const newText = 'x'.repeat(index + 1);
+			content += newText;
+			sources.set(content, EditSources.agentHostChatApplyEdits({
+				modelId: 'model', sessionId: 'same-legacy-value', agentSessionId, requestId: 'same-request', harness: 'copilotcli',
+			}));
+			context.document.applyEdit(StringEditWithReason.replace(
+				OffsetRange.emptyAt(context.document.value.get().value.length), newText, EditSources.reloadFromDisk(),
+			));
+			await timeout(1500);
+		}
+		visible.set(false, undefined);
+		await timeout(10);
+		const project = (mode: string) => context.allDetails.filter(event => event.mode === mode)
+			.sort((a, b) => a.modifiedCount - b.modifiedCount)
+			.map(event => ({ agentSessionId: event.agentSessionId, chatSessionId: event.chatSessionId, modifiedCount: event.modifiedCount, deltaModifiedCount: event.deltaModifiedCount }));
+		const expected = [
+			{ agentSessionId: 'owner-one', chatSessionId: undefined, modifiedCount: 1, deltaModifiedCount: 1 },
+			{ agentSessionId: 'owner-two', chatSessionId: undefined, modifiedCount: 2, deltaModifiedCount: 2 },
+		];
+		assert.deepStrictEqual({ short: project('10minFocusWindow'), long: project('20minFocusWindow') }, { short: expected, long: expected });
 		context.disposables.dispose();
 	}));
 
@@ -992,11 +1085,13 @@ function setup(
 		sourceKey: string;
 		sourceKeyCleaned: string;
 		origin: string | undefined;
-		harness: string | undefined;
+		provider: string | undefined;
 		modelId: string | undefined;
 		autoTier?: string;
+		fusionModel?: string;
 		conversationId: string | undefined;
 		chatSessionId?: string;
+		agentSessionId?: string;
 		requestId: string | undefined;
 		statsUuid: string;
 		modifiedCount: number;

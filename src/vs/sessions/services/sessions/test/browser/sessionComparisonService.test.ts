@@ -21,7 +21,7 @@ import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -37,8 +37,11 @@ suite('SessionComparisonService', () => {
 		const groupsService = new class extends mock<ISessionGroupsService>() {
 			readonly groupedSessionIds: string[] = [];
 			readonly deletedGroupIds: string[] = [];
+			private readonly membership = new Map<string, string>();
 			override readonly onDidChange = groupChanges.event;
 			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
+			override getGroupOfSession(sessionId: string): string | undefined { return this.membership.get(sessionId); }
+			override isExplicitlyUngrouped(): boolean { return false; }
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
 			}
@@ -46,8 +49,13 @@ suite('SessionComparisonService', () => {
 				this.deletedGroupIds.push(groupId);
 				groupChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
 			}
-			override addToGroup(sessionIdOrIds: string | Iterable<string>): void {
-				this.groupedSessionIds.push(...(typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds));
+			override addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
+				for (const sessionId of typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds) {
+					if (this.membership.get(sessionId) !== groupId) {
+						this.membership.set(sessionId, groupId);
+						this.groupedSessionIds.push(sessionId);
+					}
+				}
 			}
 		}();
 		const service = disposables.add(new SessionComparisonService(
@@ -88,6 +96,96 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('ten completed attempts without a Judge never start evaluation', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const attempts = Array.from({ length: 10 }, (_, index) => ({
+			id: `attempt-${index}`, harness: startOptions().attempts[0].harness,
+		}));
+		for (const attempt of attempts) {
+			sessionsManagementService.enqueue(stubSession(attempt.id, observableValue('status', SessionStatus.Completed)));
+		}
+		const comparison = await service.startComparison({ ...startOptions(), attempts, judgeHarness: undefined, synthesisHarness: undefined });
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: sessionsManagementService.createCalls.length,
+			roles: service.getComparison(comparison.id)?.participants.map(participant => participant.role),
+			canRetry: service.canRetryJudge(comparison.id),
+		}, { requests: 10, roles: Array(10).fill(SessionComparisonParticipantRole.Attempt), canRetry: false });
+		await assert.rejects(service.synthesize(comparison.id), /selected or recommended attempt/);
+		await assert.rejects(service.startComparison({ ...startOptions(), attempts: [...attempts, { ...attempts[0], id: 'extra' }] }), /between two and ten/);
+		await assert.rejects(service.startComparison({ ...startOptions(), judgeHarness: undefined }), /requires a Judge/);
+	});
+
+	test('a Judge without a Synthesizer can submit a verdict but cannot synthesize', async () => {
+		const { service, sessionsManagementService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one', observableValue('one', SessionStatus.Completed)));
+		sessionsManagementService.enqueue(stubSession('two', observableValue('two', SessionStatus.Completed)));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		const comparison = await service.startComparison({ ...startOptions(), synthesisHarness: undefined });
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict(comparison.participants[0].id, comparison.participants.map(participant => participant.id)));
+		await assert.rejects(service.synthesize(comparison.id), /configured synthesis model/);
+		assert.strictEqual(sessionsManagementService.createCalls.length, 3);
+	});
+
+	test('restores free-form instructions but discards legacy custom synthesis selections', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one'));
+		sessionsManagementService.enqueue(stubSession('two'));
+		const comparison = await service.startComparison(startOptions());
+		service.submitVerdict(comparison.id, verdict(comparison.participants[0].id, comparison.participants.map(participant => participant.id)));
+		service.setSynthesisPlan(comparison.id, { instructions: 'Preserve the API.' });
+		const current = service.getComparison(comparison.id)!;
+		const legacy = {
+			...current,
+			verdict: { ...current.verdict, decisionSections: [{ id: 'obsolete' }] },
+			synthesisPlan: { ...current.synthesisPlan, selections: [{ sectionId: 'obsolete' }] },
+			participants: [...current.participants, {
+				id: 'synthesis', role: SessionComparisonParticipantRole.Synthesis,
+				harness: startOptions().synthesisHarness, sessionResource: URI.parse('test:/synthesis'),
+			}],
+		};
+		storageService.store('sessions.comparisons', JSON.stringify([legacy]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const restored = createServices(storageService).service.getComparison(comparison.id)!;
+		assert.deepStrictEqual({
+			plan: restored.synthesisPlan,
+			decisions: Object.hasOwn(restored.verdict!, 'decisionSections'),
+			synthesis: restored.participants.at(-1)?.sessionResource?.toString(),
+		}, { plan: { instructions: 'Preserve the API.' }, decisions: false, synthesis: 'test:/synthesis' });
+		assert.throws(() => service.setSynthesisPlan(comparison.id, { instructions: 'a'.repeat(4001) }), /invalid additional instructions/);
+	});
+
+	for (const coordinator of [true, false]) {
+		test(`restores legacy Judge from ${coordinator ? 'coordinator' : 'first launched attempt'}`, async () => {
+			const { service, sessionsManagementService, storageService } = createServices();
+			sessionsManagementService.enqueue(stubSession('one'));
+			sessionsManagementService.enqueue(stubSession('two'));
+			const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+			storageService.store('sessions.comparisons', JSON.stringify([{
+				...comparison,
+				workspace: comparison.workspace.toString(),
+				participants: [
+					{ id: 'unstarted', role: SessionComparisonParticipantRole.Attempt, harness: startOptions().judgeHarness },
+					...(coordinator ? [{ id: 'coordinator', role: SessionComparisonParticipantRole.Coordinator, harness: startOptions().judgeHarness }] : []),
+					...comparison.participants.map(participant => ({ ...participant, sessionResource: participant.sessionResource?.toString() })),
+				],
+			}]), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const restored = createServices(storageService).service.getComparison(comparison.id);
+			assert.deepStrictEqual(restored?.judgeHarness, coordinator ? startOptions().judgeHarness : comparison.participants[0].harness);
+		});
+	}
+
+	test('preserves an intentionally omitted Judge when restoring a versioned comparison', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one'));
+		sessionsManagementService.enqueue(stubSession('two'));
+		const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.ok(restored);
+		assert.strictEqual(restored.judgeHarness, undefined);
+	});
+
 	test('creates only the requested attempt sessions before judging', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
@@ -125,6 +223,97 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('defers attempt creation so large comparisons do not block the renderer', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const options = startOptions();
+		const attempts = Array.from({ length: 10 }, (_, index) => ({
+			id: `attempt-${index}`,
+			harness: options.attempts[0].harness,
+		}));
+		for (const [index] of attempts.entries()) {
+			sessionsManagementService.enqueue(stubSession(`attempt-${index}`));
+		}
+
+		const comparisonPromise = service.startComparison({ ...options, attempts });
+		const synchronousCreateCallCount = sessionsManagementService.createCalls.length;
+		await comparisonPromise;
+
+		assert.deepStrictEqual({
+			synchronousCreateCallCount,
+			totalCreateCallCount: sessionsManagementService.createCalls.length,
+		}, {
+			synchronousCreateCallCount: 0,
+			totalCreateCallCount: 10,
+		});
+	});
+
+	test('groups an attempt as soon as it is published before the provider catalog updates', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const pendingSecond = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.hideCreatedSessionUntilCreateReturns = true;
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueuePromise(pendingSecond.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+		const groupedBeforeAllAttemptsReturn = [...groupsService.groupedSessionIds];
+		pendingSecond.complete(stubSession('attempt-two'));
+		await comparisonPromise;
+
+		assert.deepStrictEqual({
+			groupedBeforeAllAttemptsReturn,
+			groupedSessionIds: groupsService.groupedSessionIds,
+		}, {
+			groupedBeforeAllAttemptsReturn: ['attempt-one'],
+			groupedSessionIds: ['attempt-one', 'attempt-two'],
+		});
+	});
+
+	test('keeps the comparison active when an early attempt is archived while others are launching', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const first = stubSession('attempt-one', undefined, undefined, firstArchived);
+		const pendingSecond = new DeferredPromise<ISession | undefined>();
+		sessionsManagementService.enqueue(first);
+		sessionsManagementService.enqueuePromise(pendingSecond.p);
+
+		const comparisonPromise = service.startComparison(startOptions());
+		await timeout(0);
+		const launchingComparison = service.comparisons.get()[0];
+		firstArchived.set(true, undefined);
+		sessionsManagementService.fireArchive(first);
+		const afterEarlyArchive = service.getComparison(launchingComparison.id);
+
+		pendingSecond.complete(stubSession('attempt-two'));
+		const comparison = await comparisonPromise;
+
+		assert.deepStrictEqual({
+			duringLaunch: {
+				launching: afterEarlyArchive?.launching,
+				archived: afterEarlyArchive?.archivedAt !== undefined,
+				deletedGroupIds: [...groupsService.deletedGroupIds],
+			},
+			afterLaunch: {
+				launching: comparison.launching,
+				archived: comparison.archivedAt !== undefined,
+				groupedSessionIds: groupsService.groupedSessionIds,
+				deletedGroupIds: groupsService.deletedGroupIds,
+			},
+		}, {
+			duringLaunch: {
+				launching: true,
+				archived: false,
+				deletedGroupIds: [],
+			},
+			afterLaunch: {
+				launching: undefined,
+				archived: false,
+				groupedSessionIds: ['attempt-one', 'attempt-two'],
+				deletedGroupIds: [],
+			},
+		});
+	});
+
 	test('deletes the comparison group after every participant is archived', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		const firstArchived = observableValue('firstArchived', false);
@@ -151,6 +340,32 @@ suite('SessionComparisonService', () => {
 			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
 			deletedGroupIds: groupsService.deletedGroupIds,
 		}, {
+			archived: true,
+			deletedGroupIds: [comparison.groupId],
+		});
+	});
+
+	test('deletes the comparison group after available participants are archived and missing participants are reconciled', async () => {
+		const { service, sessionsManagementService, groupsService } = createServices();
+		const firstArchived = observableValue('firstArchived', false);
+		const secondArchived = observableValue('secondArchived', false);
+		const first = stubSession('attempt-one', undefined, undefined, firstArchived);
+		const second = stubSession('attempt-two', undefined, undefined, secondArchived);
+		sessionsManagementService.enqueue(first);
+		sessionsManagementService.enqueue(second);
+
+		const comparison = await service.startComparison(startOptions());
+		sessionsManagementService.removeSession(first);
+		sessionsManagementService.fireChange({ added: [], removed: [first], changed: [] });
+		secondArchived.set(true, undefined);
+		sessionsManagementService.fireArchive(second);
+
+		assert.deepStrictEqual({
+			missingParticipant: service.getComparison(comparison.id)?.participants[0].missingSession,
+			archived: service.getComparison(comparison.id)?.archivedAt !== undefined,
+			deletedGroupIds: groupsService.deletedGroupIds,
+		}, {
+			missingParticipant: true,
 			archived: true,
 			deletedGroupIds: [comparison.groupId],
 		});
@@ -270,6 +485,7 @@ suite('SessionComparisonService', () => {
 		thirdStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
 		await timeout(0);
+		const prompt = sessionsManagementService.createCalls[3].options.query;
 		assert.deepStrictEqual({
 			createCalls: sessionsManagementService.createCalls.length,
 			judgeBeforeCreateReturned,
@@ -286,12 +502,12 @@ suite('SessionComparisonService', () => {
 				hasOnSessionCreated: typeof sessionsManagementService.createCalls[3].createOptions?.onSessionCreated === 'function',
 			},
 			judgePrompt: {
-				hasComparisonId: sessionsManagementService.createCalls[3].options.query.includes(comparison.id),
-				readsComparison: sessionsManagementService.createCalls[3].options.query.includes('#readAttemptComparison'),
-				completesComparison: sessionsManagementService.createCalls[3].options.query.includes('#completeAttemptComparison'),
-				readsReportedValidationFirst: sessionsManagementService.createCalls[3].options.query.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
-				doesNotRerunReportedValidation: sessionsManagementService.createCalls[3].options.query.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
-				doesNotSubstituteValidation: sessionsManagementService.createCalls[3].options.query.includes('do not substitute a different validation category.'),
+				hasComparisonId: prompt.includes(comparison.id),
+				readsComparison: prompt.includes('#readAttemptComparison'),
+				completesComparison: prompt.includes('#completeAttemptComparison'),
+				readsReportedValidationFirst: prompt.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
+				doesNotRerunReportedValidation: prompt.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
+				doesNotSubstituteValidation: prompt.includes('do not substitute a different validation category.'),
 			},
 		}, {
 			createCalls: 4,
@@ -1144,7 +1360,7 @@ suite('SessionComparisonService', () => {
 
 		const restored = createServices(storageService).service.getComparison(comparison.id);
 		assert.deepStrictEqual({
-			requests: sessionsManagementService.createCalls.map(call => call.options.attachedContext?.map(entry => String(entry.value))),
+			requests: sessionsManagementService.createCalls.map(call => call.options.attachedContext?.map(entry => entry.id === 'context' ? String(entry.value) : entry.name)),
 			stored: service.getComparison(comparison.id)?.attachedContext?.map(entry => String(entry.value)),
 			restored: restored?.attachedContext?.map(entry => String(entry.value)),
 		}, {
@@ -1170,6 +1386,7 @@ suite('SessionComparisonService', () => {
 			prompt: 'Implement',
 			permissionLevel: 'allowedTools',
 			judgeHarness: { providerId: 'judge-provider', sessionTypeId: 'judge-type', label: 'Judge', modelId: 'judge-model' },
+			synthesisHarness: { providerId: 'provider-two', sessionTypeId: 'type-two', label: 'Two', modelId: 'model-two' },
 			participants: [{
 				id: 'attempt-one',
 				role: SessionComparisonParticipantRole.Attempt,
@@ -1372,35 +1589,23 @@ suite('SessionComparisonService', () => {
 
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const baseVerdict = verdict(attempts[1].id, attempts.map(attempt => attempt.id));
 		service.submitVerdict(comparison.id, {
-			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+			...baseVerdict,
 			rationale: {
 				comparison: 'The other attempt leaves the failure unresolved.',
 				validation: 'Focused tests pass.',
 				codeQuality: 'Uses the existing implementation pattern.',
 				solution: 'Implements the requested behavior.',
 			},
-			decisionSections: [{
-				id: 'error-handling',
-				title: 'Error handling',
-				description: 'Choose the error representation.',
-				affectedFiles: ['src/parser.ts'],
-				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Use ${attempt.harness.label}` })),
-				recommendedParticipantId: attempts[1].id,
-			}, {
-				id: 'validation',
-				title: 'Validation',
-				description: 'Choose the validation scope.',
-				affectedFiles: ['test/parser.test.ts'],
-				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Validate with ${attempt.harness.label}` })),
-				recommendedParticipantId: attempts[0].id,
-			}],
+			attempts: baseVerdict.attempts.map((attempt, index) => ({
+				...attempt,
+				notableDifferences: index === 0
+					? ['Keeps the parser API unchanged.', '  ', 'Handles malformed input without throwing.']
+					: ['Uses the winning implementation pattern.'],
+			})),
 		});
 		service.setSynthesisPlan(comparison.id, {
-			selections: [
-				{ sectionId: 'error-handling', participantId: attempts[0].id },
-				{ sectionId: 'validation', participantId: attempts[1].id },
-			],
 			instructions: 'Preserve the public API and add focused tests.',
 		});
 		let synthesisBeforeCreateReturned: {
@@ -1432,106 +1637,52 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Strong points from other attempts\n- **Attempt 1 (One)**: Keeps the parser API unchanged.\n- **Attempt 1 (One)**: Handles malformed input without throwing.\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
-				selections: [
-					{ sectionId: 'error-handling', participantId: attempts[0].id },
-					{ sectionId: 'validation', participantId: attempts[1].id },
-				],
 				instructions: 'Preserve the public API and add focused tests.',
 			},
 			synthesisBeforeCreateReturned: {
 				sessionResource: 'test:/synthesis',
 				plan: {
-					selections: [
-						{ sectionId: 'error-handling', participantId: attempts[0].id },
-						{ sectionId: 'validation', participantId: attempts[1].id },
-					],
 					instructions: 'Preserve the public API and add focused tests.',
 				},
 			},
 		});
 	});
 
-	test('persists synthesis selections and rejects unknown sections or approaches', async () => {
-		const { service, sessionsManagementService, storageService } = createServices();
+	test('bounds strengths included in the synthesis prompt', async () => {
+		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));
 		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		let invalidAssessments: string | undefined;
-		try {
-			service.submitVerdict(comparison.id, {
-				...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
-				decisionSections: [{
-					id: 'tests',
-					title: 'Test strategy',
-					description: 'Choose the preferred coverage structure.',
-					affectedFiles: ['test/parser.test.ts'],
-					options: attempts.map(attempt => ({
-						participantId: attempt.id,
-						approach: attempt.harness.label,
-						assessment: SessionComparisonDecisionAssessment.Neutral,
-					})),
-					recommendedParticipantId: attempts[1].id,
-				}],
-			});
-		} catch (error) {
-			invalidAssessments = error instanceof Error ? error.message : String(error);
-		}
+		const longStrength = 'x'.repeat(1001);
+		const baseVerdict = verdict(attempts[1].id, attempts.map(attempt => attempt.id));
 		service.submitVerdict(comparison.id, {
-			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
-			decisionSections: [{
-				id: 'tests',
-				title: 'Test strategy',
-				description: 'Choose the preferred coverage structure.',
-				affectedFiles: ['test/parser.test.ts'],
-				options: attempts.map(attempt => ({ participantId: attempt.id, approach: attempt.harness.label })),
-				recommendedParticipantId: attempts[1].id,
-			}],
+			...baseVerdict,
+			attempts: baseVerdict.attempts.map((attempt, index) => ({
+				...attempt,
+				notableDifferences: index === 0
+					? [longStrength, ...Array.from({ length: 33 }, (_, strengthIndex) => `Strength ${strengthIndex}`)]
+					: [],
+			})),
 		});
-		service.setSynthesisPlan(comparison.id, {
-			selections: [{ sectionId: 'tests', participantId: attempts[0].id }],
-			instructions: 'Preserve the public API.',
-		});
-		assert.throws(() => service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id))), /already been submitted/);
-		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
-		const restored = createServices(storageService).service.getComparison(comparison.id)?.synthesisPlan;
-		let unknownSection: string | undefined;
-		let unknownAttempt: string | undefined;
-		let invalidInstructions: string | undefined;
-		try {
-			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'missing' }] });
-		} catch (error) {
-			unknownSection = error instanceof Error ? error.message : String(error);
-		}
-		try {
-			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'tests', participantId: 'missing' }] });
-		} catch (error) {
-			unknownAttempt = error instanceof Error ? error.message : String(error);
-		}
-		try {
-			service.setSynthesisPlan(comparison.id, { selections: [], instructions: 'x'.repeat(4001) });
-		} catch (error) {
-			invalidInstructions = error instanceof Error ? error.message : String(error);
-		}
 
+		await service.synthesize(comparison.id);
+		const prompt = sessionsManagementService.createCalls[2].options.query;
+		const strengthLines = prompt.split('\n').filter(line => line.startsWith('- **Attempt 1 (One)**:'));
 		assert.deepStrictEqual({
-			live: service.getComparison(comparison.id)?.synthesisPlan,
-			stored: stored[0].synthesisPlan,
-			restored,
-			invalidAssessments,
-			unknownSection,
-			unknownAttempt,
-			invalidInstructions,
+			count: strengthLines.length,
+			first: strengthLines[0],
+			last: strengthLines[strengthLines.length - 1],
+			includesFirstExcludedStrength: prompt.includes('Strength 31'),
 		}, {
-			live: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
-			stored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
-			restored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
-			invalidAssessments: 'The comparison verdict contains an invalid synthesis decision section.',
-			unknownSection: 'The synthesis plan contains an invalid section selection.',
-			unknownAttempt: 'The synthesis plan contains an invalid section selection.',
-			invalidInstructions: 'The synthesis plan contains invalid additional instructions.',
+			count: 32,
+			first: `- **Attempt 1 (One)**: ${'x'.repeat(1000)}`,
+			last: '- **Attempt 1 (One)**: Strength 30',
+			includesFirstExcludedStrength: false,
 		});
 	});
 
@@ -1540,6 +1691,8 @@ suite('SessionComparisonService', () => {
 class TestSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
 	private readonly _onDidChangeSessions = new Emitter<ISessionChangeEvent>();
 	override readonly onDidChangeSessions = this._onDidChangeSessions.event;
+	private readonly _onDidArchiveSession = new Emitter<ISession>();
+	override readonly onDidArchiveSession = this._onDidArchiveSession.event;
 	private readonly _onDidDeleteSession = new Emitter<ISession>();
 	override readonly onDidDeleteSession = this._onDidDeleteSession.event;
 	private readonly _results: Array<(createOptions?: ICreateNewSessionOptions) => Promise<ISession | undefined>> = [];
@@ -1551,6 +1704,8 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	getSessionCalls = 0;
 	cancelError: Error | undefined;
 	beforeCreateAndSendReturn: (() => void) | undefined;
+	hideCreatedSessionUntilCreateReturns = false;
+	private readonly _hiddenCreatedSessions = new Set<string>();
 
 	enqueue(session: ISession): void {
 		this.enqueuePromise(Promise.resolve(session));
@@ -1580,16 +1735,23 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		const result = await this._results.shift()?.(createOptions);
 		if (result) {
 			this._sessions.set(result.resource.toString(), result);
+			if (this.hideCreatedSessionUntilCreateReturns) {
+				this._hiddenCreatedSessions.add(result.resource.toString());
+			}
 			createOptions?.onSessionCreated?.(result);
 			const beforeCreateAndSendReturn = this.beforeCreateAndSendReturn;
 			this.beforeCreateAndSendReturn = undefined;
 			beforeCreateAndSendReturn?.();
+			this._hiddenCreatedSessions.delete(result.resource.toString());
 		}
 		return result;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
 		this.getSessionCalls++;
+		if (this._hiddenCreatedSessions.has(resource.toString())) {
+			return undefined;
+		}
 		return this._sessions.get(resource.toString());
 	}
 
@@ -1622,8 +1784,13 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		this._onDidChangeSessions.fire(event);
 	}
 
+	fireArchive(session: ISession): void {
+		this._onDidArchiveSession.fire(session);
+	}
+
 	dispose(): void {
 		this._onDidChangeSessions.dispose();
+		this._onDidArchiveSession.dispose();
 		this._onDidDeleteSession.dispose();
 	}
 }
@@ -1688,6 +1855,9 @@ function stubSession(
 		resource: URI.parse(`test:/${sessionId}`),
 		providerId: 'provider',
 		sessionType: 'type',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.vm,
 		createdAt: timing?.createdAt ?? new Date(),
 		workspace: constObservable(undefined),

@@ -9,8 +9,11 @@ import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../../nls.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
+import { isDisabledEnumValue } from '../chatModelConfigurationLogic.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
+
+type ModelConfigurationReader = Pick<IModelConfigurationAccess, 'getModelConfiguration' | 'getModelConfigurationSchema'>;
 
 /** The thinking effort group, or the routing tier for the Auto model. */
 export const MODEL_CONFIG_GROUP_EFFORT = 'navigation';
@@ -40,6 +43,7 @@ export function setModelConfigValues(
 	configurationAccess: IModelConfigurationAccess,
 	values: IStringDictionary<unknown>,
 	onDidChange?: ModelConfigChangeListener,
+	useModelConfigurationSchema = false,
 ): Promise<void> {
 	const requestedAt = Date.now();
 	let edits = configurationEdits.get(configurationAccess);
@@ -48,7 +52,7 @@ export function setModelConfigValues(
 	}
 	return edits.queue(model.identifier, async () => {
 		const changes = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].flatMap(group => {
-			const property = getModelConfigProperty(model, configurationAccess, group);
+			const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 			return property && Object.hasOwn(values, property.key) && property.value !== values[property.key]
 				? [{ group, key: property.key, fromValue: property.value, toValue: values[property.key] }]
 				: [];
@@ -70,7 +74,7 @@ export function whenModelConfigValuesSaved(configurationAccess: IModelConfigurat
 	return pending.length ? Promise.allSettled(pending) : undefined;
 }
 
-/** Choice metadata shared by the inline picker, Details, and legacy configuration menu. */
+/** Choice metadata shared by the inline picker and Details. */
 export function getModelConfigChoices(
 	property: IModelConfigProperty,
 	formatLabel?: (value: unknown, enumLabel: string | undefined) => string,
@@ -82,31 +86,46 @@ export function getModelConfigChoices(
 		description: property.schema.enumDescriptions?.[index],
 		checked: value === property.value,
 		isDefault: value === property.schema.default,
-		readOnly: !!property.schema.readOnly,
+		readOnly: !!property.schema.readOnly || property.schema.enumItemDisabled?.[index] === true,
+		unavailable: property.schema.enumItemDisabled?.[index] === true,
 	}));
 }
 
 /**
- * The first property of a model's configuration schema belonging to `group` that
- * offers a choice, with the user's value or the schema default.
+ * Selects a property by explicit alias precedence, then schema order for unknown keys.
  */
 export function getModelConfigProperty(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
 	group: string,
+	useModelConfigurationSchema = false,
 ): IModelConfigProperty | undefined {
-	const properties = model && (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
+	const properties = model && (useModelConfigurationSchema
+		? model.metadata.configurationSchema
+		: configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
 	if (!properties) {
 		return undefined;
 	}
 	const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
-	for (const [key, schema] of Object.entries(properties)) {
+	const aliases = group === MODEL_CONFIG_GROUP_EFFORT
+		? ['tier', 'autoTier', 'thinkingLevel', 'reasoningEffort']
+		: group === MODEL_CONFIG_GROUP_CONTEXT ? ['contextSize', 'contextTier'] : [];
+	const alias = aliases.find(key => Object.hasOwn(properties, key) && properties[key].group === group);
+	const keys = alias ? [alias] : Object.keys(properties);
+	for (const key of keys) {
+		const schema = properties[key];
 		if (schema.group !== group || !schema.enum?.length) {
 			continue;
 		}
-		return { key, value: currentConfig[key] ?? schema.default, schema };
+		const saved = Object.hasOwn(currentConfig, key) && (key !== 'tier' || isOfferedAutoTier(schema, currentConfig[key]));
+		return { key, value: saved ? currentConfig[key] : schema.default, schema };
 	}
 	return undefined;
+}
+
+/** Counts the legacy `fast` tier, which still shows as Automatic beside Efficiency. */
+function isOfferedAutoTier(schema: IModelConfigPropertySchema, value: unknown): boolean {
+	return (!!schema.enum?.includes(value) && !isDisabledEnumValue(value, schema)) || (value === 'fast' && !!schema.enum?.includes('efficiency'));
 }
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
@@ -132,36 +151,46 @@ export function isExtendedContext(property: IModelConfigProperty): boolean {
 /** A short readout of the effective effort and context, including defaults. */
 export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
+	useModelConfigurationSchema = false,
 ): string | undefined {
-	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.label);
+	const parts = getModelConfigDisplayValues(model, configurationAccess, useModelConfigurationSchema).map(value => value.label);
 	return parts.length ? parts.join(' \u00b7 ') : undefined;
 }
 
 /** Names each displayed setting for assistive technology. */
 export function getModelConfigDescription(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
+	useModelConfigurationSchema = false,
 ): string | undefined {
-	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.description);
+	const parts = getModelConfigDisplayValues(model, configurationAccess, useModelConfigurationSchema).map(value => value.description);
 	return parts.length ? parts.join(', ') : undefined;
 }
 
-function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentifier | undefined, configurationAccess: IModelConfigurationAccess): { label: string; description: string }[] {
-	const values: { label: string; description: string }[] = [];
+export function getModelConfigDisplayValues(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	configurationAccess: ModelConfigurationReader,
+	useModelConfigurationSchema = false,
+): { group: string; label: string; description: string }[] {
+	const values: { group: string; label: string; description: string }[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
-		const property = getModelConfigProperty(model, configurationAccess, group);
+		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
 			const label = getModelConfigValueLabel(property.schema, property.value);
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
-				? localize('chat.effort.header', "Thinking Effort")
+				? localize('chat.effort.header', "Effort Level")
 				: localize('chat.context.header', "Context"));
-			values.push({ label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
+			values.push({
+				group, label, description: property.schema.readOnly
+					? localize('chat.modelPicker.managedConfigValue', "{0}: {1}, managed by the agent host", title, label)
+					: localize('chat.modelPicker.configValue', "{0}: {1}", title, label),
+			});
 		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
 			const total = getModelContextWindowTotal(model.metadata);
 			if (Number.isFinite(total) && total > 0) {
 				const label = formatTokenCount(total);
-				values.push({ label, description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
+				values.push({ group, label, description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
 			}
 		}
 	}
@@ -172,11 +201,12 @@ function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentif
 export function getChangedModelConfigProperties(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
+	useModelConfigurationSchema = false,
 ): IModelConfigProperty[] {
 	const properties: IModelConfigProperty[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
-		const property = getModelConfigProperty(model, configurationAccess, group);
-		if (!property || property.value === undefined || property.value === property.schema.default) {
+		const property = getModelConfigProperty(model, configurationAccess, group, useModelConfigurationSchema);
+		if (!property || property.schema.readOnly || property.value === undefined || property.value === property.schema.default) {
 			continue;
 		}
 		properties.push(property);

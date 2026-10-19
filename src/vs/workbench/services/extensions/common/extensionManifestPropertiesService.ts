@@ -47,7 +47,7 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnUI(manifest: IExtensionManifest): boolean;
 	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
-	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean;
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
@@ -94,20 +94,23 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 	}
 
-	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean {
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
 		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
 		if (configuredSessionsWindowSupport !== undefined) {
 			return configuredSessionsWindowSupport;
 		}
 
-		if (this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY) && manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
-			const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
-			if (declaredSessionsWindowSupport !== undefined) {
-				return declaredSessionsWindowSupport;
-			}
+		const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
+		if (declaredSessionsWindowSupport !== undefined && (isBuiltin || this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY))) {
+			return declaredSessionsWindowSupport;
 		}
 
-		// In the sessions window only extensions that have no code are currently allowed to run
+		if (isBuiltin) {
+			const contributes = manifest.contributes;
+			return !contributes?.debuggers && !contributes?.views && !contributes?.viewsContainers && !contributes?.walkthroughs;
+		}
+
+		// Extensions without declared support must not have executable code.
 		if (manifest.main || manifest.browser) {
 			return false;
 		}

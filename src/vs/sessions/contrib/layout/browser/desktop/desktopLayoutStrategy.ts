@@ -5,8 +5,10 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
 
 /**
  * Shared controller state that desktop layout strategies read/coordinate
@@ -23,9 +25,16 @@ export interface IDesktopLayoutContext {
 	/** `true` while the whole side pane (editor + aux bar) is being toggled together. */
 	readonly togglingSidePane: boolean;
 	readonly multipleSessionsVisibleObs: IObservable<boolean>;
+	readonly multipleChatsVisibleObs: IObservable<boolean>;
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
+	chatLayoutActive(reader?: IReader): boolean;
+	chatLayoutSuspended(reader?: IReader): boolean;
+	readonly sharedChatLayout: boolean;
+	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 
 /**
@@ -51,5 +60,21 @@ export interface IDesktopLayoutContext {
 export abstract class DesktopLayoutStrategy extends Disposable {
 	constructor(protected readonly _ctx: IDesktopLayoutContext) {
 		super();
+	}
+
+	protected _multipleLayoutOwnersVisible(reader?: IReader): boolean {
+		const observable = this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout
+			? this._ctx.multipleChatsVisibleObs
+			: this._ctx.multipleSessionsVisibleObs;
+		return reader ? observable.read(reader) : observable.get();
+	}
+
+	/**
+	 * Whether a chat of another session is shown alongside the active one. Chats of the same
+	 * session share its main editor part, and mounted sessions whose chats are not shown (e.g.
+	 * while a chat is maximized) do not count.
+	 */
+	protected _otherSessionShown(): boolean {
+		return this._ctx.multipleSessionsVisibleObs.get() && this._multipleLayoutOwnersVisible();
 	}
 }

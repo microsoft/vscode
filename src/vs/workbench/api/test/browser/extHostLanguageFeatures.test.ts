@@ -13,6 +13,8 @@ import * as types from '../../common/extHostTypes.js';
 import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
 import { Position as EditorPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range as EditorRange } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { Cache } from '../../common/cache.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../platform/markers/common/markerService.js';
@@ -154,6 +156,33 @@ suite('ExtHostLanguageFeatures', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('AutoClosingPair.beforeText requires proposed API', async () => {
+		const setLanguageConfiguration = sinon.stub(mainThread, '$setLanguageConfiguration');
+		try {
+			disposables.add(extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', {
+				autoClosingPairs: [{ open: '{', close: '}' }]
+			}));
+
+			const configuration: vscode.LanguageConfiguration = {
+				autoClosingPairs: [{ open: '{', close: '}', beforeText: /\{$/ }]
+			};
+			assert.throws(
+				() => extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', configuration),
+				/CANNOT use API proposal: autoClosingPairBeforeText/
+			);
+
+			disposables.add(extHost.setLanguageConfiguration(
+				{ ...defaultExtension, enabledApiProposals: ['autoClosingPairBeforeText'] },
+				'testLanguage',
+				configuration
+			));
+			await rpcProtocol.sync();
+			assert.strictEqual(setLanguageConfiguration.callCount, 2);
+		} finally {
+			setLanguageConfiguration.restore();
+		}
+	});
+
 	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
 		disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
 			provideDocumentDropEdits: () => []
@@ -191,6 +220,58 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		});
 	}
+
+	// --- paste edits
+
+	for (const declinedRequests of [0, 2]) {
+		test(`DocumentPasteEdits releases cache IDs after ${declinedRequests} declined requests`, async () => {
+			let requests = 0;
+			disposables.add(extHost.registerDocumentPasteEditProvider(defaultExtension, defaultSelector, {
+				provideDocumentPasteEdits: () => ++requests <= declinedRequests ? undefined : [new types.DocumentPasteEdit('pasted text', 'Test paste', types.DocumentDropOrPasteEditKind.Text)]
+			}, { pasteMimeTypes: ['text/plain'], providedPasteEditKinds: [types.DocumentDropOrPasteEditKind.Text] }));
+			await rpcProtocol.sync();
+			const provider = languageFeaturesService.documentPasteEditProvider.all(model)[0];
+			const release = sinon.spy(extHost, '$releasePasteEdits');
+			const provide = () => provider.provideDocumentPasteEdits!(model, [new Selection(1, 1, 1, 1)], new VSDataTransfer(), { triggerKind: languages.DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+			try {
+				for (let i = 0; i < declinedRequests; i++) {
+					const declined = await provide();
+					declined?.dispose();
+				}
+				await rpcProtocol.sync();
+				release.resetHistory();
+				const first = await provide();
+				assert.ok(first);
+				disposables.add(first);
+				const second = await provide();
+				assert.ok(second);
+				disposables.add(second);
+				second.dispose();
+				first.dispose();
+				await rpcProtocol.sync();
+				assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
+			} finally {
+				release.restore();
+			}
+		});
+	}
+
+	test('DocumentPasteEdits does not cache empty results without release IDs', async () => {
+		disposables.add(extHost.registerDocumentPasteEditProvider(defaultExtension, defaultSelector, {
+			provideDocumentPasteEdits: () => []
+		}, { pasteMimeTypes: ['text/plain'], providedPasteEditKinds: [types.DocumentDropOrPasteEditKind.Text] }));
+		await rpcProtocol.sync();
+		const provider = languageFeaturesService.documentPasteEditProvider.all(model)[0];
+		const cache = sinon.spy(Cache.prototype, 'add');
+		try {
+			const result = await provider.provideDocumentPasteEdits!(model, [new Selection(1, 1, 1, 1)], new VSDataTransfer(), { triggerKind: languages.DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+			result?.dispose();
+			await rpcProtocol.sync();
+			assert.strictEqual(cache.callCount, 0);
+		} finally {
+			cache.restore();
+		}
+	});
 
 	// --- outline
 
@@ -551,7 +632,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false))!;
 		assert.strictEqual(value.size, 1);
 		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -572,7 +653,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false))!;
 		assert.strictEqual(value.size, 1);
 		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -593,7 +674,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false))!;
 		assert.strictEqual(value.size, 1);
 		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
@@ -615,7 +696,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None, false);
 		assert.strictEqual(value!.size, 1);
 	});
 

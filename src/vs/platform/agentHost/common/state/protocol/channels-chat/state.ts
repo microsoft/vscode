@@ -9,6 +9,7 @@
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, ChangesSummary, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
+import type { CanvasReference } from '../channels-canvas/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, FileEditCollection, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -90,6 +91,31 @@ export interface ChatState {
 	 * obtain it by subscribing to the chat channel.
 	 */
 	changesets?: Changeset[];
+	/**
+	 * Work running in the background for this chat, such as shells and
+	 * subagents. Only active work is listed: hosts remove an entry once the work
+	 * ends. An entry may have been started by an earlier turn rather than the
+	 * {@link ChatState.activeTurn | activeTurn}.
+	 *
+	 * Like {@link ChatState.changesets | changesets}, this is intentionally
+	 * absent from {@link ChatSummary}; clients obtain it by subscribing to the
+	 * chat channel.
+	 */
+	backgroundWork?: BackgroundWork[];
+	/**
+	 * Live canvases currently exposed by this chat.
+	 *
+	 * Entries intentionally contain only subscribable channel references.
+	 * Clients subscribe to each resource for the experimental presentation
+	 * state, including its current live source URL.
+	 */
+	canvases?: CanvasReference[];
+	/**
+	 * Configuration values set on this chat, applied over the owning session's
+	 * {@link SessionState.config | `SessionState.config`}. See
+	 * {@link ChatConfigState}.
+	 */
+	config?: ChatConfigState;
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */
@@ -105,9 +131,20 @@ export interface ChatState {
 	turnsNextCursor?: string;
 	/** Currently in-progress turn */
 	activeTurn?: ActiveTurn;
-	/** Message to inject into the current turn at a convenient point */
+	/**
+	 * Legacy steering input retained only when reading old snapshots.
+	 *
+	 * @deprecated Use {@link queuedMessages} with {@link PendingMessage.kind}.
+	 */
 	steeringMessage?: PendingMessage;
-	/** Messages to send automatically as new turns after the current turn finishes */
+	/**
+	 * Pending messages of both kinds, in host acceptance order unless explicitly
+	 * reordered.
+	 *
+	 * This raw order is not consumption priority. UIs SHOULD group steering
+	 * messages before queued messages, preserving relative order within each
+	 * group without changing the underlying array.
+	 */
 	queuedMessages?: PendingMessage[];
 	/**
 	 * The user's in-progress draft input for this chat — the message they are
@@ -176,6 +213,90 @@ export interface ChatSummary {
 	 */
 	workingDirectories?: URI[];
 }
+
+/**
+ * Kind of {@link BackgroundWork}.
+ *
+ * This is a general/typological union (not a lifecycle), so the discriminant is
+ * a `*Kind`.
+ *
+ * @category Background Work
+ * @nonexhaustive
+ */
+export const enum BackgroundWorkKind {
+	/** A shell command that continues after its initiating tool call returns. */
+	Shell = 'shell',
+	/** A subagent running in the background. */
+	Subagent = 'subagent',
+}
+
+/**
+ * Fields common to every {@link BackgroundWork} variant.
+ *
+ * @category Background Work
+ */
+interface BackgroundWorkBase {
+	/**
+	 * Identifier of this entry, unique within the owning chat across all kinds.
+	 * The host derives it however it likes (for example from the kind plus the
+	 * agent's own task id); consumers MUST treat it as opaque. It is the key for
+	 * the `chat/backgroundWorkSet` / `chat/backgroundWorkRemoved` upsert
+	 * convention.
+	 */
+	id: string;
+	/** Human-readable label, such as the command's purpose or the subagent's name. */
+	label: string;
+	/** ISO 8601 timestamp when the work started. */
+	startedAt: string;
+	/** Provider-specific metadata. */
+	_meta?: Record<string, unknown>;
+}
+
+/**
+ * A shell command continuing outside its initiating tool call. Covers shells
+ * tied to the agent's lifetime (attached) and shells that outlive it
+ * (detached). Whether a shell is attached is provider-specific and goes in its
+ * `_meta`.
+ *
+ * @category Background Work
+ */
+export interface BackgroundShellWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Shell;
+	/** Command line, displayed as plain text. */
+	command: string;
+	/**
+	 * Terminal carrying this shell's output. Hosts SHOULD set this whenever they
+	 * can show that output. Clients open it like
+	 * {@link ToolResultTerminalContent.resource}; `isPty` on its
+	 * {@link TerminalState} says whether the output is plain text.
+	 */
+	terminal?: URI;
+}
+
+/**
+ * A subagent running in the background. Its own state lives in its chat.
+ *
+ * @category Background Work
+ */
+export interface BackgroundSubagentWork extends BackgroundWorkBase {
+	kind: BackgroundWorkKind.Subagent;
+	/**
+	 * The subagent's chat: the same chat the spawning tool call's
+	 * {@link ToolResultSubagentContent.resource} points to.
+	 */
+	chat: URI;
+}
+
+/**
+ * Work running in the background for a chat, such as a shell or a subagent.
+ * Clients that don't recognize a `kind` should keep the entry and may render it
+ * from the common fields.
+ *
+ * @category Background Work
+ */
+export type BackgroundWork =
+	| BackgroundShellWork
+	| BackgroundSubagentWork;
 
 /**
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.
@@ -277,6 +398,24 @@ export const enum ChatInteractivity {
 	Hidden = 'hidden',
 }
 
+// ─── Chat Config Types ───────────────────────────────────────────────────────
+
+/**
+ * Configuration values set on a chat: an overlay on the owning session's
+ * {@link SessionState.config | `SessionState.config`}.
+ *
+ * It carries only the chat's own values; the session's config schema
+ * applies. The effective config of a chat is the session's values with
+ * these values applied over them. Only properties with `chatMutable: true`
+ * in the session's config schema can be set on a chat.
+ *
+ * @category Chat Config Types
+ */
+export interface ChatConfigState {
+	/** Config values set on this chat, keyed by property id */
+	values: Record<string, unknown>;
+}
+
 // ─── Pending Message Types ───────────────────────────────────────────────────
 
 /**
@@ -304,7 +443,11 @@ export const enum PendingMessageKind {
 export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
-	/** The message that will start the next turn */
+	/**
+	 * Delivery kind, defaults to {@link PendingMessageKind.Queued}.
+	 */
+	kind?: PendingMessageKind;
+	/** The queued or steering message */
 	message: Message;
 }
 

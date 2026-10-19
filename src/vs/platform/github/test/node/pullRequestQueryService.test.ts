@@ -17,7 +17,6 @@ import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubRes
 const availableCapabilities: GitHubHostCapabilities = {
 	graphql: true,
 	mergeQueue: true,
-	internalMergeStatus: false,
 	reviewThreads: true,
 	checkContextRequiredness: true,
 };
@@ -30,7 +29,6 @@ class TestCapabilitiesService implements IGitHubCapabilities {
 		return Promise.resolve(this.value);
 	}
 
-	clear(): void { }
 }
 
 suite('PullRequestQueryService', () => {
@@ -84,12 +82,6 @@ suite('PullRequestQueryService', () => {
 					query: { per_page: 100 },
 					response: gitHubJsonResponse([{ id: 3, state: 'APPROVED', body: 'approved', author_association: 'COLLABORATOR', user: { login: 'c' }, commit_id: 'head-1' }]),
 				}),
-				gitHubRestStep({
-					method: 'GET',
-					path: '/repos/octo/repo/pulls/7/comments',
-					query: { per_page: 100 },
-					response: gitHubJsonResponse([{ id: 4, body: 'inline', path: 'src/a.ts', line: 3, user: { login: 'd' } }]),
-				}),
 			);
 			const { query, ref, credential } = setup(server);
 			const signal = new AbortController().signal;
@@ -98,7 +90,6 @@ suite('PullRequestQueryService', () => {
 				conversation: {
 					topLevelComments: true,
 					submittedReviews: true,
-					inlineComments: true,
 					includeBodies: true,
 				},
 			};
@@ -107,13 +98,11 @@ suite('PullRequestQueryService', () => {
 			const normalizedCore = coreResult.fragment === 'core' ? coreResult.value : undefined;
 			const comments = await query.fetch('topLevelComments', ref, normalizedCore, options, credential, signal);
 			const reviews = await query.fetch('submittedReviews', ref, normalizedCore, options, credential, signal);
-			const inline = await query.fetch('inlineComments', ref, normalizedCore, options, credential, signal);
 
 			assert.deepStrictEqual({
 				core: coreResult,
 				comments,
 				reviews,
-				inline,
 			}, {
 				core: { fragment: 'core', value: core('head-1'), complete: true },
 				comments: {
@@ -127,27 +116,6 @@ suite('PullRequestQueryService', () => {
 				reviews: {
 					fragment: 'submittedReviews',
 					value: [{ id: '3', nodeId: undefined, author: { login: 'c', association: 'COLLABORATOR' }, state: 'APPROVED', body: 'approved', commitId: 'head-1', submittedAt: undefined }],
-					complete: true,
-				},
-				inline: {
-					fragment: 'inlineComments',
-					value: [{
-						id: '4',
-						nodeId: undefined,
-						author: { login: 'd' },
-						body: 'inline',
-						url: undefined,
-						createdAt: undefined,
-						updatedAt: undefined,
-						reviewId: undefined,
-						replyToId: undefined,
-						path: 'src/a.ts',
-						line: 3,
-						originalLine: undefined,
-						side: undefined,
-						commitId: undefined,
-						originalCommitId: undefined,
-					}],
 					complete: true,
 				},
 			});
@@ -172,7 +140,7 @@ suite('PullRequestQueryService', () => {
 										path: 'a.ts',
 										diffSide: 'RIGHT',
 										comments: {
-											nodes: [{ id: 'C1', databaseId: 1, body: 'first', author: { login: 'a' } }],
+											nodes: [{ id: 'C1', databaseId: 1, body: 'first', state: 'SUBMITTED', author: { login: 'a' } }],
 											pageInfo: { hasNextPage: true, endCursor: 'comments-1' },
 										},
 									}],
@@ -188,7 +156,7 @@ suite('PullRequestQueryService', () => {
 					response: gitHubGraphQLResponse({
 						node: {
 							comments: {
-								nodes: [{ id: 'C2', databaseId: 2, body: 'second', author: { login: 'b' } }],
+								nodes: [{ id: 'C2', databaseId: 2, body: 'second', state: 'PENDING', author: { login: 'b' } }],
 								pageInfo: { hasNextPage: false, endCursor: null },
 							},
 						},
@@ -237,8 +205,8 @@ suite('PullRequestQueryService', () => {
 						line: undefined,
 						originalLine: undefined,
 						comments: [
-							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT'),
-							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT'),
+							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT', 'SUBMITTED'),
+							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT', 'PENDING'),
 						],
 					},
 					{
@@ -651,12 +619,29 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without accepting partial checks`, async () => {
+			await withServer(async server => {
+				const errors = [{ type, message: 'Checks rate limited' }];
+				server.enqueue(gitHubGraphQLStep({
+					response: gitHubGraphQLResponse(checksPage('head-1', [], false), errors),
+				}));
+				const { query, ref, credential } = setup(server);
+
+				await assert.rejects(
+					() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+					{ name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors },
+				);
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('fails closed for fallback checks and stale-head GraphQL checks', async () => {
 		await withServer(async server => {
 			const unavailable: GitHubHostCapabilities = {
 				graphql: false,
 				mergeQueue: false,
-				internalMergeStatus: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};
@@ -750,50 +735,6 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
-	test('paginates participants and merges duplicate actors and their roles', async () => {
-		await withServer(async server => {
-			server.enqueue(
-				gitHubRestStep({
-					method: 'GET',
-					path: '/repos/octo/repo/issues/7/timeline',
-					query: { per_page: 100 },
-					response: gitHubJsonResponse([
-						{ actor: { id: 1, login: 'author' } },
-						{ user: { id: 2, login: 'commenter' } },
-						{ actor: { id: 3, login: 'reviewer' }, requested_reviewer: { id: 3, login: 'reviewer' } },
-						{ requested_reviewer: { id: 4, login: 'only-reviewer' } },
-					], { link: `<${server.apiBaseUrl}/repos/octo/repo/issues/7/timeline?per_page=100&page=2>; rel="next"` }),
-				}),
-				gitHubRestStep({
-					method: 'GET',
-					path: '/repos/octo/repo/issues/7/timeline',
-					query: { per_page: 100, page: 2 },
-					response: gitHubJsonResponse([
-						{ actor: { id: 2, login: 'commenter' } },
-						{ requested_reviewer: { id: 1, login: 'author' } },
-						{},
-					]),
-				}),
-			);
-			const { query, ref, credential } = setup(server);
-			const result = await query.fetch('participants', ref, core('head-1'), {
-				priority: 'visible', participants: true,
-			}, credential, new AbortController().signal);
-			assert.deepStrictEqual(result, {
-				fragment: 'participants',
-				complete: true,
-				value: {
-					participants: [
-						{ id: '1', login: 'author', roles: ['author', 'commenter', 'reviewer'] },
-						{ id: '2', login: 'commenter', roles: ['commenter'] },
-						{ id: '4', login: 'only-reviewer', roles: ['reviewer'] },
-						{ id: '3', login: 'reviewer', roles: ['commenter', 'reviewer'] },
-					],
-				},
-			});
-			server.assertSatisfied();
-		});
-	});
 });
 
 function rawCore(headSha: string): object {
@@ -842,7 +783,7 @@ function core(headSha: string): PullRequestCore {
 	};
 }
 
-function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string): object {
+function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string, state: string): object {
 	return {
 		id,
 		nodeId,
@@ -851,6 +792,7 @@ function graphQLComment(id: string, nodeId: string, login: string, body: string,
 		url: undefined,
 		createdAt: undefined,
 		updatedAt: undefined,
+		state,
 		path: undefined,
 		line: undefined,
 		originalLine: undefined,

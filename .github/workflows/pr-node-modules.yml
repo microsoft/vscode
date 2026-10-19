@@ -313,6 +313,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
 
+      # The Windows smoke tests install this WSL release, see pr-win32-test.yml
+      - name: Cache WSL installer
+        continue-on-error: true
+        uses: ./.github/actions/restore-wsl-installer
+        with:
+          save-cache: 'true'
+
   copilot-linux:
     name: Copilot (Linux)
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]

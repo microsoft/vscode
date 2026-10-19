@@ -8,6 +8,8 @@ import { Disposable, IDisposable, toDisposable } from '../../../base/common/life
 import { ILogService } from '../../log/common/log.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { CompletionItem, CompletionItemKind, CompletionsParams, CompletionsResult } from '../common/state/protocol/commands.js';
+import { isAhpChatChannel, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export const IAgentHostCompletions = createDecorator<IAgentHostCompletions>('agentHostCompletions');
 
@@ -53,7 +55,17 @@ export interface IAgentHostCompletionItemProvider {
 	 * Throwing or rejecting fails this provider only; other providers'
 	 * results are still returned by {@link IAgentHostCompletions.completions}.
 	 */
-	provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]>;
+	provideCompletionItems(params: CompletionsParams, context: IAgentHostCompletionContext, token: CancellationToken): Promise<readonly CompletionItem[]>;
+}
+
+/** What the host knows about a completion request beyond its parameters. */
+export interface IAgentHostCompletionContext {
+	/**
+	 * The chat the request is for, from recorded state: the requested channel
+	 * when it is a chat, else the default chat of the session it names (what
+	 * current clients send). `undefined` when the host knows neither.
+	 */
+	readonly chat: ProtocolURI | undefined;
 }
 
 /**
@@ -92,6 +104,7 @@ export class AgentHostCompletions extends Disposable implements IAgentHostComple
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 	}
@@ -118,8 +131,13 @@ export class AgentHostCompletions extends Disposable implements IAgentHostComple
 		if (matching.length === 0) {
 			return { items: [] };
 		}
+		const context: IAgentHostCompletionContext = {
+			chat: isAhpChatChannel(params.channel)
+				? (this._stateManager.getChatOwner(params.channel) !== undefined ? params.channel : undefined)
+				: this._stateManager.getDefaultChat(params.channel),
+		};
 		const settled = await Promise.allSettled(
-			matching.map(p => p.provideCompletionItems(params, token)),
+			matching.map(p => p.provideCompletionItems(params, context, token)),
 		);
 		const items: CompletionItem[] = [];
 		for (let i = 0; i < settled.length; i++) {

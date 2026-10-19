@@ -18,9 +18,11 @@ import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilt
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Throttler } from '../../../../../base/common/async.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ITreeContextMenuEvent, ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
@@ -70,6 +72,7 @@ export interface IAgentSessionsControlOptions {
 }
 
 type AgentSessionOpenedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	owner: 'bpasero';
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the opened agent session.' };
@@ -77,6 +80,7 @@ type AgentSessionOpenedClassification = {
 };
 
 type AgentSessionOpenedEvent = {
+	provider: string | undefined;
 	providerType: string;
 	source: string;
 };
@@ -90,6 +94,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsDataSource: AgentSessionsDataSource | undefined;
+	private sessionRenderer: AgentSessionRenderer | undefined;
+	private readonly sessionReveal = this._register(new MutableDisposable());
+	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
+	readonly onDidOpenSession = this._onDidOpenSession.event;
 	private static readonly RECENT_SESSIONS_FOR_EXPAND = 5;
 
 	private sessionsListFindIsOpen = false;
@@ -309,7 +317,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const sorter = new AgentSessionsSorter(() => this.options.filter.sortResults?.() ?? AgentSessionsSorting.Created);
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const activeSessionResource = observableValue<URI | undefined>(this, undefined);
-		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {
+		const sessionRenderer = this.sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, {
 			...this.options,
 			isGroupedByRepository: () => this.options.filter.groupResults?.() === AgentSessionsGrouping.Repository,
 			isSortedByUpdated: () => this.options.filter.sortResults?.() === AgentSessionsSorting.Updated,
@@ -717,6 +725,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
+			provider: getAgentHostProviderForTelemetry(element.providerType, this.chatSessionsService),
 			providerType: element.providerType,
 			source: this.options.source
 		});
@@ -724,10 +733,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const options = this.options.overrideSessionOpenOptions?.(e) ?? e;
 		if (this.options.overrideSessionOpen) {
 			await this.options.overrideSessionOpen(element.resource, options);
+			this._onDidOpenSession.fire(element.resource);
 		} else {
 			const widget = await this.instantiationService.invokeFunction(openSession, element, options);
 			if (widget) {
 				this.options.notifySessionOpened?.(element.resource, widget);
+				this._onDidOpenSession.fire(element.resource);
 			}
 		}
 	}
@@ -945,6 +956,51 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const focused = this.sessionsList?.getFocus() ?? [];
 
 		return focused.filter(e => isAgentSession(e));
+	}
+
+	/** Temporarily reveals a row through filters and collapsed sections, without opening its chat. */
+	async revealSession(resource: URI, token: CancellationToken): Promise<IDisposable | undefined> {
+		const list = this.sessionsList;
+		const dataSource = this.sessionsDataSource;
+		if (!list || !dataSource || token.isCancellationRequested) {
+			return undefined;
+		}
+		const release = toDisposable(() => {
+			dataSource.setRevealedSession(undefined);
+			if (!this._store.isDisposed) { void this.update().catch(onUnexpectedError); }
+		});
+		this.sessionReveal.value = release;
+		dataSource.setRevealedSession(resource);
+		let revealed = false;
+		try {
+			list.closeFind();
+			await this.update();
+			if (token.isCancellationRequested || this._store.isDisposed || this.sessionReveal.value !== release) {
+				return undefined;
+			}
+			this._isProgrammaticCollapseChange = true;
+			try {
+				for (const child of list.getNode(this.agentSessionsService.model).children) {
+					if (isAgentSessionSection(child.element) && child.element.sessions.some(session => isEqual(session.resource, resource))) {
+						await list.expand(child.element);
+					}
+				}
+			} finally { this._isProgrammaticCollapseChange = false; }
+			if (token.isCancellationRequested || this._store.isDisposed || this.sessionReveal.value !== release || !this.reveal(resource)) {
+				return undefined;
+			}
+			revealed = true;
+			return release;
+		} finally {
+			if (!revealed) {
+				release.dispose();
+			}
+		}
+	}
+
+	/** Resolves a row again after virtualization or a list refresh. */
+	getSessionElement(resource: URI): HTMLElement | undefined {
+		return this.sessionRenderer?.getSessionElement(resource);
 	}
 
 	reveal(sessionResource: URI): boolean {

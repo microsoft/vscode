@@ -21,8 +21,9 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { canMoveModalEditorToEditorArea } from '../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
@@ -295,14 +296,15 @@ class OpenModalEditorInEditorAction extends Action2 {
 			icon: Codicon.openInWindow,
 			f1: false,
 			// The editor area is not rendered while a custom view replaces the sessions grid.
-			precondition: CustomViewVisibleContext.negate(),
+			precondition: ContextKeyExpr.and(CustomViewVisibleContext.negate(), EditorPartModalCanMoveToEditorAreaContext),
 			menu: {
 				id: MenuId.ModalEditorTitle,
 				group: 'navigation',
 				order: 98,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					EditorPartModalContext)
+					EditorPartModalContext,
+					EditorPartModalCanMoveToEditorAreaContext)
 			}
 		});
 	}
@@ -318,6 +320,9 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const activeEditorPart = editorGroupsService.activeModalEditorPart;
 		const activeGroup = activeEditorPart?.activeGroup;
 		if (!activeEditorPart || !activeGroup) {
+			return;
+		}
+		if (!canMoveModalEditorToEditorArea(activeGroup.activeEditor)) {
 			return;
 		}
 

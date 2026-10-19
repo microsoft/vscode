@@ -7,10 +7,11 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/co
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorMatches, IEditorResolverService, isUnconfiguredUniversalOptionalEditorMatch, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { fillActiveEditorSelection, IEditorGroupView } from './editor.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
 
 /**
@@ -83,12 +84,19 @@ export function editorTypeDisplayLabel(editor: RegisteredEditorInfo, isDiffEdito
  */
 export function createEditorTypeActions(
 	available: IAvailableEditorTypes,
+	group: IEditorGroupView,
 	editorResolverService: IEditorResolverService,
 	commandService: ICommandService,
 	editorService: IEditorService
 ): IAction[] {
 	const defaultRule = available.editorMatches.defaultRule;
 	const glob = defaultRule.associationPattern;
+	const sourceEditor = group.activeEditor;
+	const sourceInput = sourceEditor?.toUntyped();
+	const reopen = (editorId: string) => commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editorId, {
+		groupId: group.id,
+		editorIndex: sourceEditor ? group.getIndexOfEditor(sourceEditor) : -1
+	});
 
 	// Show the contributing extension in parentheses, but only for extension-provided editors.
 	// Built-in providers share this localized label, so their (redundant) source is omitted.
@@ -105,7 +113,22 @@ export function createEditorTypeActions(
 		id: editor.id,
 		label: labelWithSource(editor),
 		checked: editor.id === available.currentId,
-		run: () => commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id)
+		run: () => reopen(editor.id),
+		alt: editor.id === available.currentId && sourceEditor?.hasCapability(EditorInputCapabilities.Singleton) ? undefined : toAction({
+			id: `editorType.openToSide.${editor.id}`,
+			label: localize('editorType.openToSide', "{0} (Open to the Side)", labelWithSource(editor)),
+			enabled: !!sourceInput,
+			run: () => {
+				if (!sourceEditor || !sourceInput) {
+					throw new Error('The source editor cannot be opened to the side.');
+				}
+				group.groupsView.activateGroup(group);
+				return editorService.openEditor({
+					...sourceInput,
+					options: fillActiveEditorSelection(group, sourceEditor, { ...sourceInput.options, override: editor.id, pinned: true, preserveFocus: false })
+				}, SIDE_GROUP);
+			}
+		})
 	}));
 
 	// Persist the chosen editor as the default for this file type. For diffs this updates the
@@ -118,7 +141,7 @@ export function createEditorTypeActions(
 		checked: editor.id === defaultRule.editor.id,
 		run: () => {
 			editorResolverService.setDefaultEditor(available.resource, editor.id, available.isDiffEditor);
-			return commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id);
+			return reopen(editor.id);
 		}
 	}));
 	const setDefaultSubmenu = new SubmenuAction(
