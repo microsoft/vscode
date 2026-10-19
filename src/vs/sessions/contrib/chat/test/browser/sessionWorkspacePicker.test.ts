@@ -75,6 +75,7 @@ import { NullHoverService } from '../../../../../platform/hover/test/browser/nul
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { hasOnboardingTargetSelection, onDidSelectOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { ISessionCreationEnvironment } from '../../browser/sessionEnvironmentPicker.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -623,6 +624,115 @@ suite('WorkspacePicker - Dev Container sample telemetry', () => {
 		providersService.setProviders([provider]);
 		await picker.dispatchFolder(devContainerSampleUri(devContainerSamples[0]), provider.id);
 		assert.deepStrictEqual(sampleEvents(), []);
+	});
+});
+
+suite('WorkspacePicker - Environment', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const localEnvironment: ISessionCreationEnvironment = { id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: ['local-agent-host'] };
+	const containerEnvironment: ISessionCreationEnvironment = { ...localEnvironment, id: 'container:local', kind: 'container', label: 'Dev Container' };
+
+	function createEnvironmentPicker(environment: ISessionCreationEnvironment, availability?: (uri: URI) => Promise<boolean>) {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([
+			createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL, isDevContainerWorkspaceAvailable: availability }),
+			createMockProvider('agenthost-remote-1', { group: SESSION_WORKSPACE_GROUP_REMOTE, connectionStatus: observableValue('connection', RemoteAgentHostConnectionStatus.connected) }),
+		]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [
+			{ uri: URI.file('/agent-host/supported'), providerId: 'local-agent-host', checked: false },
+			{ uri: URI.file('/agent-host/unsupported'), providerId: 'local-agent-host', checked: false },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: false },
+		]);
+		const picker = createTestPicker(disposables, providers, storage, undefined, DispatchingWorkspacePicker, {}, undefined, undefined, {
+			environment: constObservable(environment),
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		return picker;
+	}
+
+	test('scopes recent folders to the chosen host and removes relocated host and container submenus', () => {
+		const picker = createEnvironmentPicker(localEnvironment);
+		const items = picker.getItems();
+		assert.deepStrictEqual({
+			folders: items.flatMap(item => item.item?.folderUri ? [item.item.folderUri.path] : []),
+			remote: items.some(item => item.label === 'Remote'),
+			submenus: items.filter(item => item.item?.folderUri && item.submenuActions?.length).length,
+		}, { folders: ['/agent-host/supported', '/agent-host/unsupported'], remote: false, submenus: 0 });
+	});
+
+	test('keeps container checks pending, then shows only supported folders with container mode', async () => {
+		const checking = new DeferredPromise<boolean>();
+		const picker = createEnvironmentPicker(containerEnvironment, uri => uri.path.endsWith('/supported') ? checking.p : Promise.resolve(false));
+		const before = picker.getItems();
+		await checking.complete(true);
+		await timeout(0);
+		const after = picker.getItems();
+		assert.deepStrictEqual({
+			pending: before.some(item => item.label === 'Checking Dev Container Folders...'),
+			beforeFolders: before.flatMap(item => item.item?.folderUri ? [item.item.folderUri.path] : []),
+			afterFolders: after.flatMap(item => item.item?.folderUri ? [{ path: item.item.folderUri.path, container: item.item.preferDevContainer }] : []),
+		}, { pending: true, beforeFolders: [], afterFolders: [{ path: '/agent-host/supported', container: true }] });
+	});
+
+	test('rejects an unsupported browsed folder without falling back to a host session', async () => {
+		const picker = createEnvironmentPicker(containerEnvironment, async () => false);
+		const selected: (URI | undefined)[] = [];
+		disposables.add(picker.onDidSelectWorkspace(uri => selected.push(uri)));
+		const accepted = await picker.dispatchItem({
+			browseAction: {
+				...makeBrowseAction('local-agent-host', SESSION_WORKSPACE_GROUP_LOCAL, 'Browse'),
+				run: async () => createMockProvider('local-agent-host').resolveWorkspace(URI.file('/agent-host/unsupported')),
+			},
+		});
+		assert.deepStrictEqual({ accepted, selected }, { accepted: false, selected: [] });
+	});
+
+	test('reports failed container checks separately from unsupported folders', async () => {
+		const expectedError = new Error('container detection failed');
+		const errors: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		try {
+			let shouldFail = true;
+			const picker = createEnvironmentPicker(containerEnvironment, async () => {
+				if (shouldFail) {
+					throw expectedError;
+				}
+				return true;
+			});
+			picker.getItems();
+			await timeout(0);
+			const failed = picker.getItems().some(item => item.label === 'Could Not Check Dev Container Folders');
+			const unsupported = picker.getItems().some(item => item.label === 'No Compatible Dev Container Folders');
+			shouldFail = false;
+			const recovered = await picker.whenDevContainerWorkspaceAvailable(URI.file('/agent-host/supported'), 'local-agent-host');
+			assert.deepStrictEqual({
+				failed, unsupported, recovered, errors,
+			}, { failed: true, unsupported: false, recovered: true, errors: [expectedError, expectedError] });
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
+	test('accepts a supported browsed container folder without a workspace-mode submenu', async () => {
+		const picker = createEnvironmentPicker(containerEnvironment, async () => true);
+		const selected: boolean[] = [];
+		disposables.add(picker.onDidSelectWorkspaceMode(mode => selected.push(mode.preferDevContainer)));
+		const accepted = await picker.dispatchItem({
+			browseAction: {
+				...makeBrowseAction('local-agent-host', SESSION_WORKSPACE_GROUP_LOCAL, 'Browse'),
+				run: async () => createMockProvider('local-agent-host').resolveWorkspace(URI.file('/agent-host/supported')),
+			},
+		});
+		assert.deepStrictEqual({ accepted, selected, folder: picker.selectedFolderUri?.path }, { accepted: true, selected: [true], folder: '/agent-host/supported' });
+	});
+
+	test('awaits the actual detector when a local workspace provider has no container capability', async () => {
+		const picker = createEnvironmentPicker(containerEnvironment, async () => true);
+		const available = await picker.whenDevContainerWorkspaceAvailable(URI.file('/agent-host/supported'), 'another-local-provider');
+		assert.strictEqual(available, true);
 	});
 });
 

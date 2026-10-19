@@ -271,8 +271,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
-			this._standaloneView.set(view, undefined);
+			let view = this._standaloneView.get();
+			if (!view?.preserveOnSessionClear) {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
 			this._contentContainer.replaceChildren(view.element);
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
