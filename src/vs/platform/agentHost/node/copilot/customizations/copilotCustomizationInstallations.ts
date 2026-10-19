@@ -195,9 +195,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 	 * @param createPolicySession Creates the hidden policy session that binds
 	 * every SDK catalog, inventory, and installation request. The runtime admits
 	 * these requests only when the policy session's GitHub credential was
-	 * verified through `gitHubAuth.setCredentials`; chat sessions only receive
-	 * a credential at creation, which the runtime never verifies, so they must
-	 * not be used as the policy session.
+	 * verified through `gitHubAuth.setCredentials`; a credential supplied at
+	 * session creation is never verified. Chat sessions are only verified if a
+	 * token change reaches them while live, so they are not guaranteed to have a
+	 * verified credential and must not be used as the policy session.
 	 */
 	constructor(
 		private readonly getClient: () => Promise<ICopilotCustomizationInstallationClient>,
