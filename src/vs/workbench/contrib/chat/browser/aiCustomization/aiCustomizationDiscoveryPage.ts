@@ -61,6 +61,7 @@ import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOri
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomizationMarketplaceProvider.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -1210,8 +1211,20 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private getFilteredInstalledItems(): readonly IInstalledDiscoveryItem[] {
 		const text = normalizedName(this.query.text);
 		const items = [...this.installedItems, ...this.providerPlugins];
+		const marketplaceInstallations = this.installService.installations.get();
 		return items
 			.filter(item => this.matchesType(item.type))
+			.filter(item => {
+				if (!this.selectedSourceId) {
+					return true;
+				}
+				const marketplace = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, marketplaceInstallations)?.resource;
+				const pluginMarketplaceReference = item.pluginDetail?.kind === AgentPluginItemKind.Installed
+					? item.pluginDetail.plugin.fromMarketplace?.marketplaceReference
+					: undefined;
+				const sourceId = marketplace?.sourceId ?? (pluginMarketplaceReference ? getPluginCustomizationMarketplaceSourceId(pluginMarketplaceReference) : undefined);
+				return sourceId === this.selectedSourceId;
+			})
 			.filter(item => !text || [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)].some(value => value && normalizedName(value).includes(text)))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}

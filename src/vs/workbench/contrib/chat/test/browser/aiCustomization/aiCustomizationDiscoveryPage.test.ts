@@ -38,7 +38,7 @@ import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 suite('AICustomizationDiscoveryPage', () => {
@@ -1464,6 +1464,72 @@ suite('AICustomizationDiscoveryPage', () => {
 			available: fixture.page.getAccessibilityContent().includes('public-mail'),
 			installed: fixture.page.getAccessibilityContent().includes('Local mail skill'),
 		}, { queries: 2, available: false, installed: true });
+	});
+
+	test('source picker limits installed results to the selected source', async () => {
+		const fixture = createPage(['agentFinder', 'other']);
+		const candidate = resource('mail-skill', {
+			displayName: 'Marketplace mail skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+		});
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+
+		const getRows = () => [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+		const allSources = getRows();
+		await fixture.selectSource('other');
+		const otherSource = getRows();
+		await fixture.selectSource('agentFinder');
+		const matchingSource = getRows();
+
+		assert.deepStrictEqual({ allSources, otherSource, matchingSource }, {
+			allSources: ['Local mail skill'],
+			otherSource: [],
+			matchingSource: ['Local mail skill'],
+		});
+	});
+
+	test('source picker uses native plugin provenance before catalog association', async () => {
+		const marketplacePlugin: IMarketplacePlugin = {
+			name: 'review',
+			description: 'Review code',
+			version: '1.0.0',
+			source: 'plugins/review',
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/review' },
+			marketplace: configuredMarketplaceReference.displayLabel,
+			marketplaceReference: configuredMarketplaceReference,
+			marketplaceType: MarketplaceType.Claude,
+			readmeUri: URI.parse('https://example.com/review/README.md'),
+		};
+		const installedPlugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/review');
+			override readonly label = 'review';
+			override readonly fromMarketplace = marketplacePlugin;
+		}();
+		const fixture = createPage(
+			[configuredMarketplaceSourceId, secondConfiguredMarketplaceSource.id],
+			[AICustomizationManagementSection.Plugins],
+			[installedPlugin],
+		);
+		fixture.page.setSearchQuery('@installed review');
+		fixture.page.setVisible(true);
+
+		const getRows = () => [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+		await fixture.selectSource(secondConfiguredMarketplaceSource.id);
+		const otherSource = getRows();
+		await fixture.selectSource(configuredMarketplaceSourceId);
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.length,
+			otherSource,
+			matchingSource: getRows(),
+		}, {
+			requests: 0,
+			otherSource: [],
+			matchingSource: ['review'],
+		});
 	});
 
 	test('plugin-only source picker and accessible results keep configured provenance', async () => {
