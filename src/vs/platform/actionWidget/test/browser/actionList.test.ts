@@ -3214,6 +3214,53 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	for (const { name, crossWorkspace, enterSubmenu } of [
+		{ name: 'returning to its trigger', crossWorkspace: true, enterSubmenu: false },
+		{ name: 'returning to its trigger and entering it', crossWorkspace: true, enterSubmenu: true },
+		{ name: 'entering it after the pointer leaves', crossWorkspace: false, enterSubmenu: true },
+	]) {
+		test(`keyboard navigation cancels pending submenu dismissal when ${name}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { widget, panel } = createPersistentPreview('right', true);
+			widget.updateItems([{
+				...action('Chat'),
+				submenuActions: [toAction({ id: 'local', label: 'This Computer', run: () => { } })],
+			}, action('workspace')]);
+			const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+			const hoverRow = (index: number) => {
+				const row = parentList.querySelectorAll<HTMLElement>('.monaco-list-row')[index];
+				const bounds = row.getBoundingClientRect();
+				const point = { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+				row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, ...point }));
+				row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1, ...point }));
+			};
+			parentList.focus();
+			hoverRow(0);
+			if (crossWorkspace) {
+				hoverRow(1);
+				widget.focusPrevious();
+			} else {
+				panel.dispatchEvent(new MouseEvent('mouseleave'));
+			}
+			if (enterSubmenu) {
+				dispatchKeyDown(parentList, { key: 'ArrowRight', keyCode: 39 });
+			}
+			const immediateFocus = enterSubmenu ? panel.contains(document.activeElement) : document.activeElement === parentList;
+			await timeout(350);
+
+			assert.deepStrictEqual({
+				immediateFocus,
+				retainedFocus: enterSubmenu ? panel.contains(document.activeElement) : document.activeElement === parentList,
+				visible: panel.style.display !== 'none',
+				content: panel.querySelector('.title')?.textContent,
+			}, {
+				immediateFocus: true,
+				retainedFocus: true,
+				visible: true,
+				content: 'This Computer',
+			});
+		}));
+	}
+
 	test('disposing a persistent preview cancels pending pointer travel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { widget, panel, hover } = createPersistentPreview();
 		const origin = hover(0);
