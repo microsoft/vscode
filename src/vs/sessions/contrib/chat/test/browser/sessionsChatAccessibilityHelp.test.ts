@@ -143,7 +143,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
 				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
 				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
 			};

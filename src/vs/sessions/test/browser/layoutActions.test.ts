@@ -38,16 +38,28 @@ suite('Sessions - Layout Actions', () => {
 			import('../../contrib/editor/browser/editor.contribution.js'),
 			import('../../contrib/terminal/browser/sessionsTerminalContribution.js'),
 			import('../../contrib/chat/browser/chat.contribution.js'),
+			// Every browser contribution to the shared View > Appearance menu, so that an
+			// entry that does not apply to the Agents window fails the menu snapshot below.
+			import('../../../workbench/browser/actions/layoutActions.js'),
+			import('../../../workbench/browser/workbench.zenMode.contribution.js'),
+			import('../../../workbench/browser/parts/activitybar/activitybarPart.js'),
+			import('../../../editor/contrib/stickyScroll/browser/stickyScrollContribution.js'),
+			import('../../../workbench/browser/actions/windowActions.js'),
+			import('../../../workbench/browser/parts/titlebar/titlebarActions.js'),
+			import('../../../workbench/browser/parts/editor/breadcrumbsControl.js'),
+			import('../../../workbench/contrib/codeEditor/browser/toggleMinimap.js'),
+			import('../../../workbench/contrib/codeEditor/browser/toggleRenderWhitespace.js'),
+			import('../../../workbench/contrib/codeEditor/browser/toggleRenderControlCharacter.js'),
 		]);
 	});
 
-	test('offers shared layout density commands in the desktop View and title bar menus', () => {
-		const parents = [Menus.TitleBarContext, MenuId.MenubarViewMenu].map(menu =>
+	test('offers shared layout density commands in the title bar menu and the desktop View > Appearance menu', () => {
+		const parents = [Menus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
 			MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === LayoutDensityMenu));
 		const options = MenuRegistry.getMenuItems(LayoutDensityMenu).filter(isIMenuItem);
 
 		assert.deepStrictEqual({
-			parents: parents.map(item => ({ title: item?.title, when: item?.when?.serialize() })),
+			parents: parents.map(item => item && ({ title: item.title, group: item.group, when: item.when?.serialize() })),
 			options: options.map(item => ({
 				id: item.command.id,
 				registered: !!CommandsRegistry.getCommand(item.command.id),
@@ -55,8 +67,9 @@ suite('Sessions - Layout Actions', () => {
 			})),
 		}, {
 			parents: [
-				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
-				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+				{ title: 'Layout Density', group: '2_configuration', when: '!sessionsIsPhoneLayout' },
+				{ title: 'Layout &&Density', group: '3_workbench_layout_move', when: undefined },
+				undefined,
 			],
 			options: ['default', 'compact'].map(density => ({
 				id: `workbench.action.setLayoutDensity.${density}`,
@@ -66,11 +79,48 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
+	// The side panel toggle registers with its layout controller; see baseSessionLayoutController.test.ts.
+	test('shared View > Appearance menu shows only the entries that apply to the desktop Agents window', () => {
+		const agentsWindow: Record<string, ContextKeyValue> = { isSessionsWindow: true, agentSessionsDesktopLayout: true };
+		const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => agentsWindow[key] as T | undefined };
+		const describe = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
+			.filter(item => item.when?.evaluate(context) !== false)
+			.map(item => isIMenuItem(item)
+				? `${item.group}: ${item.command.id}${CommandsRegistry.getCommand(item.command.id) ? '' : ' (unregistered)'}`
+				: `${item.group}: submenu ${item.submenu.id}`)
+			.sort();
+
+		assert.deepStrictEqual({
+			viewMenu: MenuRegistry.getMenuItems(MenuId.MenubarViewMenu).filter(isISubmenuItem).filter(item => item.submenu === MenuId.MenubarAppearanceMenu && item.when?.evaluate(context) !== false).map(item => item.when?.serialize()),
+			appearance: describe(MenuId.MenubarAppearanceMenu),
+			panelAlignment: describe(MenuId.PanelAlignmentMenu),
+		}, {
+			viewMenu: ['agentSessionsDesktopLayout'],
+			appearance: [
+				'1_toggle_view: workbench.action.toggleFullScreen',
+				`2_workbench_layout: ${TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID}`,
+				'2_workbench_layout: workbench.action.agentToggleSidebarVisibility',
+				`2_workbench_layout: ${TOGGLE_PANEL_ACTION_ID}`,
+				`3_workbench_layout_move: submenu ${LayoutDensityMenu.id}`,
+				`3_workbench_layout_move: submenu ${MenuId.PanelAlignmentMenu.id}`,
+				'4_editor: breadcrumbs.toggle',
+				'4_editor: editor.action.toggleMinimap',
+				'4_editor: editor.action.toggleRenderControlCharacter',
+				'4_editor: editor.action.toggleStickyScroll',
+				`4_editor: submenu ${MenuId.EditorRenderWhitespaceSubmenu.id}`,
+			],
+			panelAlignment: [
+				'undefined: workbench.action.alignPanelCenter',
+				'undefined: workbench.action.alignPanelJustify',
+			],
+		});
+	});
+
 	test('toggles the session activity bar setting from the desktop View > Appearance menu', async () => {
-		const item = MenuRegistry.getMenuItems(Menus.ViewAppearance)
+		const item = MenuRegistry.getMenuItems(MenuId.MenubarAppearanceMenu)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID);
-		const appearance = MenuRegistry.getMenuItems(MenuId.MenubarViewMenu).filter(isISubmenuItem).find(item => item.submenu === Menus.ViewAppearance);
+		const appearance = MenuRegistry.getMenuItems(MenuId.MenubarViewMenu).filter(isISubmenuItem).find(item => item.submenu === MenuId.MenubarAppearanceMenu);
 		const configurationService = new class extends TestConfigurationService {
 			override updateValue(key: string, value: unknown): Promise<void> {
 				return this.setUserConfiguration(key, value);
@@ -84,7 +134,6 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.deepStrictEqual({
 			appearance: { title: appearance?.title, group: appearance?.group, when: appearance?.when?.serialize() },
-			appearanceItems: MenuRegistry.getMenuItems(Menus.ViewAppearance).length,
 			group: item?.group,
 			when: item?.when?.serialize(),
 			toggled: item?.command.toggled,
@@ -92,8 +141,7 @@ suite('Sessions - Layout Actions', () => {
 			afterSecondRun: await run(),
 		}, {
 			appearance: { title: '&&Appearance', group: '2_appearance', when: 'agentSessionsDesktopLayout' },
-			appearanceItems: 1,
-			group: '1_workbench_layout',
+			group: '2_workbench_layout',
 			when: 'agentSessionsDesktopLayout',
 			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
 			afterFirstRun: false,
