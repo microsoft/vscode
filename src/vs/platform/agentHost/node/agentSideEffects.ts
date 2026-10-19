@@ -2052,10 +2052,13 @@ export class AgentSideEffects extends Disposable {
 					? this._worktreeCleanup.requestSessionWorktreeRemoval(sessionUri, automaticArchive ? 'synced' : 'commit')
 					: this._worktreeCleanup.restoreSessionWorktree(sessionUri);
 				worktreeOp.catch(err => this._logService.warn(`[AgentSideEffects] worktree ${action.isArchived ? 'cleanup' : 'recreate'} failed for ${channel}`, err));
-				const agent = this._options.getAgent(channel);
-				agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {
-					this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${channel}`, err);
-				});
+				// The session's agent and the agents of its chats that use their own.
+				const agents = new Set([this._options.getAgent(channel), ...(this._stateManager.getSessionState(channel)?.chats ?? []).map(chat => this._options.getAgent(channel, chat.resource))]);
+				for (const agent of agents) {
+					agent?.onArchivedChanged?.(URI.parse(channel), action.isArchived).catch(err => {
+						this._logService.warn(`[AgentSideEffects] onArchivedChanged failed for ${channel} in agent ${agent.id}`, err);
+					});
+				}
 				break;
 			}
 			case ActionType.SessionConfigChanged: {

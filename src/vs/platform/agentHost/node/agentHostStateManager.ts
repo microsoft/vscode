@@ -419,6 +419,7 @@ export class AgentHostStateManager extends Disposable {
 	 * Unlike {@link onDidRemoveSession}, it does not fire when an idle session is only evicted from memory.
 	 */
 	readonly onDidDeleteSession: Event<string> = this._onDidDeleteSession.event;
+	private readonly _chatsWithOwnConfigSchema = new Set<URI>();
 	private readonly _onDidRegisterChat = this._register(new Emitter<IChatRegistration>());
 	/** Fires when a chat enters the registry with its recorded owner and storage. */
 	readonly onDidRegisterChat: Event<IChatRegistration> = this._onDidRegisterChat.event;
@@ -833,6 +834,11 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns the provider-derived inherited boundary retained by the host catalog. */
 	getChatInheritedTurnId(chat: URI): string | undefined {
 		return this._chatEntries.get(chat)?.inheritedTurnId;
+	}
+
+	/** Whether any registered chat has its own config schema, so config reads that only such chats need can be skipped. */
+	hasChatsWithOwnConfigSchema(): boolean {
+		return this._chatsWithOwnConfigSchema.size > 0;
 	}
 
 	/** Returns a registered chat's own config values (`ChatState.config`), also before its state is resolved. */
@@ -1658,6 +1664,7 @@ export class AgentHostStateManager extends Disposable {
 				existingEntry.inheritedTurnId = options.inheritedTurnId;
 				existingEntry.draft = options.draft;
 				existingEntry.config = options.config;
+				this._noteChatConfig(chatUri, options.config);
 				existingEntry.resolver = options.resolver;
 				return summary;
 			}
@@ -2564,12 +2571,22 @@ export class AgentHostStateManager extends Disposable {
 
 	// ---- Internal -----------------------------------------------------------
 
+	/** Tracks whether a registered chat has its own config schema (its agent differs from its session's). */
+	private _noteChatConfig(chat: URI, config: ChatConfigState | undefined): void {
+		if (config?.schema) {
+			this._chatsWithOwnConfigSchema.add(chat);
+		} else {
+			this._chatsWithOwnConfigSchema.delete(chat);
+		}
+	}
+
 	private _invalidateChatEntry(chat: URI): void {
 		this._pruneChatCanvases(chat, new Set());
 		const entry = this._chatEntries.get(chat);
 		if (entry) {
 			entry.valid = false;
 			this._chatEntries.delete(chat);
+			this._chatsWithOwnConfigSchema.delete(chat);
 			this._unindexChatStorage(chat, entry.storageResource);
 			this._onDidUnregisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource });
 		}
@@ -2594,6 +2611,7 @@ export class AgentHostStateManager extends Disposable {
 			this._chatsByStorage.set(entry.storageResource, chats);
 		}
 		chats.add(chat);
+		this._noteChatConfig(chat, entry.config);
 		const provider = ownChatProvider(this._sessionStates.get(entry.session)?.state.provider, entry.provider);
 		this._onDidRegisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource, ...(provider !== undefined ? { provider } : {}) });
 	}

@@ -37,7 +37,8 @@ export interface IAgentHostProviderService {
 	/**
 	 * Resolves the agent backing `chat` of `session`: the chat's own agent when
 	 * one is associated with it (a chat whose agent differs from its session's),
-	 * otherwise the session's agent.
+	 * otherwise the session's agent. `undefined` when the chat's own agent is not
+	 * registered: such a chat never falls back to its session's agent.
 	 */
 	getProviderForChat(session: URI | string, chat: URI | string | undefined): IAgent | undefined;
 	getProviders(): readonly IAgent[];
