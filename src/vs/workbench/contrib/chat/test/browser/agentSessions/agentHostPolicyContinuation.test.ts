@@ -24,7 +24,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -177,7 +177,7 @@ suite('Agent Host policy continuation', () => {
 		}({ [AgentHostClaudeAgentEnabledSettingId]: false, [AgentHostCodexAgentEnabledSettingId]: false });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		services.stub(IConfigurationService, configuration);
-		services.stub(IManagedSettingsService, { getManagedSettings: () => ({}), getManagedSettingValue: key => key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY && state.managedPolicy ? false : undefined });
+		services.stub(IManagedSettingsService, { getManagedSettings: () => ({}), getManagedSettingValue: key => key === COPILOT_SANDBOX_ENABLED_KEY && state.managedPolicy ? true : undefined });
 		let coordinator: AgentHostPolicyContinuationService | undefined;
 		return { services, source, sourceModel, sourceWidget, targetModel, targetInput, state, saved, created, completions, notifications, setSourceHistoryLoaded: (value: boolean) => { sourceHistoryLoaded = value; }, run: (trigger: 'manual' | 'automatic' = 'manual') => (coordinator ??= store.add(services.createInstance(AgentHostPolicyContinuationService))).continueInCopilot(source, trigger) };
 	}
@@ -209,7 +209,7 @@ suite('Agent Host policy continuation', () => {
 	});
 
 	for (const provider of ['claude', 'codex'] as const) {
-		test(`automatically continues ${provider} only under explicit Local prohibition and provider disablement`, async () => {
+		test(`automatically continues ${provider} only under the required managed policy`, async () => {
 			const { run, state, created, completions } = setup({ provider });
 			state.managedPolicy = false;
 			await assert.rejects(run('automatic'), CancellationError);

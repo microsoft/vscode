@@ -23,21 +23,17 @@ import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
-import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 
-suite('ChatViewPane managed harness eligibility', () => {
+suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const policyKey of ['permissions.deny', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
 		for (const result of ['missing', 'error'] as const) {
-			const requiresAgentHost = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
-			test(`${policyKey} waits for policy and ${requiresAgentHost ? 'prohibits' : 'preserves'} Local with ${result} Copilot`, async () => {
+			test(`${policyKey} waits for policy and rejects ${result} Copilot without a Local fallback`, async () => {
 				const ready = new DeferredPromise<void>();
 				let rules: string | boolean | undefined = undefined;
 				const selected: string[] = [];
 				const errors: string[] = [];
-				const localModel = { object: upcastPartial<IChatModel>({}), dispose: () => { } };
-				let localStarts = 0;
 				const pane: { acquireDefaultNewSession(token: CancellationToken): Promise<{ modelRef?: IChatModelReference }> } = Object.assign(Object.create(ChatViewPane.prototype), {
 					accountPolicyGateService: { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => ready.p },
 					managedSettingsService: new class extends NullManagedSettingsService {
@@ -52,7 +48,7 @@ suite('ChatViewPane managed harness eligibility', () => {
 					logService: new NullLogService(),
 					notificationService: { error: (message: string) => errors.push(message) },
 					chatService: {
-						startNewLocalSession: () => { localStarts++; return localModel; },
+						startNewLocalSession: () => assert.fail('Local fallback is not allowed'),
 						acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference | undefined> => {
 							selected.push(getChatSessionType(resource));
 							if (result === 'error') {
@@ -66,13 +62,9 @@ suite('ChatViewPane managed harness eligibility', () => {
 				const before = [...selected];
 				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
 				ready.complete();
-				if (requiresAgentHost) {
-					await assert.rejects(pending);
-				} else {
-					assert.strictEqual((await pending).modelRef, localModel);
-				}
-				assert.deepStrictEqual({ before, selected, localStarts, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {
-					before: [], selected: requiresAgentHost ? [SessionType.AgentHostCopilot] : [], localStarts: requiresAgentHost ? 0 : 1, explained: requiresAgentHost,
+				await assert.rejects(pending);
+				assert.deepStrictEqual({ before, selected, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {
+					before: [], selected: [SessionType.AgentHostCopilot], explained: true,
 				});
 			});
 		}
