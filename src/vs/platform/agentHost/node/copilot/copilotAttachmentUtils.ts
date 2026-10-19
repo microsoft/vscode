@@ -36,8 +36,12 @@ export function readSimpleAttachmentDisplayKindFromMimeType(mimeType: string): s
  * Decodes a `blob` attachment's `data` field for a text/simple attachment.
  * Handles standard/URL-safe base64, line-wrapped base64, `data:` URLs, and
  * legacy/external sessions that persisted raw unencoded text in `data`.
+ *
+ * @param knownEncoded The producer is known to base64-encode `data` (e.g. a
+ * VS Code-specific mime type), so it is decoded whenever possible instead of
+ * being checked against the raw-text heuristic.
  */
-export function decodeTextBlobAttachmentData(data: string): string {
+export function decodeTextBlobAttachmentData(data: string, knownEncoded: boolean): string {
 	if (!data) {
 		return '';
 	}
@@ -45,7 +49,7 @@ export function decodeTextBlobAttachmentData(data: string): string {
 	if (dataUrlMatch?.groups) {
 		const { base64, payload } = dataUrlMatch.groups;
 		if (base64) {
-			return tryDecodeBase64Text(payload.replace(/[\t\n\v\f\r ]+/g, '')) ?? payload;
+			return decodeBase64Text(payload.replace(/[\t\n\v\f\r ]+/g, '')) ?? payload;
 		}
 		try {
 			return decodeURIComponent(payload);
@@ -53,25 +57,25 @@ export function decodeTextBlobAttachmentData(data: string): string {
 			return payload;
 		}
 	}
-	return tryDecodeBase64Text(data.replace(/[\r\n]+/g, '')) ?? data;
+	const unwrapped = data.replace(/[\r\n]+/g, '');
+	return (knownEncoded ? decodeBase64Text(unwrapped) : tryDecodeBase64Text(unwrapped)) ?? data;
 }
 
-const base64TextPattern = /^(?<body>[A-Za-z0-9+/_-]*)={0,2}$/;
+const base64TextPattern = /^(?<body>[A-Za-z0-9+/_-]*)(?<padding>={0,2})$/;
 const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-// C0 controls that do not occur in real text. Tab, newlines, BEL, BS, VT, FF and ESC are allowed (e.g. terminal output).
-const unexpectedControlCharacterPattern = /[\u0000-\u0006\u000E-\u001A\u001C-\u001F]/;
 
 /**
- * Whether `body` (base64 without padding) is what an encoder would produce:
- * its length is possible and the unused low bits of the last character are zero.
+ * Whether `body` and `padding` are what an encoder would produce: the body is
+ * non-empty with a possible length, the unused low bits of its last character
+ * are zero, and any padding completes the final 4-character group.
  */
-function isCanonicalBase64(body: string): boolean {
+function isCanonicalBase64(body: string, padding: string): boolean {
 	const remainder = body.length % 4;
+	if (body.length === 0 || remainder === 1 || (padding.length > 0 && (remainder + padding.length) !== 4)) {
+		return false;
+	}
 	if (remainder === 0) {
 		return true;
-	}
-	if (remainder === 1) {
-		return false;
 	}
 	const last = body[body.length - 1];
 	const value = base64Alphabet.indexOf(last === '-' ? '+' : last === '_' ? '/' : last);
@@ -79,23 +83,33 @@ function isCanonicalBase64(body: string): boolean {
 }
 
 /**
- * Decodes base64-encoded UTF-8 text. Returns `undefined` when `payload` is not
- * canonical base64 or does not decode to plausible UTF-8 text, so callers can
- * treat it as raw unencoded text (e.g. `README` or `a=b`) instead of producing
- * garbage.
+ * Decodes base64 that is known to be encoded text, replacing invalid UTF-8
+ * sequences. Returns `undefined` only when `payload` is not base64 at all.
  */
-function tryDecodeBase64Text(payload: string): string | undefined {
-	const body = base64TextPattern.exec(payload)?.groups?.body;
-	if (body === undefined || !isCanonicalBase64(body)) {
-		return undefined;
-	}
-	let text: string;
+function decodeBase64Text(payload: string): string | undefined {
 	try {
-		text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(decodeBase64(body).buffer);
+		return new TextDecoder('utf-8', { ignoreBOM: true }).decode(decodeBase64(payload).buffer);
 	} catch {
 		return undefined;
 	}
-	return unexpectedControlCharacterPattern.test(text) ? undefined : text;
+}
+
+/**
+ * Decodes `payload` only when it is canonical base64 of valid UTF-8, which
+ * output of VS Code's own encoder always is. Returns `undefined` otherwise so
+ * callers can treat it as raw unencoded text (e.g. `README` or `a=b`) instead
+ * of producing garbage.
+ */
+function tryDecodeBase64Text(payload: string): string | undefined {
+	const groups = base64TextPattern.exec(payload)?.groups;
+	if (!groups || !isCanonicalBase64(groups.body, groups.padding)) {
+		return undefined;
+	}
+	try {
+		return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(decodeBase64(groups.body).buffer);
+	} catch {
+		return undefined;
+	}
 }
 
 /**
