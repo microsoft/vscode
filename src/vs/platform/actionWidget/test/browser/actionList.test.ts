@@ -3152,6 +3152,38 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	for (const side of ['left', 'right'] as const) {
+		test(`Chat submenu tolerates diagonal pointer travel into the ${side} flyout`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { widget, panel, hover } = createPersistentPreview(side, true);
+			widget.updateItems([{
+				...action('Chat'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: ['This Computer', 'ah1', 'ah2', 'ah3', 'ah4', 'sh1', 'sh2', 'sh3', 'sh4'].map(label =>
+					toAction({ id: label, label, run: () => { } })),
+				openSubmenuOnClick: true,
+			}, action('workspace'), action('another workspace'), action('Remote')]);
+
+			const origin = hover(0);
+			const initialContents = panel.textContent;
+			hover(2, origin.x + (side === 'right' ? 60 : -60));
+			const duringTravel = panel.textContent;
+			panel.dispatchEvent(new MouseEvent('mouseenter'));
+			await timeout(350);
+
+			assert.deepStrictEqual({
+				opened: initialContents?.includes('sh4'),
+				preservedDuringTravel: duringTravel === initialContents,
+				preservedAfterEntering: panel.textContent === initialContents,
+				visible: panel.style.display !== 'none',
+			}, {
+				opened: true,
+				preservedDuringTravel: true,
+				preservedAfterEntering: true,
+				visible: true,
+			});
+		}));
+	}
+
 	test('pointer travel grace is bounded across multiple crossed rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { panel, hover } = createPersistentPreview();
 		const origin = hover(0);
