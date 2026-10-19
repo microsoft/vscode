@@ -8223,7 +8223,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				() => this._retainedHostCustomizations(session),
 				() => this._topLevelMcpServers(session),
 			);
-			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidChatProgress, () => this._serverToolHost?.toolNames ?? []);
+			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidChatProgress);
 			this._activeClients.set(session, client);
 		} else if (directory) {
 			client.pluginController.setDirectory(directory);
@@ -10327,7 +10327,6 @@ class ActiveClient extends Disposable {
 		private readonly _sessionUri: URI,
 		pluginController: SessionPluginController,
 		onDidSessionProgress: Emitter<AgentSignal>,
-		private readonly _serverToolNames: () => readonly string[],
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
@@ -10399,11 +10398,9 @@ class ActiveClient extends Disposable {
 		}
 	}
 
-	/** Host names are reserved; other collisions prefer the chat's message sender. */
+	/** Client collisions prefer the chat's message sender; launch wiring resolves host collisions. */
 	toolsForChat(chatKey?: string): readonly ToolDefinition[] {
-		const reserved = new Set(this._serverToolNames());
-		return this.toolSet.merged(chatKey === undefined ? undefined : this._preferredClientByChat.get(chatKey), clientId => chatKey === undefined || this.contributesTo(clientId, chatKey))
-			.filter(tool => !reserved.has(tool.name));
+		return this.toolSet.merged(chatKey === undefined ? undefined : this._preferredClientByChat.get(chatKey), clientId => chatKey === undefined || this.contributesTo(clientId, chatKey));
 	}
 
 	private _reindexKnownChats(): void {

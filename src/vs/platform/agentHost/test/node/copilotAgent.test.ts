@@ -131,7 +131,6 @@ import { registerPendingEditContentProvider } from '../../node/copilot/pendingEd
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
@@ -24383,11 +24382,8 @@ suite('CopilotAgent', () => {
 		const toolA: ToolDefinition = { name: 'tool_a', description: 'from A', inputSchema: { type: 'object', properties: {} } };
 		const toolB: ToolDefinition = { name: 'tool_b', description: 'from B', inputSchema: { type: 'object', properties: {} } };
 
-		test('host names are reserved and sender priority is scoped to exact chat membership', async () => {
+		test('sender priority is scoped to exact chat membership and retains client definitions for launch wiring', async () => {
 			const agent = createTestAgent(disposables);
-			agent.setServerToolHost(new class extends mock<IAgentServerToolHost>() {
-				override readonly toolNames = ['create_session'];
-			}());
 			const session = AgentSession.uri('copilotcli', 'tool-priority');
 			const chat = defaultChatUri(session);
 			const peer = URI.parse(buildChatUri(session, 'peer'));
@@ -24410,12 +24406,12 @@ suite('CopilotAgent', () => {
 					refresh: await active.getRestartReason(firstSnapshot, chat.toString()),
 					unscoped: (await active.snapshot()).tools,
 				}, {
-					first: [sharedA, toolB],
-					selected: [sharedB, toolB],
-					observed: [sharedB, toolB],
-					peer: [sharedA],
+					first: [sharedA, { name: 'create_session' }, toolB],
+					selected: [sharedB, toolB, { name: 'create_session' }],
+					observed: [sharedB, toolB, { name: 'create_session' }],
+					peer: [sharedA, { name: 'create_session' }],
 					refresh: 'clientToolsChanged',
-					unscoped: [sharedA, toolB],
+					unscoped: [sharedA, { name: 'create_session' }, toolB],
 				});
 			} finally {
 				await disposeAgent(agent);
