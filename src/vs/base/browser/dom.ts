@@ -444,6 +444,11 @@ class AnimationFrameQueueItem implements IDisposable {
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
+	/**
+	 * Index of the next item to run in the queue that is currently being drained. Drains are
+	 * synchronous and cannot be re-entered, so one number is enough.
+	 */
+	let queueHead = 0;
 
 	markAsSingleton(onDidUnregisterWindow(({ vscodeWindowId }) => {
 		// A callback can close its window while the current queue is being processed.
@@ -464,7 +469,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	 * Index moves only - no array is allocated and nothing is returned.
 	 */
 	function insertSorted(queue: AnimationFrameQueueItem[], item: AnimationFrameQueueItem): void {
-		let low = 0;
+		let low = queueHead; // never before the next item to run
 		let high = queue.length;
 		while (low < high) {
 			const mid = (low + high) >>> 1;
@@ -495,10 +500,13 @@ class AnimationFrameQueueItem implements IDisposable {
 		// Sort once and then keep the queue ordered while it drains. Executing a runner may
 		// add to this queue, but re-sorting it after every single execution is O(n^2 log n).
 		currentQueue.sort(AnimationFrameQueueItem.sort);
-		while (currentQueue.length > 0) {
-			const top = currentQueue.shift()!;
+		queueHead = 0;
+		while (queueHead < currentQueue.length) {
+			const top = currentQueue[queueHead++];
 			top.execute();
 		}
+		currentQueue.length = 0;
+		queueHead = 0;
 		if (inAnimationFrameRunner.has(targetWindowId)) {
 			inAnimationFrameRunner.set(targetWindowId, false);
 		}
