@@ -306,6 +306,8 @@ The managed-telemetry suite asserts actual session-correlated native spans at lo
 
 The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
 
+Client tool results that require confirmation remain in protocol state without being forwarded to the provider. Approval forwards the stored result; denial forwards a failure without the denied content. The Copilot result-confirmation scenario asserts that no continuation model request is made while the result is pending, and unit routing tests cover both decisions on default and peer chats from client and server actions.
+
 Provider availability:
 
 - **Copilot** (`copilotcli`) — always enabled (the CLI is a dev dependency).
