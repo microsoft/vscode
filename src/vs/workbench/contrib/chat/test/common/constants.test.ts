@@ -104,7 +104,7 @@ suite('ChatConfiguration defaults', () => {
 		function requiresAgentHost(configuration: IConfigurationService, sandbox: boolean, permissions: boolean, allowLocal = true): boolean {
 			const settings: ManagedSettingsData = {
 				[COPILOT_SANDBOX_ENABLED_KEY]: sandbox,
-				...(permissions ? { 'permissions.allow': '[]' } : {}),
+				...(permissions ? { 'permissions.deny': '["Shell"]' } : {}),
 				[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal,
 				[COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true,
 			};

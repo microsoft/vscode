@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, hasManagedPermissions, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, requiresCopilotAgentHost, TemporaryDefaultToLocalHarnessSettingId, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, hasManagedPermissionDenials, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, requiresCopilotAgentHost, TemporaryDefaultToLocalHarnessSettingId, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -630,7 +630,7 @@ suite('AccountPolicyService', () => {
 				await policyService.updatePolicyDefinitions({ ...definitions, ...thirdPartyAgentPolicies() });
 				results.push({
 					required: requiresCopilotAgentHost(policyService, configuration),
-					permissions: hasManagedPermissions(policyService),
+					permissions: hasManagedPermissionDenials(policyService),
 					sandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
 					claude: policyService.getPolicyValue('Claude'),
 					codex: policyService.getPolicyValue('Codex'),
@@ -699,7 +699,7 @@ suite('AccountPolicyService', () => {
 			});
 		});
 
-		test(`permission presence requires Agent Host across ${channel} refresh and removal without enabling sandbox`, async () => {
+		test(`only permission denials require Agent Host across ${channel} refresh and removal without relaxing third-party governance`, async () => {
 			const native = disposables.add(new FakeNativeManagedSettingsService());
 			const file = disposables.add(new FakeFileManagedSettingsService());
 			const changed = disposables.add(new Emitter<IPolicyData | null>());
@@ -730,17 +730,17 @@ suite('AccountPolicyService', () => {
 					}
 					await policyService.updatePolicyDefinitions(definitions);
 					results.push({
-						required: hasManagedPermissions(policyService),
+						required: hasManagedPermissionDenials(policyService),
 						sandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
 						claude: policyService.getPolicyValue('Claude'), codex: policyService.getPolicyValue('Codex'),
 					});
 				}
 			}
-			assert.deepStrictEqual(results, keys.flatMap(() => [
-				{ required: true, sandbox: undefined, claude: false, codex: false },
-				{ required: true, sandbox: undefined, claude: false, codex: false },
-				{ required: true, sandbox: undefined, claude: false, codex: false },
-				{ required: true, sandbox: undefined, claude: false, codex: false },
+			assert.deepStrictEqual(results, keys.flatMap(key => [
+				{ required: key === 'permissions.deny', sandbox: undefined, claude: false, codex: false },
+				{ required: false, sandbox: undefined, claude: false, codex: false },
+				{ required: key === 'permissions.deny', sandbox: undefined, claude: false, codex: false },
+				{ required: key === 'permissions.deny', sandbox: undefined, claude: false, codex: false },
 				{ required: false, sandbox: undefined, claude: undefined, codex: undefined },
 			]));
 		});

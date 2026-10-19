@@ -215,9 +215,9 @@ suite('SessionTypePickerActionItem', () => {
 				const fixture = createManagedPicker(position, hostAvailable);
 				const snapshots = [];
 				const policies: ManagedSettingsData[] = [
-					{ 'permissions.ask': '[]' },
-					{ 'permissions.defaultMode': 'manual' },
-					{ 'permissions.disableBypassPermissionsMode': 'disable' },
+					{ 'permissions.deny': '["Shell"]' },
+					{ 'permissions.deny': '["Read"]', 'permissions.defaultMode': 'manual' },
+					{ 'permissions.deny': 'invalid' },
 					{ [COPILOT_SANDBOX_ENABLED_KEY]: true },
 					{ [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false },
 					{ [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false, [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true },
@@ -261,16 +261,38 @@ suite('SessionTypePickerActionItem', () => {
 		const fixture = createManagedPicker('sidebar', true, false);
 		fixture.picker.show();
 		const hidden = fixture.getLocal() === undefined;
-		fixture.setManagedSettings({ 'permissions.allow': '[]' });
+		fixture.setManagedSettings({ 'permissions.deny': '["Shell"]' });
 		fixture.picker.show();
 		const disabled = fixture.getLocal()?.disabled;
 		fixture.setManagedSettings({});
 		fixture.picker.show();
 		const hiddenAgain = fixture.getLocal() === undefined;
 		await fixture.configuration.setUserConfiguration(ChatConfiguration.EditorLocalAgentEnabled, true);
-		fixture.setManagedSettings({ 'permissions.allow': '[]', [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true });
+		fixture.setManagedSettings({ 'permissions.deny': '["Shell"]', [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: true });
 		fixture.picker.show();
 		assert.deepStrictEqual({ hidden, disabled, hiddenAgain, escaped: fixture.getLocal()?.disabled }, { hidden: true, disabled: true, hiddenAgain: true, escaped: false });
+	});
+
+	test('empty deny and other managed permission or sandbox settings keep Local selectable', () => {
+		const fixture = createManagedPicker('editor');
+		const policies: ManagedSettingsData[] = [
+			{ 'permissions.deny': '[]' },
+			{ 'permissions.ask': '["Shell"]' },
+			{ 'permissions.allow': '["Shell"]' },
+			{ 'permissions.defaultMode': 'manual', 'permissions.disableBypassPermissionsMode': 'disable' },
+			{ 'sandbox.enabled': false, 'sandbox.allowBypass': false, 'sandbox.sandboxMcpServers': true },
+		];
+		const disabled = policies.map(settings => {
+			fixture.setManagedSettings({ 'permissions.deny': '["Shell"]' });
+			fixture.setManagedSettings(settings);
+			fixture.picker.show();
+			fixture.selectLocal();
+			return fixture.getLocal()?.disabled;
+		});
+		assert.deepStrictEqual({ disabled, commands: fixture.commands }, {
+			disabled: policies.map(() => false),
+			commands: policies.map(() => 'workbench.action.chat.openNewChatSessionInPlace.local'),
+		});
 	});
 
 	test('keeps Cloud as a harness choice without nested creation controls', async () => {

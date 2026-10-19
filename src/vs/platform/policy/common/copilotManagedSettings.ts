@@ -8,6 +8,7 @@ import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceEntry, extraKnownMarketplacesToConfigDict } from '../../../base/common/managedSettings.js';
 import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, ManagedSettingValue, ManagedSettingsData } from '../../../base/common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { parse, ParseError } from '../../../base/common/json.js';
 import { isEmptyObject, isObject, isString } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -305,10 +306,18 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	}
 }
 
-/** Presence selects the runtime harness; interpreting permission values remains runtime-owned. */
-export function hasManagedPermissions(service: IManagedSettingsService): boolean {
-	const settings = service.getManagedSettings();
-	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
+/** Non-empty or malformed managed deny lists require runtime enforcement; rule interpretation remains runtime-owned. */
+export function hasManagedPermissionDenials(service: IManagedSettingsService): boolean {
+	const value = service.getManagedSettingValue('permissions.deny');
+	if (value === undefined) {
+		return false;
+	}
+	if (typeof value !== 'string') {
+		return true;
+	}
+	const errors: ParseError[] = [];
+	const rules: unknown = parse(value, errors, { disallowComments: true, allowTrailingComma: false });
+	return errors.length > 0 || !Array.isArray(rules) || rules.length > 0;
 }
 
 /** Whether an administrator has enabled the temporary Local harness escape hatch. */
@@ -326,7 +335,7 @@ export function requiresCopilotAgentHost(service: IManagedSettingsService, confi
 	if (temporaryDefaultToLocal === true) {
 		return false;
 	}
-	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissions(service);
+	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissionDenials(service);
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
