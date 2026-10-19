@@ -771,6 +771,17 @@ export function isSideChatOf(chat: IChat, parentChat: URI): boolean {
 		&& isEqual(chat.origin.parentChat, parentChat);
 }
 
+/** The harness a chat of `session` uses: its own, or the session's when it reports none. */
+export function getChatHarness(session: Pick<ISession, 'harness'>, chat: Pick<IChat, 'harness'>): string {
+	return chat.harness ?? session.harness;
+}
+
+/** Whether the chats of a session use more than one harness; the session's harness is its main chat's. */
+export function hasMixedChatHarnesses(session: ISession, reader: IReader | undefined): boolean {
+	const mainHarness = getChatHarness(session, session.mainChat.read(reader));
+	return session.chats.read(reader).some(chat => getChatHarness(session, chat) !== mainHarness);
+}
+
 /**
  * Resolve a chat's effective capabilities. Combines the chat's own advertised
  * {@link IChat.capabilities} (falling back to {@link DEFAULT_CHAT_CAPABILITIES})

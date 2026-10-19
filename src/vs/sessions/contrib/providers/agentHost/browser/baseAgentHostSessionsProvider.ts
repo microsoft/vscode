@@ -99,7 +99,7 @@ import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ICreateNewChatOptions, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ICreateNewChatOptions, IHarnessPresentation, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
@@ -4840,6 +4840,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Returns the {@link ThemeIcon} associated with a known agent provider, or
 	 * `undefined` when the provider is not recognised.
 	 */
+	getHarnessPresentation(harness: string): IHarnessPresentation | undefined {
+		const sessionType = this._sessionTypes.find(type => toAgentHostHarness(type.id) === harness);
+		return sessionType ? { label: sessionType.label, icon: sessionType.icon } : undefined;
+	}
+
 	private iconForAgentProvider(provider: string): ThemeIcon | undefined {
 		if (provider === CopilotCLISessionType.id) {
 			return CopilotCLISessionType.icon;

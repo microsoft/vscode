@@ -201,6 +201,12 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableMessage?: string;
 }
 
+/** How a harness is shown to the user. */
+export interface IHarnessPresentation {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
 /**
  * Options for {@link ISessionsProvider.createNewChat}.
  */
@@ -622,6 +628,12 @@ export interface ISessionsProvider {
 	 * confirmation dialog).
 	 */
 	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
+
+	/**
+	 * Presentation of a harness this provider serves, in the identity space of
+	 * {@link ISession.harness}, for surfaces that show or pick a chat's harness.
+	 */
+	getHarnessPresentation?(harness: string): IHarnessPresentation | undefined;
 
 	/**
 	 * Create a new chat in the given session and return it.
