@@ -400,5 +400,24 @@ suite('ChatSessionWorkingSet', () => {
 			}
 			assert.deepStrictEqual(sessions.slice(0, 2).map(keptSession => fileNames(keptChanges.filter(keptSession, [kept], undefined))), [['kept.ts'], []]);
 		});
+
+		test('tells apart files and changes whose paths have the same 32-bit string hash', () => {
+			// "Aa" and "BB" have the same 32-bit string hash, so these paths do too.
+			const keptChanges = store.add(workbenchInstantiationService(undefined, store).createInstance(ChatSessionWorkingSetKeptChanges));
+			const kept = changed('/Aa.ts');
+			keptChanges.keep(session, [kept]);
+			const changedAgain = {
+				...kept,
+				originalURI: URI.parse('snapshot:/before/BB.ts'),
+				modifiedSnapshotURI: URI.parse('snapshot:/after/BB.ts?added=1'),
+			};
+			assert.deepStrictEqual({
+				otherFile: fileNames(keptChanges.filter(session, [kept, changed('/BB.ts')], undefined)),
+				changedAgain: fileNames(keptChanges.filter(session, [changedAgain], undefined)),
+			}, {
+				otherFile: ['BB.ts'],
+				changedAgain: ['Aa.ts'],
+			});
+		});
 	});
 });

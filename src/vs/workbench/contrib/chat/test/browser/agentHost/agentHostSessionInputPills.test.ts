@@ -2401,7 +2401,20 @@ suite('AgentHostSessionInputPills', () => {
 			})),
 			operations,
 		}));
-		return { harness, setOperations };
+		/** Sets the files of Session Changes, each with the snapshot its latest edit left. */
+		const setFiles = (files: readonly (readonly [fileName: string, snapshot: string])[], status = ChangesetStatus.Ready) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status,
+			files: files.map(([fileName, snapshot]) => ({
+				id: fileName,
+				edit: {
+					before: { uri: `file:///repo/${fileName}`, content: { uri: `snapshot:/before/${fileName}` } },
+					after: { uri: `file:///repo/${fileName}`, content: { uri: `snapshot:/${snapshot}/${fileName}` } },
+					diff: { added: 2, removed: 1 },
+				},
+			})),
+			operations: [discardChanges(ChangesetOperationStatus.Idle)],
+		}));
+		return { harness, setOperations, setFiles };
 	}
 
 	const discardChanges = (status: ChangesetOperationStatus, scopes = [ChangesetOperationScope.Resource]): ChangesetOperation => ({
@@ -2510,22 +2523,10 @@ suite('AgentHostSessionInputPills', () => {
 
 	test('leaves alone the files whose changes differ from the confirmed ones when undoing every file', async () => {
 		const errors: string[] = [];
-		const { harness, setOperations } = createWorkingSetUndoPills({
+		const { harness, setOperations, setFiles } = createWorkingSetUndoPills({
 			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
 			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
 		});
-		const setFiles = (files: readonly (readonly [fileName: string, snapshot: string])[]) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
-			status: ChangesetStatus.Ready,
-			files: files.map(([fileName, snapshot]) => ({
-				id: fileName,
-				edit: {
-					before: { uri: `file:///repo/${fileName}`, content: { uri: `snapshot:/before/${fileName}` } },
-					after: { uri: `file:///repo/${fileName}`, content: { uri: `snapshot:/${snapshot}/${fileName}` } },
-					diff: { added: 2, removed: 1 },
-				},
-			})),
-			operations: [discardChanges(ChangesetOperationStatus.Idle)],
-		}));
 		setOperations([discardChanges(ChangesetOperationStatus.Idle)], ['a.ts', 'b.ts', 'c.ts']);
 		await harness.setWorkingSetEnabled(true);
 		const undo = harness.workingSetUndo();
@@ -2548,6 +2549,54 @@ suite('AgentHostSessionInputPills', () => {
 			result: true,
 			invoked: ['file:///repo/a.ts'],
 			errors: ['Could not undo changes to c.ts: \'c.ts\' changed after the undo was confirmed.'],
+		});
+	});
+
+	test('checks each file it undoes only once Session Changes finish updating', async () => {
+		const errors: string[] = [];
+		let onConfirm = () => { };
+		const { harness, setOperations, setFiles } = createWorkingSetUndoPills({
+			dialogService: upcastPartial<IDialogService>({
+				confirm: async () => {
+					onConfirm();
+					return { confirmed: true };
+				},
+			}),
+			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
+		});
+		setOperations([discardChanges(ChangesetOperationStatus.Idle)], ['a.ts', 'b.ts', 'c.ts']);
+		await harness.setWorkingSetEnabled(true);
+		const undo = harness.workingSetUndo();
+		const diffs = harness.workingSetChanges() ?? [];
+		assert.ok(undo);
+		// While the confirmation is open, a turn edits b.ts; until Session Changes update, they still show its old snapshot.
+		onConfirm = () => setFiles([['a.ts', 'after'], ['b.ts', 'after'], ['c.ts', 'after']], ChangesetStatus.Recomputing);
+		harness.connection.invokeChangesetOperationError = params => {
+			if (params.target?.resource === 'file:///repo/a.ts') {
+				// Undoing a.ts updates Session Changes again, while another turn edits c.ts.
+				setFiles([['b.ts', 'edited'], ['c.ts', 'after']], ChangesetStatus.Recomputing);
+			}
+			return undefined;
+		};
+		const undoing = undo.undo(diffs);
+		await timeout(0);
+		const invokedWhileUpdating = [harness.connection.invokedChangesetOperations.length];
+		setFiles([['a.ts', 'after'], ['b.ts', 'edited'], ['c.ts', 'after']]);
+		await timeout(0);
+		invokedWhileUpdating.push(harness.connection.invokedChangesetOperations.length);
+		setFiles([['b.ts', 'edited'], ['c.ts', 'edited']]);
+		const result = await undoing;
+
+		assert.deepStrictEqual({
+			invokedWhileUpdating,
+			result,
+			invoked: harness.connection.invokedChangesetOperations.map(params => params.target?.resource),
+			errors,
+		}, {
+			invokedWhileUpdating: [0, 1],
+			result: true,
+			invoked: ['file:///repo/a.ts'],
+			errors: ['Could not undo changes to b.ts, c.ts: \'b.ts\' changed after the undo was confirmed. \'c.ts\' changed after the undo was confirmed.'],
 		});
 	});
 

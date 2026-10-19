@@ -157,11 +157,15 @@ export function renderChangesSummaryFileList(
 		if (hadFocus) {
 			const sameFile = focusedAction && currentDiffs.find(diff => isEqual(diff.modifiedURI, focusedAction.diff.modifiedURI));
 			if (sameFile) {
-				// Its actions only show in the focused row.
-				list.setFocus([list.indexOf(sameFile)]);
+				// Its actions only show in the focused row, which an insertion may have moved out of view.
+				const index = list.indexOf(sameFile);
+				list.setFocus([index]);
+				list.reveal(index);
 			} else if (focusedIndex !== undefined && focusedIndex >= 0 && list.getFocus().length === 0 && list.length > 0) {
 				// When the focused file leaves the list, keyboard focus moves to the file taking its place.
-				list.setFocus([Math.min(focusedIndex, list.length - 1)]);
+				const index = Math.min(focusedIndex, list.length - 1);
+				list.setFocus([index]);
+				list.reveal(index);
 			}
 			if (!dom.isAncestorOfActiveElement(listNode) && !(sameFile && focusedAction && renderer.focusRowAction(sameFile, focusedAction.index))) {
 				list.domFocus();
@@ -399,7 +403,10 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
-	readonly actionBar?: ActionBar;
+	/** Where the row's actions render, when the list has row actions. */
+	readonly actionsContainer?: HTMLElement;
+	/** The actions of the rendered element. */
+	actionBar?: ActionBar;
 	readonly changesContainer: HTMLElement;
 	/** The element the change counts are inserted before, or `null` to append them. */
 	readonly changesAnchor: HTMLElement | null;
@@ -462,35 +469,33 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		const templateDisposables = new DisposableStore();
-		let actionBar: ActionBar | undefined;
+		const elementDisposables = new DisposableStore();
+		let actionsContainer: HTMLElement | undefined;
 		let changesContainer = label.element;
 		let changesAnchor: HTMLElement | null = null;
 		if (this.options?.getRowActions) {
 			if (this.options.rowActionIcons) {
 				// Like the editing session's working set, icons follow the change counts.
-				const actionsContainer = label.element.appendChild($('.chat-summary-list-icon-actions'));
-				actionBar = templateDisposables.add(new ActionBar(actionsContainer));
-				changesAnchor = actionsContainer;
+				actionsContainer = changesAnchor = label.element.appendChild($('.chat-summary-list-icon-actions'));
 			} else {
 				// Links sit between the file label and the trailing change counts.
 				container.classList.add('chat-summary-list-row-with-actions');
-				actionBar = templateDisposables.add(new ActionBar(container.appendChild($('.chat-summary-list-actions'))));
+				actionsContainer = container.appendChild($('.chat-summary-list-actions'));
 				changesContainer = container;
 			}
 		}
 		const template: ICollapsibleChangesSummaryListTemplate = {
 			label,
-			actionBar,
+			actionsContainer,
 			changesContainer,
 			changesAnchor,
-			elementDisposables: templateDisposables.add(new DisposableStore()),
+			elementDisposables,
 			dispose: () => {
 				label.dispose();
-				templateDisposables.dispose();
+				elementDisposables.dispose();
 			}
 		};
-		if (actionBar) {
+		if (actionsContainer) {
 			this._templatesWithActions.add(template);
 		}
 		return template;
@@ -521,9 +526,12 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 			templateData.changesElement = changesSummary;
 		}
 
-		const { actionBar } = templateData;
+		const { actionsContainer } = templateData;
 		const getRowActions = this.options?.getRowActions;
-		if (actionBar && getRowActions) {
+		if (actionsContainer && getRowActions) {
+			// An action bar restores its focused action after it's cleared, so each element gets its own:
+			// a row reused for another file must not move keyboard focus to that file's actions.
+			const actionBar = templateData.actionBar = templateData.elementDisposables.add(new ActionBar(actionsContainer));
 			const icons = !!this.options?.rowActionIcons;
 			templateData.elementDisposables.add(autorun(reader => {
 				const actions = getRowActions(data, reader);
@@ -535,8 +543,8 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 	disposeElement(_data: IEditSessionEntryDiff, _index: number, templateData: ICollapsibleChangesSummaryListTemplate): void {
 		templateData.element = undefined;
+		templateData.actionBar = undefined;
 		templateData.elementDisposables.clear();
-		templateData.actionBar?.clear();
 	}
 
 	disposeTemplate(templateData: ICollapsibleChangesSummaryListTemplate): void {

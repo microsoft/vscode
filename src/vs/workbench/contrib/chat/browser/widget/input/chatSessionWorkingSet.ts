@@ -9,7 +9,7 @@ import { Action, IAction, toAction } from '../../../../../../base/common/actions
 import { equals } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { hash } from '../../../../../../base/common/hash.js';
+import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, IReaderWithStore, ISettableObservable, observableSignal } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
@@ -189,7 +189,7 @@ const KEPT_CHANGES_STORAGE_KEY = 'chat.sessionWorkingSet.keptChanges';
 /** How many sessions remember their kept changes; the one kept in least recently is forgotten first. */
 const MAX_SESSIONS_WITH_KEPT_CHANGES = 100;
 
-/** Each session's kept change by file, all hashed, with the session kept in most recently last. */
+/** Each session's kept change by file, all as digests, with the session kept in most recently last. */
 type KeptChanges = readonly (readonly [session: string, changes: Readonly<Record<string, string>>])[];
 
 function isKeptSessionChanges(value: unknown): value is KeptChanges[number] {
@@ -212,12 +212,19 @@ function readKeptChanges(value: string | undefined): KeptChanges {
 	}
 }
 
+/** A short, collision-resistant digest of `parts`, which identifies them in storage. */
+function digest(parts: readonly (string | number | boolean)[]): string {
+	const sha = new StringSHA1();
+	sha.update(JSON.stringify(parts));
+	return sha.digest();
+}
+
 function getSessionKey(session: URI): string {
-	return hash(session.toString()).toString(36);
+	return digest([session.toString()]);
 }
 
 function getFileKey(diff: IEditSessionEntryDiff): string {
-	return hash(getComparisonKey(diff.modifiedURI)).toString(36);
+	return digest([getComparisonKey(diff.modifiedURI)]);
 }
 
 /** The parts of a file's change that differ once the file changes again. A deletion has no snapshot after it, so deleting a file again matches its earlier deletion. */
@@ -234,7 +241,7 @@ function getChangeParts(diff: IEditSessionEntryDiff): readonly (string | number 
 
 /** Identifies a file's change by its snapshots and counts, which differ once the file changes again. */
 function getChangeKey(diff: IEditSessionEntryDiff): string {
-	return hash(getChangeParts(diff)).toString(36);
+	return digest(getChangeParts(diff));
 }
 
 /** Whether `a` and `b` are the same change to the same file. */

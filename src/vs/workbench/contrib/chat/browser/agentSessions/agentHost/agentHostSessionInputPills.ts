@@ -8,6 +8,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
@@ -29,7 +30,7 @@ import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resol
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
-import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -505,6 +506,24 @@ function isPendingCheck(check: PullRequestCheck): boolean {
 /** Whether `operation` is the host's Discard Changes operation for single files. */
 function isFileDiscardOperation(operation: ChangesetOperation): boolean {
 	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && operation.scopes.includes(ChangesetOperationScope.Resource);
+}
+
+/** How long Undo waits for Session Changes to finish updating before it gives up on the files left to undo. */
+const SESSION_CHANGES_READY_TIMEOUT = 30_000;
+
+/**
+ * Resolves to the state of `changeset` once it's up to date, or `undefined`
+ * if it fails or doesn't finish updating in time. While it updates, its files
+ * are the previous ones, which miss the edits of a turn that just ran.
+ */
+async function whenChangesetReady(changeset: IAgentSubscription<ChangesetState>): Promise<ChangesetState | undefined> {
+	const isSettled = (state: ChangesetState | Error | undefined) => state instanceof Error || state?.status === ChangesetStatus.Ready || state?.status === ChangesetStatus.Error;
+	let state = changeset.value;
+	if (!isSettled(state)) {
+		const settled = Event.toPromise(Event.filter(changeset.onDidChange, isSettled));
+		state = await raceTimeout(settled, SESSION_CHANGES_READY_TIMEOUT, () => settled.cancel());
+	}
+	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
 }
 
 function isFailingCheck(check: PullRequestCheck): boolean {
@@ -1232,8 +1251,9 @@ export class AgentHostSessionInputPills extends Disposable {
 	/**
 	 * Discards the session's changes to the files of `diffs`, one at a time, with
 	 * the host's `operation` on the Session Changes `channel`, after confirming
-	 * once if the host requires that. A file whose changes differ from its diff,
-	 * as when a turn changed it after the confirmation, is left alone. Each file
+	 * once if the host requires that. Each file is checked against up-to-date
+	 * Session Changes first, and a file whose changes differ from its diff, as
+	 * when a turn changed it after the confirmation, is left alone. Each file
 	 * leaves the working set once the host recomputes Session Changes. Resolves
 	 * to whether any file's changes were discarded.
 	 */
@@ -1263,12 +1283,16 @@ export class AgentHostSessionInputPills extends Disposable {
 		let discarded = 0;
 		inFlight.set([...inFlight.get(), channelKey], undefined);
 		try {
-			for (const diff of diffs) {
+			for (let i = 0; i < diffs.length; i++) {
+				const diff = diffs[i];
 				const fileName = basename(diff.modifiedURI);
-				const state = changeset.object.value;
-				if (!state || state instanceof Error) {
-					failures.push({ fileName, message: localize('agentHostSessionPills.undoUnverified', "Couldn't check the session's changes to '{0}'.", fileName) });
-					continue;
+				// Undoing a file updates Session Changes too, so each file waits for them.
+				const state = await whenChangesetReady(changeset.object);
+				if (!state) {
+					// Without up-to-date changes, a file can't be checked against the confirmed ones, so none is undone.
+					const message = localize('agentHostSessionPills.undoUnverified', "The session's changes couldn't be checked. Try again.");
+					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message })));
+					break;
 				}
 				const current = state.files
 					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))

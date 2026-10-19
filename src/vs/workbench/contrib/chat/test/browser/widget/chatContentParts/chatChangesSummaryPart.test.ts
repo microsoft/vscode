@@ -195,13 +195,14 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 		]);
 	});
 
-	test('keeps keyboard focus on a row action while the rows are rebuilt, and on the list once its file leaves', () => {
+	const file = (path: string): IEditSessionEntryDiff => ({ ...emptySessionEntryDiff(URI.file(path), URI.file(path)), added: 1 });
+
+	function renderWithRowActions(initialDiffs: readonly IEditSessionEntryDiff[]) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
-		const file = (path: string): IEditSessionEntryDiff => ({ ...emptySessionEntryDiff(URI.file(path), URI.file(path)), added: 1 });
-		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [file('/a.ts'), file('/b.ts')]);
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', initialDiffs);
 		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
 			accessor.get(IEditorService),
 			accessor.get(IConfigurationService),
@@ -215,14 +216,22 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 		}));
 		const list = container.querySelector<HTMLElement>('.monaco-list')!;
 		const fileName = (element: Element | null | undefined) => element?.closest('.monaco-list-row')?.querySelector('.label-name')?.textContent;
-		const readFocus = () => {
-			const active = dom.getActiveElement();
-			return active === list
-				? { list: true, file: fileName(list.querySelector('.monaco-list-row.focused')) }
-				: { action: active?.getAttribute('aria-label'), file: fileName(active) };
-		};
 		const rowOf = (name: string) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => fileName(row) === name)!;
-		rowOf('b.ts').querySelector<HTMLElement>('.action-label[aria-label="Undo"]')!.focus();
+		return {
+			diffs,
+			focusAction: (name: string, label: string) => rowOf(name).querySelector<HTMLElement>(`.action-label[aria-label="${label}"]`)!.focus(),
+			readFocus: () => {
+				const active = dom.getActiveElement();
+				return active === list
+					? { list: true, file: fileName(list.querySelector('.monaco-list-row.focused')) }
+					: { action: active?.getAttribute('aria-label'), file: fileName(active) };
+			},
+		};
+	}
+
+	test('keeps keyboard focus on a row action while the rows are rebuilt, and on the list once its file leaves', () => {
+		const { diffs, focusAction, readFocus } = renderWithRowActions([file('/a.ts'), file('/b.ts')]);
+		focusAction('b.ts', 'Undo');
 		const states = [readFocus()];
 		diffs.set([file('/a.ts'), file('/b.ts')], undefined);
 		states.push(readFocus());
@@ -239,6 +248,21 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			{ action: 'Undo', file: 'b.ts' },
 			{ list: true, file: 'a.ts' },
 			{ list: true, file: undefined },
+		]);
+	});
+
+	test('keeps keyboard focus on a row action when an insertion moves its file out of view', () => {
+		// Six files fill the list's view.
+		const files = ['1', '2', '3', '4', '5', '6'].map(name => file(`/${name}.ts`));
+		const { diffs, focusAction, readFocus } = renderWithRowActions(files);
+		focusAction('6.ts', 'Keep');
+		const states = [readFocus()];
+		diffs.set([file('/a.ts'), file('/b.ts'), ...files], undefined);
+		states.push(readFocus());
+
+		assert.deepStrictEqual(states, [
+			{ action: 'Keep', file: '6.ts' },
+			{ action: 'Keep', file: '6.ts' },
 		]);
 	});
 
