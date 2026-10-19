@@ -5,23 +5,30 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
-import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
+import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { ChildCustomization } from '../../common/state/protocol/state.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
+
+/** The SDK-registered name for a client tool; only the tool-search tool differs. */
+export function toSdkClientToolName(name: string): string {
+	return name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+}
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -78,36 +85,7 @@ function isSupportedMcpServerConfiguration(value: unknown): value is IMcpServerC
 }
 
 function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultCwd?: URI): MCPServerConfig {
-	if (config.type === McpServerType.LOCAL) {
-		const effectiveCwd = resolveMcpServerWorkingDirectory(config.cwd, defaultCwd);
-		return {
-			type: 'local',
-			command: config.command,
-			args: config.args ? [...config.args] : [],
-			tools: ['*'],
-			...(config.env && { env: toStringEnv(config.env) }),
-			...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-		};
-	}
-	return {
-		type: config.transport === 'sse' ? 'sse' : 'http',
-		url: config.url,
-		tools: ['*'],
-		...(config.headers && { headers: { ...config.headers } }),
-	};
-}
-
-/**
- * Ensures all env values are strings (the SDK requires `Record<string, string>`).
- */
-function toStringEnv(env: Record<string, string | number | null>): Record<string, string> {
-	const result: Record<string, string> = {};
-	for (const [key, value] of Object.entries(env)) {
-		if (value !== null) {
-			result[key] = String(value);
-		}
-	}
-	return result;
+	return toCopilotMcpServerConfiguration(config, config.type === McpServerType.LOCAL ? resolveMcpServerWorkingDirectory(config.cwd, defaultCwd) : undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -184,49 +162,24 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 	return configs;
 }
 
-/** A plugin's agents together with its on-disk location (if any). */
+/** The agents contributed by a plugin. */
 export interface IPluginAgentsForSdk {
-	readonly pluginDir?: URI;
 	readonly agents: readonly INamedPluginResource[];
 }
 
 /**
  * Builds the SDK's `customAgents` config for a session.
  *
- * Agents contributed by plugins materialized into an on-disk (file-scheme)
- * directory are normally left out of `customAgents` and discovered by the SDK
- * through `pluginDirectories` instead, to avoid duplicates. However, the SDK
- * validates the session-start `agent:` option against `customAgents` *by name
- * only* — it does NOT consult `pluginDirectories`. So a selected plugin or
- * extension agent (e.g. one chosen in the agent picker) would otherwise fail
- * with "Custom agent '<name>' not found". This forces the resolved selection
- * into `customAgents` so it can be activated, while every other file-dir agent
- * continues to load via `pluginDirectories`.
+ * The SDK treats an explicit `customAgents` array, including an empty one, as
+ * the complete agent catalog and does not merge agents discovered from
+ * `pluginDirectories`. VS Code always contributes built-in agents explicitly,
+ * so every enabled plugin agent must be projected here as well.
  */
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
-	resolvedAgentName: string | undefined,
 	fileService: IFileService,
 ): Promise<CustomAgentConfig[]> {
-	const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
-	const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), fileService);
-	if (resolvedAgentName && !customAgents.some(agent => agent.name === resolvedAgentName)) {
-		const selectedAgents = plugins.flatMap(p => p.agents).filter(agent => agent.name === resolvedAgentName);
-		for (const config of await toSdkCustomAgents(selectedAgents, fileService)) {
-			if (!customAgents.some(agent => agent.name === config.name)) {
-				customAgents.push(config);
-			}
-		}
-	}
-	return customAgents;
-}
-
-/**
- * Projects parsed plugin agents into their protocol-level
- * {@link AgentCustomization} shape.
- */
-export function toAgentCustomizations(agents: readonly IParsedAgent[]): AgentCustomization[] {
-	return agents.map(a => a.customization);
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
 }
 
 /**
@@ -408,7 +361,7 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
-		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
 		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
@@ -431,7 +384,10 @@ export function toSdkHooks(
 	const preToolCommands = commandsByKey.get('onPreToolUse');
 	if (preToolCommands?.length || editTrackingHooks) {
 		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
-			await editTrackingHooks?.onPreToolUse(input);
+			const internalResult = await editTrackingHooks?.onPreToolUse(input);
+			if (internalResult !== undefined) {
+				return internalResult;
+			}
 			return runHookCommands(preToolCommands, input);
 		};
 	}
@@ -521,7 +477,12 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			format: p.format,
 			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
+			skills: p.skills.map(s => ({
+				uri: s.uri.toString(),
+				name: s.name,
+				disableModelInvocation: s.disableModelInvocation,
+				disableUserInvocation: s.disableUserInvocation,
+			})),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
 			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));

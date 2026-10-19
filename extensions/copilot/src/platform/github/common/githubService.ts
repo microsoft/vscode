@@ -626,7 +626,7 @@ export class BaseOctoKitService {
 			return this.searchUserRepositoriesWithToken(token, trimmedQuery);
 		}
 
-		// Fetch the most recently updated repos with push access
+		// Fetch the most recently updated repositories the user can access
 		const result = await this._makeGHAPIRequest(
 			'user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member',
 			'GET',
@@ -639,9 +639,7 @@ export class BaseOctoKitService {
 		if (!result || !Array.isArray(result)) {
 			return [];
 		}
-
 		return result
-			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name
@@ -670,9 +668,7 @@ export class BaseOctoKitService {
 		if (!result || !Array.isArray(result.items)) {
 			return [];
 		}
-
 		return result.items
-			.filter((repo: { permissions?: { push?: boolean } }) => repo.permissions?.push)
 			.map((repo: { name: string; owner: { login: string } }) => ({
 				owner: repo.owner.login,
 				name: repo.name

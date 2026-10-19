@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
-import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorResolverService, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorMatches, IEditorResolverService, isUnconfiguredUniversalOptionalEditorMatch, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { fillActiveEditorSelection, IEditorGroupView } from './editor.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from './editorCommands.js';
 
 /**
@@ -24,13 +24,14 @@ export interface IAvailableEditorTypes {
 	readonly originalResource?: URI;
 	readonly modifiedResource?: URI;
 	readonly currentId: string;
+	readonly editorMatches: EditorMatches;
 	readonly editors: RegisteredEditorInfo[];
 }
 
 /**
  * Determines the editors available for the given active editor's resource. Returns `undefined` when
  * there is nothing meaningful to switch between: no resource, only the default text editor, or an
- * exclusive editor (e.g. the hex editor, for which `getEditors` returns an empty list).
+ * exclusive editor (e.g. the hex editor).
  */
 export function getAvailableEditorTypes(activeEditor: EditorInput | null | undefined, editorResolverService: IEditorResolverService, hiddenEditorIds?: readonly string[]): IAvailableEditorTypes | undefined {
 	const standardDiffResources = isDiffEditorInput(activeEditor) ? {
@@ -44,12 +45,14 @@ export function getAvailableEditorTypes(activeEditor: EditorInput | null | undef
 	}
 	const currentId = activeEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
 	const hiddenEditorIdSet = new Set(hiddenEditorIds);
-	const editors = editorResolverService.getEditors(resource, {
-		excludeUnconfiguredUniversalOptionalEditors: true,
-		currentEditorId: currentId,
+	const editorMatches = editorResolverService.getEditorMatches(resource, {
 		isDiffEditor: !!diffResources,
-	}).filter(editor => editor.id === currentId || !hiddenEditorIdSet.has(editor.id));
-	if (editors.length <= 1) {
+	});
+	const editors = editorMatches.matches
+		.filter(match => !isUnconfiguredUniversalOptionalEditorMatch(match) || match.editor.id === currentId)
+		.map(match => match.editor)
+		.filter(editor => editor.id === currentId || !hiddenEditorIdSet.has(editor.id));
+	if (editorMatches.hasExclusiveMatch || editors.length <= 1) {
 		return undefined;
 	}
 	return {
@@ -58,6 +61,7 @@ export function getAvailableEditorTypes(activeEditor: EditorInput | null | undef
 		originalResource: diffResources?.original,
 		modifiedResource: diffResources?.modified,
 		currentId,
+		editorMatches,
 		editors
 	};
 }
@@ -80,11 +84,19 @@ export function editorTypeDisplayLabel(editor: RegisteredEditorInfo, isDiffEdito
  */
 export function createEditorTypeActions(
 	available: IAvailableEditorTypes,
+	group: IEditorGroupView,
 	editorResolverService: IEditorResolverService,
 	commandService: ICommandService,
 	editorService: IEditorService
 ): IAction[] {
-	const glob = `*${extUri.extname(available.resource)}`;
+	const defaultRule = available.editorMatches.defaultRule;
+	const glob = defaultRule.associationPattern;
+	const sourceEditor = group.activeEditor;
+	const sourceInput = sourceEditor?.toUntyped();
+	const reopen = (editorId: string) => commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editorId, {
+		groupId: group.id,
+		editorIndex: sourceEditor ? group.getIndexOfEditor(sourceEditor) : -1
+	});
 
 	// Show the contributing extension in parentheses, but only for extension-provided editors.
 	// Built-in providers share this localized label, so their (redundant) source is omitted.
@@ -101,21 +113,35 @@ export function createEditorTypeActions(
 		id: editor.id,
 		label: labelWithSource(editor),
 		checked: editor.id === available.currentId,
-		run: () => commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id)
+		run: () => reopen(editor.id),
+		alt: editor.id === available.currentId && sourceEditor?.hasCapability(EditorInputCapabilities.Singleton) ? undefined : toAction({
+			id: `editorType.openToSide.${editor.id}`,
+			label: localize('editorType.openToSide', "{0} (Open to the Side)", labelWithSource(editor)),
+			enabled: !!sourceInput,
+			run: () => {
+				if (!sourceEditor || !sourceInput) {
+					throw new Error('The source editor cannot be opened to the side.');
+				}
+				group.groupsView.activateGroup(group);
+				return editorService.openEditor({
+					...sourceInput,
+					options: fillActiveEditorSelection(group, sourceEditor, { ...sourceInput.options, override: editor.id, pinned: true, preserveFocus: false })
+				}, SIDE_GROUP);
+			}
+		})
 	}));
 
 	// Persist the chosen editor as the default for this file type. For diffs this updates the
 	// specialized `workbench.diffEditorAssociations` setting instead of the general one. The
-	// currently configured default (if any) is checked. Setting a default also reopens the active
+	// effective default is checked. Setting a default also reopens the active
 	// editor with that type so the change takes effect immediately.
-	const configuredDefault = editorResolverService.getConfiguredDefaultEditor(available.resource, available.isDiffEditor);
 	const setDefaultActions: IAction[] = available.editors.map(editor => toAction({
 		id: `setDefault.${editor.id}`,
 		label: labelWithSource(editor),
-		checked: editor.id === configuredDefault,
+		checked: editor.id === defaultRule.editor.id,
 		run: () => {
-			editorResolverService.updateUserAssociations(glob, editor.id, available.isDiffEditor);
-			return commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id);
+			editorResolverService.setDefaultEditor(available.resource, editor.id, available.isDiffEditor);
+			return reopen(editor.id);
 		}
 	}));
 	const setDefaultSubmenu = new SubmenuAction(

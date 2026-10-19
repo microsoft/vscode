@@ -16,7 +16,7 @@ import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../.
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
+import { addDisposableListener, append, EventType, isAncestor, $, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -176,7 +176,7 @@ export class ActivitybarPart extends Part {
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
 	private _isCompact: boolean;
-	private isInactive: boolean;
+	private activeWindowId: number | undefined;
 
 	constructor(
 		private readonly location: ViewContainerLocation,
@@ -191,7 +191,6 @@ export class ActivitybarPart extends Part {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this._isCompact = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_COMPACT) ?? false;
-		this.isInactive = !this.hostService.hasFocus;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_COMPACT)) {
@@ -213,8 +212,16 @@ export class ActivitybarPart extends Part {
 			}
 		}));
 
-		this._register(this.hostService.onDidChangeFocus(focused => this.setInactive(!focused)));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => this.setInactive(windowId !== mainWindow.vscodeWindowId)));
+		const updateStyles = () => {
+			if (this.element) {
+				this.updateStyles();
+			}
+		};
+		this._register(this.hostService.onDidChangeFocus(updateStyles));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			this.activeWindowId = windowId;
+			updateStyles();
+		}));
 
 		// Showing or hiding the primary side bar decides whether the rail connects to it or
 		// stands alone, which can change the gutter it reserves (see `needsFloatingLeadingGap`).
@@ -223,17 +230,6 @@ export class ActivitybarPart extends Part {
 				this._onDidChange.fire(undefined);
 			}
 		}));
-	}
-
-	private setInactive(inactive: boolean): void {
-		if (this.isInactive === inactive) {
-			return;
-		}
-
-		this.isInactive = inactive;
-		if (this.element) {
-			this.updateStyles();
-		}
 	}
 
 	private updateCompactStyle(): void {
@@ -293,7 +289,7 @@ export class ActivitybarPart extends Part {
 				activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 			}),
 			overflowActionSize: compositeSize,
-		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, true);
+		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, { actionHeight: this.actionHeight, actionGap: this.actionGap });
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -331,7 +327,9 @@ export class ActivitybarPart extends Part {
 		const container = assertReturnsDefined(this.getContainer());
 		let backgroundColor = ACTIVITY_BAR_BACKGROUND;
 		if (this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true) {
-			backgroundColor = this.isInactive ? MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND : MODERN_ACTIVITY_BAR_BACKGROUND;
+			const isWindowActive = this.activeWindowId === undefined ? mainWindow.document.hasFocus() : this.activeWindowId === mainWindow.vscodeWindowId;
+			const isInactive = !this.hostService.hasFocus || !isWindowActive;
+			backgroundColor = isInactive ? MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND : MODERN_ACTIVITY_BAR_BACKGROUND;
 		}
 		const background = this.getColor(backgroundColor) || '';
 		container.style.backgroundColor = background;
@@ -432,6 +430,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	private menuBarContainer: HTMLElement | undefined;
 	private compositeBarContainer: HTMLElement | undefined;
 	private readonly globalCompositeBar: GlobalCompositeBar | undefined;
+	private lastLayoutDimensions: Dimension | undefined;
 
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
@@ -440,7 +439,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		options: IPaneCompositeBarOptions,
 		part: Parts,
 		paneCompositePart: IPaneCompositePart,
-		showGlobalActivities: boolean,
+		private readonly globalActivities: { readonly actionHeight: number; readonly actionGap: number } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService,
@@ -461,8 +460,13 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				}
 			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
 
-		if (showGlobalActivities) {
+		if (globalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));
+			this._register(this.globalCompositeBar.onDidChange(() => {
+				if (this.lastLayoutDimensions) {
+					this.layout(this.lastLayoutDimensions.width, this.lastLayoutDimensions.height);
+				}
+			}));
 		}
 
 		// Register for configuration changes
@@ -585,6 +589,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	override layout(width: number, height: number): void {
+		this.lastLayoutDimensions = new Dimension(width, height);
+
 		if (this.menuBarContainer) {
 			if (this.options.orientation === ActionsOrientation.VERTICAL) {
 				height -= this.menuBarContainer.clientHeight;
@@ -592,9 +598,9 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				width -= this.menuBarContainer.clientWidth;
 			}
 		}
-		if (this.globalCompositeBar) {
+		if (this.globalCompositeBar && this.globalActivities) {
 			if (this.options.orientation === ActionsOrientation.VERTICAL) {
-				height -= this.globalCompositeBar.element.clientHeight;
+				height -= this.globalCompositeBar.getHeight(this.globalActivities.actionHeight, this.globalActivities.actionGap);
 			} else {
 				width -= this.globalCompositeBar.element.clientWidth;
 			}

@@ -11,8 +11,10 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../common/agentService.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { parseAnnotationsUri } from '../common/annotationsUri.js';
 import { isSessionStatusArchived, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 const DEFAULT_SESSION_RESIDENCY_LIMIT = 10;
 const DEFAULT_SESSION_RELEASE_RETRY_MS = 30_000;
@@ -45,7 +47,7 @@ export interface IAgentSessionResidencyOptions {
 
 export class AgentSessionResidency extends Disposable {
 	private readonly _releaseInFlight = new Map<string, Promise<boolean>>();
-	private readonly _sessionsBeingDisposed = new Set<string>();
+	private readonly _sessionsBeingDisposed = new Map<string, number>();
 	private readonly _recency = new LinkedMap<string, URI>();
 	private readonly _reconciler = new Sequencer();
 	private readonly _releaseRetries = this._register(new DisposableResourceMap<IDisposable>());
@@ -58,6 +60,7 @@ export class AgentSessionResidency extends Disposable {
 		private readonly _options: IAgentSessionResidencyOptions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._limit = _options.limit ?? readNonNegativeIntegerEnv(AgentHostSessionResidencyLimitEnvVar, DEFAULT_SESSION_RESIDENCY_LIMIT);
@@ -79,7 +82,10 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	touch(resource: URI): void {
-		const session = resolveAgentHostSession(resource);
+		const session = this._getResidencySession(resource);
+		if (!session) {
+			return;
+		}
 		this._releaseRetries.deleteAndDispose(session);
 		const sessionKey = session.toString();
 		if (!this._stateManager.getSessionState(sessionKey)
@@ -90,14 +96,46 @@ export class AgentSessionResidency extends Disposable {
 		this._recency.set(sessionKey, session, Touch.AsNew);
 	}
 
+	private _getResidencySession(resource: URI): URI | undefined {
+		// Annotation ownership does not imply a dependency on the resident conversation; changesets still do.
+		return parseAnnotationsUri(resource.toString()) ? undefined : this._resolveSession(resource);
+	}
+
+	private _resolveSession(resource: URI): URI | undefined {
+		return resolveAgentHostSession(resource, chat => this._chatOwnership.getChatOwner(chat));
+	}
+
+	private _hasResidencySubscribers(resource: URI): boolean {
+		const sessionKey = this._resolveSession(resource)?.toString();
+		if (sessionKey === undefined) {
+			return false;
+		}
+		for (const subscribedResource of this._subscriptions.subscribedResources) {
+			// Subscribed chats resolve through the owner recorded at subscribe time.
+			const subscribedSession = parseAnnotationsUri(subscribedResource.toString()) ? undefined : this._subscriptions.resolveSubscribedSession(subscribedResource);
+			if (subscribedSession?.toString() === sessionKey) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	reconcile(): Promise<void> {
 		return this._reconciler.queue(() => this._doReconcile());
 	}
 
+	isBeingDisposed(resource: URI | string): boolean {
+		const session = this._resolveSession(typeof resource === 'string' ? URI.parse(resource) : resource);
+		return !!session && this._sessionsBeingDisposed.has(session.toString());
+	}
+
 	async runDisposal<T>(resource: URI, task: () => Promise<T>): Promise<T> {
-		const session = resolveAgentHostSession(resource);
+		const session = this._resolveSession(resource);
+		if (!session) {
+			throw new Error(`Cannot dispose a resource with no recorded session: ${resource.toString()}`);
+		}
 		const sessionKey = session.toString();
-		this._sessionsBeingDisposed.add(sessionKey);
+		this._sessionsBeingDisposed.set(sessionKey, (this._sessionsBeingDisposed.get(sessionKey) ?? 0) + 1);
 		this._recency.delete(sessionKey);
 		this._releaseRetries.deleteAndDispose(session);
 		try {
@@ -110,13 +148,21 @@ export class AgentSessionResidency extends Disposable {
 				throw error;
 			}
 		} finally {
-			this._sessionsBeingDisposed.delete(sessionKey);
+			const remainingDisposals = (this._sessionsBeingDisposed.get(sessionKey) ?? 1) - 1;
+			if (remainingDisposals > 0) {
+				this._sessionsBeingDisposed.set(sessionKey, remainingDisposals);
+			} else {
+				this._sessionsBeingDisposed.delete(sessionKey);
+			}
 			void this.reconcile();
 		}
 	}
 
 	async waitForRelease(resource: URI): Promise<void> {
-		await this._releaseInFlight.get(resolveAgentHostSession(resource).toString());
+		const session = this._getResidencySession(resource);
+		if (session) {
+			await this._releaseInFlight.get(session.toString());
+		}
 	}
 
 	private _residentCount(): number {
@@ -184,12 +230,15 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private async _tryRelease(resource: URI, expectedRecency: URI | undefined): Promise<boolean> {
-		const session = resolveAgentHostSession(resource);
+		const session = this._resolveSession(resource);
+		if (!session) {
+			return false;
+		}
 		const sessionKey = session.toString();
 		if (!this._isReleaseRequired(sessionKey, expectedRecency)
 			|| this._sessionsBeingDisposed.has(sessionKey)
 			|| this._releaseRetries.has(session)
-			|| this._subscriptions.hasSessionSubscribers(session)
+			|| this._hasResidencySubscribers(session)
 			|| this._delegate.isReleaseBlocked(session)
 			|| this._stateManager.hasActiveTurn(sessionKey)
 			|| this._options.holdsSession(sessionKey)) {
@@ -255,7 +304,7 @@ export class AgentSessionResidency extends Disposable {
 		return !this._store.isDisposed
 			&& this._isReleaseRequired(sessionKey, expectedRecency)
 			&& !this._sessionsBeingDisposed.has(sessionKey)
-			&& !this._subscriptions.hasSessionSubscribers(URI.parse(sessionKey))
+			&& !this._hasResidencySubscribers(URI.parse(sessionKey))
 			&& !this._delegate.isReleaseBlocked(URI.parse(sessionKey))
 			&& !this._stateManager.hasActiveTurn(sessionKey)
 			&& !this._options.holdsSession(sessionKey);
@@ -266,7 +315,7 @@ export class AgentSessionResidency extends Disposable {
 		if (this._store.isDisposed
 			|| !this._isReleaseRequired(sessionKey, expectedRecency)
 			|| this._sessionsBeingDisposed.has(sessionKey)
-			|| this._subscriptions.hasSessionSubscribers(session)) {
+			|| this._hasResidencySubscribers(session)) {
 			return;
 		}
 		this._releaseRetries.set(session, disposableTimeout(() => {

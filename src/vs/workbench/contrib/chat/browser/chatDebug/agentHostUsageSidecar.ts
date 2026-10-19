@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readUsageInfoMeta } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../base/common/map.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -14,8 +16,10 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../platfor
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, NotificationType, type ActionEnvelope, type ChatUsageAction, type INotification, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { isDefaultChatUri, parseChatUri, readUsageInfoMeta, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { isAhpChatChannel, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { agentModelCallMetaKey, readAgentModelCallDetail, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
+import { findChatOwnerInSessionRecords, findChatOwnerInSubscribedState, type AgentHostChatOwnerSource } from '../agentSessions/agentHost/agentHostChatOwner.js';
 
 /**
  * Directory (under the client's user data home) that holds the per-session
@@ -23,6 +27,7 @@ import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
  * folders and never written into the CLI's `~/.copilot` tree.
  */
 const USAGE_DIR = 'agentHostUsage';
+const MAX_USAGE_BYTES = 2 * 1024 * 1024;
 
 /**
  * One captured Copilot `ChatUsage` action, i.e. the usage report for a single
@@ -31,9 +36,12 @@ const USAGE_DIR = 'agentHostUsage';
  * last request's input/cache per turn, and `events.jsonl` only records
  * `outputTokens` until `session.shutdown`).
  */
-export interface IAgentHostUsageRecord {
+export interface IAgentHostUsageRecord extends Partial<Omit<IAgentModelCallDiagnostics, 'schemaVersion'>> {
+	readonly schemaVersion?: 2;
+	readonly kind?: 'modelCall';
+	readonly correlation?: 'exact' | 'unresolved';
 	/** Turn the model call belongs to. */
-	readonly turnId: string;
+	readonly turnId?: string;
 	/** Model that served the call, if reported. */
 	readonly model?: string;
 	/** Input tokens for this single call. */
@@ -66,20 +74,30 @@ function sanitizeSessionId(rawSessionId: string): string {
 export async function readAgentHostUsageRecords(fileService: IFileService, uri: URI): Promise<IAgentHostUsageRecord[]> {
 	let text: string;
 	try {
-		const content = await fileService.readFile(uri);
+		const content = await fileService.readFile(uri, { limits: { size: MAX_USAGE_BYTES } });
 		text = content.value.toString();
 	} catch {
 		return [];
 	}
 	const records: IAgentHostUsageRecord[] = [];
-	for (const line of text.split('\n')) {
+	for (const line of text.split('\n').slice(-2049)) {
 		const trimmed = line.trim();
 		if (!trimmed) {
 			continue;
 		}
 		try {
 			const parsed = JSON.parse(trimmed);
-			if (parsed && typeof parsed.turnId === 'string' && typeof parsed.ts === 'string') {
+			if (parsed?.schemaVersion === 2) {
+				const modelCall = readAgentModelCallDiagnostics({ _meta: { [agentModelCallMetaKey]: { ...parsed, schemaVersion: 1 } } });
+				if (modelCall && typeof parsed.ts === 'string' && parsed.ts.length <= 64) {
+					records.push({
+						...modelCall, schemaVersion: 2, kind: 'modelCall', correlation: modelCall.turnId ? 'exact' : 'unresolved', ts: parsed.ts,
+						totalNanoAiu: typeof parsed.totalNanoAiu === 'number' && Number.isFinite(parsed.totalNanoAiu) && parsed.totalNanoAiu >= 0 ? parsed.totalNanoAiu : undefined,
+					});
+				}
+				continue;
+			}
+			if (parsed && parsed.schemaVersion === undefined && typeof parsed.turnId === 'string' && typeof parsed.ts === 'string') {
 				records.push(parsed as IAgentHostUsageRecord);
 			}
 		} catch {
@@ -95,7 +113,10 @@ export async function readAgentHostUsageRecords(fileService: IFileService, uri: 
  * {@link IAgentHostService} in production and by bare emitters in tests, so the
  * recorders don't depend on the full service.
  */
-type IAgentHostActionSource = Pick<IAgentHostService, 'onDidAction' | 'onDidNotification'>;
+type IAgentHostActionSource = Pick<IAgentHostService, 'onDidAction' | 'onDidNotification'> & AgentHostChatOwnerSource;
+
+/** The host that emitted an action, used to read its session state and records. */
+type IAgentHostSessionCatalog = AgentHostChatOwnerSource;
 
 /**
  * Shared client-side plumbing for recorders that observe agent-host protocol
@@ -160,7 +181,7 @@ abstract class AgentHostActionRecorder extends Disposable {
 		super();
 
 		// Local agent-host sessions.
-		this._register(agentHostService.onDidAction(envelope => this._dispatch(envelope)));
+		this._register(agentHostService.onDidAction(envelope => this._dispatch(envelope, agentHostService)));
 		this._register(agentHostService.onDidNotification(notification => this._onNotification(notification)));
 
 		// Remote agent-host connections (rebuilt as connections come and go).
@@ -169,11 +190,11 @@ abstract class AgentHostActionRecorder extends Disposable {
 	}
 
 	/** Gate on the enable predicate before handing the action to the subclass. */
-	private _dispatch(envelope: ActionEnvelope): void {
+	private _dispatch(envelope: ActionEnvelope, catalog: IAgentHostSessionCatalog): void {
 		if (!this._isEnabled()) {
 			return;
 		}
-		this._onAction(envelope);
+		this._onAction(envelope, catalog);
 	}
 
 	/**
@@ -229,7 +250,7 @@ abstract class AgentHostActionRecorder extends Disposable {
 	}
 
 	/** Handle a single action from any (local or remote) connection. */
-	protected abstract _onAction(envelope: ActionEnvelope): void;
+	protected abstract _onAction(envelope: ActionEnvelope, catalog: IAgentHostSessionCatalog): void;
 
 	/** The sidecar file owned by this recorder for the given raw session id. */
 	protected abstract _sidecarUri(rawSessionId: string): URI;
@@ -253,7 +274,7 @@ abstract class AgentHostActionRecorder extends Disposable {
 			}
 			this._remoteConnections.set(authority, connection);
 			const store = new DisposableStore();
-			store.add(connection.onDidAction(envelope => this._dispatch(envelope)));
+			store.add(connection.onDidAction(envelope => this._dispatch(envelope, connection)));
 			store.add(connection.onDidNotification(notification => this._onNotification(notification)));
 			this._remoteListeners.set(authority, store);
 		}
@@ -282,47 +303,113 @@ abstract class AgentHostActionRecorder extends Disposable {
  */
 export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 
+	private readonly _seenCalls = new LRUCache<string, true>(4096);
+	private readonly _retention = new LRUCache<string, { count: number; size: number }>(128);
+	/** Default chat -> owning session, cached only for chats a host has listed. */
+	private readonly _defaultChatOwners = new LRUCache<string, string>(1024);
+	/** Chats a held or listed session names as one of its non-default chats, so their usage is not recorded. */
+	private readonly _nonDefaultChats = new LRUCache<string, true>(1024);
+	/** Per-host queue keeping that host's records in arrival order while owners resolve. */
+	private readonly _recordingByHost = new Map<IAgentHostSessionCatalog, Promise<void>>();
+
 	protected _sidecarUri(rawSessionId: string): URI {
 		return buildAgentHostUsageUri(this._baseDir, rawSessionId);
 	}
 
-	protected _onAction(envelope: ActionEnvelope): void {
+	protected _onAction(envelope: ActionEnvelope, catalog: IAgentHostSessionCatalog): void {
 		const action = envelope.action;
 		if (action.type !== ActionType.ChatUsage) {
 			return;
 		}
-		// Parent aggregate only (skips the sub-agent-scope duplicate on a
-		// sub-agent chat channel, which maps to the same session).
-		if (!isDefaultChatUri(envelope.channel)) {
+		// Parent aggregate only: the session's default chat (skips the sub-agent-scope
+		// duplicate on a sub-agent chat channel, which maps to the same session).
+		if (!isAhpChatChannel(envelope.channel) || this._nonDefaultChats.get(envelope.channel)) {
 			return;
 		}
 		const usage = (action as ChatUsageAction).usage;
 		const meta = readUsageInfoMeta(usage);
+		const modelCall = readAgentModelCallDiagnostics(usage);
+		const callDetail = readAgentModelCallDetail(usage);
 		// Skip the async re-emit (same tokens, enriched with context attribution).
 		if (meta.contextAttribution) {
 			return;
 		}
-		const session = parseChatUri(envelope.channel)?.session;
-		if (!session) {
-			return;
-		}
-		// The backend chat channel encodes a `copilotcli:/<rawId>` session URI;
-		// `getCopilotCliSessionRawId` yields the same raw id the reader derives
-		// from the client session resource.
-		const rawId = getCopilotCliSessionRawId(URI.parse(session));
-		if (!rawId) {
-			return;
-		}
 		const record: IAgentHostUsageRecord = {
-			turnId: (action as ChatUsageAction).turnId,
+			...callDetail,
+			turnId: modelCall ? modelCall.turnId : (action as ChatUsageAction).turnId,
 			model: usage.model,
 			inputTokens: usage.inputTokens,
 			outputTokens: usage.outputTokens,
 			cacheReadTokens: usage.cacheReadTokens,
 			totalNanoAiu: meta.copilotUsage?.totalNanoAiu,
+			...(modelCall ? { ...modelCall, schemaVersion: 2, kind: 'modelCall', correlation: modelCall.turnId ? 'exact' : 'unresolved' } as const : {}),
 			ts: new Date().toISOString(),
 		};
-		this._append(rawId, record);
+		const chat = envelope.channel;
+		const previous = this._recordingByHost.get(catalog) ?? Promise.resolve();
+		const next = previous.then(async () => {
+			// Re-checked when the step runs, so a burst waits for one lookup.
+			if (this._nonDefaultChats.get(chat)) {
+				return;
+			}
+			const session = this._defaultChatOwners.get(chat) ?? await this._resolveDefaultChatOwner(catalog, chat);
+			// The default chat's owner is a `copilotcli:/<rawId>` session;
+			// `getCopilotCliSessionRawId` yields the same raw id the reader derives
+			// from the client session resource.
+			if (session === undefined) {
+				return;
+			}
+			const rawId = getCopilotCliSessionRawId(URI.parse(session));
+			if (!rawId) {
+				return;
+			}
+			if (modelCall) {
+				const key = `${modelCall.sdkSessionId}\0${modelCall.apiCallId ?? modelCall.eventId}`;
+				if (this._seenCalls.has(key)) {
+					return;
+				}
+				this._seenCalls.set(key, true);
+			}
+			this._append(rawId, record);
+		}).catch(err => this._logService.trace(`[${this.constructor.name}] failed to record usage for ${chat}: ${toErrorMessage(err)}`));
+		this._recordingByHost.set(catalog, next);
+		void next.finally(() => {
+			if (this._recordingByHost.get(catalog) === next) {
+				this._recordingByHost.delete(catalog);
+			}
+		});
+	}
+
+	/** Settles once every received action has been handed to its sidecar queue. */
+	protected async whenRecorded(): Promise<void> {
+		await Promise.all(this._recordingByHost.values());
+	}
+
+	/**
+	 * Finds the session whose default chat this is: held session state first,
+	 * then the host's session records. Remembers a chat that a session names as
+	 * a non-default chat. A chat no session names yet, or a lookup that fails,
+	 * is not remembered, so a later action looks it up again.
+	 */
+	private async _resolveDefaultChatOwner(catalog: IAgentHostSessionCatalog, chat: string): Promise<string | undefined> {
+		let owner = findChatOwnerInSubscribedState(catalog, chat);
+		if (owner === undefined) {
+			try {
+				owner = await findChatOwnerInSessionRecords(catalog, chat);
+			} catch (err) {
+				this._logService.trace(`[${this.constructor.name}] failed to read session records: ${toErrorMessage(err)}`);
+			}
+		}
+		if (owner === undefined) {
+			return undefined;
+		}
+		if (!owner.isDefaultChat) {
+			this._nonDefaultChats.set(chat, true);
+			return undefined;
+		}
+		this._nonDefaultChats.delete(chat);
+		this._defaultChatOwners.set(chat, owner.session);
+		return owner.session;
 	}
 
 	/**
@@ -335,7 +422,29 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 	private _append(rawId: string, record: IAgentHostUsageRecord): void {
 		const uri = this._sidecarUri(rawId);
 		const line = JSON.stringify(record) + '\n';
-		void this.queued(rawId, () => this._fileService.writeFile(uri, VSBuffer.fromString(line), { append: true }));
+		void this.queued(rawId, async () => {
+			const retained = this._retention.get(rawId);
+			const buffer = VSBuffer.fromString(line);
+			if (!retained || retained.count >= 2048 || retained.size + buffer.byteLength > MAX_USAGE_BYTES) {
+				let lines: string[] = [];
+				try {
+					const existing = await this._fileService.readFile(uri, { limits: { size: MAX_USAGE_BYTES } });
+					lines = existing.value.toString().split('\n').filter(Boolean).slice(-1023);
+				} catch {
+					// Missing or oversized legacy files start a new bounded diagnostic window.
+				}
+				let compacted = VSBuffer.fromString([...lines, line.trimEnd()].join('\n') + '\n');
+				while (compacted.byteLength > MAX_USAGE_BYTES && lines.length > 0) {
+					lines = lines.slice(Math.ceil(lines.length / 2));
+					compacted = VSBuffer.fromString([...lines, line.trimEnd()].join('\n') + '\n');
+				}
+				await this._fileService.writeFile(uri, compacted);
+				this._retention.set(rawId, { count: lines.length + 1, size: compacted.byteLength });
+			} else {
+				await this._fileService.writeFile(uri, buffer, { append: true });
+				this._retention.set(rawId, { count: retained.count + 1, size: retained.size + buffer.byteLength });
+			}
+		});
 	}
 }
 

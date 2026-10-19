@@ -17,10 +17,6 @@ export class WebSocketAgentHostContribution extends EntryDrivenProviderContribut
 
 	protected readonly _entryType = RemoteAgentHostEntryType.WebSocket;
 
-	protected override get _clearConnectionOnRemoval(): boolean {
-		return true;
-	}
-
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@IConfigurationService configurationService: IConfigurationService,

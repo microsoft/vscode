@@ -10,6 +10,7 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 export class AgentHostSyncOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -26,7 +27,7 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostSyncOperationHandler, getSessionState, (sessionKey: string) => this._onSynced(sessionKey));
+		const handler = this._instantiationService.createInstance(AgentHostSyncOperationHandler, getSessionState, (sessionKey: string, source?: IAgentHostCredentialSource) => this._onSynced(sessionKey, source));
 		store.add(registry.registerChangesetOperationHandler(AgentHostSyncOperationHandler.OPERATION_SYNC, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
@@ -39,14 +40,27 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 			return undefined;
 		}
 
-		// No upstream branch or no outgoing changes
-		if (!gitState?.upstreamBranchName || (gitState?.outgoingChanges ?? 0) === 0) {
+		// No upstream branch
+		if (!gitState?.upstreamBranchName) {
 			return undefined;
 		}
 
+		// No incoming/outgoing changes
+		const incomingChanges = gitState?.incomingChanges ?? 0;
+		const outgoingChanges = gitState?.outgoingChanges ?? 0;
+		if (incomingChanges === 0 && outgoingChanges === 0) {
+			return undefined;
+		}
+
+		const label = incomingChanges > 0
+			? outgoingChanges > 0
+				? localize('agentHost.changeset.syncIncomingOutgoing', "Sync Changes {0}↓ {1}↑", incomingChanges, outgoingChanges)
+				: localize('agentHost.changeset.syncIncoming', "Sync Changes {0}↓", incomingChanges)
+			: localize('agentHost.changeset.sync', "Sync Changes {0}↑", outgoingChanges);
+
 		return [{
 			id: AgentHostSyncOperationHandler.OPERATION_SYNC,
-			label: localize('agentHost.changeset.sync', "Sync Changes {0}↑", gitState.outgoingChanges),
+			label,
 			icon: 'sync',
 			group: 'sync',
 			scopes: [ChangesetOperationScope.Changeset],
@@ -54,8 +68,8 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		} satisfies ChangesetOperation];
 	}
 
-	private async _onSynced(sessionKey: string): Promise<void> {
+	private async _onSynced(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
 		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey);
+		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }

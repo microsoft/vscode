@@ -5,49 +5,38 @@
 		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
 	},
 	"commands": {
-		"covered": 29,
-		"total": 32,
-		"percentage": 90.62,
-		"uncovered": [
-			"fetchAutomationRuns",
-			"listAutomationTriggerDefinitions",
-			"runAutomation"
-		]
+		"covered": 33,
+		"total": 33,
+		"percentage": 100,
+		"uncovered": []
 	},
 	"notifications": {
-		"covered": 4,
+		"covered": 5,
 		"total": 8,
-		"percentage": 50,
+		"percentage": 62.5,
 		"uncovered": [
-			"auth/required",
 			"otlp/exportMetrics",
 			"otlp/exportTraces",
 			"root/progress"
 		]
 	},
 	"actions": {
-		"covered": 76,
-		"total": 95,
-		"percentage": 80,
+		"covered": 94,
+		"total": 107,
+		"percentage": 87.85,
 		"uncovered": [
-			"automation/createRequested",
-			"automation/removed",
-			"automation/set",
-			"automation/updateRequested",
-			"automationRun/cancelRequested",
-			"automationRun/lifecycleChanged",
-			"automationRun/primarySessionChanged",
 			"automationRun/sessionRemoved",
-			"automationRun/sessionSet",
+			"canvas/stateChanged",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"chat/inputAnswerChanged",
+			"chat/canvasesChanged",
+			"chat/isArchivedChanged",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"session/activityChanged",
 			"session/defaultChatChanged",
-			"session/workingDirectoryReplaced",
+			"session/mcpServerBackgroundRequested",
 			"terminal/commandDetectionAvailable"
 		]
 	}

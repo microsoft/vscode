@@ -5,7 +5,14 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { RequestPriority } from '../../../../../platform/github/common/types.js';
+import { Issue } from '../../../../../platform/github/common/core/issues.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
@@ -15,32 +22,17 @@ import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestMo
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubIssueModelReferenceCollection, MIN_REFRESH_INTERVAL_MS } from '../../browser/models/githubIssueModel.js';
-import { GitHubRepositoryModel } from '../../browser/models/githubRepositoryModel.js';
 import { GitHubApiClient } from '../../browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../browser/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../browser/fetchers/githubPRCIFetcher.js';
-import { GitHubRepositoryFetcher } from '../../browser/fetchers/githubRepositoryFetcher.js';
-import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubRepository, IGitHubPullRequestReviewThread } from '../../common/types.js';
+import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../common/types.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../services/sessions/common/session.js';
 
 //#region Mock Fetchers
 
-class MockRepositoryFetcher {
-	nextResult: IGitHubRepository | undefined;
-	getRepositoryCalls = 0;
-	getRepositoryGate: DeferredPromise<void> | undefined;
-
-	async getRepository(_owner: string, _repo: string, _etag?: string): Promise<{ data: IGitHubRepository | undefined; statusCode: number; etag?: string }> {
-		this.getRepositoryCalls++;
-		await this.getRepositoryGate?.p;
-		if (!this.nextResult) {
-			throw new Error('No mock result');
-		}
-		return { data: this.nextResult, statusCode: 200 };
-	}
-}
-
-class MockPRFetcher {
+class MockPRFetcher extends mock<GitHubPRFetcher>() {
+	override readonly client = upcastPartial<GitHubApiClient>({ onDidChange: Event.None, generation: 0 });
+	readonly priorities: RequestPriority[] = [];
 	nextPR: IGitHubPullRequest | undefined;
 	nextReviews: IGitHubPullRequestReview[] = [];
 	nextThreads: IGitHubPullRequestReviewThread[] = [];
@@ -50,60 +42,72 @@ class MockPRFetcher {
 	getPullRequestGate: DeferredPromise<void> | undefined;
 	getReviewThreadsGate: DeferredPromise<void> | undefined;
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
+	postPullRequestReviewCommentCalls: { body: string; commitId: string; path: string; startLine: number | undefined; line: number; pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 	resolveThreadCalls: { threadId: string }[] = [];
 
-	async getPullRequest(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: IGitHubPullRequest | undefined; statusCode: number; etag?: string }> {
+	override async getPullRequest(_owner: string, _repo: string, _prNumber: number, _token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequest> {
 		this.getPullRequestCalls++;
+		this.priorities.push(options?.priority ?? 'interactive');
+		const result = this.nextPR;
 		await this.getPullRequestGate?.p;
-		if (!this.nextPR) {
+		if (!result) {
 			throw new Error('No mock PR');
 		}
-		return { data: this.nextPR, statusCode: 200 };
+		return result;
 	}
 
-	async getReviews(_owner: string, _repo: string, _prNumber: number, _etag?: string): Promise<{ data: readonly IGitHubPullRequestReview[] | undefined; statusCode: number; etag?: string }> {
+	override async getReviews(_owner: string, _repo: string, _prNumber: number, _token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubPullRequestReview[]> {
 		this.getReviewsCalls++;
-		return { data: this.nextReviews, statusCode: 200 };
+		this.priorities.push(options?.priority ?? 'interactive');
+		return this.nextReviews;
 	}
 
-	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
+	override async getReviewThreads(_owner: string, _repo: string, _prNumber: number, _token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequestReviewThread[]> {
 		this.getReviewThreadsCalls++;
+		this.priorities.push(options?.priority ?? 'interactive');
 		const result = this.nextThreads;
 		await this.getReviewThreadsGate?.p;
 		return result;
 	}
 
-	async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
+	override async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 		this.postReviewCommentCalls.push({ body, inReplyTo });
 		return makeComment(999, body);
 	}
 
-	async postIssueComment(_owner: string, _repo: string, _prNumber: number, body: string): Promise<IGitHubPRComment> {
+	override async postPullRequestReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, commitId: string, path: string, line: number, startLine: number | undefined, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
+		this.postPullRequestReviewCommentCalls.push({ body, commitId, path, startLine, line, pendingReview });
+	}
+
+	override async postIssueComment(_owner: string, _repo: string, _prNumber: number, body: string): Promise<IGitHubPRComment> {
 		this.postIssueCommentCalls.push({ body });
 		return makeComment(998, body);
 	}
 
-	async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
+	override async resolveThread(_owner: string, _repo: string, threadId: string): Promise<void> {
 		this.resolveThreadCalls.push({ threadId });
 	}
 }
 
-class MockCIFetcher {
+class MockCIFetcher extends mock<GitHubPRCIFetcher>() {
+	override readonly client = upcastPartial<GitHubApiClient>({ onDidChange: Event.None, generation: 0 });
+	readonly priorities: RequestPriority[] = [];
 	nextChecks: IGitHubCICheck[] = [];
 	getCheckRunsCalls = 0;
 	getCheckRunsGate: DeferredPromise<void> | undefined;
 
-	async getCheckRuns(_owner: string, _repo: string, _ref: string, _etag?: string): Promise<{ data: readonly IGitHubCICheck[] | undefined; statusCode: number; etag?: string }> {
+	override async getCheckRuns(_owner: string, _repo: string, _ref: string, _token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubCICheck[]> {
 		this.getCheckRunsCalls++;
+		this.priorities.push(options?.priority ?? 'interactive');
 		const result = this.nextChecks;
 		await this.getCheckRunsGate?.p;
-		return { data: result, statusCode: 200 };
+		return result;
 	}
 
-	async rerunFailedJobs(_owner: string, _repo: string, _runId: number): Promise<void> { }
+	override async rerunFailedJobs(_owner: string, _repo: string, _runId: number): Promise<void> { }
 
-	async getCheckRunAnnotations(_owner: string, _repo: string, _checkRunId: number): Promise<string> {
+	override async getCheckRunAnnotations(_owner: string, _repo: string, _checkRunId: number): Promise<string> {
 		return 'mock annotations';
 	}
 }
@@ -132,78 +136,6 @@ suite('Pull Request Icons', () => {
 	});
 });
 
-suite('GitHubRepositoryModel', () => {
-
-	const store = new DisposableStore();
-	let mockFetcher: MockRepositoryFetcher;
-	const logService = new NullLogService();
-
-	setup(() => {
-		mockFetcher = new MockRepositoryFetcher();
-	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('initial state is undefined', () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
-		assert.strictEqual(model.repository.get(), undefined);
-	});
-
-	test('refresh populates repository observable', async () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
-		mockFetcher.nextResult = {
-			owner: 'owner',
-			name: 'repo',
-			fullName: 'owner/repo',
-			defaultBranch: 'main',
-			isPrivate: false,
-			description: 'test',
-		};
-
-		await model.refresh();
-		assert.deepStrictEqual(model.repository.get(), mockFetcher.nextResult);
-	});
-
-	test('refresh shares an in-progress request', async () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
-		mockFetcher.nextResult = makeRepository();
-		mockFetcher.getRepositoryGate = new DeferredPromise<void>();
-
-		const firstRefresh = model.refresh();
-		const secondRefresh = model.refresh();
-
-		try {
-			assert.deepStrictEqual({
-				samePromise: firstRefresh === secondRefresh,
-				getRepositoryCalls: mockFetcher.getRepositoryCalls,
-			}, {
-				samePromise: true,
-				getRepositoryCalls: 1,
-			});
-		} finally {
-			await mockFetcher.getRepositoryGate.complete(undefined);
-		}
-
-		await firstRefresh;
-		assert.deepStrictEqual({
-			repository: model.repository.get(),
-			getRepositoryCalls: mockFetcher.getRepositoryCalls,
-		}, {
-			repository: mockFetcher.nextResult,
-			getRepositoryCalls: 1,
-		});
-	});
-
-	test('refresh handles errors gracefully', async () => {
-		const model = store.add(new GitHubRepositoryModel('owner', 'repo', mockFetcher as unknown as GitHubRepositoryFetcher, logService));
-		// No nextResult set, will throw
-		await model.refresh();
-		assert.strictEqual(model.repository.get(), undefined);
-	});
-});
-
 suite('GitHubPullRequestModel', () => {
 
 	const store = new DisposableStore();
@@ -217,6 +149,33 @@ suite('GitHubPullRequestModel', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('foreground refresh upgrades background work without publishing an older response', async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService));
+		const gate = new DeferredPromise<void>();
+		mockFetcher.nextPR = { ...makePR(), title: 'Older' };
+		mockFetcher.getPullRequestGate = gate;
+		const background = model.refresh({ priority: 'background' });
+		mockFetcher.getPullRequestGate = undefined;
+		mockFetcher.nextPR = { ...makePR(), title: 'Foreground' };
+		const foreground = model.refresh();
+		const joined = model.refresh({ priority: 'visible' });
+		await foreground;
+		await gate.complete();
+		await background;
+		assert.deepStrictEqual({ shared: joined === foreground, title: model.pullRequest.get()?.title, priorities: mockFetcher.priorities }, {
+			shared: true, title: 'Foreground', priorities: ['background', 'background', 'interactive', 'interactive'],
+		});
+	});
+
+	test('periodic PR refreshes use background priority', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		await model.refresh({ priority: 'visible' });
+		store.add(model.startPolling(10));
+		await timeout(10);
+		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'visible', 'background', 'background']);
+	}));
 
 	test('initial state has empty observables', () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
@@ -290,6 +249,18 @@ suite('GitHubPullRequestModel', () => {
 		assert.strictEqual(mockFetcher.postIssueCommentCalls.length, 1);
 	});
 
+	test('postReviewComment uses the pull request head and selected line', async () => {
+		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextReviews = [];
+
+		await model.postReviewComment('Please update this.', 'abc123', 'src/a.ts', 12, 10);
+
+		assert.deepStrictEqual(mockFetcher.postPullRequestReviewCommentCalls, [
+			{ body: 'Please update this.', commitId: 'abc123', path: 'src/a.ts', startLine: 10, line: 12, pendingReview: undefined }
+		]);
+	});
+
 	test('polling can be started and stopped', () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
 		// Just ensure no errors; actual polling behavior is timer-based
@@ -354,6 +325,32 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('foreground thread refresh upgrades a poll and ignores its late response', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher, logService));
+		const gate = new DeferredPromise<void>();
+		mockFetcher.nextThreads = [makeThread('older', 'old.ts')];
+		mockFetcher.getReviewThreadsGate = gate;
+		const background = model.refresh(false, { priority: 'background' });
+		mockFetcher.getReviewThreadsGate = undefined;
+		mockFetcher.nextThreads = [makeThread('foreground', 'new.ts')];
+		const foreground = model.refresh();
+		const joined = model.refresh(false, { priority: 'visible' });
+		await foreground;
+		await gate.complete();
+		await background;
+		assert.deepStrictEqual({ shared: joined === foreground, threads: model.reviewThreads.get().map(thread => thread.id), priorities: mockFetcher.priorities }, {
+			shared: true, threads: ['foreground'], priorities: ['background', 'interactive'],
+		});
+	});
+
+	test('periodic thread refreshes use background priority', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher, logService));
+		await model.refresh(false, { priority: 'visible' });
+		store.add(model.startPolling(10));
+		await timeout(10);
+		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'background']);
+	}));
 
 	test('initial state is empty', () => {
 		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
@@ -431,7 +428,7 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts')];
 		mockFetcher.getReviewThreadsGate = new DeferredPromise<void>();
 
-		const inProgressRefresh = model.refresh();
+		const inProgressRefresh = model.refresh(false, { priority: 'background' });
 		mockFetcher.nextThreads = [makeThread('thread-200', 'src/b.ts')];
 		const comment = model.postReviewComment('LGTM', 100);
 
@@ -443,10 +440,32 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			postReviewCommentCalls: mockFetcher.postReviewCommentCalls,
 			threads: model.reviewThreads.get().map(thread => thread.id),
 			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+			priorities: mockFetcher.priorities,
 		}, {
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-200'],
-			getReviewThreadsCalls: 2,
+			getReviewThreadsCalls: 3,
+			priorities: ['background', 'interactive', 'interactive'],
+		});
+	});
+
+	test('background polling joins a forced foreground refresh', async () => {
+		const model = store.add(new GitHubPullRequestReviewThreadsModel('owner', 'repo', 1, mockFetcher, logService));
+		mockFetcher.nextThreads = [makeThread('fresh', 'src/a.ts')];
+		mockFetcher.getReviewThreadsGate = new DeferredPromise<void>();
+		const forced = model.refresh(true);
+		mockFetcher.nextThreads = [];
+		const poll = model.refresh(false, { priority: 'background' });
+		await mockFetcher.getReviewThreadsGate.complete();
+		await Promise.all([forced, poll]);
+		assert.deepStrictEqual({
+			shared: forced === poll,
+			priorities: mockFetcher.priorities,
+			threads: model.reviewThreads.get().map(thread => thread.id),
+		}, {
+			shared: true,
+			priorities: ['interactive'],
+			threads: ['fresh'],
 		});
 	});
 
@@ -546,6 +565,35 @@ suite('GitHubPullRequestCIModel', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('foreground CI refresh upgrades a poll and ignores its late response', async () => {
+		const model = acquireModel();
+		const gate = new DeferredPromise<void>();
+		mockFetcher.nextChecks = [{
+			id: 1, name: 'Build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure,
+			startedAt: undefined, completedAt: undefined, detailsUrl: undefined,
+		}];
+		mockFetcher.getCheckRunsGate = gate;
+		const background = model.refresh(false, { priority: 'background' });
+		mockFetcher.getCheckRunsGate = undefined;
+		mockFetcher.nextChecks = [];
+		const foreground = model.refresh();
+		const joined = model.refresh(false, { priority: 'visible' });
+		await foreground;
+		await gate.complete();
+		await background;
+		assert.deepStrictEqual({ shared: joined === foreground, checks: model.checks.get(), priorities: mockFetcher.priorities }, {
+			shared: true, checks: [], priorities: ['background', 'interactive'],
+		});
+	});
+
+	test('periodic CI refreshes use background priority', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const model = acquireModel();
+		await model.refresh(false, { priority: 'visible' });
+		store.add(model.startPolling(10));
+		await timeout(10);
+		assert.deepStrictEqual(mockFetcher.priorities, ['visible', 'background']);
+	}));
+
 	test('initial state is empty', () => {
 		const model = acquireModel();
 		assert.deepStrictEqual(model.checks.get(), []);
@@ -633,7 +681,7 @@ suite('GitHubPullRequestCIModel', () => {
 		];
 		mockFetcher.getCheckRunsGate = new DeferredPromise<void>();
 
-		const inProgressRefresh = model.refresh();
+		const inProgressRefresh = model.refresh(false, { priority: 'background' });
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Success, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' },
 		];
@@ -646,9 +694,24 @@ suite('GitHubPullRequestCIModel', () => {
 		assert.deepStrictEqual({
 			checks: model.checks.get().map(check => check.conclusion),
 			getCheckRunsCalls: mockFetcher.getCheckRunsCalls,
+			priorities: mockFetcher.priorities,
 		}, {
 			checks: [GitHubCheckConclusion.Success],
-			getCheckRunsCalls: 2,
+			getCheckRunsCalls: 3,
+			priorities: ['background', 'interactive', 'interactive'],
+		});
+	});
+
+	test('background polling joins a forced foreground refresh', async () => {
+		const model = acquireModel();
+		mockFetcher.getCheckRunsGate = new DeferredPromise<void>();
+		const forced = model.refresh(true);
+		const poll = model.refresh(false, { priority: 'background' });
+		await mockFetcher.getCheckRunsGate.complete();
+		await Promise.all([forced, poll]);
+		assert.deepStrictEqual({ shared: forced === poll, priorities: mockFetcher.priorities }, {
+			shared: true,
+			priorities: ['interactive'],
 		});
 	});
 
@@ -683,46 +746,83 @@ suite('GitHubIssueModel', () => {
 	const store = new DisposableStore();
 	const logService = new NullLogService();
 
-	/**
-	 * Stands in for the low-level API client so the tests can observe the exact
-	 * `If-None-Match` value each request carries and replay `304` responses.
-	 */
-	class MockGitHubApiClient {
-		readonly sentETags: (string | undefined)[] = [];
-		readonly responses: { data?: unknown; statusCode: number; etag?: string }[] = [];
+	class MockGitHubApiClient extends mock<GitHubApiClient>() {
+		constructor(override readonly onDidChange = Event.None) { super(); }
+		override get generation() { return 0; }
+		calls = 0;
+		readonly responses: Issue[] = [];
+		readonly priorities: RequestPriority[] = [];
+		gate: DeferredPromise<void> | undefined;
+		private previous: Issue | undefined;
 
-		async request(_method: string, _path: string, _callSite: string, options?: { etag?: string }) {
-			this.sentETags.push(options?.etag);
-			return this.responses.shift() ?? { data: undefined, statusCode: 304 };
+		override async withClient<T>(task: (client: IGitHubAccountClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+			const issues = upcastPartial<IGitHubAccountClient['issues']>({
+				get: async (_repository, _number, _signal, options) => {
+					this.calls++;
+					this.priorities.push(options?.priority ?? 'interactive');
+					this.previous = this.responses.shift() ?? this.previous;
+					assert.ok(this.previous);
+					const response = this.previous;
+					await this.gate?.p;
+					return response;
+				},
+			});
+			return task(upcastPartial<IGitHubAccountClient>({ issues }), new AbortController().signal);
 		}
 	}
 
 	function issueResponse(state: 'open' | 'closed', title: string) {
-		return {
+		return upcastPartial<Issue>({
 			number: 7,
 			title,
 			body: 'body',
 			state,
 			state_reason: state === 'closed' ? 'completed' : null,
-			user: { login: 'octocat', avatar_url: '' },
+			user: null,
 			created_at: '2026-01-01T00:00:00Z',
 			updated_at: '2026-01-02T00:00:00Z',
 			closed_at: null,
-		};
+		});
 	}
 
 	function createCollection(client: MockGitHubApiClient) {
-		return new GitHubIssueModelReferenceCollection(client as unknown as GitHubApiClient, logService);
+		return store.add(new GitHubIssueModelReferenceCollection(client, logService));
 	}
 
 	teardown(() => store.clear());
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('revalidates with the stored ETag and keeps the last payload on 304', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('foreground issue refresh upgrades background work without publishing its late response', async () => {
 		const client = new MockGitHubApiClient();
-		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
-		client.responses.push({ data: undefined, statusCode: 304, etag: 'W/"v1"' });
+		client.responses.push(issueResponse('open', 'Older'), issueResponse('closed', 'Foreground'));
+		const model = store.add(createCollection(client).acquire('owner/repo/issues/7', 'owner', 'repo', 7)).object;
+		const gate = client.gate = new DeferredPromise<void>();
+		const background = model.refresh({ priority: 'background' });
+		client.gate = undefined;
+		const foreground = model.refresh();
+		const joined = model.refresh({ priority: 'visible' });
+		await foreground;
+		await gate.complete();
+		await background;
+		assert.deepStrictEqual({ shared: joined === foreground, title: model.issue.get()?.title, priorities: client.priorities }, {
+			shared: true, title: 'Foreground', priorities: ['background', 'interactive'],
+		});
+	});
+
+	test('periodic issue refreshes use background priority', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push(issueResponse('open', 'Issue'));
+		const model = store.add(createCollection(client).acquire('owner/repo/issues/7', 'owner', 'repo', 7)).object;
+		await model.refresh({ priority: 'visible' });
+		store.add(model.startPolling(10));
+		await timeout(10);
+		assert.deepStrictEqual(client.priorities, ['visible', 'background']);
+	}));
+
+	test('revalidates after the freshness interval and preserves unchanged display data', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const client = new MockGitHubApiClient();
+		client.responses.push(issueResponse('open', 'Original'));
 		const collection = createCollection(client);
 		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
 
@@ -731,17 +831,17 @@ suite('GitHubIssueModel', () => {
 		await reference.object.refresh();
 
 		assert.deepStrictEqual({
-			sentETags: client.sentETags,
+			calls: client.calls,
 			title: reference.object.issue.get()?.title,
 		}, {
-			sentETags: [undefined, 'W/"v1"'],
+			calls: 2,
 			title: 'Original',
 		});
 	}));
 
 	test('on-demand refreshes inside the debounce window collapse into one request', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client = new MockGitHubApiClient();
-		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
+		client.responses.push(issueResponse('open', 'Original'));
 		const collection = createCollection(client);
 		const reference = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
 
@@ -749,13 +849,13 @@ suite('GitHubIssueModel', () => {
 		await timeout(MIN_REFRESH_INTERVAL_MS - 1);
 		await reference.object.refresh();
 
-		assert.strictEqual(client.sentETags.length, 1);
+		assert.strictEqual(client.calls, 1);
 	}));
 
-	test('a re-created model starts from the previous one\'s payload and ETag', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('a re-created model starts from the previous display state and freshness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const client = new MockGitHubApiClient();
-		client.responses.push({ data: issueResponse('open', 'Original'), statusCode: 200, etag: 'W/"v1"' });
-		client.responses.push({ data: issueResponse('closed', 'Original'), statusCode: 200, etag: 'W/"v2"' });
+		client.responses.push(issueResponse('open', 'Original'));
+		client.responses.push(issueResponse('closed', 'Original'));
 		const collection = createCollection(client);
 
 		const first = collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7);
@@ -769,14 +869,27 @@ suite('GitHubIssueModel', () => {
 
 		assert.deepStrictEqual({
 			restoredState,
-			sentETags: client.sentETags,
+			calls: client.calls,
 			state: second.object.issue.get()?.state,
 		}, {
 			restoredState: GitHubIssueState.Open,
-			sentETags: [undefined, 'W/"v1"'],
+			calls: 2,
 			state: GitHubIssueState.Closed,
 		});
 	}));
+
+	test('account changes discard cached issue snapshots', async () => {
+		const changed = store.add(new Emitter<void>());
+		const client = new MockGitHubApiClient(changed.event);
+		client.responses.push(issueResponse('open', 'Previous account'));
+		const collection = createCollection(client);
+		const first = collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7);
+		await first.object.refresh();
+		first.dispose();
+		changed.fire();
+		const next = store.add(collection.acquire('owner/repo/issues/7', 'owner', 'repo', 7));
+		assert.strictEqual(next.object.issue.get(), undefined);
+	});
 });
 
 suite('parseWorkflowRunId', () => {
@@ -826,17 +939,6 @@ class TestCIReferenceCollection extends GitHubPullRequestCIModelReferenceCollect
 	}
 }
 
-function makeRepository(): IGitHubRepository {
-	return {
-		owner: 'owner',
-		name: 'repo',
-		fullName: 'owner/repo',
-		defaultBranch: 'main',
-		isPrivate: false,
-		description: 'test',
-	};
-}
-
 function makePR(): IGitHubPullRequest {
 	return {
 		number: 1,
@@ -861,6 +963,7 @@ function makeThread(id: string, path: string): IGitHubPullRequestReviewThread {
 		id,
 		isResolved: false,
 		path,
+		startLine: undefined,
 		line: 10,
 		comments: [makeComment(100, `Comment on ${path}`, id)],
 	};

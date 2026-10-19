@@ -13,8 +13,7 @@ Use this path only when one enterprise control governs two independent behaviors
 - Do not duplicate runtime matching or enforcement in VS Code.
 - Do not use editor UI suppression as a substitute for runtime enforcement.
 
-If the runtime lacks an exact capability, add it first and retain existing editor
-behavior until the authoritative replacement exists.
+If the runtime lacks an exact capability, add it first and retain existing editor behavior until the authoritative replacement exists.
 
 ## Integration Checks
 

@@ -14,6 +14,7 @@ import { isString } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionWorkspaceBrowseAction } from '../../../../services/sessions/common/session.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 /** Prefix used for ids of dynamically-loaded folder rows in the sheet. */
 const SEARCH_RESULT_ID_PREFIX = 'searchResult:';
@@ -161,7 +162,12 @@ export async function showMobileWorkspacePickerSheet(
 	items: readonly IActionListItem<IWorkspacePickerItem>[],
 	dispatch: (item: IWorkspacePickerItem) => void,
 	browseActions: readonly ISessionWorkspaceBrowseAction[],
+	showSearch = false,
+	cancellationToken: CancellationToken = CancellationToken.None,
 ): Promise<void> {
+	if (cancellationToken.isCancellationRequested) {
+		return;
+	}
 	const { rowItems, headerBrowseActions } = partitionItems(items, dispatch, browseActions);
 
 	// Restrict inline folder search to browse actions the picker
@@ -177,13 +183,13 @@ export async function showMobileWorkspacePickerSheet(
 	// No workspaces / commands, no inline search, and we have a single
 	// browse action — invoke it directly rather than opening a sheet
 	// that would only contain it.
-	if (rowItems.length === 0 && inlineFolderActions.length === 0 && headerBrowseActions.length === 1) {
+	if (!showSearch && rowItems.length === 0 && inlineFolderActions.length === 0 && headerBrowseActions.length === 1) {
 		headerBrowseActions[0].invoke();
 		return;
 	}
 
 	// No rows AND no header actions AND no inline search — nothing to show.
-	if (rowItems.length === 0 && inlineFolderActions.length === 0 && headerBrowseActions.length === 0) {
+	if (!showSearch && rowItems.length === 0 && inlineFolderActions.length === 0 && headerBrowseActions.length === 0) {
 		return;
 	}
 
@@ -201,15 +207,27 @@ export async function showMobileWorkspacePickerSheet(
 	let currentFolder: BrowsedFolder | undefined;
 	// Track the current search query so drill-down can append to it.
 	let currentSearchQuery = '';
-	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0
+	const search: IMobilePickerSheetSearchSource | undefined = inlineFolderActions.length > 0 || showSearch
 		? {
-			placeholder: localize('mobileWorkspacePicker.searchFolders', "Search folders…"),
-			resultsSectionTitle: localize('mobileWorkspacePicker.foldersSection', "Folders"),
-			emptyMessage: localize('mobileWorkspacePicker.noFolders', "No folders match"),
+			placeholder: showSearch
+				? localize('mobileWorkspacePicker.searchWorkspaces', "Search Workspaces...")
+				: localize('mobileWorkspacePicker.searchFolders', "Search folders…"),
+			resultsSectionTitle: showSearch ? undefined : localize('mobileWorkspacePicker.foldersSection', "Folders"),
+			emptyMessage: showSearch
+				? localize('mobileWorkspacePicker.noWorkspaces', "No workspaces match")
+				: localize('mobileWorkspacePicker.noFolders', "No folders match"),
 			loadItems: async (query, token) => {
 				currentSearchQuery = query;
 				folderRunById.clear();
 				folderLabelById.clear();
+				const normalizedQuery = query.trim().toLocaleLowerCase();
+				const filteredRows = showSearch
+					? rows
+						.map(row => row.sheetItem)
+						.filter(item => !normalizedQuery
+							|| item.label.toLocaleLowerCase().includes(normalizedQuery)
+							|| item.description?.toLocaleLowerCase().includes(normalizedQuery))
+					: [];
 				const results = await Promise.all(
 					inlineFolderActions.map(async action => {
 						try {
@@ -224,7 +242,7 @@ export async function showMobileWorkspacePickerSheet(
 					return [];
 				}
 				const flattened = results.flat();
-				const sheetItems: IMobilePickerSheetItem[] = [];
+				const sheetItems: IMobilePickerSheetItem[] = [...filteredRows];
 				flattened.forEach((entry, idx) => {
 					const id = `${SEARCH_RESULT_ID_PREFIX}${idx}`;
 					const folderUri = entry.workspace.folders[0]?.root;
@@ -267,11 +285,14 @@ export async function showMobileWorkspacePickerSheet(
 		result = await showMobilePickerSheet(
 			layoutService.mainContainer,
 			localize('mobileWorkspacePicker.title', "Choose Workspace"),
-			rows.map(r => r.sheetItem),
+			showSearch ? [] : rows.map(r => r.sheetItem),
 			{
+				cancellationToken,
 				headerActions,
 				search,
-				caption: localize('mobileWorkspacePicker.caption', "Search to browse folders on the host"),
+				caption: inlineFolderActions.length > 0
+					? localize('mobileWorkspacePicker.caption', "Search to browse folders on the host")
+					: undefined,
 				stayOpenOnSelect: true,
 				doneLabel: localize('mobileWorkspacePicker.cancel', "Cancel"),
 				onDidSelect: (id) => {

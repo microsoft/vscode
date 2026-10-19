@@ -48,6 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
+	private readonly _clippingElement: HTMLElement | undefined;
 	private readonly _anchorAlignment: AnchorAlignment;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
@@ -117,6 +118,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._clippingElement = options.position?.clippingElement;
 		this._anchorAlignment = options.position?.anchorAlignment ?? AnchorAlignment.LEFT;
 
 		if (options.style) {
@@ -376,7 +378,20 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		};
 
 		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
-		const { top, right, bottom, left } = targetBounds[0];
+		let { top, right, bottom, left } = targetBounds[0];
+		if (this._clippingElement) {
+			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const visible = {
+				top: Math.max(top, clip.top),
+				right: Math.min(right, clip.right),
+				bottom: Math.min(bottom, clip.bottom),
+				left: Math.max(left, clip.left),
+			};
+			// Keep the whole target when none of it is visible
+			if (visible.left <= visible.right && visible.top <= visible.bottom) {
+				({ top, right, bottom, left } = visible);
+			}
+		}
 		const width = right - left;
 		const height = bottom - top;
 
@@ -647,9 +662,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPointer.style.top = `${target.center.y - (this._y - hoverHeight) - Constants.PointerSize}px`;
 				}
 
-				// Otherwise show the pointer at the center of hover
+				// Otherwise show the pointer at the center of hover, unrounded so it stays centred
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
+					this._hoverPointer.style.top = `${(hoverHeight / 2) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -659,8 +674,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
-				// Position pointer at the center of the hover
-				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+				// Position pointer at the center of the hover, unrounded so it stays centred
+				let pointerLeftPosition = (hoverWidth / 2) - Constants.PointerSize;
 
 				// If pointer goes beyond target then position it at the center of the target
 				const pointerX = this._x + pointerLeftPosition;

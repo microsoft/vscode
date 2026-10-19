@@ -37,9 +37,11 @@ export class RecordingAgentSdkDownloader implements IAgentSdkDownloader {
 
 	/** Whether the SDK is already on disk. Defaults to {@link available}. */
 	resolvableWithoutDownload: boolean | undefined;
+	readonly downloadConsents = new Set<string>();
 
 	/** What `loadSdkRoot` resolves to. Unset means "no download was expected here". */
 	loadSdkRootResult: (() => Promise<string>) | undefined;
+	installedSdkRoot: string | undefined;
 
 	constructor(public available = true) { }
 
@@ -53,8 +55,20 @@ export class RecordingAgentSdkDownloader implements IAgentSdkDownloader {
 		return this.available;
 	}
 
+	hasDownloadConsent(pkg: IAgentSdkPackage): boolean {
+		return this.downloadConsents.has(pkg.id);
+	}
+
+	async recordDownloadConsent(pkg: IAgentSdkPackage): Promise<void> {
+		this.downloadConsents.add(pkg.id);
+	}
+
 	async isSdkResolvableWithoutDownload(): Promise<boolean> {
 		return this.resolvableWithoutDownload ?? this.available;
+	}
+
+	async resolveInstalledSdkRoot(): Promise<string | undefined> {
+		return this.installedSdkRoot;
 	}
 
 	loadSdkRoot(pkg: IAgentSdkPackage): Promise<string> {

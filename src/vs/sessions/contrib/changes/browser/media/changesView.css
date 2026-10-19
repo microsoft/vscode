@@ -39,13 +39,6 @@
 	justify-content: center;
 	flex: 1;
 	padding: 32px;
-	text-align: center;
-	gap: 8px;
-}
-
-.changes-view-body .changes-welcome-message {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
 }
 
 /* Main container */
@@ -245,10 +238,6 @@
 /* List rows */
 .changes-view-body .chat-editing-session-container:not(.has-file-icons) .monaco-list-row .monaco-icon-label {
 	margin-left: 6px;
-}
-
-.changes-view-body .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Action bar in list rows */

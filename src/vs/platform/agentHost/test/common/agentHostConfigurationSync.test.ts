@@ -11,10 +11,13 @@ import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
+import { AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault } from '../../common/agentHostSchema.js';
+import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
 const AMBIENT_SETTING = 'test.agentHostSync.ambient';
+const BYOK_SETTING = 'test.agentHostSync.byok';
 const HIDDEN_SETTING = 'test.agentHostSync.hidden';
 const UNSYNCED_SETTING = 'test.agentHostSync.unsynced';
 const ENUM_SETTING = 'test.agentHostSync.enum';
@@ -41,6 +44,7 @@ suite('AgentHostConfigurationSync', () => {
 		id: 'testAgentHostSync',
 		type: 'object' as const,
 		properties: {
+			...artifactToolsConfigurationProperties,
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
@@ -55,6 +59,11 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'boolean' as const,
 				default: false,
 				agentHost: { key: 'ambientValue', scope: AgentHostConfigurationSyncScope.Ambient },
+			},
+			[BYOK_SETTING]: {
+				type: 'boolean' as const,
+				default: AgentHostByokModelsEnabledDefault,
+				agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 			},
 			[HIDDEN_SETTING]: {
 				type: 'boolean' as const,
@@ -72,7 +81,7 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'string' as const,
 				enum: ['none', 'all'],
 				default: 'none',
-				agentHost: { key: 'enumValue' },
+				agentHost: { key: 'enumValue', derivedKeys: { legacyEnumAll: (value: unknown) => value === 'all' } },
 			},
 			[FREEFORM_SETTING]: {
 				type: 'string' as const,
@@ -171,6 +180,29 @@ suite('AgentHostConfigurationSync', () => {
 		});
 	});
 
+	test('writes derived keys alongside the mirrored key', () => {
+		const patch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[ENUM_SETTING]: { defaultValue: 'none', userValue: 'all' },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({ enumValue: patch.enumValue, legacyEnumAll: patch.legacyEnumAll }, { enumValue: 'all', legacyEnumAll: true });
+	});
+
+	test('mirrors BYOK enabled by default while preserving explicit opt-out', () => {
+		const defaultPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({}), AgentHostConfigurationSyncTarget.Local);
+		const disabledPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[BYOK_SETTING]: { userValue: false },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({
+			defaultValue: defaultPatch[AgentHostByokModelsEnabledConfigKey],
+			explicitlyDisabled: disabledPatch[AgentHostByokModelsEnabledConfigKey],
+		}, {
+			defaultValue: true,
+			explicitlyDisabled: false,
+		});
+	});
+
 	test('applies local and ambient scopes to the corresponding host targets', () => {
 		const configurationService = createConfigurationService({
 			[ALL_HOSTS_SETTING]: { defaultValue: true },
@@ -202,10 +234,16 @@ suite('AgentHostConfigurationSync', () => {
 			local: getAgentHostConfigurationSyncTarget(LOCAL_AGENT_HOST_RESOURCE_IDENTITY),
 			remoteExtensionHost: getAgentHostConfigurationSyncTarget('vscode-remote://ssh-remote+host'),
 			remote: getAgentHostConfigurationSyncTarget('ssh://host'),
+			sshCredentials: getAgentHostConfigurationSyncTarget('user@127.0.0.1:2222'),
+			ipv6: getAgentHostConfigurationSyncTarget('[::1]:8080'),
+			tunnel: getAgentHostConfigurationSyncTarget('tunnel:host'),
 		}, {
 			local: AgentHostConfigurationSyncTarget.Local,
 			remoteExtensionHost: AgentHostConfigurationSyncTarget.RemoteExtensionHost,
 			remote: AgentHostConfigurationSyncTarget.Remote,
+			sshCredentials: AgentHostConfigurationSyncTarget.Remote,
+			ipv6: AgentHostConfigurationSyncTarget.Remote,
+			tunnel: AgentHostConfigurationSyncTarget.Remote,
 		});
 	});
 
@@ -306,6 +344,25 @@ suite('AgentHostConfigurationSync', () => {
 			visible: true,
 			mirrored: true,
 		});
+	});
+
+	test('default overrides leave non-experimental hidden settings unchanged', () => {
+		const configurationService = createConfigurationService({});
+		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
+		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
+		try {
+			registry.registerDefaultConfigurations([first]);
+			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+			registry.registerDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([first]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			assert.deepStrictEqual(values, [false, false, false, false]);
+		} finally {
+			registry.deregisterDefaultConfigurations([first, second]);
+		}
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

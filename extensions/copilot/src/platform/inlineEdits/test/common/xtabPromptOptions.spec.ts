@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ImportChanges } from '../../common/dataTypes/importFilteringOptions';
-import { applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsMemoryMode } from '../../common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, applyStrategyConfig, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, isEagernessPrompt, MODEL_CONFIGURATION_VALIDATOR, ModelConfiguration, PatchModelPrediction, PromptingStrategy, RejectedEditsMemoryMode, ResponseFormat } from '../../common/dataTypes/xtabPromptOptions';
 
 function baseConfig(overrides: Partial<ModelConfiguration> = {}): ModelConfiguration {
 	return {
@@ -98,6 +98,36 @@ describe('applyStrategyConfig', () => {
 		expect(result.currentFile?.includeLineNumbers).toBe(IncludeLineNumbersOption.WithoutSpace);
 	});
 
+	it('matches PatchBased02Unified config except for the eagerness prompt', () => {
+		const unified = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02Unified,
+		}));
+		const eagerness = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+
+		expect(eagerness).toEqual({
+			...unified,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+		});
+	});
+
+	it('matches unified eagerness config except for the low/medium prompt option', () => {
+		const eagerness = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+		const lowMedium = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+			eagernessPrompt: 'aggressionHighLow',
+		}));
+		expect(lowMedium).toEqual({
+			...eagerness,
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+			eagernessPrompt: 'aggressionLowMedium',
+		});
+	});
+
 	it('preserves undefined for option bags neither side specifies', () => {
 		const result = applyStrategyConfig(baseConfig({
 			promptingStrategy: PromptingStrategy.CopilotNesXtab,
@@ -119,10 +149,25 @@ describe('applyStrategyConfig', () => {
 
 describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
-	it('accepts a config with eagernessPrompt', () => {
-		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ eagernessPrompt: 'aggressionHighLow' }));
+	it.each(['aggressionHighLow', 'aggressionLowMedium'] as const)('accepts a config with eagernessPrompt=%s', eagernessPrompt => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({ eagernessPrompt }));
 		expect(result.error).toBeUndefined();
-		expect(result.content?.eagernessPrompt).toBe('aggressionHighLow');
+		expect(result.content?.eagernessPrompt).toBe(eagernessPrompt);
+	});
+
+	it('accepts the low/medium eagerness strategy and uses patch responses', () => {
+		const result = MODEL_CONFIGURATION_VALIDATOR.validate(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+		}));
+		expect({
+			error: result.error,
+			strategy: result.content?.promptingStrategy,
+			format: ResponseFormat.fromPromptingStrategy(result.content?.promptingStrategy),
+		}).toEqual({
+			error: undefined,
+			strategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+			format: ResponseFormat.CustomDiffPatch,
+		});
 	});
 
 	it('keeps rejected-edit memory off by default', () => {
@@ -156,8 +201,50 @@ describe('MODEL_CONFIGURATION_VALIDATOR', () => {
 
 describe('isEagernessPrompt', () => {
 	it('recognizes the PatchBased02 aggression prompt option', () => {
-		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' })).toBe(true);
-		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 })).toBe(false);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02, eagernessPrompt: 'aggressionHighLow' }, AggressivenessLevel.High)).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02 }, AggressivenessLevel.High)).toBe(false);
+	});
+
+	it('recognizes the optimized PatchBased02 aggression prompt option', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified, eagernessPrompt: 'aggressionHighLow' }, AggressivenessLevel.High)).toBe(true);
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.PatchBased02Unified }, AggressivenessLevel.High)).toBe(false);
+	});
+
+	it('does not recognize eagerness for an unrelated strategy', () => {
+		expect(isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy: PromptingStrategy.CopilotNesXtab, eagernessPrompt: 'aggressionHighLow' }, AggressivenessLevel.Low)).toBe(false);
+	});
+
+	it('recognizes the standalone eagerness strategy after strategy config is applied', () => {
+		const config = applyStrategyConfig(baseConfig({
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+		}));
+		const options = {
+			...DEFAULT_OPTIONS,
+			promptingStrategy: config.promptingStrategy,
+			eagernessPrompt: config.eagernessPrompt,
+		};
+		expect(isEagernessPrompt(options, AggressivenessLevel.High)).toBe(true);
+	});
+
+	it.each([
+		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
+	])('uses low/medium prompting and high timing for %s', promptingStrategy => {
+		const options = { ...DEFAULT_OPTIONS, promptingStrategy, eagernessPrompt: 'aggressionLowMedium' as const };
+		expect(Object.values(AggressivenessLevel).map(level => isEagernessPrompt(options, level))).toEqual([true, true, false]);
+	});
+
+	it.each([
+		PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
+		PromptingStrategy.Xtab275EditIntent,
+		PromptingStrategy.Xtab275EditIntentShort,
+	])('preserves first-class eagerness behavior for %s', promptingStrategy => {
+		expect(Object.values(AggressivenessLevel).map(level => isEagernessPrompt({ ...DEFAULT_OPTIONS, promptingStrategy }, level))).toEqual([true, true, true]);
 	});
 });
 

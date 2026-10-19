@@ -194,17 +194,16 @@ export class PanelPart extends AbstractPaneCompositePart {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
-		let dimensions: Dimension;
-		switch (this.layoutService.getPanelPosition()) {
-			case Position.RIGHT:
-				dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-				break;
-			case Position.TOP:
-				dimensions = new Dimension(width, height - 1); // Take into account the 1px border when layouting
-				break;
-			default:
-				dimensions = new Dimension(width, height);
-				break;
+		let dimensions = new Dimension(width, height);
+		if (!this.layoutService.isFloatingPanelsEnabled()) {
+			switch (this.layoutService.getPanelPosition()) {
+				case Position.RIGHT:
+					dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+					break;
+				case Position.TOP:
+					dimensions = new Dimension(width, height - 1); // Take into account the 1px border when layouting
+					break;
+			}
 		}
 
 		// Layout contents

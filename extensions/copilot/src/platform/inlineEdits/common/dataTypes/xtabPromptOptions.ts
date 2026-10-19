@@ -492,7 +492,7 @@ export namespace EditIntent {
 	}
 }
 
-export type EagernessPrompt = 'aggressionHighLow';
+export type EagernessPrompt = 'aggressionHighLow' | 'aggressionLowMedium';
 
 export type PromptOptions = {
 	readonly promptingStrategy: PromptingStrategy | undefined /* default */;
@@ -547,6 +547,10 @@ export enum PromptingStrategy {
 	 * completions itself: it bakes in the client and latency knobs that treatment was tuned for.
 	 */
 	PatchBased02Unified = 'patchBased02Unified',
+	/** PatchBased02 unified variant trained for eagerness prompting. */
+	PatchBased02UnifiedEagerness = 'patchBased02UnifiedEagerness',
+	/** Unified eagerness prompting for low/medium; high uses timing instead. */
+	PatchBased02UnifiedEagernessLowMedium = 'patchBased02UnifiedEagernessLowMedium',
 	/** PatchBased02 variant: no line numbers on recent docs. */
 	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
@@ -567,13 +571,18 @@ export function isPromptingStrategy(value: string): value is PromptingStrategy {
 	return (Object.values(PromptingStrategy) as string[]).includes(value);
 }
 
-export function isEagernessPrompt(options: PromptOptions): boolean {
+export function isEagernessPrompt(options: PromptOptions, aggressivenessLevel: AggressivenessLevel): boolean {
 	if (options.promptingStrategy === undefined) {
 		return false;
 	}
-	return (options.eagernessPrompt !== undefined && [
+	const usesEagernessPrompt = options.eagernessPrompt === 'aggressionHighLow'
+		|| (options.eagernessPrompt === 'aggressionLowMedium' && aggressivenessLevel !== AggressivenessLevel.High);
+	return (usesEagernessPrompt && [
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagerness,
+		PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 	].includes(options.promptingStrategy)) // eagerness prompt option is only supported for patch-based strategies
 		|| [PromptingStrategy.XtabAggressiveness,
@@ -614,6 +623,8 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased02:
 			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 			case PromptingStrategy.PatchBased02Unified:
+			case PromptingStrategy.PatchBased02UnifiedEagerness:
+			case PromptingStrategy.PatchBased02UnifiedEagernessLowMedium:
 			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
@@ -803,6 +814,19 @@ const PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG: Partial<ModelConfiguration
 	allowImportChanges: ImportChanges.All,
 };
 
+const PATCH_BASED_02_UNIFIED_CONFIG: Partial<ModelConfiguration> = {
+	...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
+	patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+	splitPatchOnDiff: true,
+	patchFastYieldLineWithCursor: true,
+	extraDebounceEndOfLine: 0,
+	nesMimicGhostTextBehavior: true,
+	cacheDelay: 200,
+	rebasedCacheDelay: 0,
+	debounce: 0,
+	supportsUnifiedCompletions: true,
+};
+
 const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
 	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
 	[PromptingStrategy.CopilotNesXtab]: {
@@ -811,18 +835,7 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
 	// Inherits everything from PatchBased02WithRecentLineNumbers and additionally bakes in the
 	// client/latency knobs that this unified model was tuned to run with.
-	[PromptingStrategy.PatchBased02Unified]: {
-		...PATCH_BASED_02_WITH_RECENT_LINE_NUMBERS_CONFIG,
-		patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
-		splitPatchOnDiff: true,
-		patchFastYieldLineWithCursor: true,
-		extraDebounceEndOfLine: 0,
-		nesMimicGhostTextBehavior: true,
-		cacheDelay: 200,
-		rebasedCacheDelay: 0,
-		debounce: 0,
-		supportsUnifiedCompletions: true,
-	},
+	[PromptingStrategy.PatchBased02Unified]: PATCH_BASED_02_UNIFIED_CONFIG,
 	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
 		includeTagsInCurrentFile: false,
 		includePostScript: true,
@@ -830,6 +843,14 @@ const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfigurat
 		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
 		supportsNextCursorLinePrediction: false,
 		allowImportChanges: ImportChanges.All,
+	},
+	[PromptingStrategy.PatchBased02UnifiedEagerness]: {
+		...PATCH_BASED_02_UNIFIED_CONFIG,
+		eagernessPrompt: 'aggressionHighLow',
+	},
+	[PromptingStrategy.PatchBased02UnifiedEagernessLowMedium]: {
+		...PATCH_BASED_02_UNIFIED_CONFIG,
+		eagernessPrompt: 'aggressionLowMedium',
 	},
 };
 
@@ -863,7 +884,7 @@ export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
-	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow'), vUndefined()),
+	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow', 'aggressionLowMedium'), vUndefined()),
 	'includeTagsInCurrentFile': vRequired(vBoolean()),
 	'includePostScript': vUnion(vBoolean(), vUndefined()),
 	'currentFile': vUnion(CurrentFileOptions.VALIDATOR, vUndefined()),

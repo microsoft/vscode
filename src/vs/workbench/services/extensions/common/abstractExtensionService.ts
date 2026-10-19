@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { handleVetos } from '../../../../platform/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult, getRemoteAuthorityPrefix } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -45,7 +46,7 @@ import { IResolveAuthorityErrorResult } from './extensionHostProxy.js';
 import { IExtensionManifestPropertiesService } from './extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from './extensionRunningLocationTracker.js';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionInspectInfo, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IProposedApiUsage, IResponsiveStateChangeEvent, IWillActivateEvent, setProposedApiUsageReporter, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionInspectInfo, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
 import { ExtensionsProposedApi } from './extensionsProposedApi.js';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from './extensionsRegistry.js';
 import { LazyCreateExtensionHostManager } from './lazyCreateExtensionHostManager.js';
@@ -132,9 +133,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				e.join(this.activateByEvent(`onFileSystem:${e.scheme}`));
 			}
 		}));
-
-		// report telemetry when an extension attempts to use a proposed API it is not entitled to use
-		this._register(setProposedApiUsageReporter(usage => this._reportProposedApiUsage(usage)));
 
 		this._runningLocations = new ExtensionRunningLocationTracker(
 			this._registry,
@@ -324,6 +322,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
@@ -573,6 +572,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const result = this._registry.deltaExtensions(lock, toAdd, []);
 		if (result.removedDueToLooping.length > 0) {
 			this._notificationService.notify({
+				telemetry: NotificationTelemetryId.ExtensionDependencyLoop,
 				severity: Severity.Error,
 				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
 			});
@@ -928,11 +928,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			} else {
 				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Remote Extension host terminated unexpectedly 3 times within the last 5 minutes."),
 					[{
+						telemetryId: NotificationActionTelemetryId.RestartExtensionHost,
 						label: nls.localize('restart', "Restart Remote Extension Host"),
 						run: () => {
 							this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
 						}
-					}]
+					}], { telemetry: NotificationTelemetryId.RemoteExtensionHostCrashRepeated }
 				);
 			}
 		} catch (err) {
@@ -1306,23 +1307,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const extensionStatus = this._getOrCreateExtensionStatus(extensionId);
 		extensionStatus.addRuntimeError(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
-	}
-
-	private _reportProposedApiUsage(usage: IProposedApiUsage): void {
-		type ProposedApiUsageClassification = {
-			owner: 'alexr00';
-			comment: 'An extension attempted to use a proposed API it has not been allowlisted to use.';
-			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the extension attempting to use the proposed API.' };
-			proposalName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the proposed API the extension is not entitled to use.' };
-		};
-		type ProposedApiUsageEvent = {
-			extensionId: string;
-			proposalName: string;
-		};
-		this._telemetryService.publicLog2<ProposedApiUsageEvent, ProposedApiUsageClassification>('extensionProposedApiNotEnabled', {
-			extensionId: usage.extensionId,
-			proposalName: usage.proposalName
-		});
 	}
 
 	//#endregion

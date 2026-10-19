@@ -14,9 +14,39 @@ suite('adaptManagedSettings', () => {
 	test('empty response yields an empty managed settings bag', () => {
 		assert.deepStrictEqual(adaptManagedSettings({}), {
 			managedSettings: {},
+			managedSettingsActive: false,
 		});
 	});
 
+	test('temporary Local permission never implies governance or masks unrepresentable settings', () => {
+		const key = 'vscode.temporaryAllowLocalHarness';
+		const results = [true, false, 'false', null, {}, [], { future: true }, undefined].map(value => {
+			const response = { vscode: { temporaryAllowLocalHarness: value } };
+			return {
+				alone: adaptManagedSettings(response),
+				withOtherSettings: adaptManagedSettings({ ...response, futureControl: {} }),
+			};
+		});
+		assert.deepStrictEqual(results, [true, false, 'false', undefined, undefined, undefined, 'nested', undefined].map(value => {
+			const managedSettings = value === 'nested' ? { [`${key}.future`]: true } : value === undefined ? {} : { [key]: value };
+			return {
+				alone: { managedSettings, managedSettingsActive: false },
+				withOtherSettings: { managedSettings, managedSettingsActive: true },
+			};
+		}));
+	});
+
+	test('preserves an empty telemetry block and explicit identity leaves', () => {
+		assert.deepStrictEqual({
+			empty: adaptManagedSettings({ telemetry: {} }),
+			denied: adaptManagedSettings({ telemetry: { capture: { identity: false } } }),
+			allowed: adaptManagedSettings({ telemetry: { capture: { identity: true } } }),
+		}, {
+			empty: { managedSettings: { telemetry: '{}' } },
+			denied: { managedSettings: { 'telemetry.capture.identity': false } },
+			allowed: { managedSettings: { 'telemetry.capture.identity': true } },
+		});
+	});
 	test('appends client identity to the request url', () => {
 		assert.deepStrictEqual({
 			withRuntime: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', {
@@ -43,6 +73,14 @@ suite('adaptManagedSettings', () => {
 			managedSettings: {
 				'permissions.disableBypassPermissionsMode': 'disable',
 			},
+		});
+	});
+
+	test('retains permission rules for effective harness eligibility', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			permissions: { deny: ['Shell'] },
+		}), {
+			managedSettings: { 'permissions.deny': '["Shell"]' },
 		});
 	});
 
@@ -157,6 +195,27 @@ suite('adaptManagedSettings', () => {
 				'telemetry.resourceAttributes': '{"deployment.environment":"prod","service.namespace":"acme"}',
 				'telemetry.headers': '{"x-api-key":"secret"}',
 			},
+		});
+	});
+
+	test('adapts managed telemetry file paths through ordinary normalization', () => {
+		const validPath: IManagedSettingsResponse = { telemetry: { filePath: '/managed/copilot.jsonl' } };
+		const nullPath = JSON.parse('{"telemetry":{"filePath":null,"enabled":false,"capture":{"identity":false},"resourceAttributes":{"service.namespace":"acme"}}}') as IManagedSettingsResponse;
+		const numberPath = JSON.parse('{"telemetry":{"filePath":1,"enabled":false}}') as IManagedSettingsResponse;
+		assert.deepStrictEqual({
+			valid: adaptManagedSettings(validPath),
+			nullPath: adaptManagedSettings(nullPath),
+			numberPath: adaptManagedSettings(numberPath),
+		}, {
+			valid: { managedSettings: { 'telemetry.filePath': '/managed/copilot.jsonl' } },
+			nullPath: {
+				managedSettings: {
+					'telemetry.enabled': false,
+					'telemetry.capture.identity': false,
+					'telemetry.resourceAttributes': '{"service.namespace":"acme"}',
+				},
+			},
+			numberPath: { managedSettings: { 'telemetry.filePath': 1, 'telemetry.enabled': false } },
 		});
 	});
 
@@ -281,7 +340,7 @@ suite('adaptManagedSettings', () => {
 		} as IManagedSettingsResponse, msg => warnings.push(msg));
 		assert.deepStrictEqual(
 			{ result, warned: warnings.length, mentionsRepo: warnings.some(w => w.includes('requires "repo"')) },
-			{ result: { managedSettings: {} }, warned: 1, mentionsRepo: true }
+			{ result: { managedSettings: {}, managedSettingsActive: true }, warned: 1, mentionsRepo: true }
 		);
 	});
 
@@ -290,6 +349,7 @@ suite('adaptManagedSettings', () => {
 			extraKnownMarketplaces: ['https://plugins.acme.com'] as unknown as IManagedSettingsResponse['extraKnownMarketplaces'],
 		} as IManagedSettingsResponse), {
 			managedSettings: {},
+			managedSettingsActive: true,
 		});
 	});
 

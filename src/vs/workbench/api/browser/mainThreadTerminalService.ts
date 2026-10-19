@@ -173,8 +173,13 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 		});
 		this._extHostTerminals.set(extHostTerminalId, terminal);
 		const terminalInstance = await terminal;
-		this._register(terminalInstance.onDisposed(() => {
+		if (terminalInstance.isDisposed) {
 			this._extHostTerminals.delete(extHostTerminalId);
+			return;
+		}
+		const disposeListener = this._register(terminalInstance.onDisposed(() => {
+			this._extHostTerminals.delete(extHostTerminalId);
+			this._store.delete(disposeListener);
 		}));
 	}
 

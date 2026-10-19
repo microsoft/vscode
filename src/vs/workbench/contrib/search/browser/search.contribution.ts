@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -19,7 +19,7 @@ import { SearchView } from './searchView.js';
 import { registerContributions as searchWidgetContributions } from './searchWidget.js';
 import { SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS, SemanticSearchBehavior } from '../../../services/search/common/search.js';
+import { VIEWLET_ID, ViewMode, VIEW_ID, SemanticSearchBehavior } from '../../../services/search/common/search.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol, searchConfigurationNode } from '../common/search.js';
@@ -103,31 +103,6 @@ const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationE
 configurationRegistry.registerConfiguration({
 	...searchConfigurationNode,
 	properties: {
-		[SEARCH_EXCLUDE_CONFIG]: {
-			type: 'object',
-			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and file search in quick open. To exclude files from the recently opened list in quick open, patterns must be absolute (for example `**/node_modules/**`). Inherits all glob patterns from the `#files.exclude#` setting."),
-			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
-			additionalProperties: {
-				anyOf: [
-					{
-						type: 'boolean',
-						description: nls.localize('exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-					},
-					{
-						type: 'object',
-						properties: {
-							when: {
-								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
-								pattern: '\\w*\\$\\(basename\\)\\w*',
-								default: '$(basename).ext',
-								markdownDescription: nls.localize({ key: 'exclude.when', comment: ['\\$(basename) should not be translated'] }, 'Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.')
-							}
-						}
-					}
-				]
-			},
-			scope: ConfigurationScope.RESOURCE
-		},
 		[SEARCH_MODE_CONFIG]: {
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
@@ -139,33 +114,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('search.mode.newEditor', "Search in a new search editor."),
 			]
 		},
-		'search.useIgnoreFiles': {
-			type: 'boolean',
-			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
-			default: true,
-			scope: ConfigurationScope.RESOURCE
-		},
-		'search.useGlobalIgnoreFiles': {
-			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
-			default: false,
-			scope: ConfigurationScope.RESOURCE
-		},
-		'search.useParentIgnoreFiles': {
-			type: 'boolean',
-			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
-			default: false,
-			scope: ConfigurationScope.RESOURCE
-		},
 		'search.quickOpen.includeSymbols': {
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
-		},
-		'search.ripgrep.maxThreads': {
-			type: 'number',
-			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
-			default: 0
 		},
 		'search.quickOpen.includeHistory': {
 			type: 'boolean',
@@ -183,26 +135,11 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
 		},
-		'search.followSymlinks': {
-			type: 'boolean',
-			description: nls.localize('search.followSymlinks', "Controls whether to follow symlinks while searching."),
-			default: true
-		},
-		'search.smartCase': {
-			type: 'boolean',
-			description: nls.localize('search.smartCase', "Search case-insensitively if the pattern is all lowercase, otherwise, search case-sensitively."),
-			default: false
-		},
 		'search.globalFindClipboard': {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('search.globalFindClipboard', "Controls whether the Search view should read or modify the shared find clipboard on macOS."),
 			included: platform.isMacintosh
-		},
-		'search.maxResults': {
-			type: ['number', 'null'],
-			default: DEFAULT_MAX_SEARCH_RESULTS,
-			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {
 			type: 'string',
@@ -244,20 +181,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the Search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
-		},
-		'search.sortOrder': {
-			type: 'string',
-			enum: [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
-			default: SearchSortOrder.Default,
-			enumDescriptions: [
-				nls.localize('searchSortOrder.default', "Results are sorted by folder and file names, in alphabetical order."),
-				nls.localize('searchSortOrder.filesOnly', "Results are sorted by file names ignoring folder order, in alphabetical order."),
-				nls.localize('searchSortOrder.type', "Results are sorted by file extensions, in alphabetical order."),
-				nls.localize('searchSortOrder.modified', "Results are sorted by file last modified date, in descending order."),
-				nls.localize('searchSortOrder.countDescending', "Results are sorted by count per file, in descending order."),
-				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
-			],
-			description: nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
 		'search.decorations.colors': {
 			type: 'boolean',

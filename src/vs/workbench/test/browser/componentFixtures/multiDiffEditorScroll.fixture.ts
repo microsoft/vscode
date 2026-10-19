@@ -701,7 +701,7 @@ function parseSerializedFixtureState(text: string): ISerializedFixtureState {
 	if (!isJsonObject(value)) {
 		throw new Error('Fixture state must be a JSON object.');
 	}
-	const items = value['items'];
+	const items = value.items;
 	if (!Array.isArray(items)) {
 		throw new Error('Fixture state must contain an items array.');
 	}
@@ -720,24 +720,24 @@ function parseSerializedFixtureItem(value: JsonValue, index: number): ISerialize
 	if (!isJsonObject(value)) {
 		throw new Error(`items[${index}] must be a JSON object.`);
 	}
-	const bindingPhase = value['bindingPhase'];
+	const bindingPhase = value.bindingPhase;
 	if (!isBindingPhase(bindingPhase)) {
 		throw new Error(`items[${index}].bindingPhase must be unbound, binding, projecting, or active.`);
 	}
 	const path = `items[${index}]`;
-	const lineCount = value['lineCount'] === undefined
+	const lineCount = value.lineCount === undefined
 		? heightToLineCount(readNonNegativeNumber(value, 'fullHeight', true, path))
 		: readNonNegativeInteger(value, 'lineCount', path);
-	const geometryOscillationValue = value['geometryOscillation'];
+	const geometryOscillationValue = value.geometryOscillation;
 	const geometryOscillation = geometryOscillationValue === undefined
 		? createDefaultGeometryOscillation()
 		: parseSerializedGeometryOscillation(geometryOscillationValue, index, lineCount);
-	const topLineCountValue = value['topLineCount'];
-	const bottomLineCountValue = value['bottomLineCount'];
-	const legacyContentTopInset = value['contentTopInset'];
-	const mountLineCountsValue = value['mountLineCounts'];
-	const legacyMountHeightsValue = value['mountHeights'];
-	const unmountLineCountResetValue = value['unmountLineCountReset'];
+	const topLineCountValue = value.topLineCount;
+	const bottomLineCountValue = value.bottomLineCount;
+	const legacyContentTopInset = value.contentTopInset;
+	const mountLineCountsValue = value.mountLineCounts;
+	const legacyMountHeightsValue = value.mountHeights;
+	const unmountLineCountResetValue = value.unmountLineCountReset;
 	return {
 		label: readString(value, 'label', path),
 		lineCount,
@@ -787,12 +787,12 @@ function parseSerializedGeometryOscillation(value: JsonValue, index: number, lin
 	if (!isJsonObject(value)) {
 		throw new Error(`${path} must be a JSON object.`);
 	}
-	const ordering = value['ordering'];
+	const ordering = value.ordering;
 	if (!isGeometryChangeOrdering(ordering)) {
 		throw new Error(`${path}.ordering must be atomic, lines-first, or offset-first.`);
 	}
 	const normalizedOrdering = ordering === 'height-first' ? 'lines-first' : ordering;
-	if (value['topLineCountA'] !== undefined) {
+	if (value.topLineCountA !== undefined) {
 		return {
 			enabled: readBoolean(value, 'enabled', path),
 			topLineCountA: readNonNegativeInteger(value, 'topLineCountA', path),
@@ -802,7 +802,7 @@ function parseSerializedGeometryOscillation(value: JsonValue, index: number, lin
 			ordering: normalizedOrdering,
 		};
 	}
-	const location = value['location'];
+	const location = value.location;
 	if (location !== 'above' && location !== 'below') {
 		throw new Error(`${path}.location must be above or below when importing legacy height geometry.`);
 	}

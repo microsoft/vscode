@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-sonnet-4.6
+      model: claude-opus-5
       system: ${system}
       messages:
         - role: user
@@ -11,7 +11,7 @@ exchanges:
       content: ready
       stopReason: end_turn
   - request:
-      model: claude-opus-5
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -26,9 +26,9 @@ exchanges:
               text: |-
                 <command-name>/model</command-name>
                             <command-message>model</command-message>
-                            <command-args>claude-opus-5</command-args>
+                            <command-args>claude-opus-5-5</command-args>
             - type: text
-              text: <local-command-stdout>Set model to claude-opus-5</local-command-stdout>
+              text: <local-command-stdout>Set model to `claude-opus-5-5`</local-command-stdout>
             - type: text
               text: Reply with only the exact code word I asked you to remember.
     response:

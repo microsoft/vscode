@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { ILocalTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import type { IAgentHostChatRowStore } from '../common/agentHostSessionStateStore.js';
+import type { IPersistedTurnRecord } from '../common/sessionDataService.js';
 import type { Turn } from '../common/state/sessionState.js';
 
 export const IAgentHostLocalTurns = createDecorator<IAgentHostLocalTurns>('agentHostLocalTurns');
+
+type ILocalPersistedTurnRecord = IPersistedTurnRecord & { readonly kind: 'local'; readonly seq: number };
 
 export interface IAgentHostLocalTurns {
 	readonly _serviceBrand: undefined;
@@ -38,9 +40,8 @@ export interface IAgentHostLocalTurns {
  * a local turn can be redirected to the concrete SDK message before it.
  *
  * Everything is scoped to a **chat** (its channel URI): a session's default
- * chat and each of its peer chats are handled identically. Persistence lives in
- * the owning session's database (one per session, shared across its chats),
- * discriminated by {@link ILocalTurnRecord.chatUri}.
+ * chat and each of its peer chats are handled identically. Persistence is the
+ * chat's own rows ({@link IAgentHostChatRowStore}).
  */
 export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	declare readonly _serviceBrand: undefined;
@@ -51,7 +52,7 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	private readonly _seqBySession = new Map<string, number>();
 
 	constructor(
-		private readonly _sessionDataService: ISessionDataService,
+		private readonly _chatRows: IAgentHostChatRowStore,
 		private readonly _logService: ILogService,
 	) { }
 
@@ -85,17 +86,10 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void {
 		const seq = (this._seqBySession.get(session) ?? 0) + 1;
 		this._noteInMemory(session, chat, turn.id, anchorTurnId, seq);
-		const record: ILocalTurnRecord = { turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn) };
-		let ref: IReference<ISessionDatabase>;
-		try {
-			ref = this._sessionDataService.openDatabase(URI.parse(session));
-		} catch (err) {
-			this._logService.warn(`[AgentHostLocalTurns] Failed to open database to persist local turn ${turn.id}`, err);
-			return;
-		}
-		ref.object.insertLocalTurn(record).catch(err => {
+		const record: IPersistedTurnRecord = { kind: 'local', turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn) };
+		this._chatRows.insertPersistedTurn(URI.parse(session), record).catch(err => {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to persist local turn ${turn.id}`, err);
-		}).finally(() => ref.dispose());
+		});
 	}
 
 	/**
@@ -118,9 +112,8 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	 * `seq` order so the caller can interleave them into that chat's SDK-derived
 	 * turns during restore.
 	 */
-	async loadForChat(session: string, chat: string): Promise<ILocalTurnRecord[]> {
-		const records = await this._load(session);
-		return records.filter(r => r.chatUri === chat);
+	async loadForChat(session: string, chat: string): Promise<ILocalPersistedTurnRecord[]> {
+		return this._load(session, chat);
 	}
 
 	/** Note a local turn in memory only (used by fork seeding). */
@@ -128,27 +121,18 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 		this._noteInMemory(session, chat, turnId, anchorTurnId, seq);
 	}
 
-	/** Delete the given local turns from memory and the session database. */
-	deleteLocals(session: string, turnIds: readonly string[]): void {
+	/** Delete the given local turns of `chat` from memory and its rows. */
+	deleteLocals(session: string, chat: string, turnIds: readonly string[]): void {
 		if (turnIds.length === 0) {
 			return;
 		}
-		const idSet = new Set(turnIds);
-		for (const map of this._byChat.values()) {
-			for (const id of idSet) {
-				map.delete(id);
-			}
+		const map = this._byChat.get(chat);
+		for (const id of turnIds) {
+			map?.delete(id);
 		}
-		let ref: IReference<ISessionDatabase>;
-		try {
-			ref = this._sessionDataService.openDatabase(URI.parse(session));
-		} catch (err) {
-			this._logService.warn(`[AgentHostLocalTurns] Failed to open database to delete local turns for ${session}`, err);
-			return;
-		}
-		ref.object.deleteLocalTurns(turnIds).catch(err => {
+		this._chatRows.deletePersistedTurns(URI.parse(session), URI.parse(chat), turnIds).catch(err => {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to delete local turns for ${session}`, err);
-		}).finally(() => ref.dispose());
+		});
 	}
 
 	/** Drop all in-memory state for a chat. */
@@ -156,25 +140,16 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 		this._byChat.delete(chat);
 	}
 
-	private async _load(session: string): Promise<ILocalTurnRecord[]> {
-		const ref = this._sessionDataService.tryOpenDatabase?.(URI.parse(session));
-		if (!ref) {
-			return [];
-		}
+	private async _load(session: string, chat: string): Promise<ILocalPersistedTurnRecord[]> {
 		try {
-			const db = await ref;
-			if (!db) {
-				return [];
-			}
-			try {
-				const records = await db.object.getLocalTurns();
-				for (const r of records) {
-					this._noteInMemory(session, r.chatUri, r.turnId, r.anchorTurnId, r.seq);
+			const persisted = await this._chatRows.getPersistedTurns(URI.parse(session), URI.parse(chat));
+			for (const record of persisted) {
+				this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, record.seq));
+				if (record.kind === 'local') {
+					this._noteInMemory(session, record.chatUri, record.turnId, record.anchorTurnId, record.seq);
 				}
-				return records;
-			} finally {
-				db.dispose();
 			}
+			return persisted.filter((record): record is ILocalPersistedTurnRecord => record.kind === 'local');
 		} catch (err) {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to load local turns for ${session}`, err);
 			return [];
@@ -190,4 +165,68 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 		map.set(turnId, { anchorTurnId, seq });
 		this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, seq));
 	}
+}
+
+/** Deserializes a host-persisted turn while preserving its complete payload. */
+export function parsePersistedTurn(record: IPersistedTurnRecord, logService: ILogService, source: string): Turn | undefined {
+	let value: unknown;
+	try {
+		value = JSON.parse(record.payload);
+	} catch (error) {
+		logService.warn(`[${source}] Ignoring unreadable persisted turn ${record.turnId}`, error);
+		return undefined;
+	}
+	if (!isPersistedTurn(value) || value.id !== record.turnId) {
+		logService.warn(`[${source}] Ignoring malformed persisted turn ${record.turnId}`);
+		return undefined;
+	}
+	return value;
+}
+
+function isPersistedTurn(value: unknown): value is Turn {
+	return isRecord(value)
+		&& typeof value.id === 'string'
+		&& isRecord(value.message)
+		&& typeof value.message.text === 'string'
+		&& isRecord(value.message.origin)
+		&& typeof value.message.origin.kind === 'string'
+		&& Array.isArray(value.responseParts)
+		&& typeof value.state === 'string';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Merges saved local turns into visible history without indexing them for live execution. */
+export function interleaveLocalTurns(turns: readonly Turn[], records: readonly IPersistedTurnRecord[], logService: ILogService): Turn[] {
+	if (records.length === 0) {
+		return [...turns];
+	}
+	const knownIds = new Set(turns.map(t => t.id));
+	const byAnchor = new Map<string, Turn[]>();
+	const head: Turn[] = [];
+	for (const record of records) {
+		const turn = parsePersistedTurn(record, logService, AgentHostLocalTurns.name);
+		if (!turn) {
+			continue;
+		}
+		if (record.anchorTurnId === undefined) {
+			head.push(turn);
+		} else if (knownIds.has(record.anchorTurnId)) {
+			const list = byAnchor.get(record.anchorTurnId) ?? [];
+			list.push(turn);
+			byAnchor.set(record.anchorTurnId, list);
+		}
+		// else: orphaned (anchor truncated away) → drop.
+	}
+	const merged: Turn[] = [...head];
+	for (const turn of turns) {
+		merged.push(turn);
+		const locals = byAnchor.get(turn.id);
+		if (locals) {
+			merged.push(...locals);
+		}
+	}
+	return merged;
 }

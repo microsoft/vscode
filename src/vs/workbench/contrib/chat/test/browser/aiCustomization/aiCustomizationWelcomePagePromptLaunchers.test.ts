@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -19,12 +20,13 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 	test('migration card has one native interactive target', () => {
 		const parent = document.createElement('div');
 		document.body.appendChild(parent);
-		const migratedCategories: CustomizationMigrationCategoryId[] = [];
+		let reviewedMigrations = false;
 		const callbacks: IWelcomePageCallbacks = {
 			selectSection() { },
 			selectSectionWithMarketplace() { },
+			openMarketplaceItem() { },
 			closeEditor() { },
-			migrateCustomizations: categoryId => migratedCategories.push(categoryId),
+			reviewMigrations: () => reviewedMigrations = true,
 			prefillChat() { },
 		};
 		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
@@ -38,7 +40,7 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 		));
 		const category: ICustomizationMigrationCategorySummary = {
 			id: CustomizationMigrationCategoryId.UserData,
-			label: 'Migrate User Data Customizations',
+			label: 'VS Code Profile Customizations',
 			description: 'Move customizations.',
 			actionLabel: 'Migrate...',
 			actionAriaLabel: 'Migrate User Data customizations',
@@ -48,6 +50,8 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 		try {
 			page.setMigrationCategories([category]);
 			const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-migration-card');
+			parent.classList.add('ai-customization-management-editor');
+			parent.style.setProperty('--vscode-inputValidation-warningForeground', 'rgb(1, 2, 3)');
 			card?.click();
 			page.focus();
 
@@ -55,12 +59,14 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 				cardTagName: card?.tagName,
 				buttonCount: card?.querySelectorAll('button').length,
 				focusedCard: document.activeElement === card,
-				migratedCategories,
+				actionColor: mainWindow.getComputedStyle(card!.querySelector('.welcome-prompts-card-action-label')!).color,
+				reviewedMigrations,
 			}, {
 				cardTagName: 'BUTTON',
 				buttonCount: 0,
 				focusedCard: true,
-				migratedCategories: [CustomizationMigrationCategoryId.UserData],
+				actionColor: 'rgb(1, 2, 3)',
+				reviewedMigrations: true,
 			});
 		} finally {
 			parent.remove();
@@ -77,8 +83,9 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			{
 				selectSection: section => selectedSections.push(section),
 				selectSectionWithMarketplace() { },
+				openMarketplaceItem() { },
 				closeEditor() { },
-				migrateCustomizations() { },
+				reviewMigrations() { },
 				prefillChat() { },
 			},
 			{} as ICommandService,

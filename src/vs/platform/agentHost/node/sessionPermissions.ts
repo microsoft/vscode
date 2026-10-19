@@ -20,22 +20,26 @@ import { localize } from '../../../nls.js';
 import { ALWAYS_CHECKED_EDIT_PATTERNS, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS } from '../../chat/common/chatSettings.js';
 import { ILogService } from '../../log/common/log.js';
 import { containsCmdDelayedExpansion } from '../../terminal/common/autoApprove/cmdDelayedExpansion.js';
-import { AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, platformRootSchema, platformSessionSchema } from '../common/agentHostSchema.js';
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
+import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
 	isAhpChatChannel,
-	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ToolCallConfirmationReason,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
-import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
+import { getEffectiveWorkingDirectories, IAgentConfigurationService, type IAgentChatConfigurationTarget } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { CommandAutoApprover } from './commandAutoApprover.js';
+import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
+import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Event fields needed for auto-approval decisions.
@@ -62,6 +66,11 @@ const CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 	SKIP_OPTION,
 ];
 const MANAGED_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [ALLOW_ONCE_OPTION, SKIP_OPTION];
+const SANDBOX_CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
+	{ ...ALLOW_ONCE_OPTION, label: localize('sessionPermissions.allow', "Allow") },
+	SKIP_OPTION,
+];
+const SANDBOX_BYPASS_META_KEY = 'agentHost.sandboxBypass';
 
 const HOME_DIR = URI.file(homedir());
 
@@ -209,6 +218,7 @@ export class SessionPermissionManager extends Disposable {
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -259,7 +269,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		const approvalConfig = this._sessionStateOf(sessionKey)?.config;
+		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -303,8 +315,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+			if (this._isAttachmentPath(sessionKey, e.permissionPath)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -317,7 +328,7 @@ export class SessionPermissionManager extends Disposable {
 
 		// 5. Write auto-approval
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories)) {
+			if (await this._isEditAutoApproved(URI.file(e.permissionPath), workingDirectories, sessionKey)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving write to ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -335,11 +346,7 @@ export class SessionPermissionManager extends Disposable {
 			if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 				return undefined;
 			}
-			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput, {
-				autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-				isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
-				language: e.shellLanguage,
-			});
+			const result = await this._evaluateShellAutoApproval(e.toolInput, e.shellLanguage, workingDirectories, sessionKey);
 			if (result === 'approved') {
 				this._logService.trace('[SessionPermissionManager] Auto-approving shell command');
 				return ToolCallConfirmationReason.NotNeeded;
@@ -362,8 +369,8 @@ export class SessionPermissionManager extends Disposable {
 	 * not fall back to unscoped editing, so no write auto-approves for it.
 	 */
 	private _getSurfaceEditScope(sessionKey: ProtocolURI): { readonly target: URI | undefined } | undefined {
-		const session = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
-		const surface = this._stateManager.getSessionSurfaceMeta(session);
+		const session = this._ownerOf(sessionKey);
+		const surface = session === undefined ? undefined : this._stateManager.getSessionSurfaceMeta(session);
 		if (surface?.surface !== 'editorInline') {
 			return undefined;
 		}
@@ -394,8 +401,14 @@ export class SessionPermissionManager extends Disposable {
 		if (e.permissionKind !== 'write' || !e.permissionPath) {
 			return false;
 		}
-		const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-		return isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath);
+		return this._isAttachmentPath(sessionKey, e.permissionPath);
+	}
+
+	/** Whether `path` is an attachment snapshot of the chat (or session): in any directory its attachments are kept in. */
+	private _isAttachmentPath(sessionOrChat: ProtocolURI, path: string): boolean {
+		const owner = this._ownerOf(sessionOrChat);
+		const scopes = isAhpChatChannel(sessionOrChat) ? this._stateManager.getChatAttachmentScopes(sessionOrChat) : undefined;
+		return (scopes ?? (owner !== undefined ? [owner] : [])).some(scope => isSessionAttachmentPath(this._sessionDataService, URI.parse(scope), path));
 	}
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
@@ -406,11 +419,8 @@ export class SessionPermissionManager extends Disposable {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveEnabledConfigKey) === false) {
 			return false;
 		}
-		const workDirs = getEffectiveWorkingDirectories(this._stateManager, sessionKey);
-		const workingDirectories = workDirs?.map(d => URI.parse(d));
 		return this._commandAutoApprover.evaluate(e.toolInput, {
 			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
-			isWriteDestApproved: dest => this._isShellWriteDestApproved(dest, workingDirectories),
 			language: e.shellLanguage,
 		}).autoApproveRuleResolvable;
 	}
@@ -419,12 +429,58 @@ export class SessionPermissionManager extends Disposable {
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
+	/** The session that owns a chat, or the session itself; `undefined` for an unregistered chat. */
+	private _ownerOf(sessionOrChat: ProtocolURI): string | undefined {
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.getChatOwner(sessionOrChat) : sessionOrChat;
+	}
+
+	private _resolveSession(sessionOrChat: ProtocolURI): string | undefined {
+		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._chatOwnership.getChatOwner(chat))?.toString();
+	}
+
+	private _sessionStateOf(sessionOrChat: ProtocolURI): ReturnType<AgentHostStateManager['getSessionState']> {
+		const session = this._resolveSession(sessionOrChat);
+		return session === undefined ? undefined : this._stateManager.getSessionState(session);
+	}
+
+	/** The chat whose config applies to a chat channel; `undefined` for a session or an unregistered chat. */
+	private _chatTargetOf(sessionOrChat: ProtocolURI): IAgentChatConfigurationTarget | undefined {
+		const session = isAhpChatChannel(sessionOrChat) ? this._resolveSession(sessionOrChat) : undefined;
+		return session === undefined ? undefined : { session, chat: sessionOrChat };
+	}
+
+	/** The effective config of a chat (its own values over the session's), or of a session. */
+	private _effectiveConfigOf(sessionOrChat: ProtocolURI): { readonly schema: SessionConfigSchema; readonly values: Record<string, unknown> } | undefined {
+		const config = this._sessionStateOf(sessionOrChat)?.config;
+		const target = this._chatTargetOf(sessionOrChat);
+		return config && { schema: config.schema, values: (target && this._configService.getChatConfigValues(target)) ?? config.values };
+	}
+
+	private _effectiveValue<K extends SessionConfigKey.AutoApprove | SessionConfigKey.Permissions>(sessionOrChat: ProtocolURI, key: K) {
+		const target = this._chatTargetOf(sessionOrChat);
+		return target
+			? this._configService.getChatEffectiveValue(target, platformSessionSchema, key)
+			: this._configService.getEffectiveValue(sessionOrChat, platformSessionSchema, key);
+	}
+
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+		const config = this._effectiveConfigOf(sessionKey);
+		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (policyOwned) {
+			const approval = getSessionApprovalProperty(config.schema);
+			// A chat that chose its own approvals has them until its runtime reports the mode it applies.
+			const effective = approval && getEffectiveSessionApprovalValue(approval, config.schema, config.values);
+			return approval && typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(effective)
+				? readSessionApprovalLevel(approval, effective) ?? 'default' : 'default';
+		}
+		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+			return 'default';
+		}
+		return this._effectiveValue(sessionKey, SessionConfigKey.AutoApprove) ?? 'default';
 	}
 
 	isSessionAutoApproveEnabled(sessionKey: ProtocolURI): boolean {
@@ -443,6 +499,7 @@ export class SessionPermissionManager extends Disposable {
 	createToolReadyAction(e: IAgentToolPendingConfirmationSignal, _sessionKey: ProtocolURI, turnId: string): IToolCallReadyAction {
 		const state = e.state;
 		if (state.confirmationTitle) {
+			const oneTimeOptions = e.requestSandboxBypass || e.requestSandboxPermissive ? SANDBOX_CONFIRMATION_OPTIONS : MANAGED_CONFIRMATION_OPTIONS;
 			return {
 				type: ActionType.ChatToolCallReady,
 				turnId,
@@ -455,15 +512,19 @@ export class SessionPermissionManager extends Disposable {
 				riskAssessment: state.riskAssessment,
 				edits: state.edits,
 				editable: state.editable,
-				...(state._meta ? { _meta: state._meta } : {}),
+				...(e.requestSandboxBypass
+					? { _meta: { ...state._meta, [SANDBOX_BYPASS_META_KEY]: true } }
+					: state._meta ? { _meta: state._meta } : {}),
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
 				options: e.managedApprovalRequired
-					? MANAGED_CONFIRMATION_OPTIONS.slice()
-					: state.options
+					? oneTimeOptions.slice()
+					: e.requestSandboxBypass && readToolCallMeta(state)['vscode.sandboxPathGrant'] && state.options
 						? state.options.slice()
-						: CONFIRMATION_OPTIONS.slice(),
+						: e.requestSandboxPermissive || e.requestSandboxBypass
+							? oneTimeOptions.slice()
+							: state.options ? state.options.slice() : CONFIRMATION_OPTIONS.slice(),
 			};
 		}
 		return {
@@ -483,18 +544,26 @@ export class SessionPermissionManager extends Disposable {
 
 	/**
 	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
-	 * user selected "Allow in this Session". Adds the tool to the session's
-	 * permission allow list so future calls are auto-approved.
+	 * user selected "Allow in this Session": persist ordinary tool permissions.
+	 * Sandbox bypass confirmations never persist tool permissions.
 	 */
 	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
 		if (!isAhpChatChannel(chatChannel)) {
 			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
 		}
-		const sessionKey = parseRequiredSessionUriFromChatUri(chatChannel);
+		const sessionKey = this._resolveSession(chatChannel);
+		if (sessionKey === undefined) {
+			this._logService.trace(`[SessionPermissions] No owner recorded for ${chatChannel}; ignoring confirmation of ${toolCallId}`);
+			return;
+		}
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
+			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
+			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {
+				return;
+			}
 			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);
 			if (toolName) {
-				this._addToolToSessionPermissions(sessionKey, toolName);
+				this._addToolToChatPermissions({ session: sessionKey, chat: chatChannel }, toolName);
 			}
 		}
 	}
@@ -546,18 +615,31 @@ export class SessionPermissionManager extends Disposable {
 	 * rules that govern write tool calls: the destination must resolve to a
 	 * path inside the working directory and must not match a denied glob.
 	 */
-	private _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined): boolean {
+	private async _evaluateShellAutoApproval(toolInput: string, shellLanguage: NonNullable<IToolApprovalEvent['shellLanguage']>, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<CommandApprovalResult> {
+		const writeDestinations: string[] = [];
+		const result = this._commandAutoApprover.shouldAutoApprove(toolInput, {
+			autoApproveRules: this._configService.getRootValue(platformRootSchema, AgentHostTerminalAutoApproveRulesConfigKey),
+			isWriteDestApproved: dest => {
+				writeDestinations.push(dest);
+				return true;
+			},
+			language: shellLanguage,
+		});
+		if (result !== 'approved' || writeDestinations.length === 0) {
+			return result;
+		}
+		const approvals = await Promise.all(writeDestinations.map(dest => this._isShellWriteDestApproved(dest, workingDirectories, sessionKey)));
+		return approvals.every(approved => approved) ? 'approved' : 'noMatch';
+	}
+
+	private async _isShellWriteDestApproved(dest: string, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
 		// A shell command runs in exactly one process cwd = the primary root
 		// (index 0), so a *relative* redirect can only resolve against that cwd.
 		const resource = this._resolveShellRedirectResource(dest, workingDirectories?.[0]);
 		if (!resource) {
 			return false;
 		}
-		// The resolved (absolute) destination auto-approves when contained by
-		// any root — the same "any root" rule as read/write. Unlike read/write,
-		// this path is synchronous and does not resolve symlinks on the
-		// destination (pre-existing behaviour, unchanged here).
-		return (workingDirectories ?? []).some(workingDirectory => this._checkWriteResource(resource, workingDirectory));
+		return this._isEditAutoApproved(resource, workingDirectories, sessionKey);
 	}
 
 	/**
@@ -615,7 +697,7 @@ export class SessionPermissionManager extends Disposable {
 	 *    `~/Library`, `%APPDATA%`, ...).
 	 * 5. The path must match the edit auto-approve glob rules.
 	 */
-	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined): Promise<boolean> {
+	private async _isEditAutoApproved(resource: URI, workingDirectories: readonly URI[] | undefined, sessionKey: ProtocolURI): Promise<boolean> {
 		if (!workingDirectories || workingDirectories.length === 0) {
 			// A write is never auto-approved without a working directory to
 			// contain it (matches the previous behaviour).
@@ -627,10 +709,35 @@ export class SessionPermissionManager extends Disposable {
 		if (resourcesToCheck === undefined) {
 			return false;
 		}
+		if (await this._matchesSensitiveEditLocations(resourcesToCheck, workingDirectories, sessionKey)) {
+			return false;
+		}
 		// Approve if ANY root clears the write checks for every resource
 		// candidate. `_checkWriteResource` is synchronous, so a plain `.some`
 		// already short-circuits — there is no per-root async work to parallelize.
 		return workingDirectories.some(workingDirectory => resourcesToCheck.every(candidate => this._checkWriteResource(candidate, workingDirectory)));
+	}
+
+	private async _matchesSensitiveEditLocations(resources: readonly URI[], workingDirectories: readonly URI[], sessionKey: ProtocolURI): Promise<boolean> {
+		const locations = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.SensitiveEditLocations);
+		if (!locations?.length) {
+			return false;
+		}
+
+		for (const workingDirectory of workingDirectories) {
+			for (const location of locations) {
+				const literalLocation = URI.joinPath(workingDirectory, location.path);
+				const resolvedLocations = await this._resolveResourcesForApproval(literalLocation) ?? [literalLocation];
+				for (const resource of resources) {
+					if (resolvedLocations.some(candidate => location.isDirectory
+						? extUriBiasedIgnorePathCase.isEqualOrParent(resource, candidate)
+						: extUriBiasedIgnorePathCase.isEqual(resource, candidate))) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -718,10 +825,10 @@ export class SessionPermissionManager extends Disposable {
 		if (!toolName) {
 			return false;
 		}
-		// `getEffectiveValue` walks session → parent → host, so sessions
-		// that haven't materialized their own `permissions` yet transparently
-		// inherit from the host-level allow/deny lists.
-		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions);
+		// The effective value walks the chat's own values, the chats that spawned
+		// it, the session and the host, so a chat without its own `permissions`
+		// inherits the session's and the host's allow/deny lists.
+		const permissions = this._effectiveValue(sessionKey, SessionConfigKey.Permissions);
 		const allowed = permissions?.allow.includes(toolName) ?? false;
 		if (allowed) {
 			this._logService.trace(`[SessionPermissionManager] Auto-approving "${toolName}" via permissions`);
@@ -743,18 +850,22 @@ export class SessionPermissionManager extends Disposable {
 		return undefined;
 	}
 
-	private _addToolToSessionPermissions(sessionKey: ProtocolURI, toolName: string): void {
-		const permissions = this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Permissions)
+	/**
+	 * "Allow in this Session" from a chat adds the tool to that chat's
+	 * permissions (a subagent's to the chat it inherits them from).
+	 */
+	private _addToolToChatPermissions(target: IAgentChatConfigurationTarget, toolName: string): void {
+		const permissions = this._configService.getChatEffectiveValue(target, platformSessionSchema, SessionConfigKey.Permissions)
 			?? { allow: [], deny: [] };
 		if (permissions.allow.includes(toolName)) {
 			return;
 		}
-		this._configService.updateSessionConfig(sessionKey, {
+		this._configService.updateChatConfig(target, {
 			[SessionConfigKey.Permissions]: {
 				allow: [...permissions.allow, toolName],
 				deny: [...permissions.deny],
 			},
 		});
-		this._logService.info(`[SessionPermissionManager] Added "${toolName}" to session permissions for ${sessionKey}`);
+		this._logService.info(`[SessionPermissionManager] Added "${toolName}" to the permissions of ${target.chat}`);
 	}
 }

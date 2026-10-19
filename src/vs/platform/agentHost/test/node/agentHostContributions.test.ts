@@ -15,6 +15,14 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class FailingChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -33,8 +41,9 @@ class FailingChangesetOperationService extends Disposable implements IAgentHostC
 			contribution.dispose();
 		});
 	}
-
 	updateOperations(): void { }
+	scheduleRelatedOperationsUpdate(): void { }
+	scheduleOwnerOperationsUpdate(): void { }
 	getOperations() { return []; }
 	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
 }
@@ -44,6 +53,8 @@ const nullGitStateService: IAgentHostGitStateService = {
 	onDidRefreshSessionGitState: Event.None,
 	onDidChangeSessionGitHubState: Event.None,
 	async refreshSessionGitState() { },
+	getMaterializedWorktreeMeta() { return undefined; },
+	async setFolderGitState() { },
 	async resolveSessionBaseBranchName() { return undefined; },
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },
@@ -54,7 +65,9 @@ const nullPullRequestStatusService: IAgentHostPullRequestStatusService = {
 	_serviceBrand: undefined,
 	onDidChangePullRequestStatus: Event.None,
 	getPullRequestStatus() { return undefined; },
+	markPullRequestMerged() { },
 	async refresh() { },
+	async resolveForLifecycle() { return undefined; },
 	dispose() { },
 };
 
@@ -63,12 +76,19 @@ suite('AgentHostContributions', () => {
 
 	test('disposes earlier registrations when activation fails', () => {
 		const changesetOperationService = disposables.add(new FailingChangesetOperationService());
+		const logService = new NullLogService();
+		const sessionDataService = createNullSessionDataService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const services = new ServiceCollection(
-			[IAgentHostStateManager, disposables.add(new AgentHostStateManager(new NullLogService()))],
+			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostChangesetOperationService, changesetOperationService],
 			[IAgentHostGitStateService, nullGitStateService],
 			[IAgentHostPullRequestStatusService, nullPullRequestStatusService],
-			[ILogService, new NullLogService()],
+			[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
+			[ISessionDataService, sessionDataService],
+			[IAgentHostSessionStateStore, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService)],
+			[ILogService, logService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 

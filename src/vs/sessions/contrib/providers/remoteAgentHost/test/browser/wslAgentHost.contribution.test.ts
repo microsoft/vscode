@@ -7,6 +7,9 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { shouldPauseWSLReconnectAfterFailure, WSLAgentHostContribution } from '../../browser/wslAgentHost.contribution.js';
 
 suite('shouldPauseWSLReconnectAfterFailure', () => {
@@ -29,6 +32,37 @@ interface IWSLDisconnectHarness {
 	_remoteAgentHostService: { removeRemoteAgentHost(address: string): Promise<void> };
 	_reconcile(): void;
 	_disconnectWSLOnDemand(distro: string, address: string): Promise<void>;
+}
+
+interface IWSLConnectionWiringHarness {
+	_remoteAgentHostService: {
+		readonly connections: readonly {
+			readonly address: string;
+			readonly defaultDirectory?: string;
+			readonly status: RemoteAgentHostConnectionStatus;
+		}[];
+		getConnection(address: string): IAgentConnection | undefined;
+	};
+	_providerInstances: Map<string, {
+		setConnection(connection: IAgentConnection, defaultDirectory?: string): void;
+		clearConnection(): void;
+	}>;
+	_wiredAddresses: Set<string>;
+	_wireConnections(): void;
+}
+
+interface IWSLConnectionStatusHarness {
+	_remoteAgentHostService: {
+		readonly connections: readonly {
+			readonly address: string;
+			readonly status: RemoteAgentHostConnectionStatus;
+		}[];
+	};
+	_providerInstances: Map<string, {
+		readonly connectionStatus: { get(): RemoteAgentHostConnectionStatus };
+		setConnectionStatus(status: RemoteAgentHostConnectionStatus): void;
+	}>;
+	_updateConnectionStatuses(): void;
 }
 
 suite('WSLAgentHostContribution disconnect', () => {
@@ -60,5 +94,66 @@ suite('WSLAgentHostContribution disconnect', () => {
 		disconnected.complete();
 		await pending;
 		assert.deepStrictEqual(calls, ['state:Ubuntu', 'wsl:Ubuntu', 'remove:wsl:Ubuntu', 'reconcile']);
+	});
+});
+
+suite('WSLAgentHostContribution connection wiring', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('clears a wired provider when its connection disconnects or vanishes without clearing an unwired provider', () => {
+		const address = 'wsl:Ubuntu';
+		const connection = {} as IAgentConnection;
+		const calls: string[] = [];
+		let connections: { address: string; defaultDirectory?: string; status: RemoteAgentHostConnectionStatus }[] = [{
+			address,
+			status: RemoteAgentHostConnectionStatus.connected,
+		}];
+		const contribution = Object.create(WSLAgentHostContribution.prototype) as IWSLConnectionWiringHarness;
+		contribution._remoteAgentHostService = {
+			get connections() { return connections; },
+			getConnection: requestedAddress => requestedAddress === address ? connection : undefined,
+		};
+		contribution._providerInstances = new Map([
+			[address, {
+				setConnection: () => calls.push('wired:set'),
+				clearConnection: () => calls.push('wired:clear'),
+			}],
+			['wsl:unwired', {
+				setConnection: () => calls.push('unwired:set'),
+				clearConnection: () => calls.push('unwired:clear'),
+			}],
+		]);
+		contribution._wiredAddresses = new Set();
+
+		contribution._wireConnections();
+		connections = [{ address, defaultDirectory: '/home/ubuntu', status: RemoteAgentHostConnectionStatus.disconnected }];
+		contribution._wireConnections();
+		connections = [];
+		contribution._wireConnections();
+
+		assert.deepStrictEqual({ calls, wiredAddresses: [...contribution._wiredAddresses] }, {
+			calls: ['wired:set', 'wired:clear'],
+			wiredAddresses: [],
+		});
+	});
+
+	test('propagates the status of a failed WSL connection entry', () => {
+		const address = 'wsl:Ubuntu';
+		let status = RemoteAgentHostConnectionStatus.connecting;
+		const contribution = Object.create(WSLAgentHostContribution.prototype) as IWSLConnectionStatusHarness;
+		contribution._remoteAgentHostService = {
+			connections: [{ address, status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning) }],
+		};
+		contribution._providerInstances = new Map([[
+			address,
+			{
+				connectionStatus: { get: () => status },
+				setConnectionStatus: nextStatus => { status = nextStatus; },
+			},
+		]]);
+
+		contribution._updateConnectionStatuses();
+
+		assert.deepStrictEqual(status, RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.HostNotRunning));
 	});
 });

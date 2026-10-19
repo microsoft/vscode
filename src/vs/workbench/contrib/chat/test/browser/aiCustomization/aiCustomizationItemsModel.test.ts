@@ -12,14 +12,18 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { AICustomizationManagementSection, AICustomizationSources, BUILTIN_STORAGE, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationSyncProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -28,6 +32,14 @@ import { basename } from '../../../../../../base/common/resources.js';
 
 suite('AICustomizationItemsModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createEmptyMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
+		return new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			override getInstallState(): CustomizationMarketplaceInstallState { return { kind: 'available' }; }
+		}();
+	}
 
 	suite('basics', () => {
 
@@ -44,6 +56,9 @@ suite('AICustomizationItemsModel', () => {
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
 		let listPromptFilesResult: Awaited<ReturnType<IPromptsService['listPromptFiles']>>;
 		let disabledPromptFilesResult: ResourceSet;
+		let marketplaceStates: Map<string, RecordedCustomizationMarketplaceInstallState>;
+		let marketplaceInstallations: ISettableObservable<ICustomizationMarketplaceInstallationSnapshot>;
+		let marketplaceInstallStateLookups: number;
 
 		function createDescriptor(id: string, provider: ICustomizationItemProvider | undefined, syncProvider?: ICustomizationSyncProvider): IHarnessDescriptor {
 			return {
@@ -62,6 +77,9 @@ suite('AICustomizationItemsModel', () => {
 			providerA_items = [];
 			listPromptFilesResult = [];
 			disabledPromptFilesResult = new ResourceSet();
+			marketplaceStates = new Map();
+			marketplaceInstallations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			marketplaceInstallStateLookups = 0;
 
 			const providerA: ICustomizationItemProvider = {
 				onDidChange: providerA_didChange.event,
@@ -83,6 +101,14 @@ suite('AICustomizationItemsModel', () => {
 			plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+				override readonly onDidChange = Event.None;
+				override readonly installations = marketplaceInstallations;
+				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+					marketplaceInstallStateLookups++;
+					return marketplaceStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
+				}
+			}());
 
 			function customAgentFromPromptPath(promptFile: IPromptPath): ICustomAgent {
 				return {
@@ -118,6 +144,7 @@ suite('AICustomizationItemsModel', () => {
 
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
@@ -167,6 +194,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -179,6 +207,55 @@ suite('AICustomizationItemsModel', () => {
 			assert.ok(model.getItems(AICustomizationManagementSection.Instructions));
 			assert.ok(model.getItems(AICustomizationManagementSection.Prompts));
 			assert.ok(model.getItems(AICustomizationManagementSection.Hooks));
+		});
+
+		test('links recorded marketplace metadata to its exact installed skill', async () => {
+			const uri = URI.parse('agent-host://t/skills/review/SKILL.md');
+			const resource: ICustomizationMarketplaceResource = {
+				sourceId: 'testSource',
+				identifier: 'review',
+				displayName: 'Review',
+				description: 'Review changes',
+				mediaType: CustomizationMarketplaceMediaType.Skill,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: URI.parse('https://example.com/review.png'),
+			};
+			providerA_items = [{
+				uri,
+				type: PromptsType.skill,
+				name: 'Review',
+				source: AICustomizationSources.plugin,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			}];
+			const key = getCustomizationMarketplaceResourceKey(resource);
+			marketplaceStates.set(key, { kind: 'installed', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const items = model.getItems(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const installed = items.get()[0]?.marketplace;
+
+			marketplaceStates.set(key, { kind: 'uninstalling', target: { kind: 'skill', uri } });
+			marketplaceInstallations.set(createCustomizationMarketplaceInstallationSnapshot([
+				{ resource, state: marketplaceStates.get(key)! },
+			]), undefined);
+			const uninstalling = items.get()[0]?.marketplace;
+
+			assert.deepStrictEqual({
+				installed: installed && { identifier: installed.resource.identifier, icon: getCustomizationMarketplaceIconUri(installed.resource.icon, ColorScheme.LIGHT)?.toString(), state: installed.state.kind },
+				uninstalling: uninstalling?.state.kind,
+				installStateLookups: marketplaceInstallStateLookups,
+			}, {
+				installed: { identifier: 'review', icon: 'https://example.com/review.png', state: 'installed' },
+				uninstalling: 'uninstalling',
+				installStateLookups: 0,
+			});
 		});
 
 		test('does not fetch on construction (lazy)', async () => {
@@ -433,6 +510,78 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(count.get(), 2);
 		});
 
+		test('section count excludes disabled items and contributions from disabled plugins', async () => {
+			const plugin = createLocalPlugin('parent');
+			const pluginEnablement = observableValue('parentPluginEnablement', ContributionEnablementState.DisabledProfile);
+			plugins.set([{ ...plugin, enablement: pluginEnablement }], undefined);
+			providerA_items = [
+				{
+					uri: URI.parse('file:///workspace/skills/enabled/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Enabled',
+					source: AICustomizationSources.local,
+					enabled: true,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('file:///workspace/skills/disabled/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Disabled',
+					source: AICustomizationSources.local,
+					enabled: false,
+					extensionId: undefined,
+					pluginUri: undefined,
+					userInvocable: true,
+				},
+				{
+					uri: URI.parse('plugin-test://parent/skills/plugin-skill/SKILL.md'),
+					type: PromptsType.skill,
+					name: 'Plugin Skill',
+					source: AICustomizationSources.plugin,
+					enabled: true,
+					extensionId: undefined,
+					pluginUri: plugin.uri,
+					userInvocable: true,
+				},
+			];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getCount(AICustomizationManagementSection.Skills);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const disabledCount = count.get();
+
+			pluginEnablement.set(ContributionEnablementState.EnabledProfile, undefined);
+
+			assert.deepStrictEqual({ disabledCount, enabledCount: count.get() }, { disabledCount: 1, enabledCount: 2 });
+		});
+
+		test('plugin count excludes disabled local and provider plugins', async () => {
+			const plugin = createLocalPlugin('local-disabled');
+			const pluginEnablement = observableValue('localPluginEnablement', ContributionEnablementState.DisabledProfile);
+			plugins.set([{ ...plugin, enablement: pluginEnablement }], undefined);
+			providerA_items = [{
+				uri: URI.parse('agent-host://test-authority/plugins/remote-disabled'),
+				type: 'plugin',
+				name: 'Remote Disabled',
+				source: AICustomizationSources.plugin,
+				enabled: false,
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: undefined,
+			}];
+
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const count = model.getPluginCount();
+			await timeout(0);
+			const disabledCount = count.get();
+
+			pluginEnablement.set(ContributionEnablementState.EnabledProfile, undefined);
+
+			assert.deepStrictEqual({ disabledCount, enabledCount: count.get() }, { disabledCount: 0, enabledCount: 1 });
+		});
+
 		test('local plugin changes update plugin count without refetching provider customizations', async () => {
 			providerA_items = [{
 				uri: URI.parse('agent-host://test-authority/plugins/remote-one'),
@@ -583,6 +732,7 @@ suite('AICustomizationItemsModel', () => {
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, createEmptyMarketplaceInstallService());
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
@@ -600,6 +750,7 @@ suite('AICustomizationItemsModel', () => {
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
@@ -651,6 +802,7 @@ suite('AICustomizationItemsModel', () => {
 				agents: observableValue('pluginAgents', []),
 				instructions: observableValue('pluginInstructions', []),
 				mcpServerDefinitions: observableValue('pluginMcpServerDefinitions', []),
+				automations: observableValue('pluginAutomations', []),
 			};
 		}
 
@@ -806,16 +958,10 @@ suite('AICustomizationItemsModel', () => {
 		let disposables: DisposableStore;
 		let instaService: TestInstantiationService;
 		let providerItems: ICustomizationItem[];
-		let builtinSkills: IPromptPath[];
-		let disabledPromptFiles: ResourceSet;
-		let onDidChangeSkills: Emitter<void>;
 
 		setup(() => {
 			disposables = new DisposableStore();
 			providerItems = [];
-			builtinSkills = [];
-			disabledPromptFiles = new ResourceSet();
-			onDidChangeSkills = disposables.add(new Emitter<void>());
 
 			const sessionType = 'agent-host-test';
 			const provider: ICustomizationItemProvider = {
@@ -832,25 +978,25 @@ suite('AICustomizationItemsModel', () => {
 			const availableHarnesses = observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', [descriptor]);
 
 			instaService = workbenchInstantiationService({}, disposables);
+			instaService.stub(ICustomizationMarketplaceInstallService, createEmptyMarketplaceInstallService());
 			instaService.stub(IPromptsService, {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
-				onDidChangeSkills: onDidChangeSkills.event,
+				onDidChangeSkills: Event.None,
 				onDidChangeHooks: Event.None,
 				onDidChangeInstructions: Event.None,
 				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async () => [],
-				listPromptFilesForStorage: async (type: PromptsType, storage: PromptsStorage) => (
-					type === PromptsType.skill && storage === PromptsStorage.builtIn ? builtinSkills.slice() : []
-				),
+				listPromptFilesForStorage: async () => [],
 				getCustomAgents: async () => [],
 				findAgentSkills: async () => [],
 				getHooks: async () => undefined,
 				getInstructionFiles: async () => [],
-				getDisabledPromptFiles: () => disabledPromptFiles,
+				getDisabledPromptFiles: () => new ResourceSet(),
 			});
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
@@ -914,74 +1060,6 @@ suite('AICustomizationItemsModel', () => {
 					instructions: ['style'],
 				},
 			);
-		});
-
-		// Regression: on agent-host harnesses the Skills list used to render
-		// straight from the provider, which reports the synced *bundle*. A
-		// built-in skill disabled from the Customizations UI is dropped from
-		// that bundle, so the skill vanished from the list instead of showing
-		// as disabled — leaving no way to re-enable it and making the Disable
-		// button look like a no-op. Built-ins are now merged in from the
-		// prompts service, which owns the enable/disable state.
-		test('lists disabled built-in skills as disabled instead of dropping them', async () => {
-			const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
-			const enabledSkill = URI.file('/builtin/merge/SKILL.md');
-			builtinSkills = [
-				{ uri: disabledSkill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'create-pr' } as IPromptPath,
-				{ uri: enabledSkill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'merge' } as IPromptPath,
-			];
-			disabledPromptFiles = new ResourceSet([disabledSkill]);
-			// The provider only reports the still-bundled skill; the disabled
-			// one is absent because it was excluded from the synced bundle.
-			providerItems = [
-				{ uri: enabledSkill, type: PromptsType.skill, name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, extensionId: undefined, pluginUri: undefined, userInvocable: true },
-			];
-
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			const skillItems = model.getItems(AICustomizationManagementSection.Skills);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-
-			assert.deepStrictEqual(
-				skillItems.get().map(i => ({ name: i.name, source: i.source, groupKey: i.groupKey, disabled: i.disabled })).sort((a, b) => a.name.localeCompare(b.name)),
-				[
-					{ name: 'create-pr', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: true },
-					{ name: 'merge', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, disabled: false },
-				],
-			);
-		});
-		test('refreshes built-in skill disabled state when onDidChangeSkills fires', async () => {
-			// The Disable action writes to IPromptsService and fires
-			// onDidChangeSkills; the provider is unchanged (its bundle refresh is
-			// asynchronous and may lag). PureItemProviderItemSource must still
-			// re-derive `disabled` from the prompts service, otherwise the row
-			// would stay stale until some unrelated provider change happened.
-			const skill = URI.file('/builtin/create-pr/SKILL.md');
-			builtinSkills = [
-				{ uri: skill, type: PromptsType.skill, storage: PromptsStorage.builtIn, name: 'create-pr' } as IPromptPath,
-			];
-			providerItems = [
-				{ uri: skill, type: PromptsType.skill, name: 'create-pr', source: AICustomizationSources.builtin, groupKey: BUILTIN_STORAGE, extensionId: undefined, pluginUri: undefined, userInvocable: true },
-			];
-
-			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
-			const skillItems = model.getItems(AICustomizationManagementSection.Skills);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-			// Let any refetch scheduled during construction settle, so the
-			// assertion below can only be satisfied by a refetch that the
-			// onDidChangeSkills subscription itself triggered.
-			await timeout(0);
-			assert.deepStrictEqual(skillItems.get().map(i => ({ name: i.name, disabled: i.disabled })), [
-				{ name: 'create-pr', disabled: false },
-			]);
-
-			disabledPromptFiles = new ResourceSet([skill]);
-			onDidChangeSkills.fire();
-			await timeout(0);
-			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
-
-			assert.deepStrictEqual(skillItems.get().map(i => ({ name: i.name, disabled: i.disabled })), [
-				{ name: 'create-pr', disabled: true },
-			]);
 		});
 	});
 });

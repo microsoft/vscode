@@ -5,17 +5,28 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { allowedMarkdownHtmlAttributes } from '../../../../../../base/browser/markdownRenderer.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { OpenerService } from '../../../../../../editor/browser/services/openerService.js';
 import { AGENT_HOST_LABEL_FORMATTER, agentHostAuthority, agentHostLabelFormatter, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
+import { allowedChatMarkdownHtmlTags, ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { ChatWorkspaceEditContentPart } from '../../../browser/widget/chatContentParts/chatWorkspaceEditContentPart.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
+import { IExportableChatData, parseChatImport, Response } from '../../../common/model/chatModel.js';
 
 suite('ChatMarkdownRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,6 +36,91 @@ suite('ChatMarkdownRenderer', () => {
 	setup(() => {
 		instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		testRenderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+	});
+
+	suite('imported chat command links', () => {
+		const commandId = 'test.chatImport';
+		const commandUri = `command:${commandId}?${encodeURIComponent(JSON.stringify(['marker']))}`;
+		const value = `[Details](${commandUri}) [website](https://example.com/)`;
+
+		for (const isTrusted of [true, false, { enabledCommands: [commandId] }]) {
+			for (const legacy of [true, false]) {
+				test(`blocks imported command links (trust: ${JSON.stringify(isTrusted)}, legacy: ${legacy})`, () => {
+					const markdown = { value, isTrusted };
+					const data: IExportableChatData = {
+						initialLocation: ChatAgentLocation.Chat,
+						responderUsername: 'assistant',
+						requests: [{
+							requestId: 'request',
+							message: 'hello',
+							variableData: { variables: [] },
+							response: legacy ? [markdown] : [{ kind: 'markdownContent', content: markdown }],
+						}],
+					};
+					const imported = parseChatImport(JSON.stringify(data));
+					const response = store.add(new Response(imported.requests[0].response!));
+					const part = response.value[0];
+					if (part.kind !== 'markdownContent') {
+						assert.fail('Expected markdown content');
+					}
+					const result = store.add(testRenderer.render(part.content));
+
+					assert.deepStrictEqual({
+						links: Array.from(result.element.querySelectorAll('a'), link => link.dataset.href),
+						text: result.element.textContent?.trim(),
+					}, {
+						links: ['https://example.com/'],
+						text: 'Details website',
+					});
+				});
+			}
+		}
+
+		test('trusted non-imported markdown still executes command links only on click', async () => {
+			const executed = new DeferredPromise<void>();
+			const executeCommand = sinon.stub().callsFake(() => executed.complete());
+			instantiationService.stub(ICommandService, { executeCommand });
+			instantiationService.stub(IOpenerService, instantiationService.createInstance(OpenerService));
+			instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+			const renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const result = store.add(renderer.render(new MarkdownString(value, { isTrusted: true })));
+			const link = result.element.querySelector<HTMLAnchorElement>(`a[data-href^="command:"]`);
+			assert.ok(link);
+			assert.strictEqual(executeCommand.called, false);
+
+			link.click();
+			await executed.p;
+
+			assert.deepStrictEqual(executeCommand.args, [[commandId, 'marker']]);
+		});
+	});
+
+	test('workspace edits render canonical file links without trusting imported content', () => {
+		const resource = URI.file('/workspace/example.ts');
+		const cachedResourceData = {
+			...resource.toJSON(),
+			external: `${resource.toString()}) [Details](command:test.chatImport`,
+		};
+		const cachedResource = URI.revive(cachedResourceData);
+		const oldResource = URI.file('/workspace/`[Details](https:example.com)`.ts');
+		instantiationService.stub(IChatMarkdownAnchorService, store.add(new ChatMarkdownAnchorService()));
+		const part = store.add(instantiationService.createInstance(ChatWorkspaceEditContentPart, {
+			kind: 'workspaceEdit',
+			edits: [
+				{ newResource: cachedResource },
+				{ oldResource },
+				{ oldResource, newResource: cachedResource },
+				{ newResource: URI.parse('command:test.chatImport') },
+			],
+		}, undefined!, testRenderer));
+
+		assert.deepStrictEqual({
+			links: Array.from(part.domNode.querySelectorAll('a'), link => link.dataset.href),
+			fileWidgets: part.domNode.querySelectorAll('.chat-inline-anchor-widget').length,
+		}, {
+			links: [resource.toString(), resource.toString()],
+			fileWidgets: 2,
+		});
 	});
 
 	suite('link hovers', () => {
@@ -226,6 +322,19 @@ suite('ChatMarkdownRenderer', () => {
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
+	});
+
+	test('raw style elements are not allowed by the math sanitizer', () => {
+		const md = new MarkdownString('<style>.example { background-image: none; }</style><div class="example">content</div>');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md, {
+			sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+				allowedTags: allowedChatMarkdownHtmlTags,
+				allowedAttributes: allowedMarkdownHtmlAttributes,
+			}),
+		}));
+
+		assert.strictEqual(result.element.querySelector('style'), null);
 	});
 
 	test('code block ending at end of content does not leak body tag', async () => {

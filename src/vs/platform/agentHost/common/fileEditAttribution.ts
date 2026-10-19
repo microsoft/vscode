@@ -13,7 +13,7 @@ import { EditTelemetryTrigger } from '../../telemetry/common/editTelemetry.js';
 export const FILE_EDIT_ATTRIBUTION_PROPERTY = '_vscodeEditAttribution';
 // Workbench edit-source tracking reports a coverage gap when Agent Host attribution exceeds this cap.
 export const MAX_EDIT_ATTRIBUTION_FILE_SIZE = 5 * 1024 * 1024;
-const EDIT_ATTRIBUTION_RESOURCE_SCHEME = 'agent-edit-attribution';
+export const EDIT_ATTRIBUTION_RESOURCE_SCHEME = 'agent-edit-attribution';
 
 interface IFileEditAttributionMarkerBase {
 	readonly version: 1;
@@ -23,7 +23,12 @@ interface IFileEditAttributionMarkerBase {
 
 export interface IFileEditAttributionSource {
 	readonly modelId?: string;
+	readonly autoTier?: string;
+	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
+	readonly fusionModel?: string;
 	readonly conversationId: string;
+	readonly agentSessionId?: string;
+	readonly chatSessionId?: string;
 	readonly requestId: string;
 	readonly harness: string;
 }
@@ -49,7 +54,12 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 };
 
 export interface IAgentEditAttribution {
+	readonly provider?: string;
 	readonly sessionUri: string;
+	/** The session that owns the edit's chat. */
+	readonly ownerSessionUri: string;
+	/** Originating chat channel, when known; separate from the owning session. */
+	readonly chatUri?: string;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly filePath: string;
@@ -57,6 +67,9 @@ export interface IAgentEditAttribution {
 	readonly afterText: string;
 	readonly changes: readonly IOffsetEdit[];
 	readonly modelId: string | undefined;
+	readonly autoTier?: string;
+	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
+	readonly fusionModel?: string;
 	readonly toolName: string;
 }
 
@@ -168,7 +181,11 @@ function isFileEditAttributionSource(source: unknown): source is IFileEditAttrib
 	}
 	const candidate = source as Partial<IFileEditAttributionSource>;
 	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
+		(candidate.autoTier === undefined || typeof candidate.autoTier === 'string') &&
+		(candidate.fusionModel === undefined || typeof candidate.fusionModel === 'string') &&
 		typeof candidate.conversationId === 'string' &&
+		(candidate.agentSessionId === undefined || typeof candidate.agentSessionId === 'string') &&
+		(candidate.chatSessionId === undefined || typeof candidate.chatSessionId === 'string') &&
 		typeof candidate.requestId === 'string' &&
 		typeof candidate.harness === 'string';
 }

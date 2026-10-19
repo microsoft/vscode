@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { StringOrMarkdown } from '../../common/state/sessionState.js';
-import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+import { buildServerToolGroups, getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 function text(value: StringOrMarkdown | undefined): string | undefined {
 	if (value === undefined) {
@@ -69,6 +69,33 @@ suite('serverToolGroups display', () => {
 		});
 	});
 
+	test('set_workspace resolves to outcome-oriented confirmation display', () => {
+		const confirmation = (isolation: boolean) => {
+			const display = getServerToolDisplay('set_workspace', { workspaceFolder: '/workspace/app', isolation });
+			return {
+				title: display?.confirmationTitle,
+				message: text(display?.confirmationMessage),
+				hideInput: display?.hideConfirmationInput,
+			};
+		};
+
+		assert.deepStrictEqual({
+			direct: confirmation(false),
+			isolated: confirmation(true),
+		}, {
+			direct: {
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
+				hideInput: true,
+			},
+			isolated: {
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
+				hideInput: true,
+			},
+		});
+	});
+
 	test('fast tools omit a duplicate completion message', () => {
 		const past = (resultText?: string) =>
 			text(getServerToolDisplay('listComments', undefined, { text: resultText, success: true })?.pastTenseMessage);
@@ -103,5 +130,20 @@ suite('serverToolGroups display', () => {
 	test('unknown tools return undefined so callers fall back to their generic display', () => {
 		assert.strictEqual(getServerToolDisplay('bash', { command: 'ls' }), undefined);
 		assert.strictEqual(getServerToolDisplay('someClientTool', undefined), undefined);
+	});
+});
+
+suite('serverToolGroups deferral budget', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// A Copilot session sends every server tool with `deferLoading: false` on every
+	// model request. See AGENTS.md §9 before changing this baseline.
+	const definitions = buildServerToolGroups().flatMap(group => group.definitions);
+
+	test('the eager server tool set is the reviewed baseline', () => {
+		assert.deepStrictEqual(definitions.filter(def => def.deferLoading === false).map(def => def.name), [
+			'add_artifact_or_reference',
+		]);
 	});
 });

@@ -103,6 +103,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
 			const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
+			const useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
@@ -115,7 +116,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				wrappingInfo.wrappingColumn,
 				wrappingIndent,
 				wordBreak,
-				wrapOnEscapedLineFeeds
+				wrapOnEscapedLineFeeds,
+				useTwoCellFullwidthCharacters
 			);
 		}
 
@@ -279,8 +281,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 		const wordBreak = options.get(EditorOption.wordBreak);
+		const useTwoCellFullwidthCharacters = options.get(EditorOption.effectiveFullwidthCharacterWidth) === 'twoCells';
 
-		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak)) {
+		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak, useTwoCellFullwidthCharacters)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
@@ -923,6 +926,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getViewLineData(lineNumber);
 	}
 
+	public getViewLineContinuesWithWrappedLine(lineNumber: number): boolean {
+		return this._lines.getViewLineContinuesWithWrappedLine(lineNumber);
+	}
+
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
 		const result = this._lines.getViewLinesData(startLineNumber, endLineNumber, needed);
 		return new MinimapLinesRenderingData(
@@ -1215,8 +1222,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
 	}
-	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));
+	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined, isBlock: boolean = false): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source, isBlock));
 	}
 	public cut(source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.cut(eventsCollector, source));

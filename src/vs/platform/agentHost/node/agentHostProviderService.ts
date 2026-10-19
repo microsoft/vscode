@@ -11,6 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, AgentSession, type AuthenticateParams, type AuthenticateResult, type IAgent, type IAgentHostNetworkEndpoint, type IMcpNotification } from '../common/agent.js';
+import type { IAgentHostAuthenticationScope } from '../common/agentHostCredentials.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../common/agentService.js';
 import { IAgentHostAuthenticationController } from './agentHostAuthenticationService.js';
 import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
@@ -36,7 +37,7 @@ export interface IAgentHostProviderService {
 	getProviders(): readonly IAgent[];
 	associateSession(session: URI | string, provider: AgentProvider): void;
 	releaseSession(session: URI | string, expectedProvider?: AgentProvider): void;
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	getNetworkDiagnostics(): Promise<IAgentHostProviderNetworkDiagnostics>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -58,6 +59,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	private readonly _providerInitializers = new Set<(provider: IAgent) => IDisposable>();
 	private readonly _authenticationReplays = new Map<AgentProvider, Promise<void>>();
 	private _defaultProvider: AgentProvider | undefined;
+	private _shutdownStarted = false;
 	private _shutdownPromise: Promise<void> | undefined;
 
 	constructor(
@@ -77,7 +79,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	registerProvider(provider: IAgent): void {
-		if (this._shutdownPromise) {
+		if (this._shutdownStarted) {
 			throw new Error('Cannot register an agent provider after shutdown has started');
 		}
 		if (this._providers.has(provider.id)) {
@@ -135,7 +137,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		if (schemeProvider) {
 			return this._providers.get(schemeProvider);
 		}
-		return this._defaultProvider ? this._providers.get(this._defaultProvider) : undefined;
+		return undefined;
 	}
 
 	getProviders(): readonly IAgent[] {
@@ -154,8 +156,8 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		this._sessionToProvider.delete(key);
 	}
 
-	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		return this._authenticationController.authenticate(params, this._providers.values());
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		return this._authenticationController.authenticate(params, this._providers.values(), scope);
 	}
 
 	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
@@ -219,14 +221,27 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 	}
 
 	shutdown(): Promise<void> {
-		return this._shutdownPromise ??= this._shutdown();
+		if (!this._shutdownPromise) {
+			this._shutdownStarted = true;
+			this._shutdownPromise = this._shutdown();
+		}
+		return this._shutdownPromise;
 	}
 
 	private async _shutdown(): Promise<void> {
+		const providers = [...this._providers.values()];
 		try {
-			await Promises.settled([...this._authenticationReplays.values()]);
-			await Promises.settled([...this._providers.values()].map(provider => provider.shutdown()));
+			await Promises.settled([
+				Promises.settled([...this._authenticationReplays.values()]),
+				Promises.settled(providers.map(async provider => provider.shutdown())),
+			]);
 		} finally {
+			for (const provider of providers) {
+				this._providerRegistrations.deleteAndDispose(provider.id);
+				this._providers.deleteAndDispose(provider.id);
+			}
+			this._agents.set([], undefined);
+			this._defaultProvider = undefined;
 			this._sessionToProvider.clear();
 		}
 	}

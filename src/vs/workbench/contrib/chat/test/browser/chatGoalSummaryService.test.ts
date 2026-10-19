@@ -39,6 +39,8 @@ suite('ChatGoalSummaryService', () => {
 				['Fix the avatar popup bug', 'Fix the avatar popup bug'],
 				['"Add tests for the parser"', 'Add tests for the parser'],
 				['Goal: Refactor the loader', 'Refactor the loader'],
+				['Goal - Refactor the loader', 'Refactor the loader'],
+				['Goal \u2014 Refactor the loader', 'Refactor the loader'],
 				['  Improve   error   handling  ', 'Improve error handling'],
 				['Prevent the "Sorry, I can\'t assist" goal-banner error', 'Prevent the "Sorry, I can\'t assist" goal-banner error'],
 				['Implement cannot-connect retry logic', 'Implement cannot-connect retry logic'],

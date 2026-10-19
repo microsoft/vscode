@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import type { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event, Relay } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -21,6 +23,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { INotificationService } from '../../notification/common/notification.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
@@ -30,7 +33,11 @@ import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '..
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import {
 	AgentHostAhpJsonlLoggingSettingId,
 	type AgentHostDebugLogsArtifactKind,
@@ -39,8 +46,16 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasCloseRequest,
+	type IAgentCanvasInfo,
+	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
+	IAgentCustomizationInstallation,
+	IAgentCustomizationInstallationRequest,
+	IAgentCustomizationInstallationReview,
+	IAgentCustomizationMarketplaceSearchRequest,
+	IAgentCustomizationMarketplaceSearchResult,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -49,6 +64,12 @@ import {
 	IAgentHostNetworkFetchResult,
 	IAgentHostService,
 	IAgentHostSocketInfo,
+	type IAgentHostOTelSettings,
+	type IAgentHostOTelPolicyReadiness,
+	IAgentPluginInstallRequest,
+	IAgentPluginUninstallRequest,
+	type IMissionControlOptions,
+	type IMissionControlCredentialSealingRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -145,23 +166,35 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	readonly clientConnectionKind = AgentHostClientConnectionKind.Local;
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: AgentHostProtocolClient | undefined;
+	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 	private _connectStarted = false;
 	private _didAcquireInitialMessagePort = false;
 	private _didConnectInitially = false;
 	private _didStartInitialSessionList = false;
 	private _didCompleteInitialSessionList = false;
+	private _lastForwardedOTelPolicy: IAgentHostOTelSettings | undefined;
+	private _lastForwardedOTelPolicyReady: boolean | undefined;
 	private _startupTelemetry: AgentHostStartupTelemetry | undefined;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
+
+	// Consumers can subscribe before prewarming creates the protocol client.
+	private readonly _onDidAction = this._register(new Relay<ActionEnvelope>());
+	readonly onDidAction = this._onDidAction.event;
+	private readonly _onDidNotification = this._register(new Relay<INotification>());
+	readonly onDidNotification = this._onDidNotification.event;
+	private readonly _onMcpNotification = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
 	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
@@ -176,6 +209,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	constructor(
 		private readonly _clientInfo: Implementation,
+		private readonly _otelPolicyReadiness: IAgentHostOTelPolicyReadiness,
+		private readonly _sendOTelPolicy: (policy: IAgentHostOTelSettings, ready: boolean) => void = (policy, ready) => ipcRenderer.send(AgentHostOTelPolicyIpcChannel, policy, ready),
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -186,6 +221,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
 			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
+				logId: this.clientId,
 				connectionId: this.clientId,
 				transport: 'local',
 			}))
@@ -201,6 +237,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		};
 		ipcRenderer.on(AgentHostWillRestartIpcChannel, onWillRestart);
 		this._register(toDisposable(() => ipcRenderer.removeListener(AgentHostWillRestartIpcChannel, onWillRestart)));
+		this._register(this._configurationService.onDidChangeConfiguration(() => this._forwardOTelPolicy()));
+		this._register(this._otelPolicyReadiness.onDidChange(() => this._forwardOTelPolicy()));
 	}
 
 	startAgentHost(): void {
@@ -209,7 +247,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._startupTelemetry = this._register(this._instantiationService.createInstance(
 				AgentHostStartupTelemetry,
 				getAgentHostClientType(this._clientInfo),
-				AgentHostClientConnectionKind.Local,
+				this.clientConnectionKind,
 				() => StopWatch.create(true),
 				(callback, timeoutMs) => disposableTimeout(callback, timeoutMs),
 			));
@@ -219,6 +257,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				() => this._createTransport(),
 				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
+			this._register(this._protocolClient.registerMcpAuthenticationHandler(async request => this._mcpAuthenticationHandler?.(request) ?? false));
+			this._onDidAction.input = this._protocolClient.onDidAction;
+			this._onDidNotification.input = this._protocolClient.onDidNotification;
+			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
 			this._register(this._protocolClient.onDidChangeConnectionState(state => this._handleConnectionState(state)));
 			this._register(this._protocolClient.onDidFatalClose(() => {
 				if (!this._didConnectInitially) {
@@ -245,7 +287,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return new AgentHostIpcChannelTransport(
 			getDelayedChannel(clientPromise.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
 			this._ahpLogger,
-			AgentHostClientConnectionKind.Local,
+			this.clientConnectionKind,
 		);
 	}
 
@@ -293,7 +335,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 
 	private _forwardOTelPolicy(): void {
-		ipcRenderer.send(AgentHostOTelPolicyIpcChannel, readAgentHostOTelPolicySettings(this._configurationService));
+		const policy = readAgentHostOTelPolicySettings(this._configurationService);
+		const ready = this._otelPolicyReadiness.isReady();
+		if (equals(this._lastForwardedOTelPolicy, policy) && this._lastForwardedOTelPolicyReady === ready) {
+			return;
+		}
+		this._lastForwardedOTelPolicy = policy;
+		this._lastForwardedOTelPolicyReady = ready;
+		this._sendOTelPolicy(policy, ready);
 	}
 
 	private _handleConnectionState(state: AgentHostClientState): void {
@@ -349,18 +398,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
 
-	get onDidAction(): Event<ActionEnvelope> {
-		return this._protocolClient?.onDidAction ?? Event.None;
-	}
-
-	get onDidNotification(): Event<INotification> {
-		return this._protocolClient?.onDidNotification ?? Event.None;
-	}
-
-	get onMcpNotification(): Event<IMcpNotification> {
-		return this._protocolClient?.onMcpNotification ?? Event.None;
-	}
-
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
@@ -381,8 +418,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._requireClient().dispatch(channel, action);
 	}
 
+	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+		return this._requireClient().dispatchConfirmed(channel, subscription, action, token);
+	}
+
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._requireClient().authenticate(params);
+	}
+
+	/** Registers silent MCP authentication even before the local protocol client is created. */
+	registerMcpAuthenticationHandler(handler: (request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>): IDisposable {
+		if (this._mcpAuthenticationHandler) {
+			throw new Error('MCP authentication handler is already registered');
+		}
+		this._mcpAuthenticationHandler = handler;
+		return toDisposable(() => {
+			this._mcpAuthenticationHandler = undefined;
+		});
 	}
 
 	listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -418,6 +470,149 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return promise;
 		}
 		return this._requireClient().createSession(config);
+	}
+
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		return this._getManagementService().createDetachedWorktree(session, prompt);
+	}
+
+	async reportFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void> {
+		await this._protocolClient?.reportFirstResponse(diagnostic);
+	}
+
+	refreshSubscription(resource: URI): Promise<void> {
+		return this._requireClient().refreshSubscription(resource);
+	}
+
+	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {
+		if (!this._protocolClient) {
+			throw new Error('Agent Host is not connected; user interaction telemetry was not exported');
+		}
+		await this._protocolClient.reportUserInteraction(timing);
+	}
+
+	removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
+		return this._requireClient().removeSessionArtifact(session, artifactId);
+	}
+
+	stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+		return this._requireClient().stopBackgroundWork(chat, id);
+	}
+
+	readonly sandboxCertificateInstallationSupported = constObservable(true);
+	readonly sandboxCertificateRotationSupported = constObservable(true);
+	readonly sandboxCertificateRemovalSupported = constObservable(true);
+
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
+	}
+
+	importSession(session: URI): Promise<void> {
+		return this._requireClient().importSession(session);
+	}
+
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
+	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
+		return this._requireClient().readSavedChat(session, chat);
+	}
+
+	completeSavedChatContinuation(request: IAgentHostSavedChatContinuation): Promise<IAgentHostSavedChatContinuationResult> {
+		return this._requireClient().completeSavedChatContinuation(request);
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		return this._getManagementService().setDetachedWorktreeArchived(handle, archived);
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().claimDetachedWorktree(handle);
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		return this._getManagementService().deleteDetachedWorktree(handle);
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions(forceConnectorName);
+	}
+
+	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
+	}
+
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session, chat);
+	}
+
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		return this._getManagementService().openSessionCanvas(session, request, chat);
+	}
+
+	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
+		return this._getManagementService().closeSessionCanvas(session, request, chat);
+	}
+
+	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().installPlugin(provider, request, session, chat);
+	}
+
+	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
+	}
+
+	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+		return this._getManagementService().addPluginMarketplace(provider, session, source, chat);
+	}
+
+	browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+		return this._getManagementService().browsePluginMarketplace(provider, session, name, chat);
+	}
+
+	removePluginMarketplace(provider: string, session: URI, name: string, force?: boolean, chat?: URI) {
+		return this._getManagementService().removePluginMarketplace(provider, session, name, force, chat);
+	}
+
+	refreshPluginMarketplaces(provider: string, session: URI, name?: string, chat?: URI) {
+		return this._getManagementService().refreshPluginMarketplaces(provider, session, name, chat);
+	}
+
+	searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		return this._getManagementService().searchCustomizationMarketplace(provider, session, request);
+	}
+
+	listCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().listCustomizationInstallations(provider, session);
+	}
+
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
+	}
+
+	applyCustomizationInstallation(provider: string, operationId: string): Promise<void> {
+		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	}
+
+	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().recoverCustomizationInstallations(provider, session);
+	}
+
+	addMcpServerConfiguration(provider: string, name: string, config: IMcpServerConfiguration): Promise<void> {
+		return this._getManagementService().addMcpServerConfiguration(provider, name, config);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -535,8 +730,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
-		return this._getManagementService().collectDebugLogs(session, kind, chat);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
+		return this._getManagementService().collectDebugLogs(session, kind, chat, progressToken);
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		await this._getManagementService().cancelDebugLogs?.(progressToken);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -561,6 +760,19 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			getDelayedChannel(this._managementConnection.client().then(client => client.getChannel(AgentHostIpcChannels.Management)))
 		);
 	}
+
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	}
+
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
+		return this._getManagementService().sealMissionControlCredential(request);
+	}
+
+	getMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
@@ -568,7 +780,9 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 }
 
 function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
-	return options.title !== undefined || options.model !== undefined;
+	// AHP carries the first message's model/agent selection and client identity.
+	// The management channel cannot preserve that admission path.
+	return options.model !== undefined && options.initialMessage === undefined;
 }
 
 /**

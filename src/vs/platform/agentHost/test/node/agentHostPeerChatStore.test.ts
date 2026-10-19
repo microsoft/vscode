@@ -1,0 +1,1759 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import * as assert from 'assert';
+import * as sinon from 'sinon';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT } from '../../node/agentHostCatalogProjection.js';
+import type { Database } from '@vscode/sqlite3';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostPeerChatStore, CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
+import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
+
+const session = URI.parse('agenthost:peer-store');
+const first = URI.parse(buildChatUri(session, 'first'));
+const second = URI.parse(buildChatUri(session, 'second'));
+const third = URI.parse(buildChatUri(session, 'third'));
+const origin = {
+	kind: ChatOriginKind.SideChat,
+	chat: buildDefaultChatUri(session),
+	turnId: 'turn-1',
+	selection: { text: 'selected', responsePartId: 'response-1' },
+} as const;
+
+class FailingLegacyMirrorDatabase extends TestSessionDatabase {
+	private legacyMirrorFailures = 0;
+
+	failLegacyMirrors(count: number): void {
+		this.legacyMirrorFailures = count;
+	}
+
+	override async setMetadata(key: string, value: string): Promise<void> {
+		if (key === PEER_CHATS_METADATA_KEY && this.legacyMirrorFailures > 0) {
+			this.legacyMirrorFailures--;
+			throw new Error('legacy mirror failed');
+		}
+		return super.setMetadata(key, value);
+	}
+}
+
+class RecordingLogService extends NullLogService {
+	readonly errors: (string | Error)[] = [];
+
+	override error(message: string | Error): void {
+		this.errors.push(message);
+	}
+}
+
+class ConcurrentMetadataWriteDatabase extends FailingLegacyMirrorDatabase {
+	private inFlightWrites = 0;
+	maxInFlightWrites = 0;
+	metadataValueWrites = 0;
+
+	override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+		this.metadataValueWrites++;
+		this.inFlightWrites++;
+		this.maxInFlightWrites = Math.max(this.maxInFlightWrites, this.inFlightWrites);
+		await Promise.resolve();
+		try {
+			await super.setMetadataValues(values);
+		} finally {
+			this.inFlightWrites--;
+		}
+	}
+}
+
+suite('AgentHostPeerChatStore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let orchestrator: AgentHostDatabase;
+	let stores: AgentHostPeerChatStore[];
+
+	setup(async () => {
+		stores = [];
+		orchestrator = new AgentHostDatabase(':memory:');
+		await orchestrator.registerRuntimeSession(session.toString(), {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+	});
+
+	teardown(async () => {
+		sinon.restore();
+		await Promise.allSettled(stores.map(store => store.whenIdle()));
+		stores.forEach(store => store.dispose());
+		await orchestrator.close();
+	});
+
+	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)), noOlderBuildCopyParticipant);
+		stores.push(store);
+		return store;
+	}
+
+	test('session catalog idle waits for local metadata migration without waiting for another session', async () => {
+		const localGate = new DeferredPromise<void>();
+		const otherGate = new DeferredPromise<void>();
+		const otherSession = URI.parse('agenthost:other-peer-store');
+		const store = createStore(new TestSessionDatabase());
+		store.setMetadataMigration(async (owner, _resource, values) => {
+			await (owner.toString() === session.toString() ? localGate.p : otherGate.p);
+			return values;
+		});
+		const localWrite = store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Local title' });
+		const otherWrite = store.persistMetadata(otherSession, otherSession, { [SESSION_CUSTOM_TITLE_KEY]: 'Other title' });
+		let sessionIdle = false;
+		let allIdle = false;
+		const sessionDrain = store.whenIdle(session).then(() => { sessionIdle = true; });
+		const allDrain = store.whenIdle().then(() => { allIdle = true; });
+		try {
+			await timeout(0);
+			assert.deepStrictEqual({ sessionIdle, allIdle }, { sessionIdle: false, allIdle: false });
+			localGate.complete();
+			await localWrite;
+			await timeout(0);
+			assert.deepStrictEqual({ sessionIdle, allIdle }, { sessionIdle: true, allIdle: false });
+		} finally {
+			localGate.complete();
+			otherGate.complete();
+			await Promise.all([localWrite, otherWrite, sessionDrain, allDrain]);
+		}
+		assert.strictEqual(allIdle, true);
+	});
+
+	test('session catalog idle propagates rejected writes while session data idle settles', async () => {
+		const gate = new DeferredPromise<void>();
+		const store = createStore(new TestSessionDatabase());
+		store.setMetadataMigration(async () => {
+			await gate.p;
+			throw new Error('metadata migration failed');
+		});
+		const write = assert.rejects(store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'New title' }), /metadata migration failed/);
+		const sessionCatalogDrain = assert.rejects(store.whenIdle(session), /metadata migration failed/);
+		const allDrain = assert.rejects(store.whenIdle(), /metadata migration failed/);
+		let sessionIdle = false;
+		const sessionDrain = store.whenSessionIdle(session).then(() => { sessionIdle = true; });
+		await timeout(0);
+		assert.strictEqual(sessionIdle, false);
+		gate.complete();
+		await Promise.all([write, sessionCatalogDrain, allDrain, sessionDrain]);
+		assert.strictEqual(sessionIdle, true);
+	});
+
+	test('normalized metadata batches title and source without touching legacy backing', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Original', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		const writes = sinon.spy(orchestrator, 'updateChatV2Metadata');
+		await store.persistMetadata(session, URI.parse(defaultChat), {
+			[SESSION_CUSTOM_TITLE_KEY]: 'Renamed',
+			[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: 'continuation',
+			[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(['file:///first', 'file:///second']),
+		});
+		await store.persistMetadata(session, URI.parse(defaultChat), {
+			[SESSION_CUSTOM_TITLE_KEY]: '',
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: '',
+			[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: '',
+			[getChatChangesSummaryMetadataKey(defaultChat)]: '',
+		});
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		const row = snapshot.chats[0];
+		assert.deepStrictEqual({
+			writes: writes.callCount,
+			legacyWrites: local.setMetadataCalls,
+			metadata: row.metadata,
+			directories: row.workingDirectories,
+			detail: await orchestrator.getChatV2ProviderDetail(defaultChat),
+		}, {
+			writes: 2,
+			legacyWrites: [],
+			metadata: { interactivity: ChatInteractivity.Full, titleSource: 'user' },
+			directories: undefined,
+			detail: {},
+		});
+	});
+
+	test('normalized default title snapshots fill missing titles without legacy writes or later overwrite', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [], privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		await local.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user');
+		local.setMetadataCalls.length = 0;
+		const store = createStore(local);
+		await store.persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), 'Snapshot');
+		await store.persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), 'Later snapshot');
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			metadata: snapshot.chats[0].metadata, metadataRevision: snapshot.chats[0].metadataRevision,
+			legacyWrites: local.setMetadataCalls,
+		}, {
+			metadata: { interactivity: ChatInteractivity.Full, changes: { files: 0 }, summary: 'Snapshot', titleSource: 'user' },
+			metadataRevision: 1, legacyWrites: [],
+		});
+	});
+
+	test('normalized title writes and snapshots use the migration summary bound without splitting surrogate pairs', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		const prefix = 'x'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT - 2);
+		const oversized = `${prefix}😀tail`;
+		await store.persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), oversized);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: oversized, [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		const [bounded] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		const exact = 'y'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT);
+		await store.persistMetadata(session, session, { [customChatTitleMetadataKey(first.toString())]: exact });
+		const [atLimit] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: '' });
+		assert.deepStrictEqual({
+			bounded: bounded.chats.map(chat => chat.metadata?.summary),
+			atLimit: atLimit.chats.find(chat => chat.chat === first.toString())?.metadata?.summary,
+			cleared: (await store.readNormalizedChat(session, first)).chat?.metadata,
+			legacyWrites: local.setMetadataCalls,
+		}, {
+			bounded: [`${prefix}…`, `${prefix}…`],
+			atLimit: exact,
+			cleared: { titleSource: 'user' },
+			legacyWrites: [],
+		});
+	});
+
+	test('normalized chat hydration reads only one row per peer in a full catalog', async () => {
+		const peers = Array.from({ length: 100 }, (_, index) => ({ chat: buildChatUri(session, `peer-${index}`), order: index + 1, metadata: { summary: `Peer ${index}` } }));
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers,
+			privateDescendants: Array.from({ length: 899 }, (_, index) => ({ chat: buildChatUri(session, `private-${index}`), parentChat: peers[0].chat })),
+		});
+		const snapshots = sinon.spy(orchestrator, 'readCatalogSnapshot');
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Count actual production row decoding without a test-only API.
+		const originalDecoder = orchestrator['_toChatV2'];
+		const decode = sinon.spy(originalDecoder);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Retain the private method's type when installing the recording wrapper.
+		orchestrator['_toChatV2'] = decode;
+		const store = createStore(new TestSessionDatabase());
+		try {
+			const titles = await Promise.all(peers.map(async peer => (await store.readNormalizedChat(session, URI.parse(peer.chat))).chat?.metadata?.summary));
+			assert.deepStrictEqual({
+				titles, snapshotReads: snapshots.callCount, decodedRows: decode.callCount,
+			}, { titles: peers.map(peer => peer.metadata.summary), snapshotReads: 0, decodedRows: peers.length });
+		} finally {
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Restore the production decoder after this test.
+			orchestrator['_toChatV2'] = originalDecoder;
+		}
+	});
+
+	test('normalized default title snapshots preserve a concurrent explicit title after a CAS conflict', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [], privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		sinon.stub(local, 'getMetadata').callsFake(async key => {
+			assert.strictEqual(key, SESSION_CUSTOM_TITLE_SOURCE_KEY);
+			await orchestrator.updateChatV2Metadata(defaultChat, { ownershipRevision: 0, metadataRevision: 0 }, {
+				metadata: { summary: 'Concurrent user title', titleSource: 'user' },
+			});
+			return 'auto';
+		});
+		const writes = sinon.spy(orchestrator, 'updateChatV2Metadata');
+		await createStore(local).persistDefaultChatTitleSnapshot(session, URI.parse(defaultChat), 'Stale snapshot');
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			metadata: snapshot.chats[0].metadata, metadataRevision: snapshot.chats[0].metadataRevision,
+			writes: writes.callCount, legacyWrites: local.setMetadataCalls,
+		}, {
+			metadata: { summary: 'Concurrent user title', titleSource: 'user' },
+			metadataRevision: 1, writes: 2, legacyWrites: [],
+		});
+	});
+
+	test('normalized public identity conflicts fail once instead of retrying an unchanged header', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		await store.remove(session, first);
+		const replacements = sinon.spy(orchestrator, 'replaceSessionChatCatalog');
+		await assert.rejects(store.upsert(session, first, 'recreated'), /Normalized peer identity conflicts/);
+		await store.whenIdle();
+		const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			attempts: replacements.callCount,
+			chats: snapshot.chats.map(chat => chat.chat),
+			legacyWrites: local.setMetadataCalls,
+		}, {
+			attempts: 1, chats: [defaultChat], legacyWrites: [],
+		});
+	});
+
+	test('normalized flags and private lifecycle preserve public roles and reject tombstoned reuse', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const local = new TestSessionDatabase();
+		const store = createStore(local);
+		await store.setRead(session, URI.parse(defaultChat), true);
+		await store.setArchived(session, first, true);
+		await store.persistPrivateChat(session, {
+			chat: second.toString(), parentChat: first.toString(), providerData: 'private-continuation',
+			metadata: { summary: 'Worker', interactivity: ChatInteractivity.Hidden, changes: { files: 0 } },
+		});
+		await store.persistPrivateChat(session, { chat: second.toString(), providerData: 'updated-continuation', metadata: { interactivity: ChatInteractivity.Hidden } });
+		await store.persistPrivateChat(session, { chat: third.toString(), parentChat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } });
+		const [before] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		await store.remove(session, second);
+		const [after] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } }), /Conflicting private chat identity/);
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), parentChat: first.toString(), metadata: { interactivity: ChatInteractivity.Hidden } }, true), /Conflicting private chat identity/);
+		assert.deepStrictEqual({
+			worker: before.chats.find(chat => chat.chat === second.toString())?.metadata,
+			remaining: after.chats.map(chat => ({ chat: chat.chat, order: chat.order, read: chat.isRead, archived: chat.archived })),
+			legacyWrites: local.setMetadataCalls,
+			removed: await orchestrator.getChatV2ProviderDetail(second.toString()),
+		}, {
+			worker: { summary: 'Worker', interactivity: ChatInteractivity.Hidden, changes: { files: 0 } },
+			remaining: [
+				{ chat: defaultChat, order: 0, read: true, archived: false },
+				{ chat: first.toString(), order: 1, read: undefined, archived: true },
+			],
+			legacyWrites: [],
+			removed: undefined,
+		});
+	});
+
+	test('late private lineage survives provider updates and removes descendants with their public parent', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		const store = createStore(new TestSessionDatabase());
+		await store.persistPrivateChat(session, { chat: second.toString(), providerData: 'early-continuation', metadata: { interactivity: ChatInteractivity.Hidden } });
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), parentChat: second.toString() }), /parent|lineage|cyclic/i);
+		await store.persistPrivateChat(session, { chat: second.toString(), parentChat: first.toString() });
+		await store.persistPrivateChat(session, { chat: second.toString(), providerData: 'latest-continuation' });
+		await store.persistPrivateChat(session, { chat: third.toString(), parentChat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } });
+		const [before] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		const detail = await orchestrator.getChatV2ProviderDetail(second.toString());
+		await store.remove(session, first);
+		const [after] = await orchestrator.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			parent: before.chats.find(chat => chat.chat === second.toString())?.parentChat,
+			detail, remaining: after.chats.map(chat => chat.chat),
+			descendants: await Promise.all([second, third].map(chat => orchestrator.getChatV2ProviderDetail(chat.toString()))),
+		}, {
+			parent: first.toString(), detail: { providerData: 'latest-continuation' },
+			remaining: [defaultChat], descendants: [undefined, undefined],
+		});
+	});
+
+	function createPerResourceStore(): {
+		readonly store: AgentHostPeerChatStore;
+		readonly databaseFor: (resource: URI) => ConcurrentMetadataWriteDatabase;
+		readonly opened: string[];
+	} {
+		const databases = new Map<string, ConcurrentMetadataWriteDatabase>();
+		const opened: string[] = [];
+		const databaseFor = (resource: URI) => {
+			const key = (resource.authority ? resource : resource.with({ fragment: '' })).toString();
+			let database = databases.get(key);
+			if (!database) {
+				database = new ConcurrentMetadataWriteDatabase();
+				databases.set(key, database);
+			}
+			return database;
+		};
+		const service = {
+			...createSessionDataService(),
+			openDatabase: (resource: URI) => {
+				opened.push(resource.toString());
+				return { object: databaseFor(resource), dispose: () => { } };
+			},
+			tryOpenDatabase: async (resource: URI) => {
+				opened.push(resource.toString());
+				const key = (resource.authority ? resource : resource.with({ fragment: '' })).toString();
+				const database = databases.get(key);
+				return database ? { object: database, dispose: () => { } } : undefined;
+			},
+		};
+		const store = new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service), noOlderBuildCopyParticipant);
+		stores.push(store);
+		return {
+			store,
+			databaseFor,
+			opened,
+		};
+	}
+
+	test('migration-only membership does not create compatibility databases and mirrors after adoption', async () => {
+		const database = new TestSessionDatabase();
+		let opens = 0;
+		const unavailable = {
+			...createSessionDataService(database),
+			openDatabase: () => {
+				opens++;
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
+
+		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		const read = await migrationStore.tryRead(session);
+		await migrationStore.reconcileLegacy(session);
+
+		const adoptedStore = createStore(database);
+		await adoptedStore.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			opens,
+			read,
+			compatibilityAcknowledged: catalog?.legacyMirroredRevision === catalog?.revision,
+			recordedBase: catalog?.legacyMirroredPayload,
+			legacy: await adoptedStore.tryReadLegacy(session),
+		}, {
+			opens: 0,
+			read: [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }],
+			compatibilityAcknowledged: false,
+			recordedBase: JSON.stringify([{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]),
+			legacy: [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }],
+		});
+	});
+
+	test('initialization returns current membership instead of stale migration entries', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'current-backing', origin);
+
+		const initialized = await store.initialize(session, [{ uri: second.toString(), providerData: 'stale-backing' }]);
+
+		assert.deepStrictEqual({
+			initialized,
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			initialized: [{ uri: first.toString(), providerData: 'current-backing', origin }],
+			legacy: [{ uri: first.toString(), providerData: 'current-backing', origin }],
+		});
+	});
+
+	test('initialization does not resurrect a peer deleted during legacy enumeration', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing');
+		await store.remove(session, first);
+
+		const initialized = await store.initialize(session, [{ uri: first.toString(), providerData: 'backing' }]);
+
+		assert.deepStrictEqual({
+			initialized,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			initialized: [],
+			central: [],
+			legacy: [],
+		});
+	});
+
+	test('merges an older-build delta against migration-only membership before mirroring', async () => {
+		const unavailable = {
+			...createSessionDataService(),
+			openDatabase: () => {
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
+		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
+		const imported = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.ok(imported);
+		const updated = await orchestrator.replaceSessionChatCatalog(session.toString(), [
+			{ chat: first.toString(), order: 0 },
+			{ chat: second.toString(), order: 1 },
+		], imported.revision);
+		assert.strictEqual(updated.status, 'applied');
+
+		const database = new TestSessionDatabase();
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: third.toString() }]));
+		const store = createStore(database);
+
+		const reconciled = await store.reconcileLegacy(session);
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+
+		assert.deepStrictEqual({
+			reconciled,
+			legacy: await store.tryReadLegacy(session),
+			catalog: catalog && {
+				entries: catalog.chats.map(chat => chat.chat),
+				compatibilityAcknowledged: catalog.legacyMirroredRevision === catalog.revision,
+			},
+		}, {
+			reconciled: [{ uri: third.toString() }, { uri: second.toString() }],
+			legacy: [{ uri: third.toString() }, { uri: second.toString() }],
+			catalog: {
+				entries: [third.toString(), second.toString()],
+				compatibilityAcknowledged: true,
+			},
+		});
+	});
+
+	test('merges an older-build addition made after migration-only authoritative empty', async () => {
+		const unavailable = {
+			...createSessionDataService(),
+			openDatabase: () => {
+				throw new Error('must not create a database');
+			},
+			tryOpenDatabase: async () => undefined,
+		};
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
+		await migrationStore.replaceForMigration(session, []);
+		const database = new TestSessionDatabase();
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
+		const store = createStore(database);
+
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			reconciled,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			reconciled: [{ uri: first.toString() }],
+			central: [{ uri: first.toString() }],
+			legacy: [{ uri: first.toString() }],
+		});
+	});
+
+	test('does not resurrect a stale pre-deletion mirror during unmirrored repair', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString() }]);
+		database.failLegacyMirrors(1);
+		await store.remove(session, first);
+
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			reconciled,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			reconciled: [],
+			central: [],
+			legacy: [],
+		});
+	});
+
+	test('migration import does not replace a catalog created after its initial read', async () => {
+		class RacingDatabase extends AgentHostDatabase {
+			private raced = false;
+
+			override async getSessionChatCatalog(sessionKey: string) {
+				if (!this.raced) {
+					this.raced = true;
+					await super.replaceSessionChatCatalog(sessionKey, [{ chat: second.toString(), order: 0, providerData: 'concurrent' }], undefined);
+					return undefined;
+				}
+				return super.getSessionChatCatalog(sessionKey);
+			}
+		}
+		await orchestrator.close();
+		orchestrator = new RacingDatabase(':memory:');
+		await orchestrator.registerRuntimeSession(session.toString(), {
+			provider: 'copilot',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+		const store = createStore(new TestSessionDatabase());
+
+		await store.replaceForMigration(session, [{ uri: first.toString(), providerData: 'migration' }]);
+
+		assert.deepStrictEqual(await store.tryRead(session, false), [{ uri: second.toString(), providerData: 'concurrent' }]);
+	});
+
+	test('heals malformed metadata on the next write', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, '{"not":"an array"}');
+
+		const before = await store.tryReadLegacy(session);
+		await store.upsert(session, first, 'provider-data', { kind: ChatOriginKind.User });
+
+		assert.deepStrictEqual({
+			before,
+			entries: await store.tryRead(session),
+			raw: await database.getMetadata(PEER_CHATS_METADATA_KEY),
+		}, {
+			before: undefined,
+			entries: [{ uri: first.toString(), providerData: 'provider-data', origin: { kind: ChatOriginKind.User } }],
+			raw: JSON.stringify([{ uri: first.toString(), providerData: 'provider-data', origin: { kind: ChatOriginKind.User } }]),
+		});
+	});
+
+	test('filters duplicate, default, and invalid entries while normalizing origins', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const foreignSession = URI.parse('agenthost:foreign');
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: first.toString(), providerData: 'first', origin },
+			{ uri: first.toString(), providerData: 'duplicate' },
+			{ uri: buildChatUri(foreignSession, 'foreign') },
+			{ uri: buildDefaultChatUri(session) },
+			{ uri: second.toString(), providerData: 42 },
+			{
+				uri: third.toString(),
+				origin: {
+					kind: ChatOriginKind.SideChat,
+					chat: buildDefaultChatUri(session),
+					turnId: 'turn-2',
+					selection: { text: 'kept', responsePartId: false },
+				},
+			},
+		]));
+
+		assert.deepStrictEqual(await store.tryReadLegacy(session), [
+			{ uri: first.toString(), providerData: 'first', origin },
+			// The containing session owns an entry with no central record, whatever its URI encodes.
+			{ uri: buildChatUri(foreignSession, 'foreign') },
+			{
+				uri: third.toString(),
+				origin: {
+					kind: ChatOriginKind.SideChat,
+					chat: buildDefaultChatUri(session),
+					turnId: 'turn-2',
+				},
+			},
+		]);
+	});
+
+	test('legacy entries belong to the reading session unless the registry or central catalog records them elsewhere or as deleted', async () => {
+		const database = new TestSessionDatabase();
+		const other = 'agenthost:other-owner';
+		const recordedElsewhere = buildChatUri(session, 'recorded-elsewhere');
+		const tombstoned = buildChatUri(session, 'tombstoned');
+		const liveElsewhere = buildChatUri(session, 'live-elsewhere');
+		// Encodes another session in its URI but has no central record.
+		const encodedElsewhere = buildChatUri('agenthost:encoded-elsewhere', 'unrecorded');
+		await orchestrator.registerRuntimeSession(other, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const registered = await orchestrator.registerChatCatalogV2(other, {
+			defaultChat: { chat: buildDefaultChatUri(other), order: 0 },
+			peers: [{ chat: recordedElsewhere, order: 1 }],
+			privateDescendants: [{ chat: tombstoned, metadata: { interactivity: ChatInteractivity.Hidden } }],
+		});
+		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
+		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
+		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)), noOlderBuildCopyParticipant);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			removed: removed.status,
+			tombstoned: tombstonedOwner?.deleted,
+			entries: await store.tryReadLegacy(session),
+			lookups: lookups.callCount,
+		}, {
+			removed: 'applied',
+			tombstoned: true,
+			entries: [{ uri: encodedElsewhere }, { uri: first.toString() }],
+			lookups: 1,
+		});
+	});
+
+	test('a legacy entry recorded under the reading session but tombstoned is skipped', async () => {
+		const database = new TestSessionDatabase();
+		const tombstonedHere = buildChatUri(session, 'tombstoned-here');
+		await orchestrator.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: tombstonedHere, order: 1 }],
+			privateDescendants: [],
+		});
+		// Tombstones the session's chats_v2 rows and drops its normalized header, so the legacy store is read again.
+		await orchestrator.tombstoneAndUnregisterSession(session.toString());
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([tombstonedHere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			central: (await orchestrator.findCentralChatOwners([tombstonedHere])).get(tombstonedHere),
+			entries: await store.tryReadLegacy(session),
+		}, {
+			central: { ownerSession: session.toString(), source: 'normalized', deleted: true },
+			entries: [{ uri: first.toString() }],
+		});
+	});
+
+	test('reading and reconciling a full legacy peer list checks only the central catalogs, never cached catalog payloads', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const peers = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, index) => buildChatUri(session, `legacy-${index}`));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(peers.map(uri => ({ uri }))));
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+
+		const read = await store.tryReadLegacy(session);
+		const reconciled = await store.reconcileLegacy(session);
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({
+			read: read?.length,
+			reconciled: reconciled?.length,
+			// Lookups of the peers; the session state store's import also checks the session itself once.
+			centralLookups: statements.filter(sql => sql.includes('FROM chats_v2 WHERE chat_uri IN') && sql.includes(peers[0])).length,
+			payloadScans: statements.filter(sql => sql.includes('FROM sessions_v2') && sql.includes('instr(payload,')).length,
+		}, {
+			read: peers.length,
+			reconciled: peers.length,
+			centralLookups: 2,
+			payloadScans: 0,
+		});
+	});
+
+	test('serializes concurrent add, remove, and update operations', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.replace(session, [
+			{ uri: first.toString(), providerData: 'old', origin },
+			{ uri: second.toString(), providerData: 'remove' },
+		]);
+
+		await Promise.all([
+			store.upsert(session, third, 'third', { kind: ChatOriginKind.User }),
+			store.remove(session, second),
+			store.upsert(session, first, 'refreshed'),
+		]);
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: third.toString(), providerData: 'third', origin: { kind: ChatOriginKind.User } },
+			{ uri: first.toString(), providerData: 'refreshed', origin },
+		]);
+	});
+
+	test('does not recreate membership or compatibility data after tombstoning', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await orchestrator.tombstoneAndUnregisterSession(session.toString());
+
+		await store.upsert(session, first, 'late-provider-data');
+
+		assert.deepStrictEqual({
+			central: await store.tryRead(session),
+			legacy: await database.getMetadata(PEER_CHATS_METADATA_KEY),
+			chatProviderData: await database.getMetadata(CHAT_PROVIDER_DATA_METADATA_KEY),
+		}, {
+			central: undefined,
+			legacy: undefined,
+			chatProviderData: undefined,
+		});
+	});
+
+	test('keeps overlapping deletion fences active until every disposer exits', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.beginSessionDeletion(session);
+		await store.beginSessionDeletion(session);
+		store.endSessionDeletion(session);
+
+		await store.upsert(session, first, 'provider-data');
+
+		assert.strictEqual(await store.tryRead(session), undefined);
+		store.endSessionDeletion(session);
+	});
+
+	test('does not create membership for a missing registered session', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await orchestrator.unregisterRuntimeSession(session.toString());
+
+		await store.upsert(session, first, 'provider-data');
+
+		assert.deepStrictEqual({
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			central: undefined,
+			legacy: undefined,
+		});
+	});
+
+	test('restores authoritative side-chat selection from chat-local metadata', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const selectionText = 'selected text '.repeat(400);
+		await database.setMetadata(CHAT_ORIGIN_METADATA_KEY, JSON.stringify({
+			kind: ChatOriginKind.SideChat,
+			chat: buildDefaultChatUri(session),
+			turnId: 'turn-1',
+			selection: { text: selectionText, responsePartId: 'response-1' },
+		}));
+
+		const restored = await store.readLocalChatMetadata(session, [{
+			uri: first.toString(),
+			origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session), turnId: 'turn-1' },
+		}]);
+
+		assert.strictEqual(restored[0].origin?.kind === ChatOriginKind.SideChat && restored[0].origin.selection?.text, selectionText);
+	});
+
+	test('retries concurrent mutations from separate store instances', async () => {
+		const database = new TestSessionDatabase();
+		const firstStore = createStore(database);
+		const secondStore = createStore(database);
+		await firstStore.replace(session, []);
+
+		await Promise.all([
+			firstStore.upsert(session, first, 'first'),
+			secondStore.upsert(session, second, 'second'),
+		]);
+
+		assert.deepStrictEqual(
+			(await firstStore.tryRead(session))?.slice().sort((a, b) => a.uri.localeCompare(b.uri)),
+			[
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'second' },
+			].sort((a, b) => a.uri.localeCompare(b.uri)),
+		);
+	});
+
+	test('refreshes provider data without dropping persisted origin, inherited turn, or working directories', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'old', origin, 'inherited-turn', ['file:///workspace/first']);
+
+		await store.upsert(session, first, 'refreshed');
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/first'] },
+		]);
+	});
+
+	test('updates working directories without dropping provider data', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, 'inherited-turn', ['file:///workspace/first']);
+		await store.setArchived(session, first, true);
+
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), archived: true, providerData: 'backing', origin, inheritedTurnId: 'inherited-turn', workingDirectories: ['file:///workspace/second'] },
+		]);
+	});
+
+	test('the session state mirror is the only writer of the chat working directories key', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, undefined, ['file:///workspace/first']);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/second']);
+
+		assert.deepStrictEqual({
+			writes: database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+			read: await store.tryRead(session),
+		}, {
+			writes: [
+				{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) },
+				{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/second']) },
+			],
+			read: [{ uri: first.toString(), providerData: 'backing', origin, workingDirectories: ['file:///workspace/second'] }],
+		});
+	});
+
+	test('copies a normalized peer\'s working directories for older builds only when it stores at its chat URI', async () => {
+		const defaultChat = buildDefaultChatUri(session);
+		const atUri = buildChatUri(session, 'at-uri');
+		const elsewhere = buildChatUri(session, 'elsewhere');
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'Default', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [
+				{ chat: atUri, order: 1, storageResource: atUri, metadata: { summary: 'At URI', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+				// Stored in another session's database, as a session's default chat moved under this one is.
+				{ chat: elsewhere, order: 2, storageResource: 'copilot:/moved-in', metadata: { summary: 'Elsewhere', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			],
+			privateDescendants: [],
+		});
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		await store.updateWorkingDirectories(session, URI.parse(atUri), ['file:///workspace/at-uri']);
+		await store.updateWorkingDirectories(session, URI.parse(elsewhere), ['file:///workspace/elsewhere']);
+
+		assert.deepStrictEqual(database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY), [
+			{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/at-uri']) },
+		]);
+	});
+
+	test('copies no working directories for older builds of a chat nothing records', async () => {
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0, metadata: { summary: 'Default', interactivity: ChatInteractivity.Full, changes: { files: 0 } } },
+			peers: [],
+			privateDescendants: [],
+		});
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		// A chat removed after its change was computed reaches the mirror without any record.
+		await (store as unknown as { _mirrorPeerWorkingDirectories(session: URI, changes: ReadonlyMap<string, string>): Promise<void> })._mirrorPeerWorkingDirectories(session, new Map([[buildChatUri(session, 'unrecorded'), JSON.stringify(['file:///workspace/unrecorded'])]]));
+
+		assert.deepStrictEqual(database.setMetadataCalls.filter(call => call.key === CHAT_WORKING_DIRECTORIES_METADATA_KEY), []);
+	});
+
+	test('working directories are read from the session state store rather than a stale chat database value', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'backing', origin, undefined, ['file:///workspace/first']);
+		await database.setMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY, JSON.stringify(['file:///stale']));
+
+		assert.deepStrictEqual(await store.tryRead(session), [
+			{ uri: first.toString(), providerData: 'backing', origin, workingDirectories: ['file:///workspace/first'] },
+		]);
+	});
+
+	test('persists archived state across updates and restores', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.setArchived(session, first, true);
+		await store.upsert(session, first, 'refreshed');
+		const archived = await store.tryRead(session);
+
+		await store.setArchived(session, first, false);
+		const restored = await store.tryRead(session);
+
+		assert.deepStrictEqual({ archived, restored }, {
+			archived: [{ uri: first.toString(), archived: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			restored: [{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+		});
+	});
+
+	test('the recorded default chat keeps its read state on the session and a default-shaped chat is a peer', async () => {
+		const recordedDefault = buildChatUri(session, 'primary');
+		const shapedPeer = URI.parse(buildDefaultChatUri(session));
+		const local = new TestSessionDatabase();
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)), noOlderBuildCopyParticipant);
+		await store.upsert(session, shapedPeer, 'peer-backing');
+		await store.setRead(session, shapedPeer, false);
+		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
+		await store.setRead(session, URI.parse(recordedDefault), true);
+
+		assert.deepStrictEqual({
+			afterPeer,
+			afterDefault: await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			peers: (await store.tryRead(session))?.map(entry => ({ uri: entry.uri.toString(), isRead: entry.isRead })),
+		}, {
+			afterPeer: undefined,
+			afterDefault: 'true',
+			peers: [{ uri: shapedPeer.toString(), isRead: false }],
+		});
+	});
+
+	test('persists read state across updates and restores', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.setRead(session, first, false);
+		await store.upsert(session, first, 'refreshed');
+		const unread = await store.tryRead(session);
+		const centralUnread = (await orchestrator.getSessionChatCatalog(session.toString()))?.chats.find(chat => chat.chat === first.toString())?.isRead;
+		const compatibilityUnread = await databaseFor(first).getMetadata(AH_META_IS_READ_DB_KEY);
+
+		await store.setRead(session, first, true);
+		const read = await store.tryRead(session);
+		const centralRead = (await orchestrator.getSessionChatCatalog(session.toString()))?.chats.find(chat => chat.chat === first.toString())?.isRead;
+		const compatibilityRead = await databaseFor(first).getMetadata(AH_META_IS_READ_DB_KEY);
+
+		assert.deepStrictEqual({ unread, centralUnread, compatibilityUnread, read, centralRead, compatibilityRead }, {
+			unread: [{ uri: first.toString(), isRead: false, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			centralUnread: false,
+			compatibilityUnread: '',
+			read: [{ uri: first.toString(), isRead: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			centralRead: true,
+			compatibilityRead: 'true',
+		});
+	});
+
+	async function registerNormalizedPeer(): Promise<ReturnType<typeof createPerResourceStore>> {
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: first.toString(), order: 1 }],
+			privateDescendants: [],
+		});
+		return createPerResourceStore();
+	}
+
+	test('normalized peer changes publish nothing inline; a flush publishes the burst once, acknowledged, with only changed peer keys; a title change publishes the title keys alone', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		await store.upsert(session, first, 'late-provider-data', origin, 'inherited-turn');
+		await store.setArchived(session, first, true);
+		await store.whenIdle();
+		const writesBeforeFlush = databaseFor(first).setMetadataCalls.length + databaseFor(session).setMetadataCalls.length;
+		await store.flushCompatibilityPublishes(session, undefined);
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+		await store.flushCompatibilityPublishes(session, undefined);
+		const copy = JSON.stringify([{ uri: first.toString(), isRead: true, archived: true, providerData: 'late-provider-data', origin, inheritedTurnId: 'inherited-turn' }]);
+		assert.deepStrictEqual({
+			writesBeforeFlush,
+			peerWrites: databaseFor(first).setMetadataCalls,
+			sessionWrites: databaseFor(session).setMetadataCalls,
+			acknowledged: { current: catalog?.legacyMirroredRevision === catalog?.revision, payload: catalog?.legacyMirroredPayload },
+		}, {
+			writesBeforeFlush: 0,
+			peerWrites: [
+				{ key: AH_META_IS_READ_DB_KEY, value: 'true' },
+				{ key: CHAT_PROVIDER_DATA_METADATA_KEY, value: 'late-provider-data' },
+				{ key: CHAT_ORIGIN_METADATA_KEY, value: JSON.stringify(origin) },
+				{ key: CHAT_INHERITED_TURN_METADATA_KEY, value: 'inherited-turn' },
+				{ key: SESSION_CUSTOM_TITLE_KEY, value: 'Renamed' },
+				{ key: SESSION_CUSTOM_TITLE_SOURCE_KEY, value: 'user' },
+			],
+			sessionWrites: [
+				{ key: PEER_CHATS_METADATA_KEY, value: copy },
+				{ key: customChatTitleMetadataKey(first.toString()), value: 'Renamed' },
+				{ key: customChatTitleSourceMetadataKey(first.toString()), value: 'user' },
+			],
+			acknowledged: { current: true, payload: copy },
+		});
+	});
+
+	test('waiting for a session\'s writes awaits its queued and metadata writes, never another session\'s', async () => {
+		const store = createStore(new TestSessionDatabase());
+		const other = URI.parse('agenthost:other-session');
+		const internals = store as unknown as {
+			_enqueue(session: URI, operation: () => Promise<void>): Promise<void>;
+			_trackMetadataWrite(session: URI, operation: () => Promise<void>): Promise<void>;
+		};
+		const queued = new DeferredPromise<void>();
+		const metadata = new DeferredPromise<void>();
+		void internals._enqueue(other, () => queued.p);
+		void internals._trackMetadataWrite(session, () => metadata.p);
+		const order: string[] = [];
+
+		// Never resolves while it waits for the other session's held write: the test would time out.
+		await store.whenSessionsIdle([URI.parse('agenthost:unrelated-session')]);
+		const own = store.whenSessionsIdle([session]).then(() => order.push('session idle'));
+		await timeout(0);
+		order.push('metadata released');
+		metadata.complete();
+		await own;
+		queued.complete();
+		await store.whenIdle();
+
+		assert.deepStrictEqual(order, ['metadata released', 'session idle']);
+	});
+
+	test('a publish whose acknowledgement finds the catalog moved on republishes the newer revision before it returns', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		const acknowledge = orchestrator.markSessionChatCatalogLegacyMirrored.bind(orchestrator);
+		let raced = false;
+		sinon.stub(orchestrator, 'markSessionChatCatalogLegacyMirrored').callsFake(async (...args) => {
+			if (!raced) {
+				raced = true;
+				// Another writer (not this store, so nothing schedules another publish) archives the peer after the read.
+				const [snapshot] = await orchestrator.readCatalogSnapshot([session.toString()]);
+				const peer = snapshot.chats.find(chat => chat.chat === first.toString())!;
+				assert.strictEqual((await orchestrator.updateChatV2Metadata(first.toString(), peer, { archived: true })).status, 'applied');
+			}
+			return acknowledge(...args);
+		});
+
+		await store.flushCompatibilityPublishes(session, undefined);
+
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		const copy = JSON.stringify([{ uri: first.toString(), isRead: true, archived: true }]);
+		assert.deepStrictEqual({
+			peerChats: await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY),
+			acknowledged: { current: catalog?.legacyMirroredRevision === catalog?.revision, payload: catalog?.legacyMirroredPayload },
+		}, { peerChats: copy, acknowledged: { current: true, payload: copy } });
+	});
+
+	test('a publish gives up after three attempts when the catalog never settles, leaving the revision unacknowledged', async () => {
+		const { store } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		// Every acknowledgement finds the catalog moved on; each attempt re-reads the source once.
+		sinon.stub(orchestrator, 'markSessionChatCatalogLegacyMirrored').resolves(false);
+		const reads = sinon.spy(orchestrator, 'readOlderBuildCopySource');
+		const warnings = sinon.stub(NullLogService.prototype, 'warn');
+
+		await store.flushCompatibilityPublishes(session, undefined);
+
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.deepStrictEqual({
+			attempts: reads.callCount,
+			gaveUp: warnings.getCalls().some(call => String(call.args[0]).includes('Gave up publishing')),
+			acknowledged: catalog?.legacyMirroredRevision === catalog?.revision,
+		}, { attempts: 3, gaveUp: true, acknowledged: false });
+	});
+
+	test('importing another build\'s copy first is progress: a publish then still survives two superseded acknowledgements', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		await store.setRead(session, first, true);
+		await store.flushCompatibilityPublishes(session, undefined);
+		// Another build changes the peer in the copy it reads; this build then adds a peer, which schedules a publish.
+		await databaseFor(session).setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString(), isRead: true, providerData: 'other-build' }]));
+		const second = URI.parse(buildChatUri(session, 'second'));
+		await store.upsert(session, second, 'second-provider');
+		const acknowledge = orchestrator.markSessionChatCatalogLegacyMirrored.bind(orchestrator);
+		let superseded = 2;
+		sinon.stub(orchestrator, 'markSessionChatCatalogLegacyMirrored').callsFake(async (...args) => superseded-- > 0 ? false : acknowledge(...args));
+
+		await store.flushCompatibilityPublishes(session, undefined);
+
+		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.deepStrictEqual({
+			providers: catalog?.chats.map(chat => chat.providerData),
+			acknowledged: catalog?.legacyMirroredRevision === catalog?.revision && catalog?.legacyMirroredPayload === await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY),
+		}, { providers: ['other-build', 'second-provider'], acknowledged: true });
+	});
+
+	test('an import that another writer supersedes on every attempt gives up after three, writes nothing and fails its caller', async () => {
+		const { store } = await registerNormalizedPeer();
+		await store.reconcileOlderBuildCopy(session);
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const run = (sql: string) => new Promise<void>((resolve, reject) => sqlite.run(sql, [session.toString()], error => error ? reject(error) : resolve()));
+		// An older build marks the peer unread in session_chats.
+		await run('UPDATE session_chats SET is_read = 0 WHERE session_uri = ?');
+		await run('UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = ?');
+		const before = (await orchestrator.readCatalogSnapshot([session.toString()]))[0].chats;
+		// Another writer moves the catalog on just before every import writes.
+		const reads = sinon.spy(orchestrator, 'readOlderBuildCopySource');
+		sinon.stub(orchestrator, 'replaceSessionChatCatalogImportingOlderBuildEdits').callsFake(async () => {
+			await run('UPDATE session_chat_catalogs SET revision = revision + 1 WHERE session_uri = ?');
+			return { status: 'conflict' };
+		});
+		sinon.stub(NullLogService.prototype, 'warn');
+
+		const failure = await store.reconcileOlderBuildCopy(session).then(() => undefined, (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			attempts: reads.callCount,
+			failure,
+			unchanged: JSON.stringify((await orchestrator.readCatalogSnapshot([session.toString()]))[0].chats) === JSON.stringify(before),
+		}, {
+			attempts: 3,
+			failure: `Cannot import older-build chat edits of ${session.toString()}: its catalog kept changing`,
+			unchanged: true,
+		});
+	});
+
+	test('a burst of ten creates or ten deletes publishes peerChats once, in at most six agent-host.db statements', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		let statements = 0;
+		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own, nor is the drain below.
+		const drainSql = 'SELECT 1 AS drain';
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
+		const chats = Array.from({ length: 10 }, (_, index) => URI.parse(buildChatUri(session, `burst-${index}`)));
+		const publish = async (burst: () => Promise<void>) => {
+			await burst();
+			await store.whenIdle();
+			await drain();
+			const before = { statements, sessionWrites: databaseFor(session).setMetadataCalls.length, peerWrites: chats.reduce((sum, chat) => sum + databaseFor(chat).setMetadataCalls.length, 0) };
+			await store.flushCompatibilityPublishes(undefined, undefined);
+			await drain();
+			return {
+				statements: statements - before.statements,
+				peerChatsWrites: databaseFor(session).setMetadataCalls.length - before.sessionWrites,
+				peerKeyWrites: chats.reduce((sum, chat) => sum + databaseFor(chat).setMetadataCalls.length, 0) - before.peerWrites,
+			};
+		};
+		assert.deepStrictEqual({
+			creates: await publish(async () => {
+				for (const [index, chat] of chats.entries()) {
+					await store.upsert(session, chat, `provider-${index}`);
+				}
+			}),
+			deletes: await publish(async () => {
+				for (const chat of chats) {
+					await store.remove(session, chat);
+				}
+			}),
+		}, {
+			// One read, then BEGIN, acknowledgement, payload, COMMIT. Each created peer's database gets only its provider data.
+			// The session's first publish also records the (empty) published titles; untitled peers never change them after.
+			creates: { statements: 6, peerChatsWrites: 1, peerKeyWrites: 10 },
+			deletes: { statements: 5, peerChatsWrites: 1, peerKeyWrites: 0 },
+		});
+	});
+
+	for (const source of ['a write of this store', 'another writer (a move)'] as const) {
+		test(`a peerless session that never published a copy publishes one once it gets its first peer from ${source}`, async () => {
+			await orchestrator.registerChatCatalogV2(session.toString(), { defaultChat: { chat: buildDefaultChatUri(session), order: 0 }, peers: [], privateDescendants: [] });
+			const { store, databaseFor } = createPerResourceStore();
+			await store.reconcileLegacy(session);
+			await store.flushCompatibilityPublishes(undefined, undefined);
+			const peerless = await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY);
+			if (source === 'a write of this store') {
+				await store.upsert(session, first, 'provider');
+			} else {
+				const catalog = await orchestrator.getSessionChatCatalog(session.toString());
+				await orchestrator.replaceSessionChatCatalog(session.toString(), [{ chat: first.toString(), order: 0, providerData: 'provider' }], catalog!.revision);
+				await store.reconcileLegacy(session);
+			}
+			await store.flushCompatibilityPublishes(undefined, undefined);
+			assert.deepStrictEqual({ peerless, published: await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY) }, {
+				peerless: undefined,
+				published: JSON.stringify([{ uri: first.toString(), providerData: 'provider' }]),
+			});
+		});
+	}
+
+	test('the first normalized write of a session in a process checks for older-build edits in one statement and opens no database', async () => {
+		const { store: publisher } = await registerNormalizedPeer();
+		await publisher.setRead(session, first, true);
+		await publisher.flushCompatibilityPublishes(undefined, undefined);
+		const { store, opened } = createPerResourceStore();
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		let statements = 0;
+		const drainSql = 'SELECT 1 AS drain';
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
+		const measure = async (write: () => Promise<void>) => {
+			await drain();
+			const before = { statements, opened: opened.length };
+			await write();
+			await store.whenIdle();
+			await drain();
+			return { statements: statements - before.statements, opened: opened.slice(before.opened) };
+		};
+		const firstWrite = await measure(() => store.setArchived(session, first, true));
+		const nextWrite = await measure(() => store.setArchived(session, first, false));
+		assert.deepStrictEqual({ extraStatements: firstWrite.statements - nextWrite.statements, opened: [firstWrite.opened, nextWrite.opened] }, {
+			extraStatements: 1,
+			opened: [[], []],
+		});
+	});
+
+	test('session_chats, the older-build edit check and peerChats all use the one normalized projection', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		const sqlite = await (orchestrator as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const sessionChats = () => new Promise<Record<string, unknown>[]>((resolve, reject) => sqlite.all('SELECT chat_uri AS uri, chat_order, is_read, archived, provider_data, origin, inherited_turn_id FROM session_chats WHERE session_uri = ? ORDER BY chat_order', [session.toString()], (error, rows) => error ? reject(error) : resolve(rows)));
+		// Every kind of normalized write that changes what older builds read, including private chats they never see.
+		await store.upsert(session, second, 'second-provider', origin, 'turn-2');
+		await store.upsert(session, third, 'third-provider');
+		await store.setArchived(session, first, true);
+		await store.setRead(session, second, false);
+		await store.persistPrivateChat(session, { chat: buildChatUri(session, 'private'), parentChat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } });
+		await store.replace(session, [{ uri: third.toString(), providerData: 'third-provider' }, { uri: first.toString(), archived: true }, { uri: second.toString(), isRead: false, providerData: 'second-provider', origin, inheritedTurnId: 'turn-2' }]);
+		await store.remove(session, first);
+		await store.flushCompatibilityPublishes(session, undefined);
+		const rows = await sessionChats();
+		assert.deepStrictEqual({
+			edited: await orchestrator.findOlderBuildChatCatalogEdits(400),
+			hasOlderBuildEdits: (await orchestrator.readOlderBuildCopyState(session.toString()))?.hasOlderBuildEdits,
+			copy: (JSON.parse((await databaseFor(session).getMetadata(PEER_CHATS_METADATA_KEY))!) as { uri: string }[]).map(entry => entry.uri),
+		}, {
+			edited: [],
+			hasOlderBuildEdits: false,
+			copy: rows.map(row => row.uri),
+		});
+	});
+
+	test('a normalized peer writes its working directories into its own database only when they change', async () => {
+		const { store, databaseFor } = await registerNormalizedPeer();
+		// The directories are mirrored right away; the rest of the older-build copy is published once the burst ends.
+		const directoryWrites = sinon.spy(databaseFor(first), 'setMetadata');
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/first']);
+		await store.updateWorkingDirectories(session, first, ['file:///workspace/first']);
+		await store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Renamed' });
+		await store.setRead(session, first, false);
+		await store.upsert(session, first, 'provider-data');
+		await store.persistMetadata(session, first, { [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: '' });
+		await store.setRead(session, first, true);
+		assert.deepStrictEqual(directoryWrites.args, [
+			[CHAT_WORKING_DIRECTORIES_METADATA_KEY, JSON.stringify(['file:///workspace/first'])],
+			[CHAT_WORKING_DIRECTORIES_METADATA_KEY, ''],
+		]);
+	});
+
+	test('a normalized title rename opens and writes what main does, and a directories change opens the peer database once per operation', async () => {
+		const { store, databaseFor, opened } = await registerNormalizedPeer();
+		const defaultChat = URI.parse(buildDefaultChatUri(session));
+		const sessionDatabase = databaseFor(session);
+		// Warm: the first write loads the session's state; a title rename is measured in steady state.
+		await store.persistMetadata(session, session, { [SESSION_CUSTOM_TITLE_KEY]: 'Warm' });
+		const writeCalls = [sinon.spy(sessionDatabase, 'setMetadata'), sinon.spy(sessionDatabase, 'setMetadataValues'), sinon.spy(sessionDatabase, 'deleteMetadata')];
+		const writes = () => writeCalls.reduce((sum, call) => sum + call.callCount, 0);
+		const measure = async (resource: URI, values: Record<string, string>) => {
+			const [opensBefore, writesBefore] = [opened.length, writes()];
+			await store.persistMetadata(session, resource, values);
+			return { opened: opened.slice(opensBefore), sessionWrites: writes() - writesBefore };
+		};
+		const title = (value: string) => ({ [SESSION_CUSTOM_TITLE_KEY]: value, [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user' });
+
+		assert.deepStrictEqual({
+			// Like main: the session-level title is written once into the session database; the chats' titles only centrally.
+			session: await measure(session, title('Session')),
+			defaultChat: await measure(defaultChat, title('Session')),
+			peer: await measure(first, title('Peer')),
+			peerDirectories: await measure(first, { ...title('Moved'), [CHAT_WORKING_DIRECTORIES_METADATA_KEY]: JSON.stringify(['file:///workspace/first']) }),
+			peerWrites: databaseFor(first).setMetadataCalls,
+			titles: (await orchestrator.readCatalogSnapshot([session.toString()]))[0]?.chats.map(chat => chat.metadata?.summary),
+		}, {
+			session: { opened: [session.toString()], sessionWrites: 1 },
+			defaultChat: { opened: [], sessionWrites: 0 },
+			peer: { opened: [], sessionWrites: 0 },
+			peerDirectories: { opened: [first.toString()], sessionWrites: 0 },
+			peerWrites: [{ key: CHAT_WORKING_DIRECTORIES_METADATA_KEY, value: JSON.stringify(['file:///workspace/first']) }],
+			titles: ['Session', 'Moved'],
+		});
+	});
+
+	test('persists and reads the explicit empty sentinel', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+
+		await store.replace(session, []);
+
+		assert.deepStrictEqual({
+			entries: await store.tryRead(session),
+			raw: await database.getMetadata(PEER_CHATS_METADATA_KEY),
+		}, {
+			entries: [],
+			raw: '[]',
+		});
+	});
+
+	test('bounds concurrent compatibility chat-metadata writes', async () => {
+		const database = new ConcurrentMetadataWriteDatabase();
+		const store = createStore(database);
+		const entries = Array.from({ length: 12 }, (_, index) => ({
+			uri: buildChatUri(session, `concurrent-${index}`),
+		}));
+
+		await store.replace(session, entries);
+
+		assert.deepStrictEqual({
+			writes: database.metadataValueWrites,
+			maxInFlight: database.maxInFlightWrites,
+		}, {
+			writes: entries.length,
+			maxInFlight: 4,
+		});
+	});
+
+	test('writes chat-local compatibility metadata only for changed entries during mutations', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		const added = URI.parse(buildChatUri(session, 'added'));
+		await store.replace(session, [
+			{ uri: first.toString(), providerData: 'first' },
+			{ uri: second.toString(), providerData: 'second' },
+			{ uri: third.toString(), providerData: 'third' },
+		]);
+		databaseFor(first).metadataValueWrites = 0;
+		databaseFor(second).metadataValueWrites = 0;
+		databaseFor(third).metadataValueWrites = 0;
+
+		await store.upsert(session, first, 'first');
+		const reorderedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites;
+		await store.upsert(session, second, 'updated');
+		const updatedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites - reorderedWrites;
+		await store.remove(session, third);
+		const removedWrites = databaseFor(first).metadataValueWrites + databaseFor(second).metadataValueWrites + databaseFor(third).metadataValueWrites - reorderedWrites - updatedWrites;
+		await store.upsert(session, added, 'added');
+		const addedWrites = databaseFor(added).metadataValueWrites;
+		const central = await store.tryRead(session);
+
+		assert.deepStrictEqual({
+			reorderedWrites,
+			updatedWrites,
+			removedWrites,
+			addedWrites,
+			local: central && await store.readLocalChatMetadata(session, central),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			reorderedWrites: 0,
+			updatedWrites: 1,
+			removedWrites: 0,
+			addedWrites: 1,
+			local: [
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'updated' },
+				{ uri: added.toString(), providerData: 'added' },
+			],
+			legacy: [
+				{ uri: first.toString(), providerData: 'first' },
+				{ uri: second.toString(), providerData: 'updated' },
+				{ uri: added.toString(), providerData: 'added' },
+			],
+		});
+	});
+
+	test('fully publishes legacy metadata imported during an interactive mutation', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.replace(session, [{ uri: first.toString(), providerData: 'current' }]);
+		await databaseFor(session).setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: first.toString(), providerData: 'legacy-update' },
+		]));
+
+		await store.upsert(session, second, 'added');
+		const central = await store.tryRead(session);
+		const local = central && await store.readLocalChatMetadata(session, central);
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			central,
+			local,
+			reconciled,
+		}, {
+			central: [
+				{ uri: first.toString(), providerData: 'legacy-update' },
+				{ uri: second.toString(), providerData: 'added' },
+			],
+			local: [
+				{ uri: first.toString(), providerData: 'legacy-update' },
+				{ uri: second.toString(), providerData: 'added' },
+			],
+			reconciled: [
+				{ uri: first.toString(), providerData: 'legacy-update' },
+				{ uri: second.toString(), providerData: 'added' },
+			],
+		});
+	});
+
+	test('fully publishes when the recorded mirror does not match central authority', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.replace(session, [{ uri: first.toString(), providerData: 'initial' }]);
+		const initial = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.ok(initial);
+		const updated = await orchestrator.replaceSessionChatCatalog(session.toString(), [
+			{ chat: first.toString(), order: 0, providerData: 'central-update' },
+		], initial.revision);
+		assert.strictEqual(updated.status, 'applied');
+		const stalePayload = JSON.stringify([{ uri: first.toString(), providerData: 'initial' }]);
+		await databaseFor(session).setMetadata(PEER_CHATS_METADATA_KEY, stalePayload);
+		assert.strictEqual(await orchestrator.markSessionChatCatalogLegacyMirrored(session.toString(), updated.revision, stalePayload), true);
+
+		await store.upsert(session, second, 'added');
+		const central = await store.tryRead(session);
+
+		assert.deepStrictEqual(central && await store.readLocalChatMetadata(session, central), [
+			{ uri: first.toString(), providerData: 'central-update' },
+			{ uri: second.toString(), providerData: 'added' },
+		]);
+	});
+
+	test('advances the merge base before retrying a failed compatibility mirror', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [
+			{ uri: first.toString() },
+			{ uri: second.toString() },
+		]);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: second.toString() }]));
+		database.failLegacyMirrors(1);
+		await store.reconcileLegacy(session);
+		const merged = await orchestrator.getSessionChatCatalog(session.toString());
+		assert.ok(merged);
+		const concurrent = await orchestrator.replaceSessionChatCatalog(session.toString(), [
+			{ chat: second.toString(), order: 0 },
+			{ chat: first.toString(), order: 1 },
+		], merged.revision);
+		assert.strictEqual(concurrent.status, 'applied');
+		database.failLegacyMirrors(1);
+
+		await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual(await store.tryRead(session, false), [
+			{ uri: second.toString() },
+			{ uri: first.toString() },
+		]);
+	});
+
+	test('rejects oversized imported legacy membership without changing central authority', async () => {
+		const database = new ConcurrentMetadataWriteDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString(), providerData: 'central' }]);
+		database.metadataValueWrites = 0;
+		const entries = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT + 2 }, (_, index) => ({
+			uri: buildChatUri(session, `legacy-${index}`),
+			providerData: `${index}`,
+		}));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(entries));
+
+		const reconciled = await store.reconcileLegacy(session);
+		const central = await store.tryRead(session, false);
+
+		assert.deepStrictEqual({
+			reconciled,
+			central,
+			chatMetadataWrites: database.metadataValueWrites,
+		}, {
+			reconciled: [{ uri: first.toString(), providerData: 'central' }],
+			central: [{ uri: first.toString(), providerData: 'central' }],
+			chatMetadataWrites: 1,
+		});
+	});
+
+	test('imports at most one fewer peer than the catalog child limit', async () => {
+		const database = new ConcurrentMetadataWriteDatabase();
+		const store = createStore(database);
+		const entries = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, index) => ({
+			uri: buildChatUri(session, `legacy-${index}`),
+		}));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify(entries));
+
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			reconciledLength: reconciled?.length,
+			compatibilityWrites: database.metadataValueWrites,
+			maxInFlightWrites: database.maxInFlightWrites,
+		}, {
+			reconciledLength: AGENT_HOST_CATALOG_CHILD_LIMIT - 1,
+			compatibilityWrites: AGENT_HOST_CATALOG_CHILD_LIMIT - 1,
+			maxInFlightWrites: 4,
+		});
+	});
+
+	test('does not truncate authoritative current membership writes', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		const entries = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT + 1 }, (_, index) => ({
+			uri: buildChatUri(session, `current-${index}`),
+		}));
+
+		await store.replace(session, entries);
+		await store.reconcileLegacy(session);
+		const additional = { uri: buildChatUri(session, 'current-additional') };
+		await store.upsert(session, URI.parse(additional.uri), undefined);
+		const central = await store.tryRead(session, false);
+
+		assert.deepStrictEqual({
+			length: central?.length,
+			last: central?.at(-1),
+		}, {
+			length: entries.length + 1,
+			last: additional,
+		});
+	});
+
+	test('records the peers\' working directories centrally in one write, only for the peers whose directories changed', async () => {
+		const store = createStore(new TestSessionDatabase());
+		const entries = Array.from({ length: 20 }, (_, index) => ({ uri: buildChatUri(session, `peer-${index}`), workingDirectories: [`file:///workspace/${index}`] }));
+		const writes = sinon.spy(orchestrator, 'writeSessionState');
+		await store.replace(session, entries);
+		const replaceWrites = writes.callCount;
+		writes.resetHistory();
+
+		await store.upsert(session, URI.parse(buildChatUri(session, 'added')), undefined);
+		const upsertWrites = writes.callCount;
+		writes.resetHistory();
+		await store.replace(session, [{ ...entries[0], workingDirectories: ['file:///workspace/moved'] }, ...entries.slice(1)]);
+
+		assert.deepStrictEqual({
+			replaceWrites,
+			upsertWrites,
+			moveWrites: writes.getCalls().map(call => call.args[2].chats.map(chat => ({ chat: chat.chat, workingDirectories: chat.fields.workingDirectories }))),
+		}, {
+			replaceWrites: 1,
+			upsertWrites: 1,
+			moveWrites: [[{ chat: entries[0].uri, workingDirectories: ['file:///workspace/moved'] }]],
+		});
+	});
+
+	test('republishes central membership when the acknowledged legacy mirror is missing or malformed', async () => {
+		const initialDatabase = new TestSessionDatabase();
+		const initialStore = createStore(initialDatabase);
+		await initialStore.replace(session, [{ uri: first.toString(), providerData: 'central' }]);
+
+		const missingDatabase = new TestSessionDatabase();
+		const missingStore = createStore(missingDatabase);
+		const missingResult = await missingStore.reconcileLegacy(session);
+		const missingMirror = await missingDatabase.getMetadata(PEER_CHATS_METADATA_KEY);
+
+		await missingDatabase.setMetadata(PEER_CHATS_METADATA_KEY, '{"not":"an array"}');
+		const malformedResult = await missingStore.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			missingResult,
+			missingMirror,
+			malformedResult,
+			repairedMirror: await missingDatabase.getMetadata(PEER_CHATS_METADATA_KEY),
+		}, {
+			missingResult: [{ uri: first.toString(), providerData: 'central' }],
+			missingMirror: JSON.stringify([{ uri: first.toString(), providerData: 'central' }]),
+			malformedResult: [{ uri: first.toString(), providerData: 'central' }],
+			repairedMirror: JSON.stringify([{ uri: first.toString(), providerData: 'central' }]),
+		});
+	});
+
+	test('returns central membership when republishing a missing legacy mirror fails', async () => {
+		const initialDatabase = new TestSessionDatabase();
+		const initialStore = createStore(initialDatabase);
+		await initialStore.replace(session, [{ uri: first.toString(), providerData: 'central' }]);
+
+		const database = new FailingLegacyMirrorDatabase();
+		database.failLegacyMirrors(1);
+		const logService = new RecordingLogService();
+		const store = createStore(database, logService);
+
+		assert.deepStrictEqual({
+			reconciled: await store.reconcileLegacy(session),
+			legacy: await store.tryReadLegacy(session),
+			errors: logService.errors.map(error => error instanceof Error ? error.message : error),
+		}, {
+			reconciled: [{ uri: first.toString(), providerData: 'central' }],
+			legacy: undefined,
+			errors: ['legacy mirror failed'],
+		});
+	});
+
+	test('imports membership changed by an older build into central authority', async () => {
+		const database = new TestSessionDatabase();
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: first.toString(), providerData: 'first' },
+		]));
+
+		const firstImport = await store.reconcileLegacy(session);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: second.toString(), providerData: 'second' },
+		]));
+		const secondImport = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			firstImport,
+			secondImport,
+			central: await store.tryRead(session),
+		}, {
+			firstImport: [{ uri: first.toString(), providerData: 'first' }],
+			secondImport: [{ uri: second.toString(), providerData: 'second' }],
+			central: [{ uri: second.toString(), providerData: 'second' }],
+		});
+	});
+
+	test('merges older-build changes made after an interrupted compatibility mirror', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString() }]);
+
+		database.failLegacyMirrors(1);
+		await store.upsert(session, second, undefined);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: third.toString() },
+		]));
+
+		const beforeRepair = await store.tryRead(session);
+		const reconciled = await store.reconcileLegacy(session);
+
+		assert.deepStrictEqual({
+			beforeRepair,
+			reconciled,
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			beforeRepair: [
+				{ uri: first.toString() },
+				{ uri: second.toString() },
+			],
+			reconciled: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+			central: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+			legacy: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+		});
+	});
+
+	test('preserves older-build changes when a new write follows an interrupted mirror', async () => {
+		const database = new FailingLegacyMirrorDatabase();
+		const store = createStore(database);
+		await store.replace(session, [{ uri: first.toString() }]);
+		database.failLegacyMirrors(1);
+		await store.upsert(session, second, undefined);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([
+			{ uri: third.toString() },
+		]));
+		database.failLegacyMirrors(1);
+
+		await store.remove(session, first);
+
+		assert.deepStrictEqual({
+			central: await store.tryRead(session),
+			legacy: await store.tryReadLegacy(session),
+		}, {
+			central: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+			legacy: [
+				{ uri: third.toString() },
+				{ uri: second.toString() },
+			],
+		});
+	});
+});
