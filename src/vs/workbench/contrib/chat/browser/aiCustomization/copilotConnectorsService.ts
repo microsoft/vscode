@@ -406,7 +406,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				if (operation.token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+				const initialStatus = connectors.find(connector => connector.name === name)?.connectionStatus;
+				if (initialStatus === 'connected') {
 					await this.refreshAgentHostConnectorSessions(name);
 					return;
 				}
@@ -416,11 +417,31 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 					throw new CopilotConnectorsError(localize('copilotConnectors.openConsentFailed', "The connector authorization page could not be opened."));
 				}
 
+				// The catalog may briefly report the pre-connect state after the PUT, and the user may
+				// legitimately take a long time on the consent page. So `not_connected` (and an `error`
+				// that was already present before connecting) is only treated as terminal once this
+				// connect has been observed as `pending`; a new `error` is terminal immediately.
+				let observedPending = false;
 				const deadline = Date.now() + connectionTimeout;
 				while (Date.now() < deadline) {
 					const refreshed = await this.refresh(operation.token);
-					if (refreshed.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
-						return;
+					const connector = refreshed.find(connector => connector.name === name);
+					switch (connector?.connectionStatus) {
+						case 'connected':
+							return;
+						case 'pending':
+							observedPending = true;
+							break;
+						case 'error':
+							if (observedPending || initialStatus !== 'error') {
+								throw createConnectionFailedError(connector);
+							}
+							break;
+						case 'not_connected':
+							if (observedPending) {
+								throw createConnectionFailedError(connector);
+							}
+							break;
 					}
 					await timeout(connectionPollInterval, operation.token);
 				}
@@ -896,6 +917,41 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		...(publisherUrl ? { publisherUrl } : {}),
 		installation: { kind: 'copilotConnector', name: connector.name },
 	};
+}
+
+/**
+ * Describes why a connect attempt ended in a terminal, non-connected state, using the same
+ * vocabulary as the connector status labels.
+ */
+function createConnectionFailedError(connector: ICopilotConnector): CopilotConnectorsError {
+	const displayName = connector.displayName;
+	if (connector.connectionStatus === 'not_connected') {
+		return new CopilotConnectorsError(localize('copilotConnectors.connectionDeclined', "Authorization for {0} was declined.", displayName));
+	}
+	let message: string;
+	switch (connector.connectionStatusDetail) {
+		case 'review_required':
+			message = localize('copilotConnectors.connectionReviewRequired', "Review required: {0} needs to be reviewed before it can be connected.", displayName);
+			break;
+		case 'reconnect_required':
+			message = localize('copilotConnectors.connectionReconnectRequired', "Reconnect required: authorization for {0} did not complete. Reconnect to try again.", displayName);
+			break;
+		case 'sign_in_required':
+			message = localize('copilotConnectors.connectionSignInRequired', "Sign in required: sign in to {0}, then try again.", displayName);
+			break;
+		case 'unavailable':
+			message = localize('copilotConnectors.connectionUnavailable', "{0} is currently unavailable.", displayName);
+			break;
+		case 'retryable_error':
+			message = localize('copilotConnectors.connectionRetryableError', "Connection to {0} failed. Try again.", displayName);
+			break;
+		default:
+			message = localize('copilotConnectors.connectionError', "{0} reported an error.", displayName);
+			break;
+	}
+	return new CopilotConnectorsError(connector.connectionErrorMessage
+		? localize('copilotConnectors.connectionErrorWithMessage', "{0} {1}", message, connector.connectionErrorMessage)
+		: message);
 }
 
 function parseConnectors(value: unknown, scoped: boolean): readonly ICopilotConnector[] {

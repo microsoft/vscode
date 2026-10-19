@@ -1071,6 +1071,93 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	function connectionResponse(status: 'not_connected' | 'pending' | 'error' | 'connected', statusDetail?: string, errorMessage?: string): { readonly body: unknown } {
+		const body = catalogResponse('available') as { plugins: { connection: Record<string, unknown> }[] };
+		body.plugins[0].connection = { ...body.plugins[0].connection, status, statusDetail, errorMessage };
+		return { body };
+	}
+
+	async function connectOutcome(fixture: ReturnType<typeof createFixture>): Promise<{ readonly error?: string; readonly requests: number }> {
+		try {
+			await fixture.service.connect('mail', CancellationToken.None);
+			return { requests: fixture.requests.length };
+		} catch (e) {
+			return { error: e.message, requests: fixture.requests.length };
+		}
+	}
+
+	test('fails as declined once a pending connection returns to not connected, ignoring stale state right after the PUT', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('not_connected'),
+			{ body: { consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			connectionResponse('not_connected'),
+			connectionResponse('pending'),
+			connectionResponse('not_connected'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), {
+			error: 'Authorization for mail connector was declined.',
+			requests: 5,
+		});
+	}));
+
+	for (const { detail, errorMessage, expected } of [
+		{ detail: 'retryable_error', errorMessage: 'The provider returned HTTP 503.', expected: 'Connection to mail connector failed. Try again. The provider returned HTTP 503.' },
+		{ detail: 'review_required', errorMessage: undefined, expected: 'Review required: mail connector needs to be reviewed before it can be connected.' },
+		{ detail: 'reconnect_required', errorMessage: undefined, expected: 'Reconnect required: authorization for mail connector did not complete. Reconnect to try again.' },
+		{ detail: undefined, errorMessage: 'Consent failed.', expected: 'mail connector reported an error. Consent failed.' },
+		{ detail: undefined, errorMessage: undefined, expected: 'mail connector reported an error.' },
+	]) {
+		test(`fails immediately when the connection enters error (${detail ?? 'no detail'}${errorMessage ? ', with message' : ''})`, () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+			const fixture = createFixture([
+				connectionResponse('not_connected'),
+				{ body: {} },
+				connectionResponse('error', detail, errorMessage),
+			]);
+
+			assert.deepStrictEqual(await connectOutcome(fixture), { error: expected, requests: 3 });
+		}));
+	}
+
+	test('a pre-existing error is not treated as terminal until the reconnect becomes pending', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('error', 'reconnect_required'),
+			{ body: {} },
+			connectionResponse('error', 'reconnect_required'),
+			connectionResponse('pending'),
+			connectionResponse('error', 'review_required'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), {
+			error: 'Review required: mail connector needs to be reviewed before it can be connected.',
+			requests: 5,
+		});
+	}));
+
+	test('a pre-existing error can still reconnect successfully', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('error', 'reconnect_required'),
+			{ body: {} },
+			connectionResponse('error', 'reconnect_required'),
+			connectionResponse('connected'),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), { requests: 4 });
+	}));
+
+	test('keeps waiting for a connection that stays pending and then times out', () => runWithFakedTimers({ maxTaskCount: 1000 }, async () => {
+		const fixture = createFixture([
+			connectionResponse('not_connected'),
+			{ body: {} },
+			...Array.from({ length: 200 }, () => connectionResponse('pending')),
+		]);
+
+		assert.deepStrictEqual(await connectOutcome(fixture), {
+			error: 'Connector authorization did not finish in time. Complete authorization in the browser, then try again.',
+			requests: 152,
+		});
+	}));
+
 	test('reports failed connection actions with bounded diagnostics', async () => {
 		const fixture = createFixture([
 			{ body: catalogResponse('available') },
