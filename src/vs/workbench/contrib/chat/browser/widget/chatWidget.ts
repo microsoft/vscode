@@ -490,6 +490,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	// Coding agent locking state
 	private _respondent: { readonly resource: URI; readonly respondent: IChatRespondent } | undefined;
 	private _appliedInputPlaceholder = false;
+	private _hasResponseIdentity = false;
 	private _lockedAgent?: {
 		id: string;
 		name: string;
@@ -3014,6 +3015,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.clearGettingStartedTip();
 			this.viewModel = undefined;
+			// No chat is bound, so nothing is revalidated: the outgoing chat keeps its own model.
+			this._respondent = undefined;
+			this.inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+			this._setResponseIdentity(undefined);
 			this.updateWorkingProgressBorder();
 			this.onDidChangeItems();
 			this._hasPendingRequestsContextKey.set(false);
@@ -3034,10 +3039,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// any other is dropped (the host sets one again for the next chat).
 		const respondent = this._respondent && isEqual(this._respondent.resource, model.sessionResource) ? this._respondent.respondent : undefined;
 		if (!respondent && this._respondent) {
+			// The outgoing chat is still bound here: dropping its pool must not revalidate it against another.
 			this._respondent = undefined;
-			this.inputPart.setModelSessionTypeOverride(undefined);
+			this.inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
 		}
-		this.listWidget.updateRendererOptions({ responseIdentity: respondent ? { label: respondent.label, icon: respondent.icon } : undefined });
+		this._setResponseIdentity(respondent);
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
@@ -3232,24 +3238,39 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setRespondent(respondent: IChatRespondent | undefined, resource: URI | undefined = this.viewModel?.sessionResource): void {
 		const next = respondent && resource ? { resource, respondent } : undefined;
 		const previous = this._respondent;
+		if (!next && previous && resource && !isEqual(previous.resource, resource)) {
+			// Another chat having none says nothing about this one's; binding that chat drops it.
+			return;
+		}
 		if (!!previous === !!next && isEqual(previous?.resource, next?.resource) && previous?.respondent.label === next?.respondent.label
 			&& previous?.respondent.modelSessionType === next?.respondent.modelSessionType && previous?.respondent.icon.id === next?.respondent.icon.id) {
 			return;
 		}
 		this._respondent = next;
-		// Set ahead of binding (`resource` not yet bound), the pool applies from the chat's first model validation.
-		this.inputPart.setModelSessionTypeOverride(next ? { sessionType: next.respondent.modelSessionType } : undefined, next?.resource ?? previous?.resource);
 		const bound = this.viewModel?.sessionResource;
+		// Set ahead of binding (`resource` not yet bound), the pool applies from the chat's first model validation;
+		// only a change for the bound chat revalidates it, so replacing the outgoing chat's pool never does.
+		const forBound = !!bound && isEqual(next?.resource ?? previous?.resource, bound);
+		this.inputPart.setModelSessionTypeOverride(next ? { sessionType: next.respondent.modelSessionType } : undefined, next?.resource ?? previous?.resource, { revalidate: forBound });
 		if (!isEqual(next?.resource, bound) && !isEqual(previous?.resource, bound)) {
 			return;
 		}
 		const boundRespondent = next && isEqual(next.resource, bound) ? next.respondent : undefined;
-		this.listWidget.updateRendererOptions({ responseIdentity: boundRespondent ? { label: boundRespondent.label, icon: boundRespondent.icon } : undefined });
+		this._setResponseIdentity(boundRespondent);
 		if (previous && !boundRespondent) {
 			this.viewModel?.resetInputPlaceholder();
 		}
 		this._applyInputPlaceholder();
 		this.rerenderListIfConnected();
+	}
+
+	private _setResponseIdentity(respondent: IChatRespondent | undefined): void {
+		// Only a change reaches the list, so chats that never have a respondent never touch its options.
+		if (!respondent && !this._hasResponseIdentity) {
+			return;
+		}
+		this._hasResponseIdentity = !!respondent;
+		this.listWidget.updateRendererOptions({ responseIdentity: respondent ? { label: respondent.label, icon: respondent.icon } : undefined });
 	}
 
 	private _applyInputPlaceholder(): void {

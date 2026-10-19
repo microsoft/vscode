@@ -152,10 +152,13 @@ suite('ChatWidget', () => {
 		});
 		const editorPlaceholders: (string | undefined)[] = [];
 		const rendererOptions: (IChatListItemRendererOptions['responseIdentity'])[] = [];
-		const modelPools: ({ pool: string | undefined; resource: string | undefined } | undefined)[] = [];
+		const modelPools: ({ pool: string | undefined; resource: string | undefined; revalidate?: boolean } | { cleared: true; revalidate?: boolean } | undefined)[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
-			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI) => { modelPools.push(override && { pool: override.sessionType, resource: target?.fragment }); },
+			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI, options?: { readonly revalidate?: boolean }) => {
+				modelPools.push(override ? { pool: override.sessionType, resource: target?.fragment, ...(options?.revalidate === false ? { revalidate: false } : {}) } : (options?.revalidate === false ? { cleared: true, revalidate: false } : undefined));
+			},
+			flushInputStateToModel: () => { },
 		});
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_viewModel: viewModel,
@@ -166,6 +169,17 @@ suite('ChatWidget', () => {
 			chatSessionsService: upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }),
 			listWidget: { updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); } },
 			rerenderListIfConnected: () => { },
+			container: dom.$('div'),
+			viewModelDisposables: store.add(new DisposableStore()),
+			logService: new NullLogService(),
+			_onDidChangeViewModel: store.add(new Emitter<IChatWidgetViewModelChangeEvent>()),
+			updateSessionStateIndicator: () => { },
+			clearGettingStartedTip: () => { },
+			updateWorkingProgressBorder: () => { },
+			onDidChangeItems: () => { },
+			_hasPendingRequestsContextKey: { set: () => { } },
+			_chatSessionSupportsRenameContextKey: { set: () => { } },
+			viewOptions: { isSessionsWindow: true },
 		});
 		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools };
 	}
@@ -201,6 +215,30 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('switching from a respondent chat never revalidates its model against another pool, and unbinding drops the respondent', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		const incoming = harness.resource.with({ fragment: 'incoming' });
+		// The incoming chat has none: the bound chat's pool stays until the incoming chat binds.
+		harness.widget.setRespondent(undefined, incoming);
+		const afterNoneAhead = [...harness.modelPools];
+		// The incoming chat has its own: it replaces the bound chat's pool without revalidating it.
+		harness.widget.setRespondent({ label: 'Codex', icon: Codicon.openai, modelSessionType: 'agent-host-codex' }, incoming);
+		harness.widget.setModel(undefined);
+		// A stale respondent never survives an unbind, e.g. when the incoming chat then fails to load.
+		harness.widget.setRespondent(undefined, incoming);
+
+		assert.deepStrictEqual({ afterNoneAhead, modelPools: harness.modelPools, rendererOptions: harness.rendererOptions }, {
+			afterNoneAhead: [{ pool: 'agent-host-claude', resource: 'peer' }],
+			modelPools: [
+				{ pool: 'agent-host-claude', resource: 'peer' },
+				{ pool: 'agent-host-codex', resource: 'incoming', revalidate: false },
+				{ cleared: true, revalidate: false },
+			],
+			rendererOptions: [{ label: 'Claude', icon: Codicon.claude }, undefined],
+		});
+	});
+
 	test('a respondent set ahead for an incoming chat leaves the bound chat\'s presentation alone', () => {
 		const harness = createRespondentWidget(true);
 		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' }, harness.resource.with({ fragment: 'incoming' }));
@@ -208,7 +246,7 @@ suite('ChatWidget', () => {
 		assert.deepStrictEqual({ editorPlaceholders: harness.editorPlaceholders, rendererOptions: harness.rendererOptions, modelPools: harness.modelPools }, {
 			editorPlaceholders: [],
 			rendererOptions: [],
-			modelPools: [{ pool: 'agent-host-claude', resource: 'incoming' }],
+			modelPools: [{ pool: 'agent-host-claude', resource: 'incoming', revalidate: false }],
 		});
 	});
 

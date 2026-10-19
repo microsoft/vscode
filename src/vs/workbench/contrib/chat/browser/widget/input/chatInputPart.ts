@@ -2178,16 +2178,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * `undefined` restores the resource's own pool. Another pool's models are never offered.
 	 * Set for a chat before it binds, the pool applies from its first model validation.
 	 */
-	setModelSessionTypeOverride(override: { readonly sessionType: string | undefined } | undefined, resource: URI | undefined = this._boundModelResource()): void {
+	setModelSessionTypeOverride(override: { readonly sessionType: string | undefined } | undefined, resource: URI | undefined = this._boundModelResource(), options?: { readonly revalidate?: boolean }): void {
 		const next = override && resource ? { resource, sessionType: override.sessionType } : undefined;
 		const current = this._modelSessionTypeOverride.get();
 		if (!!current === !!next && current?.sessionType === next?.sessionType && isEqual(current?.resource, next?.resource)) {
 			return;
 		}
-		const bound = this._boundModelResource();
-		const affectsBound = isEqual(current?.resource, bound) || isEqual(next?.resource, bound);
 		this._modelSessionTypeOverride.set(next, undefined);
-		if (affectsBound) {
+		// Only the chat bound to the view revalidates; an input still holding an outgoing chat's model, or none, keeps it.
+		const viewResource = this._widget?.viewModel?.model.sessionResource;
+		const affectsBound = !!viewResource && (isEqual(current?.resource, viewResource) || isEqual(next?.resource, viewResource));
+		if (options?.revalidate !== false && affectsBound) {
 			this._modelSelectionController.revalidateForSessionType(() => this.initSelectedModel());
 		}
 	}

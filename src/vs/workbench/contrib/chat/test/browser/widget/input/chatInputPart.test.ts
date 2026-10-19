@@ -140,6 +140,20 @@ suite('ChatInputPart', () => {
 		});
 	});
 
+	test('replacing or dropping the bound chat\'s pool while switching away never revalidates it against another pool', () => {
+		const claude = targetedModel('agent-host-claude', 'claude-haiku');
+		const { inputPart, revalidations } = createModelPoolInput([targetedModel('agent-host-copilotcli', 'gpt'), claude]);
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const bound = revalidations.length;
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-codex' }, URI.parse('agent-host-copilotcli:/session#incoming'), { revalidate: false });
+		inputPart.setModelSessionTypeOverride(undefined, undefined, { revalidate: false });
+		Object.assign(inputPart, { _widget: { viewModel: undefined } });
+		inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		inputPart.setModelSessionTypeOverride(undefined);
+
+		assert.deepStrictEqual({ bound, revalidations }, { bound: 1, revalidations: ['agent-host-claude'] });
+	});
+
 	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' })) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
