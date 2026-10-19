@@ -6692,12 +6692,33 @@ export class AgentService extends Disposable implements IAgentService {
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		return this._chatMoveSequencer.queue(async () => {
 			const sourceKey = session.toString();
+			this._assertChatMovesEnabled();
+			// The host knows a session's default chat only once it has loaded the session.
+			await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable);
 			const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
 			if (defaultChat === undefined) {
 				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
 			}
 			return this._moveChat(session, URI.parse(defaultChat), { kind: 'session', session: destination, after }, true);
 		});
+	}
+
+	private _assertChatMovesEnabled(): void {
+		if (this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) !== true) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
+		}
+	}
+
+	/** Restores `session` for a move if the host hasn't loaded it, refusing with `refusal` when it can't be opened. */
+	private async _restoreForMove(session: URI, refusal: AgentChatMoveRefusal): Promise<void> {
+		if (this._stateManager.getSessionState(session.toString())) {
+			return;
+		}
+		try {
+			await this.restoreSession(session);
+		} catch (error) {
+			throw new AgentChatMoveRefusedError(refusal, `Session ${session.toString()} can't be opened: ${toErrorMessage(error)}`);
+		}
 	}
 
 	/**
@@ -6708,9 +6729,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
-		if (this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) !== true) {
-			refuse(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
-		}
+		this._assertChatMovesEnabled();
 		if (destination.kind === 'newSession') {
 			return this._promoteChat(session, chat);
 		}
@@ -6720,6 +6739,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const targetKey = target.toString();
 		const after = destination.after?.toString();
 		const checkMoved = () => sessionMove ? this._checkMovedSession(sourceKey, chatKey) : this._checkMovedChat(sourceKey, chatKey);
+		// A session the host hasn't loaded since it started: its chats aren't registered until it is restored.
+		await this._restoreForMove(session, AgentChatMoveRefusal.SessionNotReady);
 		checkMoved();
 		if (after === chatKey) {
 			refuse(AgentChatMoveRefusal.InvalidAnchor, 'A chat can\'t be placed after itself.');
@@ -6735,13 +6756,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (listedTarget && isSessionStatusArchived(listedTarget.status)) {
 			refuse(AgentChatMoveRefusal.SessionArchived, `Session ${targetKey} is archived.`);
 		}
-		if (!this._stateManager.getSessionState(targetKey)) {
-			try {
-				await this.restoreSession(target);
-			} catch (error) {
-				refuse(AgentChatMoveRefusal.DestinationNotFound, `Session ${targetKey} can't be opened: ${toErrorMessage(error)}`);
-			}
-		}
+		await this._restoreForMove(target, AgentChatMoveRefusal.DestinationNotFound);
 		await this._prepareCatalogsForMove([sourceKey, targetKey]);
 		// Read before validating: the database refuses the move if either catalog changes after this point.
 		const catalogs = new Map((await this._orchestratorDatabase.readCatalogSnapshot([sourceKey, targetKey])).map(entry => [entry.session, entry.header?.revision ?? 0]));

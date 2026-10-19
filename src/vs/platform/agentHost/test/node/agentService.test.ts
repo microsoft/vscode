@@ -35075,13 +35075,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			suite('moving a single-chat session under another (Block 4, VS Code-internal)', () => {
 				async function setupSessionMove() {
-					const { createService, contentsOf, seed, orchestratorDatabase } = createDeletingServices();
+					const { createService, contentsOf, seed, orchestratorDatabase, agent } = createDeletingServices();
 					const service = createService();
 					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
 					await timeout(0);
 					const chat = URI.parse(getStateManager(service).getSessionState(source.toString())!.defaultChat!);
-					return { createService, contentsOf, seed, orchestratorDatabase, service, source, target, chat };
+					return { createService, contentsOf, seed, orchestratorDatabase, agent, service, source, target, chat };
 				}
 
 				test('a moved session\'s chat promoted out again stores in the first session\'s database: deleting its session cold deletes that', async () => {
@@ -35236,6 +35236,65 @@ suite('AgentService (node dispatcher)', () => {
 						reasons: { notSingleChat: AgentChatMoveRefusal.NotSingleChat, underItself: AgentChatMoveRefusal.DestinationNotFound },
 						disabled: { reason: AgentChatMoveRefusal.Disabled, movable: false },
 						owner: source.toString(),
+					});
+				});
+
+				test('a session the host has not loaded since it restarted moves: the source and destination are restored first', async () => {
+					const { createService, agent, service, source, target, chat } = await setupSessionMove();
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
+					const restarted = createService();
+					const stateManager = getStateManager(restarted);
+					const loadedBefore = [source, target].map(session => !!stateManager.getSessionState(session.toString()));
+					const result = await restarted.moveSession(source, target, undefined);
+					await timeout(0);
+
+					assert.deepStrictEqual({
+						loadedBefore,
+						result: result.toString(),
+						owner: stateManager.getChatOwner(chat.toString()),
+						targetChats: stateManager.getSessionState(target.toString())?.chats.map(candidate => candidate.resource).sort(),
+					}, {
+						loadedBefore: [false, false],
+						result: target.toString(),
+						owner: target.toString(),
+						targetChats: [stateManager.getSessionState(target.toString())!.defaultChat!, chat.toString()].sort(),
+					});
+				});
+
+				test('a session the host has not loaded that has other chats is refused after it is restored, and nothing changes', async () => {
+					const { createService, service, source, target, chat } = await setupSessionMove();
+					await service.createChat(source, URI.parse(buildChatUri(source, 'peer')));
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					const restarted = createService();
+					const reason = await refusalOf(restarted.moveSession(source, target, undefined));
+
+					assert.deepStrictEqual({ reason, owner: getStateManager(restarted).getChatOwner(chat.toString()) }, {
+						reason: AgentChatMoveRefusal.NotSingleChat,
+						owner: source.toString(),
+					});
+				});
+
+				test('a source the host has not loaded and cannot restore is refused as not movable, and nothing changes', async () => {
+					const { createService, service, source, target, chat } = await setupSessionMove();
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					const restarted = createService();
+					const missing = URI.from({ scheme: 'copilot', path: `/${generateUuid()}` });
+					const stateManager = getStateManager(restarted);
+					const reasons = [
+						await refusalOf(restarted.moveSession(missing, target, undefined)),
+						await refusalOf(restarted.moveChat(missing, chat, { kind: 'session', session: target, after: undefined })),
+					];
+
+					assert.deepStrictEqual({ reasons, loaded: [missing, source, target].map(session => stateManager.getSessionState(session.toString()) !== undefined) }, {
+						reasons: [AgentChatMoveRefusal.NotMovable, AgentChatMoveRefusal.SessionNotReady],
+						loaded: [false, false, false],
 					});
 				});
 
