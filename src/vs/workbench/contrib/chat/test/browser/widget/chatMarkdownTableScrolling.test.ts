@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { registerWindow, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -39,6 +39,14 @@ function buildContainer(tables: string[][][]): HTMLDivElement {
 /** Resolves after the table scrollbars measured at the next animation frame have been updated. */
 function afterNextAnimationFrame(): Promise<void> {
 	return new Promise(resolve => scheduleAtNextAnimationFrame(mainWindow, resolve, -20000 /* after dom.modify */));
+}
+
+/** Describes whether each table's horizontal scrollbar has been measured, and whether it can scroll within `width`. */
+function describeScrollbars(container: HTMLElement, width: number): string[] {
+	return Array.from(container.querySelectorAll<HTMLElement>('.scrollbar.horizontal .slider'), slider => {
+		const sliderWidth = parseFloat(slider.style.width);
+		return sliderWidth > 0 && sliderWidth < width ? 'scrollable' : sliderWidth === width ? 'fits' : `unmeasured (${sliderWidth})`;
+	});
 }
 
 suite('wrapTablesWithScrollable', () => {
@@ -104,8 +112,31 @@ suite('wrapTablesWithScrollable', () => {
 		wrap(container);
 		await afterNextAnimationFrame();
 
-		const sliderWidths = Array.from(container.querySelectorAll<HTMLElement>('.scrollbar.horizontal .slider'), slider => parseFloat(slider.style.width));
-		assert.deepStrictEqual(sliderWidths.map(width => width > 0 && width < 200 ? 'scrollable' : width === 200 ? 'fits' : `unmeasured (${width})`), ['scrollable', 'fits']);
+		assert.deepStrictEqual(describeScrollbars(container, 200), ['scrollable', 'fits']);
+	});
+
+	test('measures a table in the window it moved to when the window it was wrapped in has paused animation frames', async () => {
+		// A window whose animation frames are paused, like a minimized workbench window.
+		const iframe = mainWindow.document.createElement('iframe');
+		mainWindow.document.body.appendChild(iframe);
+		store.add(toDisposable(() => iframe.remove()));
+		const pausedWindow = iframe.contentWindow!;
+		ensureCodeWindow(pausedWindow, 11500);
+		store.add(registerWindow(pausedWindow));
+		sinon.stub(pausedWindow, 'requestAnimationFrame').returns(0);
+
+		const container = buildContainer([[['Wide'], ['x'.repeat(200)]]]);
+		pausedWindow.document.body.appendChild(container);
+		const { layoutParticipants } = wrap(container);
+
+		// The table is then mounted in another window, which lays it out.
+		attach(container, 200);
+		for (const layout of layoutParticipants) {
+			layout();
+		}
+		await afterNextAnimationFrame();
+
+		assert.deepStrictEqual(describeScrollbars(container, 200), ['scrollable']);
 	});
 
 	test('re-measures all tables on resize without forcing a layout per table', async () => {
