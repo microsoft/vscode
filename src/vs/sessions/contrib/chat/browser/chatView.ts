@@ -187,6 +187,12 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override openModelComparison(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.openModelComparison();
+		}
+	}
+
 	override selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
 		return this._widget instanceof NewChatWidget ? this._widget.selectWorkspace(folderUri, options) : 'notReady';
 	}

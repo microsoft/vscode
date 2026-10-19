@@ -6518,7 +6518,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
 	}
 
-	getModelsSnapshotForCreation(_workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
+	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		return this._getModelsSnapshotForTarget(this.resourceSchemeForProvider(sessionTypeId), desiredModelId);
 	}
 
