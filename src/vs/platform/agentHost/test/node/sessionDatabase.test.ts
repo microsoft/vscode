@@ -331,6 +331,18 @@ suite('SessionDatabase', () => {
 			}, { edits: ['first', 'failed-local', 'foreign', 'other-native'], local: ['failed-local', 'bang'] });
 		});
 
+		test('a native turn id reads every host segment while a host id stays scoped', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			for (const id of ['host-turn', 'steering-turn']) {
+				await db.setTurnEventId(id, 'native-turn');
+				await db.storeFileEdit({ turnId: id, toolCallId: id, filePath: '/edit.ts', kind: FileEditKind.Edit, addedLines: 1, removedLines: 1 });
+			}
+			assert.deepStrictEqual({
+				native: (await db.getFileEditsByTurn('native-turn')).map(edit => edit.turnId),
+				host: (await db.getFileEditsByTurn('host-turn')).map(edit => edit.turnId),
+			}, { native: ['host-turn', 'steering-turn'], host: ['host-turn'] });
+		});
+
 		test('retrieve multiple edits for a single tool call', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 

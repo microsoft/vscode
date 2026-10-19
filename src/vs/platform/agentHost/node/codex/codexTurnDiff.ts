@@ -5,13 +5,10 @@
 
 import { createHash } from 'crypto';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { relative, resolve } from '../../../../base/common/path.js';
+import { resolve } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileOperationResult, toFileOperationResult, type IFileService } from '../../../files/common/files.js';
+import type { IFileService } from '../../../files/common/files.js';
 import type { ILogService } from '../../../log/common/log.js';
-import type { IFileEditContent, ISessionDatabase } from '../../common/sessionDataService.js';
-import { FileEditKind } from '../../common/state/sessionState.js';
-import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDiffUpdatedNotification.js';
 
 interface IDiffHunk {
 	readonly beforeStart: number;
@@ -28,18 +25,11 @@ interface IFileDiff {
 	readonly hunks: readonly IDiffHunk[];
 }
 
-export interface ICodexTurnDiffSnapshot {
-	readonly turnId: string;
-	readonly diff: string;
-	readonly startSequence: number;
-	readonly sequence: number;
-	readonly fileSequences: ReadonlyMap<string, { readonly first: number; readonly last: number }>;
-}
-
-export interface ICodexTurnDiffCapture {
-	readonly notification: TurnDiffUpdatedNotification;
-	readonly snapshots: readonly ICodexTurnDiffSnapshot[];
-	readonly initialDiffs: readonly string[];
+/** A path's contents around one observed change. `undefined` means the file does not exist. */
+export interface ICodexFileChange {
+	readonly path: string;
+	readonly before: string | undefined;
+	readonly after: string | undefined;
 }
 
 function contentLines(content: string): string[] {
@@ -154,147 +144,100 @@ function applyHunks(file: IFileDiff, content: string, reverse: boolean): string 
 	return result.join('');
 }
 
-/** Reconstructs related native turns together, then persists one chronological delta per host checkpoint and path. */
-export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCapture[], context: {
-	readonly relatedDiffs: readonly string[];
-	readonly cwd: URI;
-	readonly nativeCwd: URI;
-	readonly database: ISessionDatabase;
-	readonly fileService: IFileService;
-	readonly logService: ILogService;
-}): Promise<void> {
-	const parsed = captures.map(capture => ({
-		initialFiles: capture.initialDiffs.flatMap(diff => parseTurnDiff(diff, context.cwd)),
-		snapshots: capture.snapshots.map(snapshot => ({
-			...snapshot,
-			fileSequences: new Map([...snapshot.fileSequences].map(([path, sequence]) => [resolve(context.cwd.fsPath, relative(context.nativeCwd.fsPath, resolve(context.nativeCwd.fsPath, path))), sequence])),
-			files: parseTurnDiff(snapshot.diff, context.cwd),
-		})),
-	}));
-	const files = [...parsed.flatMap(capture => [...capture.initialFiles, ...capture.snapshots.flatMap(snapshot => snapshot.files)]),
-	...context.relatedDiffs.flatMap(diff => parseTurnDiff(diff, context.cwd))];
-	const paths = new Set(files.flatMap(file => [file.beforePath, file.afterPath].filter(path => path !== undefined)));
-	const contents = new Map<string, string>();
-	const key = (path: string, hash: string) => `${path}\0${hash}`;
-	const warn = (path: string, error: unknown) => context.logService.warn(`[Codex] Failed to capture turn diff for ${path}`, error);
-	await Promise.all([...paths].map(async path => {
+/**
+ * Follows one native Codex turn's cumulative `turn/diff/updated` notifications
+ * and reports each update's changes with full file contents.
+ */
+export class CodexTurnDiff {
+	/** Contents when this native turn first touched each path; Codex diffs against these. */
+	private readonly _baseline = new Map<string, string | undefined>();
+	/** Contents this native turn's previous update reported for every path it touched. */
+	private readonly _current = new Map<string, string | undefined>();
+
+	constructor(
+		readonly turnId: string,
+		/** Latest contents per path across every native turn writing to the same chat, shared by their trackers. */
+		private readonly _latest: Map<string, string | undefined>,
+		private readonly _fileService: IFileService,
+		private readonly _logService: ILogService,
+	) { }
+
+	/** Returns the paths whose contents changed since this native turn's previous update. */
+	async update(diff: string, cwd: URI): Promise<ICodexFileChange[]> {
+		let files: IFileDiff[];
 		try {
-			const content = (await context.fileService.readFile(URI.file(path))).value.toString();
-			contents.set(key(path, blobHash(content)), content);
+			files = parseTurnDiff(diff, cwd);
 		} catch (error) {
-			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-				warn(path, error);
+			this._logService.warn('[Codex] Failed to parse turn diff', error);
+			return [];
+		}
+		const sections = await Promise.all(files.map(async file => ({ file, contents: await this._resolve(file) })));
+
+		const next = new Map<string, string | undefined>();
+		// Codex omits a path once it matches the baseline again.
+		const listed = new Set(files.flatMap(file => [file.beforePath, file.afterPath]));
+		for (const path of this._current.keys()) {
+			if (!listed.has(path)) {
+				next.set(path, this._baseline.get(path));
 			}
 		}
-	}));
-	// A child can replace the parent's after-content before it is stored. Its reverse
-	// diff supplies that intermediate content, so both originals remain recoverable.
-	const valid = new Set<IFileDiff>();
-	let pending = files;
-	while (pending.length) {
-		const unresolved: IFileDiff[] = [];
-		for (const file of pending) {
-			const after = file.afterPath ? contents.get(key(file.afterPath, file.afterHash)) : '';
-			const before = file.beforePath ? contents.get(key(file.beforePath, file.beforeHash)) : '';
-			const source = after ?? before;
-			if (source === undefined) {
-				unresolved.push(file);
+		// A moved-away or deleted source that another section recreates keeps that section's contents.
+		const recreated = new Set(sections.flatMap(({ file, contents }) => contents && file.afterPath ? [file.afterPath] : []));
+		for (const { file, contents } of sections) {
+			if (!contents) {
 				continue;
 			}
-			try {
-				const reverse = after !== undefined;
-				const target = applyHunks(file, source, reverse);
-				const targetPath = reverse ? file.beforePath : file.afterPath;
-				const targetHash = reverse ? file.beforeHash : file.afterHash;
-				if (targetPath ? blobHash(target) !== targetHash : target !== '') {
-					throw new Error('Codex turn diff content hashes do not match');
-				}
-				if (targetPath) {
-					contents.set(key(targetPath, targetHash), target);
-				}
-				valid.add(file);
-			} catch (error) {
-				warn(file.afterPath ?? file.beforePath!, error);
+			if (file.beforePath && !this._baseline.has(file.beforePath)) {
+				this._baseline.set(file.beforePath, contents.before);
+			}
+			if (file.afterPath && !this._baseline.has(file.afterPath)) {
+				this._baseline.set(file.afterPath, undefined);
+			}
+			if (file.beforePath && file.beforePath !== file.afterPath && !recreated.has(file.beforePath)) {
+				next.set(file.beforePath, undefined);
+			}
+			if (file.afterPath) {
+				next.set(file.afterPath, contents.after);
 			}
 		}
-		if (unresolved.length === pending.length) {
-			break;
+
+		const changes: ICodexFileChange[] = [];
+		for (const [path, after] of next) {
+			const touched = this._current.has(path);
+			if ((touched ? this._current.get(path) : this._baseline.get(path)) === after) {
+				continue;
+			}
+			// Another native turn may have written this path since this turn last did.
+			const before = touched ? this._latest.get(path) : this._baseline.get(path);
+			this._current.set(path, after);
+			this._latest.set(path, after);
+			if (before !== after) {
+				changes.push({ path, before, after });
+			}
 		}
-		pending = unresolved;
+		return changes;
 	}
 
-	const unavailable = Symbol('unavailable');
-	type Content = string | undefined | typeof unavailable;
-	interface IEndpoint { readonly content: Content; readonly sequence: number }
-	const read = (path: string, hash: string): Content => contents.get(key(path, hash)) ?? unavailable;
-	const hosts = new Map<string, { start: number; files: Map<string, { before: IEndpoint; after: IEndpoint }> }>();
-	for (const capture of parsed) {
-		const original = new Map<string, Content>();
-		for (const file of capture.initialFiles) {
-			if (file.beforePath && !original.has(file.beforePath)) {
-				original.set(file.beforePath, read(file.beforePath, file.beforeHash));
+	/** Full contents of one diff section, verified against both blob hashes. */
+	private async _resolve(file: IFileDiff): Promise<{ readonly before: string | undefined; readonly after: string | undefined } | undefined> {
+		try {
+			let before = file.beforePath === undefined ? '' : this._baseline.get(file.beforePath);
+			let after: string;
+			if (before === undefined) {
+				// Hunks omit unchanged text, so the first update of an existing file needs its contents from disk.
+				after = file.afterPath === undefined ? '' : (await this._fileService.readFile(URI.file(file.afterPath))).value.toString();
+				before = applyHunks(file, after, true);
+			} else {
+				after = applyHunks(file, before, false);
 			}
-			if (file.afterPath && !original.has(file.afterPath)) {
-				original.set(file.afterPath, undefined);
+			if ((file.beforePath === undefined ? before !== '' : blobHash(before) !== file.beforeHash)
+				|| (file.afterPath === undefined ? after !== '' : blobHash(after) !== file.afterHash)) {
+				throw new Error('Codex turn diff does not match the file contents');
 			}
-		}
-		let previous = original;
-		for (const snapshot of capture.snapshots) {
-			const current = new Map(original);
-			for (const file of snapshot.files) {
-				if (file.beforePath !== file.afterPath && file.beforePath) {
-					current.set(file.beforePath, valid.has(file) ? undefined : unavailable);
-				}
-				if (file.afterPath) {
-					current.set(file.afterPath, valid.has(file) ? read(file.afterPath, file.afterHash) : unavailable);
-				}
-			}
-			let host = hosts.get(snapshot.turnId);
-			if (!host) {
-				host = { start: snapshot.startSequence, files: new Map() };
-				hosts.set(snapshot.turnId, host);
-			}
-			host.start = Math.min(host.start, snapshot.startSequence);
-			for (const [path, after] of current) {
-				const editSequence = snapshot.fileSequences.get(path);
-				if (previous.get(path) === after && (!editSequence || editSequence.last < snapshot.startSequence)) {
-					continue;
-				}
-				const before: IEndpoint = { content: previous.get(path), sequence: Math.max(snapshot.startSequence, editSequence?.first ?? snapshot.startSequence) };
-				const last: IEndpoint = { content: after, sequence: editSequence?.last ?? snapshot.sequence };
-				const existing = host.files.get(path);
-				host.files.set(path, {
-					before: existing && existing.before.sequence < before.sequence ? existing.before : before,
-					after: existing && existing.after.sequence > last.sequence ? existing.after : last,
-				});
-			}
-			previous = current;
-		}
-	}
-	const previous = new Map<string, IEndpoint>();
-	for (const [turnId, host] of [...hosts].sort((a, b) => a[1].start - b[1].start)) {
-		for (const [path, endpoints] of host.files) {
-			const prior = previous.get(path);
-			const before = prior ? prior.content : endpoints.before.content;
-			const last = prior && prior.sequence > endpoints.after.sequence ? prior : endpoints.after;
-			const after = last.content;
-			previous.set(path, last);
-			if (before === unavailable || after === unavailable) {
-				warn(path, new Error('Codex turn diff content is unavailable'));
-				continue;
-			}
-			if (before === after) {
-				continue;
-			}
-			const content: IFileEditContent = {
-				beforeContent: before === undefined ? undefined : VSBuffer.fromString(before).buffer,
-				afterContent: after === undefined ? undefined : VSBuffer.fromString(after).buffer,
-			};
-			await context.database.storeFileEdit({
-				turnId, toolCallId: `codex-turn-diff:${turnId}`, filePath: path,
-				kind: before === undefined ? FileEditKind.Create : after === undefined ? FileEditKind.Delete : FileEditKind.Edit,
-				...content, addedLines: undefined, removedLines: undefined,
-			});
+			return { before: file.beforePath === undefined ? undefined : before, after: file.afterPath === undefined ? undefined : after };
+		} catch (error) {
+			this._logService.warn(`[Codex] Failed to capture turn diff for ${file.afterPath ?? file.beforePath}`, error);
+			return undefined;
 		}
 	}
 }

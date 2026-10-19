@@ -45,7 +45,7 @@ import { ActionType, isChatAction, type SessionAction, type ChatAction } from '.
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { ConfigSchema, ModelSelection, ProtectedResourceMetadata, ToolDefinition, AgentSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { createErrorResponsePart, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, type ToolResultContent, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, FileEditKind, withSessionWorkspaceless, CustomizationType, type ClientPluginCustomization, type DirectoryCustomization, type ISessionFolderPickerDecision, type McpServerCustomization, type MessageAttachment, type PendingMessage, type ChatInputAnswer, ChatInputResponseKind, type PluginCustomization, type PolicyState, type ToolCallResult, type ToolResultContent, ToolResultContentType, type Turn, ResponsePartKind } from '../../common/state/sessionState.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
@@ -102,8 +102,7 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns, type ICodexReplayedCommand } from './codexReplayMapper.js';
 import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from './codexTerminalOutput.js';
-import { storeCodexTurnDiffs } from './codexTurnDiff.js';
-import { CodexTurnDiffTracker } from './codexTurnDiffTracker.js';
+import { CodexTurnDiff } from './codexTurnDiff.js';
 import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDiffUpdatedNotification.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -830,6 +829,8 @@ interface ICodexSession {
 	 * live host turn id to a `thread/revert` target.
 	 */
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
+	/** The active native turn's file-change tracker, fed by `turn/diff/updated`. */
+	turnDiff?: CodexTurnDiff;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
 	needsResume: boolean;
 	/**
@@ -1120,7 +1121,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	private readonly _pendingCommandOutputs = new WeakMap<ICodexSession, Map<string, Promise<ToolResultContent[]>>>();
 	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
-	private readonly _turnDiffs = new WeakMap<ICodexSession, CodexTurnDiffTracker>();
+	/** Latest contents per path across a chat's native turns, shared by their {@link CodexTurnDiff}s. */
+	private readonly _turnDiffContents = new WeakMap<ICodexSession, Map<string, string | undefined>>();
 	private readonly _onDidStoreTurnEdits = this._register(new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>());
 	readonly onDidStoreTurnEdits = this._onDidStoreTurnEdits.event;
 
@@ -2730,7 +2732,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}));
 		subscriptions.add(client.onNotification('skills/changed', () => this._queueSkillHookCustomizationRefresh(client)));
 		subscriptions.add(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
-		subscriptions.add(client.onNotification('turn/diff/updated', params => this._dispatchByThread(params.threadId, s => this._handleTurnDiffUpdated(s, params))));
+		subscriptions.add(client.onNotification('turn/diff/updated', params => this._recordTurnDiff(params)));
 		subscriptions.add(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
 		subscriptions.add(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
@@ -3186,11 +3188,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		this._updateTurnReviewer(session);
 		const mapped = this._withHostTurn(session, params);
-		const subagent = this._subagentsByThreadId.get(params.threadId);
-		const owner = this._turnDiffOwner(session);
-		if (owner) {
-			this._getTurnDiffTracker(owner).start(params.threadId, appTurnId, subagent?.hostTurnId ?? mapped.turn.id);
-		}
 		session.codexTurnIdByHostTurnId.set(mapped.turn.id, appTurnId);
 		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
 		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
@@ -3209,72 +3206,51 @@ export class CodexAgent extends Disposable implements IAgent {
 		}).finally(() => ref.dispose());
 	}
 
-	private _handleTurnDiffUpdated(session: ICodexSession, params: TurnDiffUpdatedNotification): (SessionAction | ChatAction)[] {
-		const owner = this._turnDiffOwner(session);
-		if (owner) {
-			this._turnDiffs.get(owner)?.update(params);
-		}
-		return [];
-	}
-
-	private _turnDiffOwner(session: ICodexSession): ICodexSession | undefined {
-		const subagent = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
-		return subagent ? this._sessions.get(subagent.parentSessionId) : session;
-	}
-
-	private _getTurnDiffTracker(session: ICodexSession): CodexTurnDiffTracker {
-		let tracker = this._turnDiffs.get(session);
-		if (!tracker) {
-			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs) => {
-				if (!session.chatStorage || !session.workingDirectory || session.disposed) {
-					return;
-				}
-				const database = this._sessionDataService.openDatabase(session.chatStorage);
-				const cwd = session.workingDirectory;
-				try {
-					const nativeCwd = URI.file(await fs.promises.realpath(cwd.fsPath).catch(() => cwd.fsPath));
-					await storeCodexTurnDiffs(captures, {
-						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService,
-					});
-				} finally {
-					database.dispose();
-				}
-				if (session.chatChannel) {
-					this._onDidStoreTurnEdits.fire({ chat: session.chatChannel, turnIds: [...new Set(captures.flatMap(capture => capture.snapshots.map(snapshot => snapshot.turnId)))] });
-				}
-			});
-			this._turnDiffs.set(session, tracker);
-		}
-		return tracker;
-	}
-
-	async waitForTurnEdits(chat: URI, turnId: string): Promise<void> {
-		const sessionId = this._sessionIdByChatUri.get(chat.toString());
-		const session = sessionId ? this._sessions.get(sessionId) : undefined;
-		if (session) {
-			const tracker = this._turnDiffs.get(session);
-			const ready = await raceTimeout(tracker?.waitForTurnEdits(turnId).then(() => true) ?? Promise.resolve(true), 30_000);
-			if (!ready) {
-				const error = new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
-				tracker?.failWaitingTurn(turnId, error);
-				throw error;
-			}
-		}
-	}
-
-	/** Completes native capture without blocking child progress; changeset reads wait on the tracker. */
-	private _stageTurnDiff(session: ICodexSession, appTurnId: string, publisher = session): void {
-		const tracker = this._turnDiffs.get(publisher);
-		if (!tracker) {
+	/** Persists each Codex patch's file changes as edits of the host turn active when Codex reported them. */
+	private _recordTurnDiff(params: TurnDiffUpdatedNotification): void {
+		const subagent = this._subagentsByThreadId.get(params.threadId);
+		const ownerId = subagent ? subagent.parentSessionId : this._sessionIdByThreadId.get(params.threadId);
+		const owner = ownerId ? this._sessions.get(ownerId) : undefined;
+		const session = subagent?.session ?? owner;
+		const storage = owner?.chatStorage;
+		const chat = owner?.chatChannel;
+		const cwd = owner?.workingDirectory;
+		if (!session || !owner || !storage || !chat || !cwd) {
 			return;
 		}
-		const captured = tracker.complete(appTurnId).catch(error => {
-			this._logService.warn(`[Codex:${session.threadId}] Failed to capture turn diff`, error);
-		});
-		if (!tracker.isWaitingForRelatedTurns(appTurnId)) {
-			const previous = this._pendingChatProgress.get(publisher);
-			this._pendingChatProgress.set(publisher, Promise.all([previous, captured]).then(() => { }));
+		// Resolve now: steering can move this native turn to a new host turn before the write runs.
+		const hostTurnId = subagent?.hostTurnId ?? this._hostTurnId(session, params.turnId);
+		if (session.turnDiff?.turnId !== params.turnId) {
+			let contents = this._turnDiffContents.get(owner);
+			if (!contents) {
+				contents = new Map();
+				this._turnDiffContents.set(owner, contents);
+			}
+			session.turnDiff = new CodexTurnDiff(params.turnId, contents, this._fileService, this._logService);
 		}
+		const turnDiff = session.turnDiff;
+		const previous = this._pendingChatProgress.get(owner);
+		this._pendingChatProgress.set(owner, (async () => {
+			await previous;
+			const changes = await turnDiff.update(params.diff, cwd);
+			if (changes.length === 0 || owner.disposed) {
+				return;
+			}
+			const database = this._sessionDataService.openDatabase(storage);
+			try {
+				const toolCallId = `codex-turn-diff:${generateUuid()}`;
+				await Promise.all(changes.map(({ path, before, after }) => database.object.storeFileEdit({
+					turnId: hostTurnId, toolCallId, filePath: path,
+					kind: before === undefined ? FileEditKind.Create : after === undefined ? FileEditKind.Delete : FileEditKind.Edit,
+					beforeContent: before === undefined ? undefined : VSBuffer.fromString(before).buffer,
+					afterContent: after === undefined ? undefined : VSBuffer.fromString(after).buffer,
+					addedLines: undefined, removedLines: undefined,
+				})));
+			} finally {
+				database.dispose();
+			}
+			this._onDidStoreTurnEdits.fire({ chat, turnIds: [hostTurnId] });
+		})().catch(error => this._logService.warn(`[Codex:${params.threadId}] Failed to record turn diff`, error)));
 	}
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification, retainRecoveredOutput = true): (SessionAction | ChatAction)[] {
@@ -3304,6 +3280,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.turnPermissions = undefined;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
+		// Queued diff writes keep their own reference; Codex sends no further diffs for a completed turn.
+		if (session.turnDiff?.turnId === appTurnId) {
+			session.turnDiff = undefined;
+		}
 		// Any steering still buffered was never echoed as a `userMessage`
 		// item; clear the pending bubble now that the turn is over.
 		this._drainPendingSteering(session);
@@ -3400,7 +3380,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const newHostTurnId = generateUuid();
 		if (appTurnId) {
-			this._turnDiffs.get(session)?.split(appTurnId, newHostTurnId);
 			session.hostTurnIdByAppTurnId.set(appTurnId, newHostTurnId);
 			session.codexTurnIdByHostTurnId.set(newHostTurnId, appTurnId);
 			this._persistTurnEventId(session, newHostTurnId, appTurnId);
@@ -3778,7 +3757,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _dispatchItemCompleted(params: ItemCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
-			this._recordTurnFileChanges(subagent.session, params);
 			const actions = mapItemCompleted(subagent.session.mapState, this._withHostTurnId(subagent.session, params));
 			for (const action of actions) {
 				this._fireSubagent(subagent, action);
@@ -3796,26 +3774,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		// may clear), and firing `subagent_started` first lets the orchestrator
 		// attach the child-conversation block to the still-open parent tool call.
 		this._maybeRegisterSubagents(session, params);
-		this._recordTurnFileChanges(session, params);
 		const retainedOutputResource = this._retainCommandOutput(session, params.item);
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), retainedOutputResource);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
-		}
-	}
-
-	/** Uses native file-change notifications only for path ordering; contents come from cumulative turn diffs. */
-	private _recordTurnFileChanges(session: ICodexSession, params: ItemCompletedNotification): void {
-		if (params.item.type !== 'fileChange' || params.item.status !== 'completed') {
-			return;
-		}
-		const owner = this._turnDiffOwner(session);
-		if (owner) {
-			const tracker = this._getTurnDiffTracker(owner);
-			const child = this._subagentsByThreadId.get(params.threadId);
-			tracker.start(params.threadId, params.turnId, child?.hostTurnId ?? this._hostTurnId(session, params.turnId));
-			tracker.markEdited(params.turnId, params.item.changes.flatMap(change => change.kind.type === 'update' && change.kind.move_path
-				? [change.path, change.kind.move_path] : [change.path]));
 		}
 	}
 
@@ -3869,11 +3831,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
-			const parent = this._sessions.get(subagent.parentSessionId);
-			if (parent) {
-				this._getTurnDiffTracker(parent).start(params.threadId, params.turn.id, subagent.hostTurnId);
-				this._stageTurnDiff(subagent.session, params.turn.id, parent);
-			}
 			const actions = this._handleTurnCompletedNotification(subagent.session, params, false);
 			for (const action of actions) {
 				if (action.type === ActionType.ChatTurnComplete) {
@@ -3890,10 +3847,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			});
 			return;
 		}
-		this._dispatchByThread(params.threadId, s => {
-			this._stageTurnDiff(s, params.turn.id);
-			return this._handleTurnCompletedNotification(s, params);
-		});
+		this._dispatchByThread(params.threadId, s => this._handleTurnCompletedNotification(s, params));
 	}
 
 	/**
@@ -3921,13 +3875,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				continue;
 			}
 			const subSession = this._createSubagentSession(session, childThreadId);
-			const spawningChild = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
-			const hostTurnId = spawningChild?.hostTurnId ?? this._hostTurnId(session, params.turnId);
-			this._getTurnDiffTracker(this._turnDiffOwner(session) ?? session).trackChild(childThreadId, hostTurnId);
 			this._subagentsByThreadId.set(childThreadId, {
 				parentSessionId: session.sessionId,
 				toolCallId: entry.toolCallId,
-				hostTurnId,
+				hostTurnId: this._hostTurnId(session, params.turnId),
 				session: subSession,
 			});
 			this._emitChatProgress(session, {
@@ -4382,14 +4333,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._disposeConnectionResources(connection);
 			return;
 		}
-		for (const subagent of this._subagentsByThreadId.values()) {
-			const parent = this._sessions.get(subagent.parentSessionId);
-			if (parent && subagent.session.threadId) {
-				void this._turnDiffs.get(parent)?.completeThread(subagent.session.threadId).catch(error => {
-					this._logService.warn('[Codex] Failed to capture child edits on disconnect', error);
-				});
-			}
-		}
 		// Notify every known session with a single ChatError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
 		for (const session of this._sessions.values()) {
@@ -4412,9 +4355,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._drainPendingSteering(session);
 			const turnId = session.currentTurnId;
 			const appTurnId = session.currentAppTurnId;
-			if (appTurnId) {
-				this._stageTurnDiff(session, appTurnId);
-			}
 			session.currentTurnId = undefined;
 			session.currentAppTurnId = undefined;
 			session.agentMergeTurn = false;
@@ -6741,7 +6681,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private async _teardownSessionInMemory(session: ICodexSession, sessionId: string, deleteManagedWorkingDirectory: boolean): Promise<void> {
 		session.disposed = true;
-		this._turnDiffs.get(session)?.dispose();
 		this._workingDirectoryMutations.get(session)?.updated.cancel();
 		this._claimPrewarm(session);
 		this._sessions.delete(sessionId);
@@ -6786,7 +6725,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		// orchestrator closes the child conversations as part of session teardown.
 		for (const [childThreadId, subagent] of this._subagentsByThreadId) {
 			if (subagent.parentSessionId === sessionId) {
-				this._turnDiffs.get(subagent.session)?.dispose();
 				subagent.session.pendingCommandApprovals.denyAll('decline');
 				this._subagentsByThreadId.delete(childThreadId);
 			}
@@ -8888,7 +8826,6 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _clearRuntimeState(): void {
 		for (const s of this._sessions.values()) {
 			s.disposed = true;
-			this._turnDiffs.get(s)?.dispose();
 			this._workingDirectoryMutations.get(s)?.updated.cancel();
 			if (s.prewarmTimer) {
 				clearTimeout(s.prewarmTimer);
@@ -8901,7 +8838,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		for (const subagent of this._subagentsByThreadId.values()) {
 			subagent.session.disposed = true;
-			this._turnDiffs.get(subagent.session)?.dispose();
 			if (subagent.session.prewarmTimer) {
 				clearTimeout(subagent.session.prewarmTimer);
 				subagent.session.prewarmTimer = undefined;
