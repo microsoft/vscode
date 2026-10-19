@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, relative } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,7 +21,7 @@ import { ContentEncoding } from '../../../common/state/protocol/common/commands.
 import type { ResourceReadResult, SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { getToolFileEdits, ROOT_STATE_URI, type ChangesetState, type ISessionFileDiff } from '../../../common/state/sessionState.js';
+import { getToolFileEdits, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type ChangesetState, type ChatState, type ISessionFileDiff } from '../../../common/state/sessionState.js';
 import { CODEX_SDK_ROOT } from '../e2e/providers/codexTestConfiguration.js';
 import { preserveAgentHostE2ELogs } from '../e2e/harness/agentHostE2EDiagnostics.js';
 import { dispatchTurn } from '../providerIntegrationTestHelpers.js';
@@ -34,6 +38,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 	let session: string;
 	let options: Parameters<typeof startRealServer>[0];
 	let clientSeq: number;
+	let releaseResponse: DeferredPromise<void> | undefined;
 
 	setup(function () {
 		if (!CODEX_SDK_ROOT) {
@@ -43,6 +48,8 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 	});
 
 	teardown(async function () {
+		releaseResponse?.complete();
+		releaseResponse = undefined;
 		if (root && this.currentTest?.state === 'failed') {
 			const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `codex-turn-diff-${process.pid}`);
 			preserveAgentHostE2ELogs(join(root, 'data'), join(root, 'home'), destination, this.currentTest.fullTitle());
@@ -71,11 +78,20 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: 'not-a-real-token' }, 30_000);
 	}
 
-	async function start(initialFiles: Record<string, string>, scenarios: Record<string, readonly string[]>, tool: 'native' | 'shell' = 'native'): Promise<void> {
+	async function start(initialFiles: Record<string, string>, scenarios: Record<string, readonly string[]>, settings: {
+		tool?: 'native' | 'shell';
+		pausedScenario?: string;
+		cwdSubfolder?: string;
+		extraScenarios?: NonNullable<Parameters<typeof startRealServer>[0]['mockScenarios']>;
+	} = {}): Promise<void> {
+		const { tool = 'native', pausedScenario, extraScenarios = [] } = settings;
+		if (pausedScenario) {
+			releaseResponse = new DeferredPromise<void>();
+		}
 		root = await realpath(await mkdtemp(join(tmpdir(), 'codex-turn-diff-')));
 		const home = join(root, 'home');
-		workspace = join(root, 'workspace');
-		await Promise.all([mkdir(home), mkdir(workspace)]);
+		workspace = join(root, 'workspace', settings.cwdSubfolder ?? '');
+		await Promise.all([mkdir(home), mkdir(workspace, { recursive: true })]);
 		await Promise.all(Object.entries(initialFiles).map(([name, contents]) => writeFile(join(workspace, name), contents)));
 		// Give the synthetic model native patch support independently of Codex's bundled model catalog.
 		const modelCatalog = join(root, 'models.json');
@@ -90,8 +106,8 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		}));
 		options = {
 			homeDir: home, userDataDir: join(root, 'data'), codexSdkRoot: CODEX_SDK_ROOT, mockLlm: true,
-			env: { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.plugins=false', '-c', 'features.unified_exec=true', '-c', `model_catalog_json=${JSON.stringify(modelCatalog)}`]) },
-			mockScenarios: Object.entries(scenarios).map(([id, patches]) => ({
+			env: { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.plugins=false', '-c', 'features.unified_exec=true', '-c', 'features.multi_agent=true', '-c', `model_catalog_json=${JSON.stringify(modelCatalog)}`]) },
+			mockScenarios: [...Object.entries(scenarios).map(([id, patches]) => ({
 				id,
 				definition: {
 					type: 'multi-turn',
@@ -102,10 +118,14 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 								? { kind: 'custom', toolNamePattern: /^apply_patch$/, input: patch }
 								: { toolNamePattern: /^exec_command$/, arguments: { cmd: `apply_patch <<'PATCH'\n${patch}\nPATCH\n`, workdir: workspace, login: false } }],
 						})),
-						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+						{
+							kind: 'content', chunks: pausedScenario === id
+								? [{ content: 'Waiting for the test.', delayMs: 0 }, { content: 'Done.', delayMs: 0, waitFor: releaseResponse!.p }]
+								: [{ content: 'Done.', delayMs: 0 }]
+						},
 					],
 				},
-			})),
+			})), ...extraScenarios],
 		};
 		server = await startRealServer(options);
 		await connect();
@@ -123,6 +143,11 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		client.clearReceived();
 		const turnId = generateUuid();
 		dispatchTurn(client, session, turnId, `[scenario:${scenario}] Apply the patches.`, ++clientSeq);
+		await waitForTurn(turnId);
+		return turnId;
+	}
+
+	async function waitForTurn(turnId: string): Promise<void> {
 		await client.waitForNotification(notification => {
 			if (!isActionNotification(notification, 'chat/turnComplete')) {
 				return false;
@@ -131,7 +156,58 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			return envelope.channel === defaultChatChannel(session) && envelope.action.type === ActionType.ChatTurnComplete && envelope.action.turnId === turnId;
 		}, 60_000);
 		assert.deepStrictEqual(client.receivedNotifications(notification => isActionNotification(notification, 'chat/error')), []);
+	}
+
+	async function beginPausedTurn(scenario: string): Promise<string> {
+		const turnId = generateUuid();
+		dispatchTurn(client, session, turnId, `[scenario:${scenario}] Apply the patches.`, ++clientSeq);
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.ChatDelta)) {
+				return false;
+			}
+			const { action } = getActionEnvelope(notification);
+			return action.type === ActionType.ChatDelta && action.turnId === turnId && action.content.includes('Waiting');
+		}, 30_000);
 		return turnId;
+	}
+
+	async function restart(): Promise<ChatState> {
+		client.close();
+		await stopServer(server!);
+		server = await startRealServer(options);
+		await connect();
+		await client.call('subscribe', { channel: session });
+		const result = await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(session) });
+		clientSeq = 0;
+		return result.snapshot!.state as ChatState;
+	}
+
+	/** Observes the real child conversation after its native patch completed and its final response is paused. */
+	async function waitForPausedChild(): Promise<void> {
+		const added = getActionEnvelope(await client.waitForNotification(notification => isActionNotification(notification, ActionType.SessionChatAdded))).action;
+		assert.ok(added.type === ActionType.SessionChatAdded);
+		const child = await client.call<SubscribeResult>('subscribe', { channel: added.summary.resource });
+		const childState = child.snapshot!.state as ChatState;
+		if (!childState.activeTurn?.responseParts.some(part => part.kind === ResponsePartKind.Markdown && part.content.includes('Waiting'))) {
+			await client.waitForNotification(notification => {
+				if (!isActionNotification(notification, ActionType.ChatDelta)) { return false; }
+				const { action } = getActionEnvelope(notification);
+				return action.type === ActionType.ChatDelta && action.content.includes('Waiting');
+			}, 30_000);
+		}
+	}
+
+	async function truncate(turnId?: string): Promise<void> {
+		await changes();
+		client.clearReceived();
+		client.dispatch({ channel: defaultChatChannel(session), clientSeq: ++clientSeq, action: { type: ActionType.ChatTruncated, turnId } });
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.ChangesetStatusChanged)) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === buildSessionChangesetUri(session) && envelope.action.type === ActionType.ChangesetStatusChanged && envelope.action.status === 'ready';
+		}, 30_000);
 	}
 
 	async function changes(turnId?: string) {
@@ -215,10 +291,11 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		]);
 	});
 
-	test('shell-intercepted patches use the same turn-diff tracking', async () => {
+	// This fixture deliberately exercises a Bash heredoc; native patch coverage remains enabled on Windows.
+	(isWindows ? test.skip : test)('shell-intercepted patches use the same turn-diff tracking', async () => {
 		await start({ 'edit.txt': 'before\n' }, {
 			'codex-diff-shell': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
-		}, 'shell');
+		}, { tool: 'shell' });
 		const turn = await runTurn('codex-diff-shell');
 		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'after\n');
 		assert.deepStrictEqual(await changes(turn), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'after\n' } }]);
@@ -253,5 +330,159 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			return envelope.channel === buildSessionChangesetUri(session) && envelope.action.type === ActionType.ChangesetStatusChanged && envelope.action.status === 'ready';
 		}, 30_000);
 		assert.deepStrictEqual({ session: await changes(), turn: await changes(turn) }, { session: [], turn: [] });
+	});
+
+	test('steering splits cumulative edits into independent host checkpoints', async () => {
+		await start({ 'edit.txt': 'a\n' }, {
+			'codex-diff-steer-first': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-a\n+b\n*** End Patch'],
+			'codex-diff-steer-second': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-b\n+c\n*** End Patch'],
+		}, { pausedScenario: 'codex-diff-steer-first' });
+		const first = await beginPausedTurn('codex-diff-steer-first');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'b\n');
+		client.dispatch({
+			channel: defaultChatChannel(session), clientSeq: ++clientSeq, action: {
+				type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer-edit',
+				message: { text: '[scenario:codex-diff-steer-second] Apply the next patch.', origin: { kind: MessageKind.User } },
+			}
+		});
+		await client.waitForNotification(notification => isActionNotification(notification, ActionType.ChatPendingMessageSet));
+		releaseResponse!.complete();
+		const started = await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.ChatTurnStarted)) {
+				return false;
+			}
+			const { action } = getActionEnvelope(notification);
+			return action.type === ActionType.ChatTurnStarted && action.queuedMessageId === 'steer-edit';
+		}, 30_000);
+		const action = getActionEnvelope(started).action;
+		assert.ok(action.type === ActionType.ChatTurnStarted);
+		await waitForTurn(action.turnId);
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'c\n');
+		assert.deepStrictEqual({ first: await changes(first), second: await changes(action.turnId) }, {
+			first: [{ before: { path: 'edit.txt', content: 'a\n' }, after: { path: 'edit.txt', content: 'b\n' } }],
+			second: [{ before: { path: 'edit.txt', content: 'b\n' }, after: { path: 'edit.txt', content: 'c\n' } }],
+		});
+	});
+
+	test('cancellation exposes the edited checkpoint before native completion is consumed', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-cancel': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
+		}, { pausedScenario: 'codex-diff-cancel' });
+		const turn = await beginPausedTurn('codex-diff-cancel');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'after\n');
+		await changes();
+		client.dispatch({ channel: defaultChatChannel(session), clientSeq: ++clientSeq, action: { type: ActionType.ChatTurnCancelled, turnId: turn, duration: 0 } });
+		await client.waitForNotification(notification => isActionNotification(notification, ActionType.ChatTurnCancelled));
+		const turnChanges = await changes(turn);
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.ChangesetContentChanged)) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === buildSessionChangesetUri(session) && envelope.action.type === ActionType.ChangesetContentChanged && envelope.action.files.length > 0;
+		}, 30_000);
+		assert.deepStrictEqual({ session: await changes(), turn: turnChanges }, {
+			session: [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'after\n' } }],
+			turn: [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'after\n' } }],
+		});
+	});
+
+	test('truncation preserves a retained local command before the first native turn', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-local-boundary': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
+		});
+		const local = generateUuid();
+		dispatchTurn(client, session, local, '!echo kept-local-command', ++clientSeq);
+		await waitForTurn(local);
+		await runTurn('codex-diff-local-boundary');
+		await truncate(local);
+		const restored = await restart();
+		assert.deepStrictEqual(restored.turns.map(turn => ({ id: turn.id, text: turn.message.text })), [{ id: local, text: '!echo kept-local-command' }]);
+	});
+
+	test('shared parent and child edits retain their checkpoint across cancellation and a replacement send', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-child': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-parent edit\n+child edit\n*** End Patch'],
+			'codex-diff-replacement': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-child edit\n+replacement edit\n*** End Patch'],
+		}, {
+			pausedScenario: 'codex-diff-child',
+			extraScenarios: [{
+				id: 'codex-diff-spawn', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+parent edit\n*** End Patch' }] },
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^spawn_agent$/, namespace: 'multi_agent_v1', arguments: { agent_type: 'default', message: '[scenario:codex-diff-child] Apply the patch.' } }] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}],
+		});
+		client.clearReceived();
+		const parent = generateUuid();
+		dispatchTurn(client, session, parent, '[scenario:codex-diff-spawn] Apply the patches.', ++clientSeq);
+		await waitForPausedChild();
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'child edit\n');
+		client.dispatch({ channel: defaultChatChannel(session), clientSeq: ++clientSeq, action: { type: ActionType.ChatTurnCancelled, turnId: parent, duration: 0 } });
+		await client.waitForNotification(notification => isActionNotification(notification, ActionType.ChatTurnCancelled));
+		const replacement = await runTurn('codex-diff-replacement');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'replacement edit\n');
+		const checkpoint = changes(parent);
+		releaseResponse!.complete();
+		assert.deepStrictEqual(await checkpoint, [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'child edit\n' } }]);
+		assert.deepStrictEqual(await changes(replacement), [{ before: { path: 'edit.txt', content: 'child edit\n' }, after: { path: 'edit.txt', content: 'replacement edit\n' } }]);
+		assert.deepStrictEqual(await changes(), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'replacement edit\n' } }]);
+	});
+
+	test('a child editing first supplies the original when its parent edits the same path later', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-child-first': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+child first\n*** End Patch'],
+		}, {
+			pausedScenario: 'codex-diff-child-first',
+			extraScenarios: [{
+				id: 'codex-diff-parent-last', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^spawn_agent$/, namespace: 'multi_agent_v1', arguments: { agent_type: 'default', message: '[scenario:codex-diff-child-first] Apply the patch.' } }] },
+						{
+							kind: 'tool-calls', toolCalls: [{
+								toolNamePattern: /^exec_command$/, arguments: {
+									cmd: `node -e "const fs=require('fs');const timer=setInterval(()=>{if(fs.readFileSync('edit.txt','utf8').trim()==='child first'){clearInterval(timer);process.exit(0);}},10);setTimeout(()=>process.exit(1),10000)"`, login: false,
+								}
+							}]
+						},
+						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-child first\n+parent last\n*** End Patch' }] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				}
+			}],
+		});
+		const parent = await runTurn('codex-diff-parent-last');
+		await waitForPausedChild();
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'parent last\n');
+		const checkpoint = changes(parent);
+		releaseResponse!.complete();
+		assert.deepStrictEqual(await checkpoint, [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'parent last\n' } }]);
+	});
+
+	test('a working directory below the repository root preserves native display paths', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-subfolder': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
+		}, { cwdSubfolder: 'nested' });
+		await promisify(execFile)('git', ['init', join(root!, 'workspace')]);
+		const turn = await runTurn('codex-diff-subfolder');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'after\n');
+		assert.deepStrictEqual(await changes(turn), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'after\n' } }]);
+	});
+
+	test('partial truncation after restart removes discarded native snapshots', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-partial-first': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+middle\n*** End Patch'],
+			'codex-diff-partial-second': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-middle\n+after\n*** End Patch'],
+		});
+		await runTurn('codex-diff-partial-first');
+		await runTurn('codex-diff-partial-second');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'after\n');
+		const restored = await restart();
+		assert.strictEqual(restored.turns.length, 2);
+		await truncate(restored.turns[0].id);
+		assert.deepStrictEqual(await changes(), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'middle\n' } }]);
 	});
 });

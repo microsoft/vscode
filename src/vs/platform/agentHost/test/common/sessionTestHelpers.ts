@@ -423,6 +423,15 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._toolResultResources.clear();
 	}
 
+	async deleteProviderTurns(providerTurnIds: readonly string[]): Promise<void> {
+		const ids = new Set(providerTurnIds);
+		for (const turnId of this._turns) {
+			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(this._turnEventIds.get(turnId) ?? ''))) {
+				await this.deleteTurn(turnId);
+			}
+		}
+	}
+
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		if (record.kind === 'failed') {
 			this._turns.add(record.turnId);

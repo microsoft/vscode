@@ -163,6 +163,27 @@ suite('AgentHostSnapshotController', () => {
 		assert.deepStrictEqual([contentMap.get(source), contentMap.get(destination), contentMap.get(created)], [undefined, 'pear\n', 'created\n']);
 	});
 
+	test('a failed earlier checkpoint fetch leaves every file and the cursor unchanged', async () => {
+		const file = URI.file('/file.txt').toString();
+		const before = URI.file('/before.txt').toString();
+		const after = URI.file('/after.txt').toString();
+		const contents = new Map([[file, 'third'], [before, 'second'], [after, 'third']]);
+		const controller = createController(store, contents, {
+			getChanges: () => undefined,
+			resolve: async requestId => {
+				if (requestId === 'second') { throw new Error('checkpoint unavailable'); }
+				return requestId === 'third' ? [{ before: { uri: file, content: { uri: before } }, after: { uri: file, content: { uri: after } } }] : [];
+			},
+		});
+		for (const requestId of ['first', 'second', 'third']) {
+			controller.ensureRequestCheckpoint(requestId);
+		}
+		await assert.rejects(controller.restoreSnapshot('first', undefined), /checkpoint unavailable/);
+		assert.deepStrictEqual({ contents: contents.get(file), canRedo: controller.canRedo.get(), disabled: controller.requestDisablement.get() }, {
+			contents: 'third', canRedo: false, disabled: [],
+		});
+	});
+
 	test('addToolCallEdits is idempotent on toolCallId', () => {
 		const controller = createController(store, new Map());
 		const tc = makeToolCall({

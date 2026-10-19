@@ -246,6 +246,9 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	 */
 	private async _navigateToCheckpointIndex(targetIdx: number): Promise<void> {
 		const currentIdx = this._currentCheckpointIndex.get();
+		const crossed = this._checkpoints.slice(Math.min(currentIdx, targetIdx) + 1, Math.max(currentIdx, targetIdx) + 1);
+		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
+		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
 		if (targetIdx < currentIdx) {
 			// Undo forward checkpoints
 			for (let i = currentIdx; i > targetIdx; i--) {
@@ -386,7 +389,6 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		await this._resolveCheckpointEdits(checkpoint);
 		const ops = checkpoint.edits.map(async edit => {
 			try {
 				if (direction === 'before') {

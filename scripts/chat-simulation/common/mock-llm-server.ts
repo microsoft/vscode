@@ -56,16 +56,20 @@ function _indentVerbose(text: string): string {
 interface StreamChunk {
 	content: string;
 	delayMs: number;
+	/** Optional test-controlled barrier before this chunk is sent. */
+	waitFor?: Promise<void>;
 }
 
 type ScenarioToolCallArguments = Record<string, any> | ((request: readonly any[]) => Record<string, any>);
 
 type ScenarioToolCall = {
 	toolNamePattern: RegExp;
+	namespace?: string;
 	kind?: 'function';
 	arguments: ScenarioToolCallArguments;
 } | {
 	toolNamePattern: RegExp;
+	namespace?: string;
 	kind: 'custom';
 	input: string;
 };
@@ -1072,6 +1076,7 @@ async function streamContent(res: import('http').ServerResponse, chunks: StreamC
 	res.write(`data: ${JSON.stringify(makeInitialChunk())}\n\n`);
 
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeChunk(chunk.content, 0, false))}\n\n`);
 	}
@@ -1221,7 +1226,7 @@ async function sendResponsesNonStreaming(
 				}
 				const callId = `call_${scenarioId}_${i}_${Date.now()}`;
 				if (call.kind === 'custom') {
-					return { id: `ctc_${callId}`, type: 'custom_tool_call', status: 'completed', call_id: callId, name: toolName, input: call.input };
+					return { id: `ctc_${callId}`, type: 'custom_tool_call', status: 'completed', call_id: callId, name: toolName, namespace: call.namespace, input: call.input };
 				}
 				const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, input));
 				return {
@@ -1230,6 +1235,7 @@ async function sendResponsesNonStreaming(
 					status: 'completed',
 					call_id: callId,
 					name: toolName,
+					namespace: call.namespace,
 					arguments: argsJson,
 				};
 			});
@@ -1405,6 +1411,7 @@ async function streamResponsesApiToolCalls(
 			status: 'in_progress',
 			call_id: callId,
 			name: toolName,
+			namespace: call.namespace,
 			[argumentField]: '',
 		};
 
@@ -1515,6 +1522,7 @@ async function streamResponsesContent(res: import('http').ServerResponse, chunks
 	// 4. Stream text deltas
 	let fullText = '';
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		fullText += chunk.content;
 		res.write(`data: ${JSON.stringify({
@@ -1642,6 +1650,7 @@ async function streamAnthropicContent(res: import('http').ServerResponse, chunks
 
 	let totalOutputTokens = 0;
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		writeAnthropicEvent(res, 'content_block_delta', {
 			index: 0,
@@ -1874,6 +1883,7 @@ async function streamThinkingThenContent(
 
 	// Stream thinking text
 	for (const chunk of thinkingChunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeThinkingChunk(chunk.content))}\n\n`);
 	}
@@ -1885,6 +1895,7 @@ async function streamThinkingThenContent(
 
 	// Stream content
 	for (const chunk of contentChunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeChunk(chunk.content, 0, false))}\n\n`);
 	}

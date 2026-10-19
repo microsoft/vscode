@@ -57,7 +57,6 @@ import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHo
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
-import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
@@ -138,7 +137,7 @@ import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessio
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
-import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
+import { AgentHostResponseFileChangesProvider, resolveTurnChangesetUri } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
 import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
@@ -6050,23 +6049,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return undefined;
 		}
 		const chatState = chat === sessionState.defaultChat ? this._getDefaultChatState(session.toString()) : this._getAdditionalChatState(chat);
-		const entry = resolveChatChangesetCatalogue(chat, chatState?.changesets, sessionState.changesets, sessionState.defaultChat)
-			?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
-		if (!entry) {
+		const resource = resolveTurnChangesetUri(session, URI.parse(chat), sessionState, chatState?.changesets, requestId);
+		if (!resource) {
 			return undefined;
 		}
-		const owner = entry.owner === 'session' ? session.toString() : chat;
-		const resource = URI.parse(resolveChangesetUriTemplate(owner, entry.changeset.uriTemplate).replace('{turnId}', requestId));
 		const reference = this._config.connection.getSubscription(StateComponents.Changeset, resource, 'AgentHostSnapshotController');
+		const cts = new CancellationTokenSource();
+		const timeout = disposableTimeout(() => cts.cancel(), 30_000);
 		try {
+			// A subscription opened mid-turn may still hold a Ready, empty result from before native persistence.
+			await raceCancellationError(this._config.connection.refreshSubscription?.(resource) ?? Promise.resolve(), cts.token);
 			const state = await waitForState(observableFromEvent(this, reference.object.onDidChange, () => reference.object.value),
 				value => value !== undefined && !(value instanceof Error) && (value.status === ChangesetStatus.Ready || value.status === ChangesetStatus.Error),
-				value => value instanceof Error ? value : undefined);
+				value => value instanceof Error ? value : undefined, cts.token);
 			if (!state || state instanceof Error || state.status !== ChangesetStatus.Ready) {
 				throw new Error(localize('agentHost.snapshotUnavailable', "The turn's file changes could not be loaded."));
 			}
 			return state.files.map(file => file.edit);
 		} finally {
+			timeout.dispose();
+			cts.dispose();
 			reference.dispose();
 		}
 	}

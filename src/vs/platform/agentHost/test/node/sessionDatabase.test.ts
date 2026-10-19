@@ -296,6 +296,25 @@ suite('SessionDatabase', () => {
 			);
 		});
 
+		test('provider truncation removes every mapped segment while preserving local and foreign turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			for (const [id, eventId] of [
+				['kept', 'native-kept'], ['first-segment', 'native-removed'], ['second-segment', 'native-removed'],
+				['foreign', 'native-removed'], ['failed-local', 'native-removed'], ['native-direct', 'native-direct'],
+			]) {
+				await db.setTurnEventId(id, eventId);
+				await db.storeFileEdit({ turnId: id, toolCallId: id, filePath: `/${id}.ts`, kind: FileEditKind.Edit, addedLines: 1, removedLines: 1 });
+			}
+			await db.setForeignRows('chat:owner', ['foreign']);
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang-command', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
+			await db.deleteProviderTurns(['native-removed', 'native-direct', 'absent']);
+			assert.deepStrictEqual({
+				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
+				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
+			}, { edits: ['kept', 'foreign', 'failed-local'], local: ['failed-local', 'bang-command'] });
+		});
+
 		test('retrieve multiple edits for a single tool call', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 
