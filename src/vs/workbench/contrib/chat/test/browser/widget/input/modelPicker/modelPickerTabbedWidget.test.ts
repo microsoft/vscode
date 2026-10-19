@@ -823,7 +823,7 @@ suite('TabbedModelPicker', () => {
 			const { popup } = createPicker({ comparison });
 			assert.deepStrictEqual({
 				hint: !!popup.querySelector('.tabbed-action-list-footer'),
-				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-layers'),
+				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-trophy'),
 			}, { hint: showHint === true, toggle: true });
 		});
 	}
@@ -853,9 +853,15 @@ suite('TabbedModelPicker', () => {
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
+			const toggleState = () => {
+				const toggle = element(popup, '[aria-label="Compare Models"]');
+				return { trophy: !!toggle.querySelector('.codicon-trophy'), pressed: toggle.getAttribute('aria-pressed') };
+			};
+			const initialToggle = toggleState();
 			const initialRows = listHeight();
 			const initialModels = listRows(popup);
 			element(popup, '[aria-label="Compare Models"]').click();
+			const activeToggle = toggleState();
 			const bounds = () => element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 			const first = bounds();
 			const firstRows = listHeight();
@@ -863,7 +869,15 @@ suite('TabbedModelPicker', () => {
 				assert.deepStrictEqual(listRows(popup), initialModels);
 			}
 			element(popup, '[aria-label="Compare Models"]').click();
-			assert.deepStrictEqual({ rows: listRows(popup), height: listHeight() }, { rows: initialModels, height: initialRows });
+			assert.deepStrictEqual({
+				rows: listRows(popup), height: listHeight(),
+				initialToggle, activeToggle, inactiveToggle: toggleState(),
+			}, {
+				rows: initialModels, height: initialRows,
+				initialToggle: { trophy: true, pressed: 'false' },
+				activeToggle: { trophy: true, pressed: 'true' },
+				inactiveToggle: { trophy: true, pressed: 'false' },
+			});
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '.model-picker-comparison-done').click();
 			anchor.style.width = '38px';
