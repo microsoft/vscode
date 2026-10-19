@@ -6700,7 +6700,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._peerChatStore.whenSessionsIdle(owner && owner !== sessionKey ? [session, URI.parse(owner)] : [session]);
 					await this._peerChatStore.remove(session, chat);
 					membershipRemoved = true;
-					await this._deleteChatAgentProviders([chatKey]);
+					await this._deleteChatAgentProviders([chatKey, ...storage.descendants.map(descendant => descendant.chat.toString())]);
 					await this._clearChatDraft(session, chat);
 					await this._deletePeerChatData(session, chat, storage);
 					await this._deletePeerChatSummaryKeys(session, chatKey);
@@ -8062,7 +8062,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return recordedChatStorage(snapshot, this._logService).get(defaultChat.toString()) ?? this._newDefaultChatStorageResource(session, defaultChat);
 	}
 
-	/** Storage resources the normalized catalog records for a session's chats. */
 	/**
 	 * The recorded agents of chats whose agent differs from their session's, read once from agent-host.db. They live
 	 * outside every validated catalog payload (see {@link IAgentHostDatabase.readChatAgentProviders}), so older builds
@@ -8082,28 +8081,51 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._chatAgentProviders;
 	}
 
+	/**
+	 * The recorded agents of chats, or `undefined` with a warning when they can't be read: callers then treat every chat
+	 * whose agent they don't know otherwise as unknown, never as a chat of its session's agent.
+	 */
+	private async _tryReadChatAgentProviders(): Promise<ReadonlyMap<string, string> | undefined> {
+		try {
+			return await this._readChatAgentProviders();
+		} catch (error) {
+			this._logService.warn(`[AgentService] The agents of chats are unavailable: ${toErrorMessage(error)}`);
+			return undefined;
+		}
+	}
+
 	private async _recordChatAgentProvider(chat: string, provider: AgentProvider): Promise<void> {
-		await this._orchestratorDatabase.recordChatAgentProvider?.(chat, provider);
+		if (!this._orchestratorDatabase.recordChatAgentProvider) {
+			// Without a durable record the chat would revert to its session's agent after a restart.
+			throw new Error(`Cannot record the agent ${provider} of chat ${chat}: this host can't persist it.`);
+		}
+		await this._orchestratorDatabase.recordChatAgentProvider(chat, provider);
 		(await this._readChatAgentProviders()).set(chat, provider);
 	}
 
-	/** Records the agent of a chat that differs from its session's, when it does; failures are logged. */
-	private _recordOwnChatAgentProvider(session: string, chat: string): void {
+	/** Records the agent of a chat that differs from its session's, when it does. */
+	private async _recordOwnChatAgentProvider(session: string, chat: string): Promise<void> {
 		const provider = this._stateManager.getChatProvider(chat);
 		if (provider !== undefined && provider !== this._stateManager.getSessionState(session)?.provider) {
-			void this._recordChatAgentProvider(chat, provider).catch(error => this._logService.error(error, `[AgentService] Failed to record the agent of chat ${chat}`));
+			await this._recordChatAgentProvider(chat, provider);
 		}
 	}
 
+	/** Forgets the recorded agents of deleted chats; failures are logged, a stale key never routes a chat that no longer exists. */
 	private async _deleteChatAgentProviders(chats: readonly string[]): Promise<void> {
-		const providers = await this._readChatAgentProviders();
-		const recorded = chats.filter(chat => providers.has(chat));
-		if (recorded.length === 0) {
+		if (chats.length === 0 || !this._orchestratorDatabase.deleteChatAgentProviders) {
 			return;
 		}
-		await this._orchestratorDatabase.deleteChatAgentProviders?.(recorded);
-		for (const chat of recorded) {
-			providers.delete(chat);
+		try {
+			await this._orchestratorDatabase.deleteChatAgentProviders(chats);
+			const providers = await this._tryReadChatAgentProviders();
+			if (providers instanceof Map) {
+				for (const chat of chats) {
+					providers.delete(chat);
+				}
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to forget the agents of deleted chats: ${toErrorMessage(error)}`);
 		}
 	}
 
@@ -8363,7 +8385,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const defaultChatStorage = await this._resolveDefaultChatStorageResource(session, URI.parse(defaultChat));
 		const storageOf = (chat: URI) => chat.toString() === defaultChat ? defaultChatStorage : this._chatStorageResource(session, chat);
 		// A chat with its own agent is disposed by that agent, also when it is not loaded.
-		const agentOf = (chat: URI): IAgent | undefined => this._chatAgentOf(provider, chat, chatProviders?.get(chat.toString()));
+		const agentOf = (chat: URI): IAgent | undefined => {
+			if (!chatProviders && chat.toString() !== defaultChat && this._stateManager.getChatProvider(chat.toString()) === undefined) {
+				// Without the recorded agents an unloaded chat's agent is unknown: it is skipped, never disposed by the session's agent.
+				return undefined;
+			}
+			return this._chatAgentOf(provider, chat, chatProviders?.get(chat.toString()));
+		};
 		for (const chat of chats) {
 			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat)) ?? privateBackings.find(entry => entry.uri === chat.toString());
 			const agent = agentOf(chat);
@@ -9250,7 +9278,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await catalogDeletionFence.whenDrained;
 			if (provider) {
 				traceStage('disposeProviderChats');
-				const chatProviders = await this._readChatAgentProviders();
+				const chatProviders = await this._tryReadChatAgentProviders();
 				const disposed = await this._disposeSession(provider, session, persistedPeerChats, defaultChat, recordedChats.privateChats, chatProviders);
 				chatsToDelete = this._orderSessionChatsForTeardown(session, [...disposed.map(chat => chat.toString()), ...recordedChats.storage.keys()], defaultChat);
 			}
@@ -12996,14 +13024,17 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return undefined;
 		}
-		const chatProviders = await this._readChatAgentProviders();
-		return result.data.chats.map(chat => ({
+		const chatProviders = await this._tryReadChatAgentProviders();
+		if (!chatProviders) {
+			this._logService.warn(`[AgentService] Restoring ${session.toString()} without its peer chats: their agents are unknown`);
+		}
+		return result.data.chats.filter(chat => chatProviders || chat.kind === 'default').map(chat => ({
 			uri: chat.uri.toString(),
 			kind: chat.kind,
 			title: chat.summary,
 			origin: fromCatalogChatOrigin(chat.origin),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-			...(chatProviders.has(chat.uri.toString()) ? { provider: chatProviders.get(chat.uri.toString()) } : {}),
+			...(chatProviders?.has(chat.uri.toString()) ? { provider: chatProviders.get(chat.uri.toString()) } : {}),
 			...(chat.archived === true ? { archived: true } : {}),
 			...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
@@ -13083,7 +13114,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], recordedStorage: ReadonlyMap<string, string>, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		// Read before any chat is registered or hydrated, so every chat is routed to its own agent from the start.
-		const chatProviders = await this._readChatAgentProviders();
+		const chatProviders = await this._tryReadChatAgentProviders();
+		if (!chatProviders) {
+			// Their agents are unknown: none is restored under its session's agent. A later restore retries the read.
+			this._logService.warn(`[AgentService] Skipping the restore of ${entries.length} peer chat(s) of ${session.toString()}: their agents are unknown`);
+			return;
+		}
 		// One config resolution per agent of the chats with their own agent restored here.
 		const ownConfigCache = new Map<string, Promise<SessionConfigState>>();
 		const restored = await Promise.all(entries.map(async (entry) => {
@@ -13357,17 +13393,16 @@ export class AgentService extends Disposable implements IAgentService {
 			} : {}),
 		});
 		this._resolvePendingSubagentChat(e.chat.toString());
-		// A subagent of a chat with its own agent runs in that agent, also once restored.
-		this._recordOwnChatAgentProvider(e.session.toString(), e.chat.toString());
 		const summary = this._stateManager.getSessionState(e.session.toString())?.chats.find(chat => chat.resource === e.chat.toString());
 		void this._recordLegacyPrivateChatStorage(e.session, e.chat);
-		void this._peerChatStore.persistPrivateChat(e.session, {
+		// A subagent of a chat with its own agent runs in that agent, also once restored: its agent is recorded before its row.
+		void this._recordOwnChatAgentProvider(e.session.toString(), e.chat.toString()).then(() => this._peerChatStore.persistPrivateChat(e.session, {
 			chat: e.chat.toString(),
 			parentChat: e.parent?.chat.toString(),
 			origin: summary?.origin === undefined ? undefined : JSON.stringify(summary.origin),
 			workingDirectories: summary?.workingDirectories,
 			metadata: { ...(e.title !== undefined ? { summary: e.title } : {}), interactivity: ChatInteractivity.Hidden },
-		}).catch(error => this._logService.error(error, `[AgentService] Failed to persist spawned chat ${e.chat.toString()}`));
+		})).catch(error => this._logService.error(error, `[AgentService] Failed to persist spawned chat ${e.chat.toString()}`));
 	}
 
 	/**
@@ -13912,7 +13947,12 @@ export class AgentService extends Disposable implements IAgentService {
 		} as const;
 		// A subagent runs in the agent of the chat that spawned it, recorded at its spawn for when the spawning chat isn't
 		// found, so it is never read through the session's agent.
-		const recordedProvider = spawnPoint ? undefined : (await this._readChatAgentProviders()).get(chatUri);
+		const chatProviders = spawnPoint ? undefined : await this._tryReadChatAgentProviders();
+		if (!spawnPoint && !chatProviders) {
+			this._logService.warn(`[AgentService] Cannot restore subagent chat ${chatUri}: its agent is unknown`);
+			return;
+		}
+		const recordedProvider = chatProviders?.get(chatUri);
 		const agent = recordedProvider !== undefined && recordedProvider !== parentState.provider
 			? this._providerService.getProvider(recordedProvider)
 			: this._providerService.getProviderForChat(parentSession, origin.chat);

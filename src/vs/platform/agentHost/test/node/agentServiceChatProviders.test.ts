@@ -14,7 +14,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import type { IAgentChatContext, IAgentCreateChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent } from '../../common/agent.js';
+import type { IAgentChatContext, IAgentChatMetadata, IAgentCreateChatResult, IAgentResolveChatConfigParams, IAgentSpawnChatEvent } from '../../common/agent.js';
 import { ChatMoveConfigKey } from '../../common/agentHostChatMove.js';
 import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
@@ -66,6 +66,13 @@ class ChatAgent extends MockAgent {
 		this.disposedChats.push(chat.toString());
 	}
 
+	/** Knows every session, as a restarted provider whose native catalog holds them does. */
+	knowsAllSessions = false;
+
+	override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+		return this.knowsAllSessions ? { chat, startTime: 1, modifiedTime: 1 } : super.getChatMetadata(chat, context);
+	}
+
 	override dispose(): void {
 		this.spawnEmitter.dispose();
 		super.dispose();
@@ -88,10 +95,10 @@ suite('AgentService - chats with their own agent', () => {
 	teardown(() => disposeTestSessionStateDatabases());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(enabled: boolean, options?: { readonly secondSupportsChats?: boolean }) {
-		const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+	function createService(enabled: boolean, options?: { readonly secondSupportsChats?: boolean; readonly catalogDatabase?: AgentHostDatabase; readonly sessionDatabase?: TestSessionDatabase }) {
+		const catalogDatabase = options?.catalogDatabase ?? disposables.add(new AgentHostDatabase(':memory:'));
 		const service = disposables.add(createTestAgentService(
-			new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+			new NullLogService(), fileService, createSessionDataService(options?.sessionDatabase ?? new TestSessionDatabase()),
 			{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
 			undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
 		));
@@ -102,7 +109,7 @@ suite('AgentService - chats with their own agent', () => {
 		if (enabled) {
 			getTestAgentServiceComposition(service).configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
 		}
-		return { service, copilot, second };
+		return { service, copilot, second, catalogDatabase };
 	}
 
 	async function createSessionWithSecondChat(service: AgentService, name = 'second-chat') {
@@ -369,6 +376,50 @@ suite('AgentService - chats with their own agent', () => {
 			afterChat: [chat.toString()],
 			afterSession: [],
 		});
+	});
+
+	test('deleting a chat forgets the agents of its subagents too', async () => {
+		const { service, second } = createService(true);
+		const { session, chat } = await createSessionWithSecondChat(service);
+		const subagent = URI.parse(buildChatUri(session, 'subagent'));
+		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
+		await timeout(10);
+		const database = getTestAgentHostDatabase(service);
+		const before = [...(await database.readChatAgentProviders?.())?.keys() ?? []].sort();
+
+		await service.disposeChat(session, chat);
+
+		assert.deepStrictEqual({ before, after: [...(await database.readChatAgentProviders?.())?.keys() ?? []] }, {
+			before: [chat.toString(), subagent.toString()].sort(),
+			after: [],
+		});
+	});
+
+	test('when the agents of chats can\'t be read, a restarted host neither restores nor disposes a chat with its own agent under the session\'s agent', async () => {
+		const sessionDatabase = new TestSessionDatabase();
+		const first = createService(true, { sessionDatabase });
+		const { session, chat } = await createSessionWithSecondChat(first.service);
+		await timeout(10);
+
+		const restarted = createService(true, { sessionDatabase, catalogDatabase: first.catalogDatabase });
+		restarted.copilot.knowsAllSessions = true;
+		restarted.second.knowsAllSessions = true;
+		const read = first.catalogDatabase.readChatAgentProviders;
+		first.catalogDatabase.readChatAgentProviders = () => Promise.reject(new Error('unreadable'));
+		try {
+			await restarted.service.restoreSession(session);
+			const restoredChats = getTestAgentStateManager(restarted.service).getSessionState(session.toString())?.chats.map(candidate => candidate.resource);
+			getTestAgentStateManager(restarted.service).deleteSession(session.toString());
+			await restarted.service.disposeSession(session);
+
+			assert.deepStrictEqual({
+				restoredPeer: restoredChats?.includes(chat.toString()),
+				disposedBySecond: restarted.second.disposedChats,
+				disposedByCopilot: restarted.copilot.disposedChats.includes(chat.toString()),
+			}, { restoredPeer: false, disposedBySecond: [], disposedByCopilot: false });
+		} finally {
+			first.catalogDatabase.readChatAgentProviders = read;
+		}
 	});
 
 	test('a chat with its own agent keeps it when moved to a session of another agent; a chat that would gain or lose its own agent is refused', async () => {
