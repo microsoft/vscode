@@ -44,7 +44,7 @@ Preserve these boundaries:
 - Readiness is report-only. Applied gaps never change rollout, harness selection, or Local picker visibility. There is no compatibility holdback or acceptance setting/policy. Accepting a gap for rollout must not relabel it as enforced.
 - Existing experiments, preferences, remembered/inherited and explicit choices retain their behavior. No storage mutation, conversation migration, Chat banners, message blocking, or additional telemetry.
 - `ChatEditorPreferCopilotHarness` is a preference, not a hard Local/Copilot lock. False does not prohibit explicit or remembered Copilot choices. Hard mandates require an explicit enforcement contract outside this diagnostic feature.
-- Existing enterprise-required sandbox and managed-settings freshness behavior remains authoritative. Local cannot satisfy the runtime sandbox floor.
+- Existing enterprise-required sandbox enforcement in Copilot and managed-settings freshness behavior remains authoritative. Local cannot satisfy the runtime sandbox floor, but `permissions.*` and `sandbox.*` do not affect harness selection or Local eligibility.
 - A readiness report with no known gaps is not an attestation of runtime parity. State what the detector does not inspect.
 
 Update the inventory, predicates, descriptions, readiness report, and tests as one coherent change. Keep UI descriptions focused on concrete admin/user consequences rather than copying a raw status label.
@@ -59,7 +59,7 @@ The readiness summary reports policy names, configuration keys, source labels, a
 
 - Test absent, permissive, restrictive, partial, and removed policy values.
 - Test Local and Copilot rollout defaults with and without applied gaps. Diagnostics must neither veto Agent Host selection nor promote a Local baseline.
-- Cover remembered and inherited automatic choices without storage mutation, explicit choices, other providers, virtual workspaces, host unavailability, hidden-Local picker behavior, and sandbox precedence.
+- Cover remembered and inherited automatic choices without storage mutation, explicit choices, other providers, virtual workspaces, host unavailability, hidden-Local picker behavior, and independence from runtime sandbox settings.
 - Test existing harness policy-over-user precedence using real configuration layering, and test policy removal and inventory graduation to enforced.
 - Test readiness content, including uncertainty and safe rendering. Do not include raw sensitive values in new diagnostics summaries.
 - For bridge changes, exercise the bundled runtime with isolated temporary homes and a synthetic local model. Check create, cold resume, removal, managed asks under Allow All/assisted modes, and unaffected requests. No real Copilot sign-in or device-policy changes should be needed for these fixtures.

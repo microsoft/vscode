@@ -121,7 +121,7 @@ export class AgentHostPolicyContinuationService extends Disposable implements IA
 		const supportsCompletion = !!this._connection.completeSavedChatContinuation && supportsAgentHostSavedChatContinuation(this._connection.initializeResult.get());
 		const ensureSourceCurrent = () => {
 			if (!source.visible || source.viewModel?.model !== model || this._widgets.getWidgetBySessionResource(resource) !== source || model.requestInProgress.get()
-				|| (automatic && (!provider || !supportsCompletion || !requiresCopilotAgentHost(this._managedSettingsService, this._configurationService) || !isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService)))) {
+				|| (automatic && (!provider || !supportsCompletion || !requiresCopilotAgentHost(this._managedSettingsService) || !isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService)))) {
 				throw new CancellationError();
 			}
 		};

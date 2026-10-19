@@ -41,6 +41,17 @@ import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChange
 const SUBSCRIPTION_OWNER = 'AgentHostResponseFileChangesProvider';
 const REQUEST_CACHE_CAPACITY = 1000;
 
+/** Resolves the catalogue's exact owner for the immutable edits of one request. */
+export function resolveTurnChangesetUri(session: URI, chat: URI, state: Pick<SessionState, 'changesets' | 'defaultChat'>, chatChangesets: readonly Changeset[] | undefined, requestId: string): URI | undefined {
+	const entry = resolveChatChangesetCatalogue(chat.toString(), chatChangesets, state.changesets, state.defaultChat)
+		?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
+	if (!entry) {
+		return undefined;
+	}
+	const owner = entry.owner === 'session' ? session : chat;
+	return URI.parse(resolveChangesetUriTemplate(owner.toString(), entry.changeset.uriTemplate).replace('{turnId}', requestId));
+}
+
 /**
  * Where a turn's diffs came from, for tracing. `retained` means every source
  * was momentarily empty and the previous result was kept instead.
@@ -216,18 +227,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 			if (chat === undefined) {
 				return undefined;
 			}
-			const resolvedCatalogue = resolveChatChangesetCatalogue(
-				chat,
-				resolvedTurnSource.changesets,
-				sessionState.changesets,
-				defaultChat,
-			);
-			const turnEntry = resolvedCatalogue?.find(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
-			if (!turnEntry) {
-				return undefined;
-			}
-			const owner = turnEntry.owner === 'session' || !resolvedTurnSource.chatUri ? backendSession : resolvedTurnSource.chatUri;
-			return URI.parse(resolveChangesetUriTemplate(owner.toString(), turnEntry.changeset.uriTemplate).replace('{turnId}', requestId));
+			return resolveTurnChangesetUri(backendSession, URI.parse(chat), sessionState, resolvedTurnSource.changesets, requestId);
 		});
 
 		const changesetStateObs = this._subscribeChangeset(turnChangesetUriObs);

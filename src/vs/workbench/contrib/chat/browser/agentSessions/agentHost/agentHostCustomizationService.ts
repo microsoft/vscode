@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { raceCancellation } from '../../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -16,7 +17,7 @@ import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostP
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -27,13 +28,17 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
+import { ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
+import { AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, isCopilotConnectorMcpAuthentication } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -104,8 +109,11 @@ export interface IAgentHostCustomizationService {
 
 	/**
 	 * Runs interactive authentication for an auth-required MCP server in an
-	 * agent-host session. Returns false when the session/server cannot be
-	 * resolved or authentication did not complete.
+	 * agent-host session. A Copilot Connector-owned server is authorized through
+	 * Copilot Connectors for the session account instead of an MCP token.
+	 * Returns true only once the server leaves the authentication-required
+	 * state; false when the session/server cannot be resolved, authentication
+	 * did not complete, or the server asks for the same authentication again.
 	 */
 	authenticateMcpServer(sessionResource: URI, serverId: string): Promise<boolean>;
 
@@ -185,6 +193,23 @@ export interface IAgentHostCustomizationTarget {
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
+/** How an auth-required MCP server settled after authentication was supplied. */
+const enum McpAuthenticationOutcome {
+	Authenticated,
+	/** The server asked for the same authentication again. */
+	Rejected,
+	Failed,
+	TimedOut,
+}
+
+interface IMcpAuthenticationVerification {
+	/** Marks the point after which an unchanged challenge is a verdict rather than a stale state. */
+	settle(): void;
+	readonly outcome: Promise<McpAuthenticationOutcome>;
+}
+
+const MCP_AUTHENTICATION_VERIFICATION_TIMEOUT_MS = 60_000;
+
 interface IMcpAutoAuthenticationAttempt {
 	readonly sessionResource: URI;
 	readonly serverId: string;
@@ -211,6 +236,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
 	private readonly _mcpAutoAuthentication = new Map<string, IMcpAutoAuthenticationAttempt>();
+	private _copilotConnectorAuthorizationInstance: AgentHostCopilotConnectorAuthorization | undefined;
+	private readonly _mcpAuthenticationVerifications = this._register(new DisposableStore());
+	/** Bounds how long Sign In waits for a server to leave the authentication-required state. */
+	protected _mcpAuthenticationVerificationTimeoutMs = MCP_AUTHENTICATION_VERIFICATION_TIMEOUT_MS;
 
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
@@ -276,6 +305,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
 					displayName: readMcpServerDisplayName(server),
+					connectorName: readMcpServerConnectorName(server),
 					source: readMcpServerSource(server),
 					sourcePluginName: readMcpServerSourcePlugin(server),
 					hostConfiguration: isTopLevel ? getHostMcpServerConfiguration(target.rootConfig, server.name) : undefined,
@@ -311,6 +341,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			entry = this._mcpAutoAuthentication.get(key);
 		}
 		if (state.kind !== McpServerStatus.AuthRequired) {
+			return false;
+		}
+		if (isCopilotConnectorMcpServer(server)) {
+			// Connector-owned servers use the session credential; only an explicit Connector authorization helps.
 			return false;
 		}
 		const challenge = this._mcpAuthenticationChallenge(state);
@@ -457,23 +491,133 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return false;
 		}
 		const displayName = readMcpServerDisplayName(server);
+		const label = getMcpServerDisplayLabel({ name: server.name, displayName });
+		const challenge = this._mcpAuthenticationChallenge(server.state);
+		if (isCopilotConnectorMcpServer(server)) {
+			return this._authorizeCopilotConnectorMcpServer(sessionResource, target, server, label, challenge);
+		}
 		try {
 			await target.startMcpServer(server.id);
-			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
+			const forwarded = await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
 				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
-				mcpServerName: getMcpServerDisplayLabel({ name: server.name, displayName }),
+				mcpServerName: label,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
 				scopes: server.state.requiredScopes ?? [],
 				agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
 				authenticate: request => target.authenticate(request),
 			});
+			if (!forwarded) {
+				return false;
+			}
+			// The token was handed over; the server has accepted it only once it leaves the auth-required state.
+			const verification = this._verifyMcpAuthentication(sessionResource, server.id, challenge, false);
+			verification.settle();
+			return this._reportMcpAuthenticationOutcome(server.name, await verification.outcome);
 		} catch (err) {
 			this._logService.error(`[AgentHost] Failed to authenticate MCP server '${server.name}'`, err);
 			return false;
 		}
+	}
+
+	/**
+	 * Authorizes Copilot Connectors for the session account, rebinds the session credential that Connector-owned
+	 * servers use, and restarts the Connector. Never creates a narrow session or forwards an MCP token.
+	 */
+	private async _authorizeCopilotConnectorMcpServer(sessionResource: URI, target: IAgentHostCustomizationTarget, server: McpServerCustomization, label: string, challenge: string): Promise<boolean> {
+		const connectorName = readMcpServerConnectorName(server);
+		if (!await this._copilotConnectorAuthorization.authorize(label, request => target.authenticate(request))) {
+			return false;
+		}
+		const verification = this._verifyMcpAuthentication(sessionResource, server.id, challenge, true);
+		// Refresh queues behind work in every live session; the verification deadline and disposal still release Sign In.
+		await Promise.race([this._copilotConnectorAuthorization.refresh(connectorName), verification.outcome]);
+		verification.settle();
+		const outcome = await verification.outcome;
+		if (outcome === McpAuthenticationOutcome.Rejected) {
+			this._copilotConnectorAuthorization.notifyStillUnauthorized(label);
+		}
+		return this._reportMcpAuthenticationOutcome(server.name, outcome);
+	}
+
+	/** Created on first use, so hosts without Copilot Connectors never resolve its services. */
+	private get _copilotConnectorAuthorization(): AgentHostCopilotConnectorAuthorization {
+		this._copilotConnectorAuthorizationInstance ??= this._instantiationService.createInstance(AgentHostCopilotConnectorAuthorization);
+		return this._copilotConnectorAuthorizationInstance;
+	}
+
+	private _reportMcpAuthenticationOutcome(serverName: string, outcome: McpAuthenticationOutcome): boolean {
+		switch (outcome) {
+			case McpAuthenticationOutcome.Authenticated:
+				this._logService.info(`[AgentHost] MCP server '${serverName}' accepted its authentication`);
+				return true;
+			case McpAuthenticationOutcome.Rejected:
+				this._logService.warn(`[AgentHost] MCP server '${serverName}' asked for the same authentication again`);
+				return false;
+			case McpAuthenticationOutcome.TimedOut:
+				this._logService.info(`[AgentHost] MCP server '${serverName}' is still connecting; not reporting authentication success`);
+				return false;
+			default:
+				this._logService.info(`[AgentHost] MCP server '${serverName}' did not become available after authentication`);
+				return false;
+		}
+	}
+
+	/**
+	 * Observes a server until it settles after authentication. Until {@link IMcpAuthenticationVerification.settle}
+	 * the host may still be applying the authentication, so only readiness is conclusive. Afterwards a server that
+	 * restarted and asks for the same authentication again rejected it; an unchanged challenge without a restart
+	 * keeps waiting, because the host can defer applying it. Connector-owned servers can restart and fail again
+	 * with the same credential, so they report success only once ready.
+	 */
+	private _verifyMcpAuthentication(sessionResource: URI, serverId: string, challenge: string, requireReady: boolean): IMcpAuthenticationVerification {
+		const store = this._mcpAuthenticationVerifications.add(new DisposableStore());
+		let done = false;
+		let settled = false;
+		let restarted = false;
+		let evaluate: () => void = () => { };
+		const outcome = new Promise<McpAuthenticationOutcome>(resolve => {
+			const finish = (value: McpAuthenticationOutcome) => {
+				if (!done) {
+					done = true;
+					resolve(value);
+					this._mcpAuthenticationVerifications.delete(store);
+				}
+			};
+			store.add(toDisposable(() => finish(McpAuthenticationOutcome.Failed)));
+			evaluate = () => {
+				if (done) {
+					return;
+				}
+				const target = this._resolveTarget(sessionResource);
+				const state = target && this._findMcpServer(target.customizations, serverId)?.state;
+				if (state?.kind === McpServerStatus.Ready) {
+					finish(McpAuthenticationOutcome.Authenticated);
+				} else if (state?.kind === McpServerStatus.Starting) {
+					restarted = true;
+					if (settled && !requireReady) {
+						finish(McpAuthenticationOutcome.Authenticated);
+					}
+				} else if (!settled) {
+					return;
+				} else if (state?.kind !== McpServerStatus.AuthRequired || this._mcpAuthenticationChallenge(state) !== challenge) {
+					finish(McpAuthenticationOutcome.Failed);
+				} else if (restarted) {
+					finish(McpAuthenticationOutcome.Rejected);
+				}
+			};
+			store.add(this.onDidChangeCustomizations(() => evaluate()));
+			store.add(disposableTimeout(() => finish(McpAuthenticationOutcome.TimedOut), this._mcpAuthenticationVerificationTimeoutMs));
+		});
+		return {
+			settle: () => {
+				settled = true;
+				evaluate();
+			},
+			outcome,
+		};
 	}
 
 	setCustomizationEnablement(sessionResource: URI, customizationId: string, currentEnablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind, enabled: boolean): void {
@@ -540,6 +684,67 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private _isScopedMcpServerIdForRawId(serverId: string, rawId: string): boolean {
 		const separator = serverId.indexOf('/');
 		return separator >= 0 && serverId.slice(separator + 1) === rawId;
+	}
+}
+
+/** Whether a server is owned by a Copilot Connector, by host metadata or by its Connector-scope challenge. */
+function isCopilotConnectorMcpServer(server: McpServerCustomization): boolean {
+	return readMcpServerConnectorName(server) !== undefined
+		|| server.state.kind === McpServerStatus.AuthRequired && isCopilotConnectorMcpAuthentication(server.state.requiredScopes);
+}
+
+/** Runs Copilot Connector authorization for a Connector-owned MCP server on behalf of its Sign In. */
+class AgentHostCopilotConnectorAuthorization {
+
+	constructor(
+		@ICopilotConnectorsService private readonly _copilotConnectorsService: ICopilotConnectorsService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	/**
+	 * Authorizes Connectors for the same account and forwards the resulting Copilot credential to the host, so it
+	 * is the credential Connector requests use before the Connector restarts.
+	 */
+	async authorize(label: string, authenticate: Parameters<typeof authenticateCopilotConnectorCredential>[2]): Promise<boolean> {
+		let authorized: AuthenticationSession;
+		try {
+			authorized = await this._copilotConnectorsService.authorize(CancellationToken.None);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.warn(`[AgentHost] Copilot Connector authorization for ${label} failed`, error);
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: error instanceof CopilotConnectorsError
+						? error.message
+						: localize('agentHost.mcpConnectorAuthorizationFailed', "Could not authorize Copilot connectors for {0}: {1}", label, getErrorMessage(error)),
+				});
+			}
+			return false;
+		}
+		try {
+			await this._instantiationService.invokeFunction(authenticateCopilotConnectorCredential, authorized.id, authenticate);
+		} catch (error) {
+			// Session change handling forwards the credential as well; the restart below still applies it.
+			this._logService.warn(`[AgentHost] Failed to forward the Copilot credential after authorizing connectors for ${label}`, error);
+		}
+		return true;
+	}
+
+	async refresh(connectorName: string | undefined): Promise<void> {
+		try {
+			await this._copilotConnectorsService.refreshAgentHostSessions(connectorName);
+		} catch (error) {
+			this._logService.warn(`[AgentHost] Failed to refresh Copilot Connector sessions`, error);
+		}
+	}
+
+	notifyStillUnauthorized(label: string): void {
+		this._notificationService.notify({
+			severity: Severity.Warning,
+			message: localize('agentHost.mcpConnectorStillUnauthorized', "{0} still cannot access Copilot connectors. Authorize Copilot connectors with the same GitHub account that you use for GitHub Copilot, then sign in again.", label),
+		});
 	}
 }
 

@@ -10,7 +10,9 @@ import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { lstat, mkdir, mkdtemp, opendir, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.js';
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
@@ -24,7 +26,7 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { vBoolean, vNumber, vObj, vOptionalProp, vString } from '../../../../base/common/validation.js';
@@ -221,8 +223,13 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 	}
 }
 
-class MockAgentService implements IAgentService {
+class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
+	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService());
+
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token);
+	}
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
@@ -460,7 +467,8 @@ class MockAgentService implements IAgentService {
 	async invokeChangesetOperation(_params: InvokeChangesetOperationParams, _credentials?: IAgentHostCredentialSource): Promise<{}> { return {}; }
 	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { throw new Error('Method not found'); }
 
-	dispose(): void {
+	override dispose(): void {
+		super.dispose();
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
 		this._onMcpNotification.dispose();
@@ -636,6 +644,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpSessionUris': true,
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
+				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
@@ -1989,6 +1998,150 @@ suite('ProtocolServerHandler', () => {
 			id: 20,
 			error: { code: JSON_RPC_INTERNAL_ERROR, message: error.stack },
 		});
+	});
+
+	suite('worktree disk usage', () => {
+		let root: string;
+		let allocatedBytes: number;
+
+		setup(async () => {
+			root = URI.file(await mkdtemp(join(process.cwd(), '.build', 'worktree-measurement-'))).fsPath;
+			await mkdir(join(root, 'node_modules'));
+			await writeFile(join(root, 'node_modules', 'package.json'), '1234567890');
+			allocatedBytes = Number((await lstat(join(root, 'node_modules', 'package.json'), { bigint: true })).blocks * 512n);
+		});
+
+		teardown(async () => {
+			await rm(root, { recursive: true, force: true });
+		});
+
+		test('returns aggregate bytes without routing per-file resource requests', async () => {
+			const transport = connectClient('worktree-measurement');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
+		});
+
+		test('shares the two-scan budget across separate protocol handlers', async () => {
+			const gate = new DeferredPromise<void>();
+			const saturated = new DeferredPromise<void>();
+			let started = 0;
+			let active = 0;
+			let maximum = 0;
+			const sharedMeasurements = disposables.add(new AgentHostWorktreeDiskUsageService({
+				opendir,
+				lstat: async path => {
+					if (path !== root) {
+						return lstat(path, { bigint: true });
+					}
+					started++;
+					active++;
+					maximum = Math.max(maximum, active);
+					if (active === 2) {
+						saturated.complete();
+					}
+					await gate.p;
+					try {
+						return await lstat(path, { bigint: true });
+					} finally {
+						active--;
+					}
+				},
+			}));
+			agentService.measureWorktreeDiskUsage = (uri, token) => sharedMeasurements.measure(uri, token);
+			const secondServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, secondServer, {},
+				fileSystemProvider, logService, agentHostTelemetryService, managedSettingsService,
+				clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+			));
+			const first = connectClient('worktree-first-endpoint');
+			const second = disposables.add(new MockProtocolTransport());
+			secondServer.simulateConnection(second);
+			second.simulateMessage(request(1, 'initialize', { clientId: 'worktree-second-endpoint', protocolVersions: [PROTOCOL_VERSION] }));
+			const responses = [first, first, second, second].map((transport, index) => {
+				const id = index + 20;
+				const response = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, 'vscode/measureWorktreeDiskUsage', {
+					uri: URI.file(root).toString(), requestId: `measurement-${index}`,
+				}));
+				return response;
+			});
+			await saturated.p;
+			const beforeRelease = { started, maximum };
+			gate.complete();
+			const results = await Promise.all(responses);
+			assert.deepStrictEqual({ beforeRelease, started, maximum, results }, {
+				beforeRelease: { started: 2, maximum: 2 },
+				started: 4,
+				maximum: 2,
+				results: Array.from({ length: 4 }, (_, index) => ({ jsonrpc: '2.0', id: index + 20, result: { sizeBytes: allocatedBytes } })),
+			});
+		});
+
+		test('cancels an in-flight walk on the owning connection', async () => {
+			const transport = connectClient('worktree-cancel');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			const cancelled = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/cancelWorktreeDiskUsage', { requestId: 'measurement' }));
+			await cancelled;
+			assert.ok(hasKey(await response, { error: true }));
+		});
+
+		test('does not let a different connection cancel a walk', async () => {
+			const transport = connectClient('worktree-owner');
+			const other = connectClient('worktree-other');
+			const response = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			const cancelled = waitForResponse(other, 21);
+			other.simulateMessage(request(21, 'vscode/cancelWorktreeDiskUsage', { requestId: 'measurement' }));
+			await cancelled;
+			assert.deepStrictEqual(await response, { jsonrpc: '2.0', id: 20, result: { sizeBytes: allocatedBytes } });
+		});
+
+		test('cancels measurements when their transport disconnects', async () => {
+			const transport = connectClient('worktree-disconnect');
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', {
+				uri: URI.file(root).toString(), requestId: 'measurement',
+			}));
+			transport.simulateClose();
+			await handler.whenIdle();
+			assert.strictEqual(findResponse(transport.sent, 20), undefined);
+		});
+
+		test('rejects duplicate active request ids', async () => {
+			const transport = connectClient('worktree-duplicate');
+			const first = waitForResponse(transport, 20);
+			const params = { uri: URI.file(root).toString(), requestId: 'measurement' };
+			transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', params));
+			const duplicate = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/measureWorktreeDiskUsage', params));
+			const response = await duplicate;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+			await first;
+		});
+
+		for (const params of [
+			{}, { uri: 1, requestId: 'a' }, { uri: URI.file('/worktree').toString() },
+			{ uri: 'https://example.com/worktree', requestId: 'a' },
+			{ uri: 'file:relative', requestId: 'a' },
+		]) {
+			test(`rejects invalid measurement params (${JSON.stringify(params)})`, async () => {
+				const transport = connectClient('worktree-invalid');
+				const response = waitForResponse(transport, 20);
+				transport.simulateMessage(request(20, 'vscode/measureWorktreeDiskUsage', params));
+				const result = await response;
+				assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+			});
+		}
 	});
 
 	test('routes stopping background work through the extension request', async () => {
