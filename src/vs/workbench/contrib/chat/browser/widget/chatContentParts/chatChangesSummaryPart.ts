@@ -447,7 +447,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 		if (templateData.actionBar && this.options?.getRowActions) {
 			templateData.actionBar.clear();
-			templateData.actionBar.push(this.options.getRowActions(data), { icon: false, label: true });
+			templateData.actionBar.push(this.options.getRowActions(data), { icon: true, label: false });
 		}
 	}
 
