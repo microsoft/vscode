@@ -891,8 +891,25 @@ export class ChatView extends AbstractChatView {
 			const isCurrentLoad = this._loadCts.value === cts;
 			if (token.isCancellationRequested || !ref || !isCurrentChat || !isCurrentLoad) {
 				ref?.dispose();
-				if (!token.isCancellationRequested && !ref && isCurrentChat && isCurrentLoad && session) {
-					this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+				if (!token.isCancellationRequested && !ref && isCurrentChat && isCurrentLoad) {
+					if (session) {
+						this.sessionOpenTelemetryService.modelBindFailed(session.resource, resource);
+					}
+					this._loadFailure.set({
+						resource,
+						status: {
+							kind: 'history',
+							message: localize('chatView.historyLoadFailed', "Couldn't load this conversation."),
+							action: {
+								label: localize('chatView.retryHistoryLoad', "Retry"),
+								run: async () => {
+									if (!token.isCancellationRequested && this._loadCts.value === cts && isEqual(this._currentChatResource, resource)) {
+										await this._loadChat(resource, this._currentSessionObs.get());
+									}
+								},
+							},
+						},
+					}, undefined);
 				}
 				if (isCurrentChat && isCurrentLoad) {
 					this._setLoading(false);

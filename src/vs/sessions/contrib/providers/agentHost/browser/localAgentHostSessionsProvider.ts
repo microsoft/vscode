@@ -35,7 +35,8 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { buildLocalSessionStateUri, getCopilotCliSessionRawId, migratedCopilotCliResource } from '../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, LEGACY_MIGRATION_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -113,6 +114,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	 * sessions on this machine, so a remote host must never claim or probe them.
 	 */
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
+		if (LocalChatSessionUri.isLocalSession(resource) || getChatSessionType(resource) === localChatSessionType) {
+			return resource;
+		}
 		// Frozen at startup: enabling the setting only takes effect after a restart,
 		// so a live toggle never probes a host whose gate is still off.
 		if (!isLegacyMigrationEnabledAtStartup(this._configurationService)) {

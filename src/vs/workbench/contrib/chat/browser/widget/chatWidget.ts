@@ -113,7 +113,7 @@ import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.
 import { animateChatProgress } from './chatProgressAnimation.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from './chatReadOnlyBanner.js';
 import { IChatSubmitRequestHandlerService } from '../chatSubmitRequestHandlerService.js';
@@ -2192,6 +2192,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
+		if (LocalChatSessionUri.isLocalSession(model.sessionResource) || getChatSessionType(model.sessionResource) === localChatSessionType) {
+			return Disposable.None;
+		}
 		const provider = model.sessionResource.scheme === 'agent-host-claude' ? 'claude' : model.sessionResource.scheme === 'agent-host-codex' ? 'codex' : undefined;
 		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)))) {
 			return Disposable.None;

@@ -1575,6 +1575,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						return undefined;
 					}
 
+					if (!newModelRef) {
+						throw new Error(localize('chat.sessionNotFound', "Chat session '{0}' could not be found or loaded.", sessionResource.toString()));
+					}
+
 					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
 					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);

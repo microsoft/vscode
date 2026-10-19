@@ -306,15 +306,19 @@ export class ContinueChatInCopilotAction extends Action2 {
 			}
 		})();
 		this.pending.set(context.sessionResource, work);
+		let succeeded = false;
 		try {
 			await work;
+			succeeded = true;
 			logOutcome('succeeded');
 		} catch (error) {
 			logOutcome(isCancellationError(error) ? 'cancelled' : 'failed');
 			throw error;
 		} finally {
 			imports.take(untitledResource);
-			imports.take(sessionResource);
+			if (!succeeded) {
+				imports.take(sessionResource);
+			}
 			this.pending.delete(context.sessionResource);
 		}
 	}
