@@ -457,6 +457,9 @@ export function resolveConfiguredReasoningEffortOverride(model: ModelSelection |
  * encoded for the runtime with {@link toRuntimeReasoningEffort}.
  */
 export function resolveCopilotReasoningEffort(model: ModelSelection | undefined, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): SessionConfig['reasoningEffort'] {
+	if (isAutoModel(model?.id)) {
+		return undefined;
+	}
 	return toRuntimeReasoningEffort(model, resolveConfiguredReasoningEffortOverride(model, configurationService, logService, sessionId) ?? getCopilotReasoningEffort(model));
 }
 

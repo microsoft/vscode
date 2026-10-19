@@ -2706,8 +2706,10 @@ suite('resolveCopilotReasoningEffort', () => {
 				// model-id entry cannot
 				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
 				resolveCopilotReasoningEffort(undefined, configOf({ modelCapabilityOverrides: { 'gpt-5': { reasoningEffort: 'low' } } }), log, 's1'),
+				// Auto chooses a concrete model at request time, so it cannot carry a fixed effort.
+				resolveCopilotReasoningEffort({ id: 'auto', config: { thinkingLevel: 'high' } }, configOf({ modelCapabilityOverrides: { '*': { reasoningEffort: 'low' } } }), log, 's1'),
 			],
-			['low', 'high', 'low', 'high', 'medium', 'medium', 'low', undefined]
+			['low', 'high', 'low', 'high', 'medium', 'medium', 'low', undefined, undefined]
 		);
 	});
 

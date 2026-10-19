@@ -338,22 +338,13 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 				&& envelope.action.type === ActionType.SessionChatAdded
 				&& envelope.action.summary.resource.toString() === subagentChat;
 		}), 'the retained subagent chat should be added to the session catalog');
-		const initialChildSubscription = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-		const initialChild = initialChildSubscription.snapshot?.state as ChatState | undefined;
-		let childCompletionObserved = isCompletedChild(initialChild, 1);
-
 		async function readCompletedChild(expectedTurnCount: number): Promise<ChatState> {
-			if (!childCompletionObserved) {
-				await context.client.waitForNotification(n => {
-					if (!isActionNotification(n, 'chat/turnComplete')) {
-						return false;
-					}
-					return getActionEnvelope(n).channel === subagentChat;
-				}, 5_000);
-			}
-			childCompletionObserved = false;
-			const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
-			const child = snapshot.snapshot?.state as ChatState | undefined;
+			const child = await retry(async () => {
+				const snapshot = await context.client.call<SubscribeResult>('subscribe', { channel: subagentChat });
+				const state = snapshot.snapshot?.state as ChatState | undefined;
+				assert.ok(isCompletedChild(state, expectedTurnCount), `retained child has not completed ${expectedTurnCount} turn(s)`);
+				return state;
+			}, 50, 100);
 			assert.ok(child);
 			assert.deepStrictEqual({
 				active: child.activeTurn !== undefined,

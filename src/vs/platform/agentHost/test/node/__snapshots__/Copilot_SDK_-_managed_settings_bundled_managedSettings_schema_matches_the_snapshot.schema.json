@@ -77,6 +77,14 @@
 					"type": "boolean"
 				}
 			},
+			"requireBase64ImageAttachments": {
+				"description": "When true, requires base64-encoded image attachments instead of attachment URLs. False or unset preserves existing behavior.",
+				"type": "boolean",
+				"default": false,
+				"x-composition": {
+					"strategy": "highest-layer-wins"
+				}
+			},
 			"vscode": {
 				"description": "VS Code-specific managed preferences. Preserved by the shared runtime for VS Code to consume; the runtime and other clients do not interpret these preferences. Delivered through server-managed or file-based settings, not native MDM.",
 				"type": "object",
@@ -1300,5 +1308,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.100-1"
+	"runtimeVersion": "0.0.1-2c3adb2"
 }

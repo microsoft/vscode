@@ -614,7 +614,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assertSecurityInvariants();
 	});
 
-	test('passes the chat\'s thinking level to llama-server as chat_template_kwargs, for the direct row and for Auto', async () => {
+	test('passes direct-row thinking levels while Auto leaves effort to its routed model', async () => {
 		const ready = serving.active;
 		assert.ok(ready);
 		const sessionConfig = withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW]));
@@ -640,10 +640,10 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		await toggleSession.disconnect();
 		const toggle = { turn: toggleTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
 
-		// Auto: the patched local pick declares the fallback's efforts, so the runtime sends the chat's level.
+		// Auto cannot carry a fixed effort because its concrete model is selected per request.
 		serving.active = { ...ready, thinking: THINKING_ROW.thinking };
 		fallbackReasoningEfforts = ['low', 'medium', 'high'];
-		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', reasoningEffort: 'low', ...sessionConfig });
+		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', ...sessionConfig });
 		const autoTurn = await runTurn(autoSession, 'Say hello.');
 		await autoSession.disconnect();
 		const auto = { turn: autoTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
@@ -651,7 +651,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assert.deepStrictEqual({ effort, toggle, auto }, {
 			effort: { turn: 'LOCAL OK', runtime: ['high'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'high' } }] },
 			toggle: { turn: 'LOCAL OK', runtime: ['minimal'], llama: [{ reasoningEffort: undefined, kwargs: { enable_thinking: false } }] },
-			auto: { turn: 'LOCAL OK', runtime: ['low'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'low' } }] },
+			auto: { turn: 'LOCAL OK', runtime: ['medium'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'medium' } }] },
 		});
 		assertSecurityInvariants();
 	});
