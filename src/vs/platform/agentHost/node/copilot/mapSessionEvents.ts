@@ -1239,7 +1239,7 @@ function sdkAttachmentToProtocol(
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
-					modelRepresentation: decodeTextBlobAttachmentData(attachment.data),
+					modelRepresentation: decodeTextBlobAttachmentData(attachment.data, simpleDisplayKind !== undefined),
 					...(simpleDisplayKind !== undefined ? { displayKind: simpleDisplayKind } : {}),
 				};
 			}
