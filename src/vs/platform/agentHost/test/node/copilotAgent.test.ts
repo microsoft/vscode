@@ -15956,18 +15956,25 @@ suite('CopilotAgent', () => {
 		const neverRun = AgentSession.uri('copilotcli', 'never-run');
 		// Created but never run: the SDK has no session for it yet by design.
 		await deferCopilotSdkExecution(sessionDataService, neverRun, 'never-run', new NullLogService());
+		const owner = AgentSession.uri('copilotcli', 'owner');
+		// A chat stored under its own resource keeps its marker there, and names its SDK session only through provider data.
+		const chatOwnedPending = URI.parse(buildChatUri(owner, 'chat-owned-pending'));
+		await deferCopilotSdkExecution(sessionDataService, chatOwnedPending, 'chat-owned-pending-sdk', new NullLogService());
+		const chatOwnedDeleted = URI.parse(buildChatUri(owner, 'chat-owned-deleted'));
 		const client = new TestCopilotClient([sdkSession('live')]);
 		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const probe = (session: URI) => agent.isChatBackingMissing(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
-			const owner = AgentSession.uri('copilotcli', 'owner');
+			const probeChatOwned = (chat: URI, sdkSessionId: string) => agent.isChatBackingMissing(chat, exactChatContext(owner, chat), JSON.stringify({ sdkSessionId }));
 			const peerWithoutBacking = URI.parse(buildChatUri(owner, 'peer-without-backing'));
 
 			const results = {
 				live: await probe(AgentSession.uri('copilotcli', 'live')),
 				deleted: await probe(AgentSession.uri('copilotcli', 'deleted')),
 				neverRun: await probe(neverRun),
+				chatOwnedNeverRun: await probeChatOwned(chatOwnedPending, 'chat-owned-pending-sdk'),
+				chatOwnedDeleted: await probeChatOwned(chatOwnedDeleted, 'chat-owned-deleted-sdk'),
 				unnamed: await agent.isChatBackingMissing(peerWithoutBacking, exactChatContext(owner, peerWithoutBacking)),
 				unreachable: false,
 			};
@@ -15978,6 +15985,8 @@ suite('CopilotAgent', () => {
 				live: false,
 				deleted: true,
 				neverRun: false,
+				chatOwnedNeverRun: false,
+				chatOwnedDeleted: true,
 				unnamed: false,
 				unreachable: false,
 			});

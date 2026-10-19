@@ -4712,7 +4712,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async isChatBackingMissing(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<boolean> {
-		const { resolvedContext, sessionStorage, session, sessionId } = this._resolveChatSdkSession(chat, context, providerData);
+		const { resolvedContext, session, sessionId } = this._resolveChatSdkSession(chat, context, providerData);
 		if (!sessionId) {
 			return false;
 		}
@@ -4721,8 +4721,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (await this._readSdkSessionMetadata(chat, session, sessionId, !!resolvedContext.credentials)) {
 				return false;
 			}
-			// A chat created but never run has no SDK session yet by design.
-			return !sessionStorage || !await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, sessionId, this._logService);
+			// A chat created but never run has no SDK session yet by design; its marker is in its recorded storage, whether a session's database or its own.
+			return !await getDeferredCopilotSdkExecution(this._sessionDataService, resolvedContext.resource, sessionId, this._logService);
 		} catch (error) {
 			this._logService.warn(`[Copilot] Could not establish whether SDK session ${sessionId} for ${chat.toString()} still exists`, error);
 			return false;
