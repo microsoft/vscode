@@ -15,7 +15,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentCreateSessionConfig, IAgentModelInfo, IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, getAgentHostChatId, MessageKind, PendingMessageKind, readSessionCreationReference, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, withSessionGitState, withSessionGitHubState, withSessionWorkspaceless, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn } from '../../common/state/sessionState.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -866,7 +866,37 @@ suite('SessionServerTools', () => {
 				status: 'inputNeeded',
 				workingDirectory: workspace.toString(),
 				title: 'title-s1',
+				chats: [
+					{ title: 'title-s1', openLink: 'agent-host-session://copilot/s1', main: true },
+					{ openLink: 'agent-host-session://copilot/s1?chat=peer' },
+					{ openLink: 'agent-host-session://copilot/s1?chat=c9' },
+				],
 			}],
+		});
+	});
+
+	test('serializeSessions lists a session\'s main session and nested sessions in order, with their links, leaving out subagent and hidden chats', () => {
+		const session = 'copilot:/nested';
+		const chat = (id: string) => URI.parse(buildChatUri(session, id));
+		const nested: IAgentSessionMetadata = {
+			session: URI.parse(session), startTime: 0, modifiedTime: 0, summary: 'Nested',
+			chats: [
+				{ chat: chat('beta'), kind: 'peer', summary: 'Beta', status: SessionStatus.InProgress },
+				{ chat: URI.parse(buildDefaultChatUri(session)), kind: 'default' },
+				{ chat: chat('subagent'), kind: 'peer', summary: 'Subagent', origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tc' } },
+				{ chat: chat('hidden'), kind: 'peer', summary: 'Hidden', interactivity: ChatInteractivity.Hidden },
+				{ chat: chat('alpha'), kind: 'peer', summary: 'Alpha' },
+			],
+		};
+		const single: IAgentSessionMetadata = { session: URI.parse('copilot:/single'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(buildDefaultChatUri('copilot:/single')), kind: 'default' }] };
+		const [withChats, withoutChats] = JSON.parse(serializeSessions([nested, single])).sessions;
+		assert.deepStrictEqual({ chats: withChats.chats, single: withoutChats.chats }, {
+			chats: [
+				{ title: 'Beta', openLink: buildOpenSessionLinkUri(session, 'beta'), status: 'inProgress' },
+				{ title: 'Nested', openLink: buildOpenSessionLinkUri(session), main: true },
+				{ title: 'Alpha', openLink: buildOpenSessionLinkUri(session, 'alpha') },
+			],
+			single: undefined,
 		});
 	});
 
@@ -923,6 +953,11 @@ suite('SessionServerTools', () => {
 			workingDirectories: [primary.toString(), secondary.toString()],
 			project: 'Remote App',
 			projectUri: project.toString(),
+			chats: [
+				{ title: 'title-remote', openLink: 'agent-host-session://copilot/remote', main: true },
+				{ openLink: 'agent-host-session://copilot/remote?chat=peer' },
+				{ openLink: 'agent-host-session://copilot/remote?chat=c9' },
+			],
 		});
 	});
 
@@ -3083,6 +3118,19 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	test('get_current_session lists the current session\'s main session and nested sessions', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const group = createSessionServerToolGroup(createAccessor());
+		const parsed = JSON.parse(await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.GetCurrentSession, {}));
+		assert.deepStrictEqual(parsed.chats, [
+			{ title: 'title-s1', openLink: 'agent-host-session://copilot/s1', main: true },
+			{ openLink: buildOpenSessionLinkUri('copilot:/s1', 'peer') },
+			{ openLink: buildOpenSessionLinkUri('copilot:/s1', 'c9') },
+		]);
+		store.dispose();
+	});
+
 	test('get_current_session does not depend on listing sessions', async () => {
 		const store = new DisposableStore();
 		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -3100,6 +3148,11 @@ suite('SessionServerTools', () => {
 			title: 'title-s1',
 			status: 'idle',
 			workingDirectory: 'file:///workspace/app',
+			chats: [
+				{ title: 'title-s1', openLink: 'agent-host-session://codex/s1', main: true },
+				{ openLink: 'agent-host-session://codex/s1?chat=peer' },
+				{ openLink: 'agent-host-session://codex/s1?chat=c9' },
+			],
 		});
 		store.dispose();
 	});
@@ -3150,9 +3203,7 @@ suite('SessionServerTools', () => {
 			const checked: string[] = [];
 			const scheduled: string[] = [];
 			const accessor = createAccessor({
-				// Only the sessions a call names are read.
-				listSessions: async () => { throw new Error('move_session must not list every session'); },
-				getSession: async session => sessions.find(meta => meta.session.toString() === session.toString()),
+				listSessions: async () => sessions,
 				checkChatMove: async move => { checked.push(describeMove(move)); },
 				applyChatMove: async move => {
 					applied.push(describeMove(move));
@@ -3205,7 +3256,7 @@ suite('SessionServerTools', () => {
 			const moved = buildChatUri(source, 'moved');
 			const listed = sessions.map(meta => meta.session.toString() === target ? { ...meta, chats: [...meta.chats ?? [], { chat: URI.parse(moved), kind: 'peer' as const }] } : meta);
 			const { group, applied, checked, scheduled } = createMoveGroup({
-				getSession: async session => listed.find(meta => meta.session.toString() === session.toString()),
+				listSessions: async () => listed,
 				getChatOwner: chat => chat === moved ? target : mintedTestChatOwner(chat),
 			});
 			const results = [
@@ -3283,6 +3334,7 @@ suite('SessionServerTools', () => {
 				[AgentChatMoveRefusal.Unsupported]: true,
 				[AgentChatMoveRefusal.NotSingleChat]: true,
 				[AgentChatMoveRefusal.NotStarted]: true,
+				[AgentChatMoveRefusal.DifferentCredentialOwner]: true,
 			};
 			const refusing = (reason: AgentChatMoveRefusal) => createMoveGroup({ applyChatMove: async () => { throw new AgentChatMoveRefusedError(reason, 'host detail'); } }).group;
 			const messages: string[] = [];
@@ -3298,12 +3350,12 @@ suite('SessionServerTools', () => {
 				endAnchorGone: await run(refusing(AgentChatMoveRefusal.InvalidAnchor), { session: link(source, 'peer'), into: target }),
 				givenAnchorGone: await run(refusing(AgentChatMoveRefusal.InvalidAnchor), { session: link(source, 'peer'), into: target, after: link(target) }),
 			}, {
-				count: 18,
-				distinct: 18,
+				count: 19,
+				distinct: 19,
 				oneSentenceEach: true,
 				hostDetailHidden: true,
-				endAnchorGone: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Conflict)}`,
-				givenAnchorGone: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.InvalidAnchor)}`,
+				endAnchorGone: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Conflict, false)}`,
+				givenAnchorGone: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.InvalidAnchor, false)}`,
 			});
 		});
 
@@ -3315,8 +3367,8 @@ suite('SessionServerTools', () => {
 				unsupported: await run(unsupported.group, { relationship: 'independent' }, buildChatUri(caller, 'peer')),
 				scheduled: [...archived.scheduled, ...unsupported.scheduled],
 			}, {
-				archived: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.SessionArchived)}`,
-				unsupported: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Unsupported)}`,
+				archived: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.SessionArchived, false)}`,
+				unsupported: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Unsupported, false)}`,
 				scheduled: [],
 			});
 		});
@@ -3359,16 +3411,18 @@ suite('SessionServerTools', () => {
 				off: { unchangedLists: true, offered: false, canRequireConfirmation: false },
 				on: { offered: true, deferred: true, materialized: false, canRequireConfirmation: true, requiresConfirmation: true },
 				unsupported: { offered: false },
-				disabledRun: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Disabled)}`,
+				disabledRun: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Disabled, false)}`,
 				confirms: true,
 			});
 		});
 
-		test('every call asks for confirmation, with a display for its operation', () => {
+		test('every call asks for confirmation, with a display for its operation that links what moves', () => {
 			const display = (args: unknown, result?: { text: string; success: boolean }) => {
 				const value = getServerToolDisplay(SessionServerToolName.MoveSession, args, result);
-				return [value?.confirmationTitle, value?.confirmationMessage, value?.invocationMessage, value?.pastTenseMessage];
+				const message = value?.confirmationMessage;
+				return [value?.confirmationTitle, typeof message === 'string' ? message : message?.markdown, value?.invocationMessage, value?.pastTenseMessage, value?.hideConfirmationInput ?? false];
 			};
+			const md = (label: string, target: string) => `[${label}](<${target}>)`;
 			assert.deepStrictEqual({
 				reorder: display({ session: link(source, 'peer'), into: link(source) }),
 				move: display({ session: link(source, 'peer'), into: target }),
@@ -3376,16 +3430,31 @@ suite('SessionServerTools', () => {
 				session: display({ session: link(target), into: source }),
 				self: display({ into: target }, { text: scheduledResult(`moved into ${link(target)}`), success: true }),
 				selfPromote: display({ relationship: 'independent' }),
+				// Only a session link or URI is linked; a chat URI names no session.
+				notALink: display({ session: buildChatUri(source, 'peer'), into: 'not a session' }),
 				unknown: display(undefined),
 			}, {
-				reorder: ['Reorder Nested Session?', 'Move this nested session to a new position in its session?', 'Reordering nested session', 'Reordered nested session'],
-				move: ['Move Nested Session?', 'Move this nested session into another session? It keeps its history and folders.', 'Moving nested session', 'Moved nested session'],
-				promote: ['Move to Its Own Session?', 'Make this nested session its own session? It keeps its history and folders.', 'Moving nested session to its own session', 'Moved nested session to its own session'],
-				session: ['Move Session?', 'Move this session into another session as a nested session? It keeps its history and folders.', 'Moving session', 'Moved session'],
-				self: ['Move This Chat?', 'Move this chat when this turn ends? It keeps its history and folders.', 'Scheduling a move of this chat', 'Scheduled move'],
-				selfPromote: ['Move This Chat to Its Own Session?', 'Make this chat its own session when this turn ends? It keeps its history and folders.', 'Scheduling a move of this chat', 'Processed move of this chat'],
-				unknown: ['Move Session?', 'Move this session?', 'Moving session', 'Processed session move'],
+				reorder: ['Reorder Nested Session?', `Move ${md('this nested session', link(source, 'peer'))} to a new position in its session?`, 'Reordering nested session', 'Reordered nested session', true],
+				move: ['Move Nested Session?', `Move ${md('this nested session', link(source, 'peer'))} into ${md('the destination session', link(target))}? It keeps its history and folders.`, 'Moving nested session', 'Moved nested session', true],
+				promote: ['Move to Its Own Session?', `Make ${md('this nested session', link(source, 'peer'))} its own session? It keeps its history and folders.`, 'Moving nested session to its own session', 'Moved nested session to its own session', true],
+				session: ['Move Session?', `Move ${md('this session', link(target))} into ${md('the destination session', link(source))} as a nested session? It keeps its history and folders.`, 'Moving session', 'Moved session', true],
+				self: ['Move This Chat?', `Move this chat into ${md('the destination session', link(target))} when this turn ends? It keeps its history and folders.`, 'Scheduling a move of this chat', 'Scheduled move', true],
+				selfPromote: ['Move This Chat to Its Own Session?', 'Make this chat its own session when this turn ends? It keeps its history and folders.', 'Scheduling a move of this chat', 'Processed move of this chat', true],
+				notALink: ['Move Session?', 'Move this session into the destination session as a nested session? It keeps its history and folders.', 'Moving session', 'Moved session', true],
+				unknown: ['Move Session?', 'Move this session?', 'Moving session', 'Processed session move', false],
 			});
+		});
+
+		test('a whole session the host can\'t move is explained as such, not as a nested session that stays', async () => {
+			const refusing = createMoveGroup({ applyChatMove: async () => { throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, 'not available'); } }).group;
+			assert.deepStrictEqual({
+				session: await run(refusing, { session: link(target), into: source }),
+				nested: await run(refusing, { session: link(source, 'peer'), into: target }),
+			}, {
+				session: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.NotMovable, true)}`,
+				nested: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.NotMovable, false)}`,
+			});
+			assert.notStrictEqual(getMoveRefusalMessage(AgentChatMoveRefusal.NotMovable, true), getMoveRefusalMessage(AgentChatMoveRefusal.NotMovable, false));
 		});
 
 		test('refuses more than 50 moves in a process unless orchestration limits are off', async () => {

@@ -5,6 +5,8 @@
 
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey } from '../../common/agentHostChatMove.js';
 import type { IAgentServiceSessionServerToolAccessor } from '../../node/shared/sessionServerTools.js';
+import { createMoveSessionLookup, getMoveSessionArgs } from '../../node/shared/sessionMoveTools.js';
+import { buildOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
@@ -71,7 +73,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -36686,6 +36688,88 @@ suite('AgentService (node dispatcher)', () => {
 						archived: { check: AgentChatMoveRefusal.SessionArchived, host: AgentChatMoveRefusal.SessionArchived },
 						unsupported: { check: AgentChatMoveRefusal.Unsupported, host: AgentChatMoveRefusal.Unsupported },
 						owner: source.toString(),
+					});
+				});
+
+				test('a promoted single-chat session moves as a whole session into another session (F2)', async () => {
+					const { service, source, target, peer } = await setupMove();
+					const stateManager = getStateManager(service);
+					stateManager.dispatchServerAction(peer.toString(), {
+						type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(),
+						message: { text: 'Hello', origin: { kind: MessageKind.User } },
+					});
+					stateManager.dispatchServerAction(peer.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+					const promoted = await service.moveChat(source, peer, { kind: 'newSession' });
+					const accessor = moveToolAccessor(service);
+					const ownership = getTestAgentServiceComposition(service).chatOwnership;
+					const resolve = async (link: string) => {
+						try {
+							const args = await getMoveSessionArgs({ session: link, into: buildOpenSessionLinkUri(target) }, createMoveSessionLookup(() => accessor.listSessions()), undefined, chat => ownership.getChatOwner(chat), session => ownership.getDefaultChat(session));
+							return args.move.kind;
+						} catch (error) {
+							return String(error);
+						}
+					};
+					const resolved = { session: await resolve(buildOpenSessionLinkUri(promoted)), chat: await resolve(buildOpenSessionLinkUri(promoted, getAgentHostChatId(peer))) };
+					const move = { kind: 'session' as const, session: promoted, destination: target, after: 'end' as const };
+					const check = await refusalOf(accessor.checkChatMove(move));
+					let moved: string;
+					try {
+						moved = (await accessor.applyChatMove(move)).toString();
+					} catch (error) {
+						moved = error instanceof AgentChatMoveRefusedError ? `${error.reason}: ${error.message}` : String(error);
+					}
+					assert.deepStrictEqual({ resolved, check, moved, owner: stateManager.getChatOwner(peer.toString()), promotedListed: stateManager.getSessionUris().includes(promoted.toString()) }, {
+						resolved: { session: 'session', chat: 'session' },
+						check: 'none',
+						moved: target.toString(),
+						owner: target.toString(),
+						promotedListed: false,
+					});
+				});
+
+				test('a promoted session not loaded since a restart moves as a whole session through the tool (F2)', async () => {
+					const orchestratorDatabase = new AgentHostDatabase(':memory:');
+					const sessionDataService = createSessionDataService(new TestSessionDatabase());
+					const createService = () => {
+						const created = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+							undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+						registerTestAgentProvider(created, disposables.add(new MovingAgent('copilot')));
+						getConfigurationService(created).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+						return created;
+					};
+					const first = createService();
+					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const peer = URI.parse(buildChatUri(source, 'promoted'));
+					await first.createChat(source, peer);
+					await timeout(0);
+					getStateManager(first).dispatchServerAction(peer.toString(), {
+						type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date(0).toISOString(),
+						message: { text: 'Hello', origin: { kind: MessageKind.User } },
+					});
+					getStateManager(first).dispatchServerAction(peer.toString(), { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+					const promoted = await first.moveChat(source, peer, { kind: 'newSession' });
+					await first.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(first).whenIdle(undefined);
+
+					const restarted = createService();
+					await restarted.listSessions();
+					// Created after the restart: the mock agent describes only the sessions it backs this run.
+					const target = await restarted.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					await timeout(0);
+					const loadedBefore = getStateManager(restarted).getSessionUris().includes(promoted.toString());
+					const accessor = moveToolAccessor(restarted);
+					const ownership = getTestAgentServiceComposition(restarted).chatOwnership;
+					const args = await getMoveSessionArgs({ session: buildOpenSessionLinkUri(promoted), into: buildOpenSessionLinkUri(target) }, createMoveSessionLookup(() => accessor.listSessions()), undefined, chat => ownership.getChatOwner(chat), session => ownership.getDefaultChat(session));
+					const check = await refusalOf(accessor.checkChatMove(args.move));
+					const moved = await accessor.applyChatMove(args.move);
+
+					assert.deepStrictEqual({ loadedBefore, kind: args.move.kind, check, moved: moved.toString(), owner: getStateManager(restarted).getChatOwner(peer.toString()) }, {
+						loadedBefore: false,
+						kind: 'session',
+						check: 'none',
+						moved: target.toString(),
+						owner: target.toString(),
 					});
 				});
 

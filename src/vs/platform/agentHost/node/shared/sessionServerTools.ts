@@ -14,8 +14,8 @@ import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type 
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { ChatInteractivity, ChatOriginKind, getAgentHostChatId, getInlineToolInput, getSessionRelatedPullRequestUrls, isAhpChatChannel, isSessionStatusArchived, isSessionStatusRead, MessageKind, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildOpenSessionLinkForChat, buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -189,7 +189,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
-		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
+		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and its own `openLink`, the link that names it in other session tools such as `move_session`. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -197,7 +197,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetCurrentSession,
 		title: 'Get Current Session',
-		description: 'Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).',
+		description: 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`. Use this to reference the current session or one of its nested sessions (for example before adding a chat to it or moving one).',
 		inputSchema: getCurrentSessionInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -471,6 +471,40 @@ interface ISerializedSession {
 	readonly changes?: IAgentSessionMetadata['changes'];
 	readonly git?: ISerializedGitState;
 	readonly github?: ISerializedGitHubState;
+	/** The session's main session and nested sessions, in order; only when it has nested sessions. */
+	readonly chats?: readonly ISerializedSessionChat[];
+}
+
+interface ISerializedSessionChat {
+	readonly title?: string;
+	/** Clickable link naming this chat in its session: the session's own link for its main session. */
+	readonly openLink: string;
+	/** Whether this is the session's main session. */
+	readonly main?: true;
+	readonly status?: string;
+}
+
+/**
+ * The main session and nested sessions of a session as listed, in their order; `undefined` when it has no nested
+ * sessions. Chats of subagents and hidden chats are not sessions of their own and are left out.
+ */
+function serializeSessionChats(session: IAgentSessionMetadata): readonly ISerializedSessionChat[] | undefined {
+	const chats = (session.chats ?? []).filter(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.interactivity !== ChatInteractivity.Hidden);
+	if (!chats.some(chat => chat.kind !== 'default')) {
+		return undefined;
+	}
+	const defaultChat = chats.find(chat => chat.kind === 'default')?.chat;
+	return chats.map(chat => {
+		const main = chat.kind === 'default';
+		const title = chat.summary ?? (main ? session.summary : undefined);
+		const status = chat.status !== undefined ? describeSessionStatusBits(chat.status).join(',') || undefined : undefined;
+		return {
+			...(title !== undefined ? { title } : {}),
+			openLink: buildOpenSessionLinkForChat(session.session, chat.chat, defaultChat, undefined) ?? buildOpenSessionLinkUri(session.session),
+			...(main ? { main: true as const } : {}),
+			...(status !== undefined ? { status } : {}),
+		};
+	});
 }
 
 function getRequiredString(value: unknown, field: string, toolName: string): string {
@@ -926,6 +960,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 	const git = serializeGitState(session);
 	const github = serializeGitHubState(session);
 	const status = describeSessionStatus(session);
+	const chats = serializeSessionChats(session);
 	return {
 		session: session.session.toString(),
 		openLink: buildOpenSessionLinkUri(session.session),
@@ -944,6 +979,7 @@ function serializeSession(session: IAgentSessionMetadata): ISerializedSession {
 		...(session.changes !== undefined ? { changes: session.changes } : {}),
 		...(git !== undefined ? { git } : {}),
 		...(github !== undefined ? { github } : {}),
+		...(chats !== undefined ? { chats } : {}),
 	};
 }
 
@@ -1108,7 +1144,7 @@ interface IResolvedCreateChatArgs {
  * link (as returned by `create_session`/`get_current_session`) — against the
  * set of known sessions. Returns `undefined` when it matches no known session.
  */
-function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
+export function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
 	// Normalize an open-session link back to its backend session URI.
 	const fromLink = parseOpenSessionLinkUri(sessionInput);
 	const candidate = fromLink?.toString() ?? sessionInput;
