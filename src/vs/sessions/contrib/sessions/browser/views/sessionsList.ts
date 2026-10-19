@@ -61,6 +61,8 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChat
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
@@ -101,6 +103,8 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { canMoveIntoSession, getSessionsListChatDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop } from './sessionsListChatMove.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -3141,6 +3145,16 @@ interface ISessionsListDndDelegate {
 	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
 	/** Reorder a top-level header (group or workspace section) before/after another. */
 	reorderSection(draggedId: string, targetId: string, position: 'before' | 'after', isWorkspace: boolean): void;
+	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
+	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
+	/** The chat rows the session shows under its row, in order; empty when it is collapsed. */
+	getChatRows(session: ISession): readonly IChat[];
+	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
+	canMoveSessionUnder(session: ISession): boolean;
+	/** Move the chat of `session` as the drop says. */
+	moveChat(session: ISession, chat: IChat, drop: SessionsListChatDrop): void;
+	/** Move `session` under `target`. */
+	moveSessionUnder(session: ISession, target: ISession): void;
 }
 
 interface ISessionDropTargetHeader {
@@ -3248,10 +3262,23 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+		const draggedChat = this.draggedChat(data);
+		if (draggedChat) {
+			this.delegate.setDropTargetHeader(undefined);
+			const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
+			return chatDrop ? this.toChatDropReaction(chatDrop.drop, targetElement, targetSector) : false;
+		}
+
 		const draggedHeader = this.draggedHeader(data);
 		if (draggedHeader) {
 			this.delegate.setDropTargetHeader(undefined);
 			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
+		}
+
+		const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
+		if (sessionMove) {
+			this.delegate.setDropTargetHeader(undefined);
+			return { accept: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 		}
 
 		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
@@ -3290,6 +3317,21 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
 		this.delegate.setDropTargetHeader(undefined);
 		try {
+			const draggedChat = this.draggedChat(data);
+			if (draggedChat) {
+				const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
+				if (chatDrop) {
+					this.delegate.moveChat(chatDrop.session, chatDrop.chat, chatDrop.drop);
+				}
+				return;
+			}
+
+			const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
+			if (sessionMove) {
+				this.delegate.moveSessionUnder(sessionMove.session, sessionMove.target);
+				return;
+			}
+
 			const draggedHeader = this.draggedHeader(data);
 			if (draggedHeader) {
 				if (targetElement) {
@@ -3327,6 +3369,56 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		} finally {
 			this.delegate.setDropTargetHeader(undefined);
 		}
+	}
+
+	/**
+	 * Where a dragged chat moves when dropped here (see {@link getSessionsListChatDrop}), or `undefined` when it can't
+	 * move or would stay put.
+	 */
+	private resolveChatDrop(item: ISessionChatItem, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
+		const dragged = this.delegate.getMovableDraggedChat(item);
+		if (!dragged) {
+			return undefined;
+		}
+		let target: ISessionsListChatDropTarget | undefined;
+		if (targetElement && isSessionChatItem(targetElement)) {
+			target = { session: targetElement.session, chat: targetElement.chat, chatRows: this.delegate.getChatRows(targetElement.session), position: sectorToPosition(targetSector) };
+		} else if (targetElement && isSessionItem(targetElement)) {
+			const position = isCenterSector(targetSector) ? 'center' : targetSector === ListViewTargetSector.TOP ? 'before' : 'after';
+			target = { session: targetElement, chat: undefined, chatRows: this.delegate.getChatRows(targetElement), position };
+		}
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
+		return drop ? { ...dragged, drop } : undefined;
+	}
+
+	private toChatDropReaction(drop: SessionsListChatDrop, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ITreeDragOverReaction {
+		if (drop.kind === 'session') {
+			const position = drop.position === 'over' ? ListDragOverEffectPosition.Over : drop.position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before;
+			return { accept: true, effect: { type: ListDragOverEffectType.Move, position } };
+		}
+		if (!targetElement) {
+			// Empty space: the whole list shows it receives the chat as a new session.
+			return { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
+		}
+		return {
+			accept: true,
+			effect: {
+				type: ListDragOverEffectType.Move,
+				position: sectorToPosition(targetSector) === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before,
+			},
+		};
+	}
+
+	/** The session a single dragged session moves under when dropped onto the middle of that session's row. */
+	private resolveSessionMoveTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly target: ISession } | undefined {
+		if (!targetElement || !isSessionItem(targetElement) || !isCenterSector(targetSector)) {
+			return undefined;
+		}
+		const dragged = this.draggedSessions(data);
+		if (dragged.length !== 1 || !canMoveIntoSession(dragged[0], targetElement) || !this.delegate.canMoveSessionUnder(dragged[0])) {
+			return undefined;
+		}
+		return { session: dragged[0], target: targetElement };
 	}
 
 	private onHeaderDragOver(draggedHeader: IDraggedHeader, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
@@ -3518,6 +3610,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		return undefined;
 	}
 
+	/** The chat row dragged within the list; a chat dragged from elsewhere (e.g. a chat tab) isn't one. */
+	private draggedChat(data: IDragAndDropData): ISessionChatItem | undefined {
+		const elements = data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : [];
+		return elements.length === 1 && isSessionChatItem(elements[0]) ? elements[0] : undefined;
+	}
+
 	private draggedSessions(data: IDragAndDropData): ISession[] {
 		return this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
 	}
@@ -3529,6 +3627,11 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+/** Whether the pointer is over the middle half of a row, rather than near the boundary between two rows. */
+function isCenterSector(sector: ListViewTargetSector | undefined): boolean {
+	return sector === ListViewTargetSector.CENTER_TOP || sector === ListViewTargetSector.CENTER_BOTTOM;
 }
 
 //#endregion
@@ -3790,6 +3893,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
@@ -4099,6 +4204,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 					pinSessions: (sessions, target, position) => this.pinSessions(sessions, target, position),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
+					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
+					getChatRows: session => this.getDisplayedChatRows(session),
+					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
+					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
+					moveSessionUnder: (session, target) => this.moveSessionUnderByDrop(session, target),
 				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
@@ -5368,6 +5478,39 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
 		}
 		return true;
+	}
+
+	/** Whether moving chats by drag and drop is on: the setting, and AI features enabled. */
+	private isChatMoveDndEnabled(): boolean {
+		return isChatMoveDndEnabled(this.configurationService, this.chatEntitlementService) && this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+	}
+
+	/** The chat of a dragged chat row, with its session, when chats can move by drag and drop and this one can move. */
+	private getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined {
+		if (!this.isChatMoveDndEnabled()) {
+			return undefined;
+		}
+		// The row's objects may be stale: use the session's current ones.
+		const session = this._sessionsManagementService.getSessions().find(candidate => candidate.sessionId === item.session.sessionId);
+		const chat = session?.chats.get().find(candidate => candidate.resource.toString() === item.chat.resource.toString());
+		return session && chat && this._sessionsManagementService.canMoveChat(session, chat) ? { session, chat } : undefined;
+	}
+
+	/** The chats the list shows as rows under `session`, in order; none while it's collapsed. */
+	private getDisplayedChatRows(session: ISession): readonly IChat[] {
+		if (!this.tree.hasElement(session) || this.tree.isCollapsed(session)) {
+			return [];
+		}
+		return this.tree.getNode(session).children.map(child => child.element).filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element)).map(item => item.chat);
+	}
+
+	private moveChatByDrop(session: ISession, chat: IChat, drop: SessionsListChatDrop): void {
+		const destination = drop.kind === 'session' ? { kind: 'session' as const, session: drop.session, after: drop.after } : { kind: 'newSession' as const };
+		runSessionsListMove({ kind: 'chat', session, chat, destination }, this._sessionsManagementService, this.notificationService).catch(onUnexpectedError);
+	}
+
+	private moveSessionUnderByDrop(session: ISession, target: ISession): void {
+		runSessionsListMove({ kind: 'session', session, destination: target }, this._sessionsManagementService, this.notificationService).catch(onUnexpectedError);
 	}
 
 	/**
