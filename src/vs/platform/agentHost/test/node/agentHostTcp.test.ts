@@ -54,6 +54,7 @@ class Wire extends Disposable implements IProtocolTransport {
 	readonly onClose = this._close.event;
 	peer!: Wire;
 	closed = false;
+	get disposed(): boolean { return this._store.isDisposed; }
 	clientConnectionKind: AgentHostClientConnectionKind | undefined;
 	rewriteMessage: ((message: Parameters<IProtocolTransport['send']>[0]) => Parameters<IProtocolTransport['send']>[0]) | undefined;
 	readonly sent: Parameters<IProtocolTransport['send']>[0][] = [];
@@ -418,6 +419,71 @@ suite('AHP windowed TCP', function () {
 		assert.ok(h.wire.sent.some(message => hasKey(message, { method: true }) && message.method === 'unsubscribe'
 			&& vObj({ channel: vString() }).validate(message.params).content?.channel === stream.resource));
 	});
+
+	for (const abort of ['tcp/reset', 'unsubscribe', 'invalid data', 'transport loss'] as const) {
+		test(`${abort} resets the destination instead of delivering EOF for a partial upload`, async () => {
+			const received = new DeferredPromise<void>();
+			const closed = new DeferredPromise<void>();
+			const errors: string[] = [];
+			let ended = false;
+			const h = await harness(socket => {
+				socket.on('data', data => {
+					assert.strictEqual(data.toString(), 'partial upload');
+					received.complete();
+				});
+				socket.on('end', () => ended = true);
+				socket.on('error', (error: NodeJS.ErrnoException) => errors.push(error.code ?? error.message));
+				socket.on('close', () => closed.complete());
+			});
+			const stream = store.add(await h.open());
+			await stream.write(VSBuffer.fromString('partial upload'));
+			await received.p;
+			if (abort === 'transport loss') {
+				const reconnected = Event.toPromise(h.client.onDidReconnect);
+				h.wire.drop();
+				await reconnected;
+			} else if (abort === 'invalid data') {
+				h.wire.send({ jsonrpc: '2.0', method: 'tcp/data', params: { channel: stream.resource, data: 'Zh==' } });
+			} else {
+				h.wire.send({ jsonrpc: '2.0', method: abort, params: { channel: stream.resource } });
+			}
+			await closed.p;
+			assert.strictEqual(ended, false);
+			assert.deepStrictEqual(errors, ['ECONNRESET']);
+		});
+	}
+
+	test('oversized unsubscribe is checked before TCP teardown and closes the control lane', async () => {
+		const h = await harness(() => { });
+		const stream = store.add(await h.open());
+		h.wire.send({
+			jsonrpc: '2.0', method: 'unsubscribe',
+			params: { channel: stream.resource, padding: 'x'.repeat(16 * 1024) },
+		});
+		assert.ok(h.log.errors.some(error => error.includes('AgentHostChannels')));
+		assert.strictEqual(h.wire.peer.disposed, true);
+	});
+
+	for (const replay of [true, false]) {
+		test(`TCP reconnect entries are rejected on the ${replay ? 'replay' : 'snapshot'} path`, async () => {
+			const h = await harness(() => assert.fail('Reconnect must not open a TCP destination'));
+			const transport = h.newTransport();
+			const result = await transport.request({
+				jsonrpc: '2.0', id: 1, method: 'reconnect', params: {
+					clientId: 'tcp-client', lastSeenServerSeq: replay ? 0 : -1,
+					subscriptions: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/both'],
+					windows: {
+						items: ['ahp-tcp:/both', 'ahp-tcp:/window-only'].map(channel => ({
+							channel, flowControl: { receive: agentHostTcpReceiveLimits },
+						}))
+					},
+				},
+			});
+			assert.deepStrictEqual(result, replay
+				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'] }
+				: { type: 'snapshot', snapshots: [] });
+		});
+	}
 
 	test('TCP cannot use initialSubscriptions or fall back to ordinary delivery', async () => {
 		const h = await harness(() => { });

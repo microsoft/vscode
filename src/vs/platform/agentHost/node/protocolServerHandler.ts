@@ -741,7 +741,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleNewConnection(transport: IProtocolTransport): void {
 		const disposables = new DisposableStore();
 		this._connectionDisposables.set(transport, disposables);
-		const channels = new AgentHostChannelScheduler(transport);
+		const channels = new AgentHostChannelScheduler(transport, error => this._logService.error('[AgentHostChannels]', error));
 		const tcp = disposables.add(new AgentHostTcpConnections(transport, this._tcpBudget, channels, error => this._logService.error('[AgentHostTcp]', error)));
 		disposables.add(channels);
 		this._tcpConnections.set(transport, tcp);
@@ -850,11 +850,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
-				if (client && msg.method !== 'unsubscribe' && channels.acceptMessage(msg)) {
+				if (!channels.checkControl(msg)) {
+					return;
+				}
+				if (client && msg.method !== 'unsubscribe' && channels.acceptMessage(msg, true)) {
 					return;
 				}
 				if (client && typeof msg.params?.channel === 'string' && msg.params.channel.startsWith('ahp-tcp:')) {
-					if (!tcp.notification(msg) && msg.method !== 'unsubscribe' && msg.method !== 'tcp/reset') {
+					if (!tcp.notification(msg, true) && msg.method !== 'unsubscribe' && msg.method !== 'tcp/reset') {
 						this._logService.warn('[AgentHostTcp] Notification for an unavailable TCP channel');
 					}
 					return;
@@ -1362,11 +1365,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: ReconnectParams,
 		canReplay: boolean,
 	): Promise<ReconnectResult> {
-		const missing: string[] = [];
+		const missing = [...new Set([
+			...params.subscriptions,
+			...(params.windows?.items.map(item => item.channel) ?? []),
+		].filter(channel => channel.startsWith('ahp-tcp:')))];
 		const restoredUris = new Set<string>();
 		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
+			if (key.startsWith('ahp-tcp:')) {
+				return undefined;
+			}
 			const classified = classifyChannel(key);
 			if (!classified) {
 				return undefined;

@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined } from '../../../base/common/validation.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
-import { countsAgainstWindow } from './state/protocol/window-exempt.generated.js';
+import { countsAgainstWindow, WINDOW_EXEMPT_METHODS } from './state/protocol/window-exempt.generated.js';
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import { getProtocolMessageSize, type IProtocolTransport } from './state/sessionTransport.js';
 
@@ -20,6 +20,35 @@ const channelSendBurstBytes = 256 * 1024;
 const transportDrainPollInterval = 25;
 const maximumQueueLength = 1024;
 const maximumControlBytes = 16 * 1024;
+const maximumControlQueueBytes = 64 * 1024;
+const controlMessagesPerSecond = 4096;
+const controlBytesPerSecond = 1024 * 1024;
+
+class ControlBudget {
+	private _messages = controlMessagesPerSecond;
+	private _bytes = controlBytesPerSecond;
+	private _updatedAt = Date.now();
+
+	take(bytes: number): boolean {
+		const now = Date.now();
+		const elapsed = Math.max(0, now - this._updatedAt) / 1000;
+		this._updatedAt = Math.max(now, this._updatedAt);
+		this._messages = Math.min(controlMessagesPerSecond, this._messages + elapsed * controlMessagesPerSecond);
+		this._bytes = Math.min(controlBytesPerSecond, this._bytes + elapsed * controlBytesPerSecond);
+		if (this._messages < 1 || this._bytes < bytes) {
+			return false;
+		}
+		this._messages--;
+		this._bytes -= bytes;
+		return true;
+	}
+}
+
+interface IOutgoingControl {
+	readonly message: JsonRpcNotification;
+	readonly bytes: number;
+	readonly onSend?: () => void;
+}
 
 export function validateChannelLimits(limits: ChannelReceiveLimits): void {
 	if (![limits.windowBytes, limits.maximumFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
@@ -38,18 +67,38 @@ export function readChannelFlowControl(value: unknown): ChannelFlowControl {
 /** Routes windowed subscriptions and fairly schedules bounded transport bursts. */
 export class AgentHostChannelScheduler extends Disposable {
 	private readonly _channels = new Map<string, AgentHostChannelDelivery>();
+	private readonly _controls = new Map<string, IOutgoingControl>();
+	private readonly _receiveControlBudget = new ControlBudget();
+	private readonly _sendControlBudget = new ControlBudget();
+	private _controlBytes = 0;
+	private _controlTimer: ReturnType<typeof setTimeout> | undefined;
+	private _sendingControls = false;
+	private _closed = false;
 	private _timer: ReturnType<typeof setTimeout> | undefined;
 	private _scheduled = false;
 	private _burstBytes = 0;
 	private _cursor = 0;
 
-	constructor(private readonly _transport: IProtocolTransport) { super(); }
+	constructor(private readonly _transport: IProtocolTransport, private readonly _onError: (error: Error) => void) { super(); }
 
 	add(channel: AgentHostChannelDelivery): void {
 		if (this._store.isDisposed || this._channels.has(channel.channel)) {
 			throw new Error('Channel scheduler is disposed or channel is already registered');
 		}
+		this.clearControls(channel.channel);
 		this._channels.set(channel.channel, channel);
+	}
+
+	clearControls(channel: string): void {
+		// Delayed controls must not reach a new incarnation of the same channel URI.
+		for (const method of WINDOW_EXEMPT_METHODS) {
+			const key = `${method}:${channel}`;
+			const control = this._controls.get(key);
+			if (control) {
+				this._controlBytes -= control.bytes;
+				this._controls.delete(key);
+			}
+		}
 	}
 
 	remove(channel: AgentHostChannelDelivery): void {
@@ -58,7 +107,34 @@ export class AgentHostChannelScheduler extends Disposable {
 		}
 	}
 
-	acceptMessage(message: JsonRpcNotification): boolean {
+	/** Ordinary subscriptions retain their existing unsubscribe path. */
+	checkControl(message: JsonRpcNotification): boolean {
+		if (this._closed) {
+			return false;
+		}
+		if (countsAgainstWindow(message.method)) {
+			return true;
+		}
+		try {
+			const { channel } = notificationValidator.validateOrThrow(message).params;
+			if (message.method === 'unsubscribe' && !channel.startsWith('ahp-tcp:') && !this._channels.has(channel)) {
+				return true;
+			}
+			const bytes = getProtocolMessageSize(message);
+			if (bytes > maximumControlBytes || !this._receiveControlBudget.take(bytes)) {
+				throw new Error('Channel control receive budget exceeded');
+			}
+			return true;
+		} catch (error) {
+			this._fail(error instanceof Error ? error : new Error(String(error)));
+			return false;
+		}
+	}
+
+	acceptMessage(message: JsonRpcNotification, controlChecked = false): boolean {
+		if (!controlChecked && !this.checkControl(message)) {
+			return true;
+		}
 		const params = vObj({ channel: vString() }).validate(message.params);
 		const channel = params.error ? undefined : this._channels.get(params.content.channel);
 		if (!channel) {
@@ -70,6 +146,76 @@ export class AgentHostChannelScheduler extends Disposable {
 			channel.fail(error instanceof Error ? error : new Error(String(error)));
 		}
 		return true;
+	}
+
+	sendControl(message: JsonRpcNotification, onSend?: () => void): void {
+		// Teardown can request a reset after the transport's control lane has closed.
+		if (this._closed) {
+			return;
+		}
+		try {
+			const { channel } = notificationValidator.validateOrThrow(message).params;
+			const bytes = JSON.stringify(message).length * 2;
+			if (countsAgainstWindow(message.method) || bytes > maximumControlBytes) {
+				throw new Error('Invalid or oversized channel control');
+			}
+			const key = `${message.method}:${channel}`;
+			const previous = this._controls.get(key);
+			const queuedBytes = this._controlBytes - (previous?.bytes ?? 0) + bytes;
+			if ((!previous && this._controls.size >= maximumQueueLength) || queuedBytes > maximumControlQueueBytes) {
+				throw new Error('Channel control send queue capacity exceeded');
+			}
+			this._controls.set(key, { message, bytes, onSend });
+			this._controlBytes = queuedBytes;
+			this._sendControls();
+		} catch (error) {
+			this._fail(error instanceof Error ? error : new Error(String(error)));
+		}
+	}
+
+	private _sendControls(): void {
+		if (this._sendingControls || this._closed) {
+			return;
+		}
+		this._sendingControls = true;
+		try {
+			let burstBytes = 0;
+			for (const [key, control] of this._controls) {
+				// Reserve bounded transport space for controls even when data fills its budget.
+				if (burstBytes + control.bytes > maximumControlQueueBytes
+					|| (this._transport.bufferedAmount ?? 0) + control.bytes > channelSendBurstBytes + maximumControlQueueBytes
+					|| !this._sendControlBudget.take(control.bytes)) {
+					break;
+				}
+				this._controls.delete(key);
+				this._controlBytes -= control.bytes;
+				burstBytes += control.bytes;
+				control.onSend?.();
+				this._transport.send(control.message);
+			}
+		} catch (error) {
+			this._fail(error instanceof Error ? error : new Error(String(error)));
+		} finally {
+			this._sendingControls = false;
+		}
+		if (this._controls.size && this._controlTimer === undefined && !this._closed) {
+			this._controlTimer = setTimeout(() => {
+				this._controlTimer = undefined;
+				this._sendControls();
+			}, transportDrainPollInterval);
+		}
+	}
+
+	private _fail(error: Error): void {
+		if (this._closed) {
+			return;
+		}
+		try {
+			this._onError(error);
+		} finally {
+			this.dispose();
+			this._transport.dispose();
+		}
 	}
 
 	schedule(delay?: number): void {
@@ -122,7 +268,11 @@ export class AgentHostChannelScheduler extends Disposable {
 	}
 
 	override dispose(): void {
+		this._closed = true;
 		clearTimeout(this._timer);
+		clearTimeout(this._controlTimer);
+		this._controls.clear();
+		this._controlBytes = 0;
 		for (const channel of [...this._channels.values()]) {
 			channel.fail(new Error('Agent host transport closed'));
 		}
@@ -219,9 +369,13 @@ export class AgentHostChannelDelivery extends Disposable {
 		try {
 			let message = next.message;
 			let end = next.text.length;
-			if (next.offset || next.text.length * 2 > this.maximumFrameBytes) {
-				const envelope = { jsonrpc: '2.0' as const, method: 'channel/frame', params: { channel: this.channel, data: '', final: false } };
-				let budget = this.maximumFrameBytes / 2 - JSON.stringify(envelope).length;
+			const envelope = { jsonrpc: '2.0' as const, method: 'channel/frame', params: { channel: this.channel, data: '', final: false } };
+			const envelopeLength = JSON.stringify(envelope).length;
+			const remainingCredit = this._sendLimits.windowBytes - (this._sentBytes - this._peerConsumed);
+			// Even a one-byte window must fit the envelope and one escaped code point.
+			const frameBytes = Math.min(this.maximumFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
+			if (next.offset || next.text.length * 2 > frameBytes) {
+				let budget = frameBytes / 2 - envelopeLength;
 				end = next.offset;
 				while (end < next.text.length) {
 					const code = next.text.charCodeAt(end);
@@ -394,8 +548,10 @@ export class AgentHostChannelDelivery extends Disposable {
 		clearTimeout(this._creditTimer);
 		this._creditTimer = undefined;
 		if (!this._error && this._consumedBytes > this._creditedBytes) {
-			this._creditedBytes = this._consumedBytes;
-			this._transport.send({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: this.channel, consumedBytes: this._consumedBytes } });
+			const consumedBytes = this._consumedBytes;
+			this._scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: this.channel, consumedBytes } }, () => {
+				this._creditedBytes = consumedBytes;
+			});
 		}
 	}
 

@@ -76,8 +76,8 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 		readonly resource: string,
 		flowControl: ChannelFlowControl,
 		private readonly _isHost: boolean,
-		private readonly _transport: IProtocolTransport,
-		scheduler: AgentHostChannelScheduler,
+		transport: IProtocolTransport,
+		private readonly _scheduler: AgentHostChannelScheduler,
 		private readonly _onClose: (error: Error, notifyPeer: boolean) => void,
 		private readonly _budget: AgentHostTcpBudget,
 	) {
@@ -87,7 +87,7 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 			this._chunkBytes = this._getChunkBytes(sendLimits);
 			const receiveLimits = _isHost ? flowControl.hostReceive : flowControl.clientReceive;
 			this._delivery = this._register(new AgentHostChannelDelivery(
-				resource, sendLimits, receiveLimits, _transport, scheduler,
+				resource, sendLimits, receiveLimits, transport, _scheduler,
 				(message, release) => this._accept(message, release), error => this._failed(error),
 				receiveLimits.windowBytes + receiveLimits.maximumFrameBytes + 64 * 1024,
 			));
@@ -142,7 +142,7 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 		if (message.method === 'tcp/reset') {
 			this.fail(new Error('Peer reset TCP connection'), false);
 			if (!this._isHost) {
-				this._transport.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: this.resource } });
+				this._scheduler.sendControl({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: this.resource } });
 			}
 			return;
 		}
@@ -289,9 +289,9 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 		}
 		try {
 			if (this._notifyFailure) {
-				this._transport.send({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel: this.resource } });
+				this._scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel: this.resource } });
 				if (!this._isHost) {
-					this._transport.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: this.resource } });
+					this._scheduler.sendControl({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: this.resource } });
 				}
 			}
 		} finally {
@@ -313,7 +313,7 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 			}
 			this.fail(new Error('TCP stream closed'), !graceful);
 			if (!this._isHost && graceful) {
-				this._transport.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: this.resource } });
+				this._scheduler.sendControl({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: this.resource } });
 			}
 		}
 		super.dispose();

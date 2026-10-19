@@ -72,6 +72,7 @@ export class AgentHostTcpConnections extends Disposable {
 			throw new ProtocolError(AhpErrorCodes.TcpConnectionOpenFailed, 'Unable to open TCP destination');
 		}
 		socket.pause();
+		this._scheduler.clearControls(params.channel);
 		const entry: ITcpSocket = {
 			socket, reservation, active: false, draining: false,
 			lease: setTimeout(() => this._remove(params.channel, entry, new Error('TCP creation or subscription timed out')), 30_000),
@@ -192,7 +193,7 @@ export class AgentHostTcpConnections extends Disposable {
 		};
 		void Promise.all([readSocket(), writeSocket()]).then(() => {
 			stream.flushCredit();
-			this._remove(channel, entry);
+			this._remove(channel, entry, undefined, 'graceful');
 		}).catch(error => {
 			if (this._connections.get(channel) === entry) {
 				this._logError(error);
@@ -201,7 +202,10 @@ export class AgentHostTcpConnections extends Disposable {
 		});
 	}
 
-	notification(message: JsonRpcNotification & { params: { channel: string } }): boolean {
+	notification(message: JsonRpcNotification & { params: { channel: string } }, controlChecked = false): boolean {
+		if (!controlChecked && !this._scheduler.checkControl(message)) {
+			return true;
+		}
 		const channel = message.params.channel;
 		const entry = this._connections.get(channel);
 		if (!entry) {
@@ -213,7 +217,7 @@ export class AgentHostTcpConnections extends Disposable {
 			} else if (!entry.draining) {
 				this._remove(channel, entry);
 			}
-		} else if (!this._scheduler.acceptMessage(message)) {
+		} else if (!this._scheduler.acceptMessage(message, true)) {
 			this._remove(channel, entry, new Error('TCP data before subscription'));
 		}
 		return true;
@@ -226,7 +230,7 @@ export class AgentHostTcpConnections extends Disposable {
 		}
 	}
 
-	private _remove(channel: string, entry: ITcpSocket, error?: Error): void {
+	private _remove(channel: string, entry: ITcpSocket, error?: Error, mode: 'abort' | 'graceful' = 'abort'): void {
 		// Channel URIs can be reused before the old socket's callbacks finish.
 		if (this._connections.get(channel) !== entry) {
 			return;
@@ -236,7 +240,11 @@ export class AgentHostTcpConnections extends Disposable {
 		clearTimeout(entry.lease);
 		entry.stream?.fail(error ?? new Error('TCP connection closed'), !!error);
 		entry.stream?.dispose();
-		entry.socket.destroy();
+		if (mode === 'abort' && !entry.socket.destroyed && !entry.socket.connecting) {
+			entry.socket.resetAndDestroy();
+		} else {
+			entry.socket.destroy();
+		}
 	}
 
 	override dispose(): void {

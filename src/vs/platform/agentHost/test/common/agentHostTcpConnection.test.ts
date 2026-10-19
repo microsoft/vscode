@@ -24,7 +24,7 @@ suite('AgentHostTcpConnection', () => {
 				onMessage: Event.None, onClose: Event.None, dispose() { },
 				send: message => { sent.push(message); },
 			};
-			const scheduler = store.add(new AgentHostChannelScheduler(transport));
+			const scheduler = store.add(new AgentHostChannelScheduler(transport, error => failures.push(error)));
 			const stream = store.add(new AgentHostTcpConnection(channel, {
 				clientReceive: agentHostTcpReceiveLimits, hostReceive: agentHostTcpReceiveLimits,
 			}, isHost, transport, scheduler, error => failures.push(error), new AgentHostTcpBudget()));

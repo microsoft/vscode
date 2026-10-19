@@ -28,9 +28,10 @@ suite('AgentHostChannelDelivery', () => {
 		let receive: ((text: string) => void) | undefined;
 		let bufferedAmount = 0;
 		let bufferChecks = 0;
+		let transportDisposed = false;
 		const transport: IProtocolTransport = {
 			get bufferedAmount() { bufferChecks++; return bufferedAmount; },
-			onMessage: Event.None, onClose: Event.None, dispose() { },
+			onMessage: Event.None, onClose: Event.None, dispose() { transportDisposed = true; },
 			send(message) {
 				const text = JSON.stringify(message);
 				const parsed = parseProtocolMessage(text);
@@ -39,7 +40,7 @@ suite('AgentHostChannelDelivery', () => {
 				receive?.(text);
 			},
 		};
-		const scheduler = store.add(new AgentHostChannelScheduler(transport));
+		const scheduler = store.add(new AgentHostChannelScheduler(transport, error => errors.push(error)));
 		const delivery = store.add(new AgentHostChannelDelivery(channel,
 			{ ...limits, windowBytes: options.windowBytes ?? limits.windowBytes },
 			{ ...limits, windowBytes: options.receiveWindowBytes ?? limits.windowBytes }, transport, scheduler,
@@ -53,8 +54,211 @@ suite('AgentHostChannelDelivery', () => {
 			route: (callback: (text: string) => void) => receive = callback,
 			setBufferedAmount: (bytes: number) => bufferedAmount = bytes,
 			get bufferChecks() { return bufferChecks; },
+			get transportDisposed() { return transportDisposed; },
 		};
 	}
+
+	test('sizes fragments to the remaining credit, even below the frame limit', async () => {
+		const sender = fixture();
+		const receiver = fixture({ release: true });
+		const receive = (text: string) => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			receiver.scheduler.acceptMessage(message);
+		};
+		sender.route(receive);
+		receiver.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			sender.scheduler.acceptMessage(message);
+		});
+		sender.delivery.setSendLimits({ windowBytes: 256, maximumFrameBytes: 1024 });
+		const message = notification('x'.repeat(300));
+		await sender.delivery.send(message);
+		assert.deepStrictEqual(receiver.received, [message]);
+		assert.ok(sender.sent.length > 1);
+		assert.ok(sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= 256));
+		assert.deepStrictEqual([...sender.errors, ...receiver.errors], []);
+	});
+
+	test('tiny windows make progress through escaped and surrogate-pair fragments', async () => {
+		const sender = fixture({ windowBytes: 1 });
+		const receiver = fixture({ receiveWindowBytes: 1, release: true });
+		sender.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			receiver.scheduler.acceptMessage(message);
+		});
+		receiver.route(text => {
+			const message = parseProtocolMessage(text);
+			assert.ok(isJsonRpcNotification(message));
+			sender.scheduler.acceptMessage(message);
+		});
+		const message = notification('\\\n\u0000\uD83D\uDE00'.repeat(10));
+		await sender.delivery.send(message);
+		assert.deepStrictEqual(receiver.received, [message]);
+		assert.ok(sender.sent.length > 1);
+		assert.deepStrictEqual([...sender.errors, ...receiver.errors], []);
+	});
+
+	test('limits duplicate and unknown-channel controls by transport, not subscription', () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			for (let i = 0; i < 4096; i++) {
+				const message = parseProtocolMessage(JSON.stringify({
+					jsonrpc: '2.0', method: 'channel/credit', params: { channel: i % 2 ? channel : 'test:/unknown', consumedBytes: 0 },
+				}));
+				assert.ok(isJsonRpcNotification(message));
+				h.scheduler.acceptMessage(message);
+			}
+			assert.strictEqual(h.errors.length, 0);
+			const excess = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 0 } }));
+			assert.ok(isJsonRpcNotification(excess));
+			h.scheduler.acceptMessage(excess);
+			assert.match(h.errors[0].message, /control receive budget/);
+			assert.strictEqual(h.transportDisposed, true);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('replenishes control allowance without treating duplicate credit as invalid', () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			const credit = parseProtocolMessage(JSON.stringify({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 0 } }));
+			assert.ok(isJsonRpcNotification(credit));
+			for (let second = 0; second < 2; second++) {
+				for (let i = 0; i < 4096; i++) {
+					h.scheduler.acceptMessage(credit);
+				}
+				clock.tick(1000);
+			}
+			assert.deepStrictEqual(h.errors, []);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('bounds aggregate control bytes independently of the message count', () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			const reset = parseProtocolMessage(JSON.stringify(notification('x'.repeat(7000), 'tcp/reset')));
+			assert.ok(isJsonRpcNotification(reset));
+			const allowance = Math.floor(1024 * 1024 / getProtocolMessageSize(reset));
+			for (let i = 0; i < allowance; i++) {
+				assert.strictEqual(h.scheduler.checkControl(reset), true);
+			}
+			assert.strictEqual(h.scheduler.checkControl(reset), false);
+			assert.strictEqual(h.transportDisposed, true);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('coalesces queued credits and preserves control ordering through transport congestion', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			h.setBufferedAmount(1024 * 1024);
+			const control = (method: string, consumedBytes?: number): JsonRpcNotification => ({
+				jsonrpc: '2.0', method, params: { channel, ...(consumedBytes === undefined ? {} : { consumedBytes }) },
+			});
+			h.scheduler.sendControl(control('channel/credit', 10));
+			h.scheduler.sendControl(control('channel/credit', 20));
+			h.scheduler.sendControl(control('tcp/reset'));
+			h.scheduler.sendControl(control('unsubscribe'));
+			assert.deepStrictEqual(h.sent, []);
+			h.setBufferedAmount(256 * 1024);
+			await clock.tickAsync(25);
+			assert.deepStrictEqual(h.sent, [control('channel/credit', 20), control('tcp/reset'), control('unsubscribe')]);
+			assert.deepStrictEqual(h.errors, []);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('bounds the outgoing control queue and throttles sends without dropping the latest credit', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			for (let i = 0; i < 4097; i++) {
+				h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: i } });
+			}
+			assert.strictEqual(h.sent.length, 4096);
+			await clock.tickAsync(25);
+			assert.strictEqual(h.sent.length, 4097);
+			assert.deepStrictEqual(h.sent.at(-1)?.params, { channel, consumedBytes: 4096 });
+			assert.deepStrictEqual(h.errors, []);
+
+			const congested = fixture();
+			congested.setBufferedAmount(1024 * 1024);
+			for (let i = 0; i < 1024 && !congested.transportDisposed; i++) {
+				congested.scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel: `ahp-tcp:/${i}` } });
+			}
+			assert.strictEqual(congested.sent.length, 0);
+			assert.strictEqual(congested.transportDisposed, true);
+			assert.match(congested.errors[0].message, /control send queue capacity/);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('outgoing controls honor the individual size limit and reserved transport capacity', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			const reset = notification('', 'tcp/reset');
+			const bytes = JSON.stringify(reset).length * 2;
+			h.setBufferedAmount(320 * 1024 - bytes + 1);
+			h.scheduler.sendControl(reset);
+			assert.strictEqual(h.sent.length, 0);
+			h.setBufferedAmount(320 * 1024 - bytes);
+			await clock.tickAsync(25);
+			assert.deepStrictEqual(h.sent, [reset]);
+
+			const oversized = fixture();
+			oversized.scheduler.sendControl(notification('x'.repeat(8192), 'tcp/reset'));
+			assert.strictEqual(oversized.sent.length, 0);
+			assert.strictEqual(oversized.transportDisposed, true);
+			assert.match(oversized.errors[0].message, /oversized channel control/);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('does not accept data against credit still queued behind transport backpressure', () => {
+		const h = fixture({ receiveWindowBytes: 1, release: true });
+		h.setBufferedAmount(1024 * 1024);
+		const data = parseProtocolMessage(JSON.stringify(notification('data')));
+		assert.ok(isJsonRpcNotification(data));
+		h.scheduler.acceptMessage(data);
+		h.delivery.flushCredit();
+		assert.deepStrictEqual(h.sent, []);
+		h.scheduler.acceptMessage(data);
+		assert.match(h.errors[0].message, /receive limit/);
+	});
+
+	test('channel reuse cannot receive controls queued for the previous incarnation', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const h = fixture();
+			h.setBufferedAmount(1024 * 1024);
+			h.scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: 42 } });
+			h.scheduler.sendControl({ jsonrpc: '2.0', method: 'tcp/reset', params: { channel } });
+			h.delivery.dispose();
+			const replacement = store.add(new AgentHostChannelDelivery(channel, limits, limits, h.transport, h.scheduler, () => { }, error => h.errors.push(error)));
+			const sent = replacement.send(notification('replacement'));
+			h.setBufferedAmount(0);
+			await clock.tickAsync(25);
+			await sent;
+			assert.deepStrictEqual(h.sent, [notification('replacement')]);
+		} finally {
+			clock.restore();
+		}
+	});
 
 	test('admits over 1024 small messages up to the negotiated byte window', () => {
 		const windowBytes = 256 * 1024;

@@ -2766,6 +2766,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const reservation = this._tcpBudget.reserveConnection();
 		const transport = this._transport;
+		const scheduler = this._channelScheduler.value ??= new AgentHostChannelScheduler(transport, error => this._logService.error('[AgentHostChannels]', error));
 		const channel = `ahp-tcp:/${generateUuid()}`;
 		let stream: AgentHostTcpConnection | undefined;
 		try {
@@ -2788,8 +2789,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						}
 					}
 					// Install before another message in the same transport batch can carry the snapshot.
-					this._channelScheduler.value ??= new AgentHostChannelScheduler(transport);
-					stream = new AgentHostTcpConnection(channel, flowControl, false, transport, this._channelScheduler.value, error => {
+					stream = new AgentHostTcpConnection(channel, flowControl, false, transport, scheduler, error => {
 						reservation.dispose();
 						this._tcpConnections.delete(channel);
 						this._logService.debug('[AgentHostTcp] Stream closed', error.message);
@@ -2812,7 +2812,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			reservation.dispose();
 			stream?.dispose();
 			if (!stream && this._transport === transport && this._state.kind === AgentHostClientState.Connected) {
-				transport.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel } });
+				scheduler.sendControl({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel } });
 			}
 			throw error;
 		}
