@@ -14,20 +14,33 @@ import { DiffEditorViewModel, DiffState } from './diffEditorViewModel.js';
 
 export type DiffEditorVariant = 'default' | 'compact';
 
+/**
+ * `'inline'` keeps the inline view after the diff editor was deliberately enlarged beyond
+ * the inline breakpoint (see {@link DiffEditorOptions.temporaryInlineMode}).
+ */
+export type DiffEditorWidthBasedLayout = 'auto' | 'inline';
+
 export class DiffEditorOptions {
 	private readonly _options: ISettableObservable<IEditorOptions & Required<IDiffEditorBaseOptions>, { changedOptions: IDiffEditorOptions }>;
 
 	public get editorOptions(): IObservableWithChange<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
 	private readonly _diffEditorWidth;
-	private readonly _widthBasedLayout = observableValue<'auto' | 'inline'>(this, 'auto');
+	private readonly _widthBasedLayout: ISettableObservable<DiffEditorWidthBasedLayout>;
 
 	private readonly _screenReaderMode;
 
+	/**
+	 * @param _sharedWidthBasedLayout Shares the width based layout with other diff editors (e.g. all diff editors
+	 * of a multi diff editor), so that they render with the same layout. It is owned by the caller.
+	 */
 	constructor(
 		options: Readonly<IDiffEditorOptions>,
+		private readonly _sharedWidthBasedLayout: ISettableObservable<DiffEditorWidthBasedLayout> | undefined,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
+		this._widthBasedLayout = _sharedWidthBasedLayout ?? observableValue<DiffEditorWidthBasedLayout>(this, 'auto');
+		this.temporaryInlineMode = this._widthBasedLayout.map(this, layout => layout === 'inline');
 		this._diffEditorWidth = observableValue<number>(this, 0);
 		this._screenReaderMode = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
 		this.couldShowInlineViewBecauseOfSize = derived(this, reader =>
@@ -105,7 +118,7 @@ export class DiffEditorOptions {
 	public readonly renderOverviewRuler;
 	public readonly renderSideBySideInAutomaticMode;
 	public readonly renderSideBySide;
-	public readonly temporaryInlineMode = this._widthBasedLayout.map(this, layout => layout === 'inline');
+	public readonly temporaryInlineMode: IObservable<boolean>;
 	public readonly readOnly;
 
 	public readonly shouldRenderOldRevertArrows;
@@ -141,9 +154,10 @@ export class DiffEditorOptions {
 		const newOptions = { ...currentOptions, ...changedOptions, ...newDiffEditorOptions };
 		transaction(tx => {
 			if (
-				currentOptions.renderSideBySide !== newOptions.renderSideBySide
-				|| currentOptions.useInlineViewWhenSpaceIsLimited !== newOptions.useInlineViewWhenSpaceIsLimited
-				|| currentOptions.renderSideBySideInlineBreakpoint !== newOptions.renderSideBySideInlineBreakpoint
+				(currentOptions.renderSideBySide !== newOptions.renderSideBySide
+					|| currentOptions.useInlineViewWhenSpaceIsLimited !== newOptions.useInlineViewWhenSpaceIsLimited
+					|| currentOptions.renderSideBySideInlineBreakpoint !== newOptions.renderSideBySideInlineBreakpoint)
+				&& this._canChangeWidthBasedLayout()
 			) {
 				this._widthBasedLayout.set('auto', tx);
 			}
@@ -155,6 +169,9 @@ export class DiffEditorOptions {
 		const options = this._options.get();
 		transaction(tx => {
 			this._diffEditorWidth.set(width, tx);
+			if (!this._canChangeWidthBasedLayout()) {
+				return;
+			}
 			if (width <= options.renderSideBySideInlineBreakpoint) {
 				this._widthBasedLayout.set('auto', tx);
 			} else if (
@@ -174,6 +191,23 @@ export class DiffEditorOptions {
 
 	public resetWidthBasedLayout(tx?: ITransaction): void {
 		this._widthBasedLayout.set('auto', tx);
+	}
+
+	/**
+	 * Resets the width based layout because the diff editor shows different documents.
+	 * A shared width based layout is kept, as it belongs to all diff editors sharing it.
+	 */
+	public resetWidthBasedLayoutForNewDocuments(tx: ITransaction): void {
+		if (!this._sharedWidthBasedLayout) {
+			this._widthBasedLayout.set('auto', tx);
+		}
+	}
+
+	/**
+	 * Diff editors without a diff (e.g. pooled editors of a multi diff editor) must not change a shared width based layout.
+	 */
+	private _canChangeWidthBasedLayout(): boolean {
+		return !this._sharedWidthBasedLayout || this._model.get() !== undefined;
 	}
 
 	private readonly _model;

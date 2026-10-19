@@ -23,6 +23,7 @@ import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ICodeEditor } from '../../editorBrowser.js';
+import { DiffEditorWidthBasedLayout } from '../diffEditor/diffEditorOptions.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
 import { binaryFilePlaceholderContentHeight, DiffEditorItemBinding, DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
@@ -41,6 +42,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements;
 
 	private readonly _optionsOverride: IObservable<IDiffEditorOptions>;
+
+	/**
+	 * Shared by the diff editors of all items, so that all items use the same layout,
+	 * including items that get bound to a (reused) diff editor while scrolling.
+	 */
+	private readonly _widthBasedLayout = observableValue<DiffEditorWidthBasedLayout>(this, 'auto');
 
 	public readonly scrollTop;
 	public readonly scrollLeft;
@@ -126,6 +133,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 						this._workbenchUIElementFactory,
 						this._variantConfiguration,
 						this._optionsOverride,
+						this._widthBasedLayout,
 					),
 					onDidBind: binding => {
 						const selections = binding.item.lastTemplateData.get().selections;
@@ -434,10 +442,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		return this._instantiationService;
 	}
 
-	public resetWidthBasedLayout(): void {
-		for (const item of this._viewItemsInfo.get().items) {
-			item.template.get()?.editor.resetWidthBasedLayout();
-		}
+	public resetWidthBasedLayout(tx?: ITransaction): void {
+		this._widthBasedLayout.set('auto', tx);
 	}
 
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
