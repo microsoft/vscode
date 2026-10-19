@@ -132,6 +132,7 @@ suite('DebugSession - continued events', () => {
 			/** While set, `threads` responses wait in {@link heldThreadsResponses} */
 			holdThreadsResponses = false;
 			readonly heldThreadsResponses: (() => void)[] = [];
+			readonly stackTraceThreadIds: number[] = [];
 
 			releaseThreadsResponses() {
 				this.holdThreadsResponses = false;
@@ -151,6 +152,7 @@ suite('DebugSession - continued events', () => {
 						return;
 					}
 					if (request.command === 'stackTrace') {
+						this.stackTraceThreadIds.push(request.arguments.threadId);
 						this.sendResponseBody(request, { stackFrames: [], totalFrames: 0 });
 						return;
 					}
@@ -223,19 +225,20 @@ suite('DebugSession - continued events', () => {
 	});
 
 	/**
-	 * Stops thread 1 and waits for it. The adapter's messages are handled in
+	 * Stops a thread and waits for it. The adapter's messages are handled in
 	 * order, so everything sent before this has been handled as well.
 	 */
-	async function stopFirstThread(session: DebugSession, adapter: MockDebugAdapter) {
-		const stopped = Event.toPromise(session.onDidChangeState);
-		adapter.sendEventBody('stopped', { reason: 'step', threadId: 1 });
+	async function stopThread(session: DebugSession, adapter: MockDebugAdapter, threadId = 1) {
+		const body = { reason: 'step', threadId };
+		const stopped = Event.toPromise(Event.filter(session.onDidChangeState, () => session.getThread(threadId)?.stoppedDetails === body));
+		adapter.sendEventBody('stopped', body);
 		await stopped;
 	}
 
 	for (const allThreadsContinued of [false, true]) {
 		test(`drops a stop with a pending threads request on ${allThreadsContinued ? 'all-thread' : 'single-thread'} continuation`, async () => {
 			const { session, adapter } = createSession();
-			await stopFirstThread(session, adapter);
+			await stopThread(session, adapter);
 
 			adapter.holdThreadsResponses = true;
 			const continued = Event.toPromise(session.onDidChangeState);
@@ -244,7 +247,7 @@ suite('DebugSession - continued events', () => {
 			await continued;
 
 			adapter.releaseThreadsResponses();
-			await stopFirstThread(session, adapter);
+			await stopThread(session, adapter);
 
 			assert.strictEqual(session.getThread(2)?.stopped, false);
 			assert.strictEqual(session.getThread(2)?.stoppedDetails, undefined);
@@ -255,7 +258,7 @@ suite('DebugSession - continued events', () => {
 		// Event sequence from the mock debug repro in #280933
 		const threads = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: `Thread ${i + 1}` }));
 		const { session, adapter } = createSession(threads);
-		await stopFirstThread(session, adapter);
+		await stopThread(session, adapter);
 
 		adapter.holdThreadsResponses = true;
 		const continued = Event.toPromise(session.onDidChangeState);
@@ -271,14 +274,14 @@ suite('DebugSession - continued events', () => {
 		await continued;
 
 		adapter.releaseThreadsResponses();
-		await stopFirstThread(session, adapter);
+		await stopThread(session, adapter);
 
 		assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1]);
 	});
 
 	test('applies a stop with a pending threads request when another thread continues', async () => {
 		const { session, adapter } = createSession();
-		await stopFirstThread(session, adapter);
+		await stopThread(session, adapter);
 
 		adapter.holdThreadsResponses = true;
 		const continued = Event.toPromise(session.onDidChangeState);
@@ -295,23 +298,47 @@ suite('DebugSession - continued events', () => {
 		assert.strictEqual(session.getThread(2)?.stoppedDetails?.reason, 'entry');
 	});
 
-	test('applies an all-thread stop with a pending threads request when its thread continues', async () => {
-		const { session, adapter } = createSession();
-		await stopFirstThread(session, adapter);
-		const running = Event.toPromise(session.onDidChangeState);
-		adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
-		await running;
+	for (const continuedThreadId of [1, 2]) {
+		test(`applies an all-thread stop with a pending threads request to the threads that did not continue (thread ${continuedThreadId} continues)`, async () => {
+			const { session, adapter } = createSession([{ id: 1, name: 'first' }, { id: 2, name: 'second' }, { id: 3, name: 'third' }]);
+			await stopThread(session, adapter);
+			const running = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+			await running;
 
-		adapter.holdThreadsResponses = true;
-		const continued = Event.toPromise(session.onDidChangeState);
-		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 1, allThreadsStopped: true });
-		adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
-		await continued;
+			adapter.holdThreadsResponses = true;
+			const continued = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 1, allThreadsStopped: true });
+			adapter.sendEventBody('continued', { threadId: continuedThreadId, allThreadsContinued: false });
+			await continued;
 
-		adapter.releaseThreadsResponses();
-		await stopFirstThread(session, adapter);
+			adapter.releaseThreadsResponses();
+			await stopThread(session, adapter, 3);
 
-		// Thread 2 was suspended by the stop and never continued
-		assert.strictEqual(session.getThread(2)?.stopped, true);
+			assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1, 2, 3].filter(id => id !== continuedThreadId));
+		});
+	}
+
+	test('applies an all-thread stop for a thread that is not in the threads response', async () => {
+		const { session, adapter } = createSession([{ id: 1, name: 'first' }, { id: 2, name: 'second' }, { id: 3, name: 'third' }]);
+		let stateChanges = 0;
+		ds.add(session.onDidChangeState(() => stateChanges++));
+
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 4, allThreadsStopped: true });
+		await stopThread(session, adapter, 3);
+
+		// One change for each of the two stops
+		assert.strictEqual(stateChanges, 2);
+		assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1, 2, 3]);
+	});
+
+	test('loads the call stack only for the thread that stopped on an all-thread stop', async () => {
+		const { session, adapter } = createSession([{ id: 1, name: 'first' }, { id: 2, name: 'second' }, { id: 3, name: 'third' }]);
+		const stopped = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 2, allThreadsStopped: true });
+		await stopped;
+
+		assert.deepStrictEqual(adapter.stackTraceThreadIds, [2]);
+		assert.deepStrictEqual(session.getAllThreads().filter(t => t.stopped).map(t => t.threadId), [1, 2, 3]);
 	});
 });
