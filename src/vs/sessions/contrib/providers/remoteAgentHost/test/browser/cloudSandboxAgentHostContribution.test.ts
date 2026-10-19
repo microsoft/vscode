@@ -1662,6 +1662,34 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		}, { removed: true, cached: [], restored: 0, connections: [], history: [] });
 	});
 
+	test('removes task-owned empty placeholders from restored inventory while retaining their shared environment sibling', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const real = discoveredSession();
+		const empty = ['empty-1', 'empty-2'].map(id => discoveredSession({
+			sessionId: id, taskId: `task-${id}`, name: 'New task', eventType: 'unknown', status: SessionStatus.Idle,
+		}));
+		const first = await createContribution(store, [real, ...empty], { storageService });
+		first.contribution.dispose();
+		let result: ICloudSandboxDiscoveryResult = { kind: 'failed', reason: 'offline' };
+		const restored = await createContribution(store, [], { storageService, listSessions: async () => result });
+		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))!;
+		result = { kind: 'incremental', sessions: [], removedTaskIds: empty.map(session => session.taskId) };
+		await restored.runDiscovery();
+		const remaining = provider.getSessions().map(session => AgentSession.id(session.resource));
+		restored.contribution.dispose();
+		const next = await createContribution(store, [], {
+			storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+
+		assert.deepStrictEqual({
+			remaining,
+			inventory: readInventory(storageService).map(session => session.sessionId),
+			afterRestart: next.contribution.stubProviders.get(cloudSandboxAddress(real.environmentId))?.getSessions().map(session => AgentSession.id(session.resource)),
+			mutations: [...restored.deletedTasks, ...restored.archivedTasks],
+			connections: [...restored.connectedTo, ...next.connectedTo],
+		}, { remaining: [real.sessionId], inventory: [real.sessionId], afterRestart: [real.sessionId], mutations: [], connections: [] });
+	});
+
 	test('refreshes existing provider metadata and persists repository replacement and removal', async () => {
 		const storageService = store.add(new InMemoryStorageService());
 		let result: ICloudSandboxDiscoveryResult = { kind: 'complete', sessions: [discoveredSession()] };

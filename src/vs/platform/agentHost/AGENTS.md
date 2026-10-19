@@ -176,7 +176,7 @@ Artifact tools read and mutate only the invoking chat's artifacts. The session d
 
 ### UI/provider layer (`sessions/services/sessions/common/session.ts:ISessionCapabilities`)
 
-- Protocol `AgentCapabilities` (`multipleChats?: { fork?: boolean }`) flows from `AgentInfo.capabilities` (protocol) through the provider adapter into `ISession.capabilities` (`ISessionCapabilities`), whose `supportsMultipleChats`/`supportsFork` flags derive from the presence of `multipleChats` and `multipleChats.fork`, and from there into VS Code context keys (`sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
+- Protocol `AgentCapabilities` (`multipleChats?: { fork?: boolean; sideChat?: boolean }`) flows from `AgentInfo.capabilities` (protocol) through the provider adapter. `ISession.capabilities` (`ISessionCapabilities`) exposes `supportsMultipleChats` and `supportsFork`, derived from `multipleChats` and `multipleChats.fork`; both flow into VS Code context keys (`sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`). Forks can carry the optional `createChat.title` and existing `createChat.initialMessage` without additional capabilities. VS Code preserves a supplied title on first publication and reports initial-message errors in the new chat.
 - UI actions read context keys — no provider-id switches.
 
 ---
@@ -222,6 +222,8 @@ Telemetry provider dimensions use the owning agent's id or the session's explici
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.** Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so continual external-chat discovery never registers it as a top-level AH session. Providers own native enumeration and push candidates through `onDidDiscoverChats`; Agent Host reconciles those candidates against its registry and suppresses separately enumerable internal backings. Existing AH-created rows retain their provenance. Marking a backing session is a durable metadata write on the backing session's own DB (`_markChatBacking`); a transient failure is retried once, and if it keeps failing the session is suppressed from listing/discovery in-process (`_unpersistedChatBackings`) rather than failing the chat creation that triggered it.
 
 **I8 — Providers are given host facts; they must not re-derive them.** Everything a provider needs about a chat and its owning session is published on a typed seam at the call boundary (see §8). Providers do not inject `AgentHostStateManager` or recover subagent origin or customizations by parsing a chat URI. New provider code must consume the seams.
+
+**I9 — Tools are deferred by default; the eager set is a reviewed budget.** Every tool definition the model can see is input tokens on every request, so a new server tool leaves `deferLoading` unset or `true` (a Copilot session defers it unless it is explicitly `false`; Claude and Codex keep their SDK defaults), a new client tool stays out of `NON_DEFERRED_CLIENT_TOOL_NAMES`, and a runtime built-in that arrives with an SDK bump stays off until it is added to the allow-list on purpose. The baselines in `test/node/serverToolGroups.test.ts`, `test/node/toolSearchDeferral.test.ts` and the prompt snapshot suite pin the eager set; a PR that moves them says why. Session-constant guidance goes in the system prompt, turn-specific reminders go in `additionalContext`. A runtime built-in that is not in `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` is never registered. The rules and checklists are in §9.
 
 ---
 
@@ -350,7 +352,7 @@ interface AgentCapabilities {
 }
 ```
 
-The agent declares these in `getDescriptor().capabilities` (`common/agent.ts:IAgentDescriptor`). They flow to the UI as `ISessionCapabilities` (`sessions/services/sessions/common/session.ts`) and are bound to context keys (`sessions/services/sessions/common/sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`).
+The agent declares these in `getDescriptor().capabilities` (`common/agent.ts:IAgentDescriptor`). `multipleChats` and `multipleChats.fork` flow to the UI as `ISessionCapabilities.supportsMultipleChats` and `supportsFork` (`sessions/services/sessions/common/session.ts`) and are bound to context keys (`sessions/services/sessions/common/sessionContextKeys.ts:SessionSupportsMultipleChatsContext`, `SessionSupportsForkContext`). Optional initial titles require no separate capability.
 
 UI code gates "Add Chat" and "Fork" actions on those context keys. No code inside `AgentService` or `AgentHostStateManager` switches on provider id to gate features. `AgentService.createChat` throws synchronously when `!provider.chats` (the structural guard that replaces a capability check in the orchestrator).
 
@@ -536,7 +538,7 @@ Claude deliberately has no AH-session container and no membership/role concept o
 - `_chatBackings: Map<string, IClaudeChatBacking>` maps each exact host-supplied chat URI to only its provider-owned `{ sdkSessionId, model?, sideChat? }` backing data. It deliberately does **not** retain the owning AH session or a storage URI: AH supplies the owning session and persistence/config resource transiently on every operation (`IAgentChatContext`).
 - `IClaudeChatBacking` is the source of truth for both live and released chats: releasing a chat drops its `_chatEntriesBySdkId` leaf but keeps the backing data so a later send can cold-resume the corresponding `ClaudeAgentSession`.
 
-Every chat operation resolves exactly one backing and routes to exactly one live leaf; there is no default-vs-additional branch and no cascade between chats of the same session. An additional chat's send after restart resumes only that chat's `ClaudeAgentSession`. Capabilities remain `multipleChats: { fork: true }`.
+Every chat operation resolves exactly one backing and routes to exactly one live leaf; there is no default-vs-additional branch and no cascade between chats of the same session. An additional chat's send after restart resumes only that chat's `ClaudeAgentSession`. Capabilities remain `multipleChats: { fork: true, sideChat: true }`.
 
 Each additional chat is backed by a fresh top-level SDK session (`sdkSessionId = generateUuid()`) minted in the same global Claude project store that `listSessions` enumerates. `_createChat` therefore returns `backingSession: AgentSession.uri(this.id, sdkSessionId)` so the orchestrator can suppress that backing from the top-level session list (invariant I7); without it the additional chat would leak as a phantom session. The SDK exposes no delete-chat RPC, so `disposeChat` leaves the backing transcript on disk — the orchestrator-owned catalog simply drops the entry so it is never resumed again. (Claude writes no legacy `claude.chats` blob and has no legacy migration: Claude multi-chat shipped only with the orchestrator-owned catalog, so there is nothing to drain. Copilot keeps its own `copilot.chats` migration because `copilot.chats` predates the catalog.)
 
@@ -549,7 +551,7 @@ Copilot also has no AH-session container:
 - Fork/import provisioning binds the exact target chat inside `chats.createChat`, so a create result is never left waiting for a follow-up bind call.
 - The backing records preserve the existing `providerData` codec and one-time `copilot.chats` migration.
 
-No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
+No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true, sideChat: true }`.
 
 Copilot managed-settings queries share only in-flight work for the same runtime client, credential and working directory. The runtime owns policy freshness, composition, cache fallback and strict-refresh failures; the host never substitutes an unmanaged or stale snapshot. Catalog refresh and pre-session config discovery warm this path. After 3.5 seconds the host reports standard AHP progress without failing the pending operation; the overall query is bounded at 30 seconds, and timeout releases cancellation listeners even if the RPC never settles. Editor and Agents windows display indeterminate progress, including remote hosts. Cancelling the last waiter dismisses progress, while a later waiter can still join the bounded query. Policy failures are retryable `policyResolutionFailed` errors, including configuration and creation failures before the first turn starts. Their classification survives IPC and JSON-RPC; the chat error's Retry button resends the saved request as a new turn, never resumes a runtime turn that did not start. Connection failures retain their existing crash-recovery classification. Credential, endpoint and client-generation changes invalidate pending results. Stop cancels both queued model and agent selection, including their initial create/resume policy waits, without applying late results or blocking the next queued operation. Model-configuration reporting uses the session lifetime, independent of turn cancellation. The separate diagnostics probe retains its short deadline.
 
@@ -557,7 +559,7 @@ Customization discovery (agents, skills, instructions and workspace MCP configur
 
 Steering received during turn preparation or configuration refresh is buffered for the addressed chat. A dispatched turn confirmed running by root SDK events accepts and flushes steering immediately, even if its admission RPC has not returned; successful admission also flushes it. Preparation or send failure retains buffered steering for a successful retry, rather than dispatching against an unready runtime. Pending updates replace or remove buffered steering; abort clears it and emits `steering_consumed` to clear the pending UI. The live SDK-session wrapper takes ownership synchronously before MCP reconciliation, so abort and disposal can clear steering throughout delivery. Chat disposal and host shutdown discard buffered delivery, and pending-message updates are ignored once host shutdown starts.
 
-AHP stores steering and queued messages together in `queuedMessages`, distinguished by `PendingMessage.kind`. Steering entries use `IAgent.sendSteeringMessage` individually, bypassing Copilot's replaceable legacy-slot buffer. The host retries deferred handoff on provider progress and correlates consumption by message ID. Cancellation clears every pending steering entry, including prompts handed off but not yet consumed by the SDK, without draining queued follow-ups.
+AHP stores steering and queued messages together in `queuedMessages`, distinguished by `PendingMessage.kind`. Steering entries use `IAgent.sendSteeringMessage` individually, bypassing Copilot's replaceable legacy-slot buffer. The host retries deferred handoff on provider progress and correlates consumption by message ID. Cancellation clears every pending steering entry, including prompts handed off but not yet consumed by the SDK, without draining queued follow-ups. A client may remove handed-off steering during a turn only when the provider implements `IAgent.withdrawSteeringMessage`; Copilot then withdraws it from the SDK with `rpc.queue.withdrawMessage`, or keeps it as its own turn if the model already received it.
 
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
@@ -618,7 +620,7 @@ When a restored Agent Host conversation's intended model is missing from the pic
 
 Metadata and history reads use `thread/read` and `thread/turns/list` without resuming the thread or claiming its writer lock, so a thread still open in another Codex client remains readable. Subscribing to an interactive chat invokes the optional provider-internal `IAgentChats.prepareChat` seam before returning the snapshot. Codex resumes an existing backing to acquire its writer lock without sending a turn; fresh chats remain lazy. The host publishes temporary input restrictions through existing read-only chat interactivity and validated `vscode.chatInputState` session metadata. These restrictions are not persisted as permanent read-only state. Clients retain history and the editable draft; Retry refreshes the existing subscription without sending a turn or discarding pending local actions. No additional AHP method or capability is required. Sends still apply pending launch configuration and replace a never-persisted backing only when the SDK reports that its rollout is missing. Reads still retry when their app-server connection is replaced.
 
-An additional chat is backed by a **fresh top-level thread minted eagerly** in `chats.createChat` (via `thread/start` or `thread/fork` at the requested turn, reusing `_forkSession`). For these internal peer backings only, the backing entry and URI are keyed by the app-server-assigned thread id. This does not couple the parent AH session id to its default thread id; it gives the peer-chat-backing marker a stable `codex:/<threadId>` database across restart. `_createChat`/`fork` therefore return `backingSession: AgentSession.uri(this.id, threadId)` so the orchestrator suppresses that backing from the top-level session list (invariant I7), plus an opaque `providerData` blob (the backing thread id + model) that `materializeChat` decodes on restore. The additional chat inherits the parent session's working directory, model, and permissions. Exact disposal/release affects only the addressed chat's own thread — there is no cascade between chats of the same session. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and app-server protocol are unchanged, and Codex still never recognizes or derives a default-chat URI. The orchestrator registry contains the parent AH session, not these chat backing URIs; provider-owned discovery pushes external chats through `onDidDiscoverChats`. Capabilities are `multipleChats: { fork: true }`.
+An additional chat is backed by a **fresh top-level thread minted eagerly** in `chats.createChat` (via `thread/start` or `thread/fork` at the requested turn, reusing `_forkSession`). For these internal peer backings only, the backing entry and URI are keyed by the app-server-assigned thread id. This does not couple the parent AH session id to its default thread id; it gives the peer-chat-backing marker a stable `codex:/<threadId>` database across restart. `_createChat`/`fork` therefore return `backingSession: AgentSession.uri(this.id, threadId)` so the orchestrator suppresses that backing from the top-level session list (invariant I7), plus an opaque `providerData` blob (the backing thread id + model) that `materializeChat` decodes on restore. The additional chat inherits the parent session's working directory, model, and permissions. Exact disposal/release affects only the addressed chat's own thread — there is no cascade between chats of the same session. The persisted `codex.threadId`, `codex.cwd`, and `codex.model` keys and app-server protocol are unchanged, and Codex still never recognizes or derives a default-chat URI. The orchestrator registry contains the parent AH session, not these chat backing URIs; provider-owned discovery pushes external chats through `onDidDiscoverChats`. Capabilities are `multipleChats: { fork: true, sideChat: true }`.
 
 
 ---
@@ -752,6 +754,8 @@ The contract for provider-internal work that has no host call of its own (a plug
 
 Membership changes re-enter the same seam: a `session/chatAdded` envelope fans every current active client into the new exact chat. Client removal is likewise fanned out as `removeActiveClient(chat, context, clientId)`.
 
+Copilot reserves the names of host tools registered for the current launch before registering client tools with the SDK. A host tool omitted from that session does not hide a same-name client tool. Among clients contributing the same name to a chat, its message sender takes precedence, followed by client insertion order. Changing the selected definition refreshes the SDK at the next send or resume boundary. Calls are routed only to clients whose live definition matches the applied snapshot; an identical reconnect can take over, but a newly connected or updated client cannot execute an incompatible contract mid-turn.
+
 ### 8d. Prompt-cache metadata
 
 `IAgentHostPromptCache` (`node/agentHostPromptCache.ts`) exposes exactly `read(session)` / `write(session, state)` over the `vscode.promptCache` `_meta` slot. `write` re-reads the persisted value first (several live provider sessions can share one session URI), skips a no-op write, merges rather than replaces `_meta`, and returns the effective state.
@@ -796,3 +800,108 @@ Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed 
 | `onSessionConfigChanged` / `onChatConfigChanged` provider hooks | `IAgentConfigurationService.onDidSessionConfigChange` |
 | `_readSessionMetadata(owner)` for customization directories, project, workspaceless or additional worktrees | `context.sessionSettings` |
 | Launch folders read from the session database or another chat's database | `context.launchWorkingDirectories` |
+
+---
+
+## 9. Tools, prompt text and reminders: the token budget
+
+Every tool definition the model can see is input tokens on every request of every turn, and part of the prompt cache. A tool that is not deferred is paid for by every session on every model call, whether or not it is ever used. This document is the rule set for keeping that budget flat. Read it before adding a tool, changing a tool description, bumping `@github/copilot-sdk`, or adding text that reaches the model.
+
+### The default: deferred
+
+**New tools are deferred unless this document says otherwise.** A tool earns an eager slot only when at least one of these is true, and the PR says which:
+
+1. The model must call it on most turns without being told to (for example `view`, `edit`, `bash`).
+2. The model cannot discover it through tool search in time, because the turn that needs it is the first turn and a host reminder tells the model to call it immediately (the `rename_chat` active-agent case, the workspaceless `set_workspace` case). Scope the exception to that condition in `getDefinitionForSession`, as those two do, and keep the tool deferred everywhere else.
+3. It overrides a runtime built-in that is itself eager, so deferring it would change which implementation the model gets (`tool_search_tool`, `extensions_reload`).
+
+"It is handy", "it is read-only", "it is small", "the model will not find it otherwise" and "the previous tool in this group was eager" are not reasons. A quality-of-life tool is exactly the kind that should load on demand. If the model does not find a deferred tool, fix its description so tool search ranks it, not its deferral.
+
+Tool search is only active for models that support it (`agentHostModelSupportsToolSearch`) and when `chat.agentHost.copilot.toolSearch.enabled` is on. On every other session **everything is eager**, so an eager-by-default tool is an eager tool everywhere. Do not reason as if deferral were the common case.
+
+### Where each kind of tool is controlled
+
+| Origin | Defined in | Deferral lever | Default if you do nothing |
+| --- | --- | --- | --- |
+| Runtime built-in (ships inside the SDK) | `@github/copilot-sdk`; names in `CopilotToolName` (`node/copilot/copilotToolDisplay.ts`) | `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in `node/copilot/copilotBuiltinToolAllowlist.ts` (the default `availableTools`), plus `excludedTools` in `CopilotSessionLauncher` for conditional policy | **Off.** A built-in that is not in the allow-list is never registered, so a new SDK built-in stays off until a PR adds it. |
+| Host server tool | `node/shared/*ServerTools.ts`, `sessionIsolationTools.ts`, contributed through `serverToolGroups.ts` | `deferLoading` on `IAgentServerToolDefinition`; the Copilot session maps it to the SDK `defer` flag, Claude maps it to MCP `alwaysLoad`, Codex ignores it | Deferred on Copilot. Only an explicit `false` is eager, and the baseline test pins that set. Claude and Codex apply their SDK defaults when it is unset. |
+| Client tool (workbench `ILanguageModelToolsService` tool forwarded to the host) | Any `vscode.lm` tool in an enabled tool set; forwarded by `agentHostActiveClientService._getClientTools` | `NON_DEFERRED_CLIENT_TOOL_NAMES` in `node/copilot/toolSearchDeferral.ts` | Deferred. Only names in that set are eager. |
+| MCP tool | Workspace, plugin or connector MCP configuration | Always deferred; routed through the per-server proxy tool | Deferred. |
+| Runtime GitHub MCP tool | The runtime's own `github-mcp-server` (not configured by the host) | Runtime-owned; matched by `mcp:*`, not by the built-in allow-list | `github-mcp-server-*` tools are deferred; the runtime exposes `web_search` without the prefix and keeps it eager. |
+| Copilot extension tool | `node/copilot/copilotExtensionTools.ts` | `defer` on the SDK `Tool` | Eager (`defer: 'never'`, it overrides a built-in). |
+| Per-model tool filter | `chat.agentHost.copilot.modelCapabilityOverrides` (`availableTools` / `excludedTools`) | Experiment and debugging knob | Not a substitute for the code-level default. |
+
+The Copilot session maps `deferLoading: false` to the SDK's `defer: 'never'` and everything else to `'auto'`, matching the SDK's own default. Claude and Codex own deferral for their runtimes; the host only forwards an explicit value to Claude.
+
+### Guardrails that fail a PR
+
+These tests pin the budget. A PR that changes any of them must say why in its description, and a reviewer should treat an unexplained baseline update as a defect.
+
+- `test/node/serverToolGroups.test.ts`, suite `serverToolGroups deferral budget`: the server tools with `deferLoading: false` are exactly the reviewed list.
+- `test/node/toolSearchDeferral.test.ts`: `NON_DEFERRED_CLIENT_TOOL_NAMES` is exactly the reviewed list.
+- `test/node/providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts`: the built-ins the bundled runtime registers in a base session (no feature or experiment gates, every tool profile and session mode) match `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` in both directions. A runtime built-in that is neither allow-listed nor in its `KNOWN_LEFT_OFF` list fails, and so does an allow-listed name the runtime no longer registers, unless `NOT_EXERCISED` lists it with a reason. A rename fails both ways. It runs against a local synthetic Copilot API, so it needs no account and runs in PR CI on every platform.
+- `test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts`: the model-facing tool list of a replayed turn equals `expectedModelFacingToolNames(model)`. With the allow-list in place a new built-in does not appear here; a built-in that an SDK bump renames or removes does, as a missing tool.
+- The prompt baselines under `test/node/e2e/providers/__snapshots__/*.prompt.md` show the full wire request: system prompt sections, every tool definition and its description, and the user turn with the runtime's injected context. Regenerating them is not a fix. Read the diff and account for every added line.
+
+Run them with:
+
+```bash
+./scripts/test.sh --grep "serverToolGroups deferral budget|toolSearchDeferral"
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotPromptsE2E.integrationTest.ts
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts
+```
+
+### Checklist: adding or changing a tool
+
+1. Leave `deferLoading` unset (server tool) or leave the client tool out of `NON_DEFERRED_CLIENT_TOOL_NAMES`. If you believe it needs an eager slot, justify it against the three conditions above in the PR, scope it as narrowly as `getDefinitionForSession` allows, and update the baseline test in the same PR.
+2. Write the description for a model that will see it only in tool-search results: lead with the capability, then the positive invocation criteria, then the near-neighbor exclusions. Follow `.github/instructions/language-model-tool-descriptions.instructions.md`. Keep it to the sentences the model needs; the description is tokens on every request once the tool is loaded.
+3. Keep the input schema flat and small. Do not inline enumerations that change (model catalogs, server lists); refer to them by name.
+4. Do not add a system-prompt line to advertise the tool. The runtime already lists deferred tools in its own reminder, and `tool_instructions` lines gated on a tool exist for behavior guidance, not discovery.
+5. If the tool is only useful in some sessions (ephemeral, workspaceless, worktree-capable), gate it with `enabledForEphemeralSessions`, `isEnabledForSession` or `getDefinitionForSession` so other sessions never see it at all. An unavailable tool that is still listed is the worst case: tokens paid, no capability.
+6. Run the guardrail tests above and attach the eager-set diff (or "unchanged") to the PR.
+
+### Checklist: bumping `@github/copilot-sdk`
+
+An SDK bump can add runtime built-in tools, change built-in tool descriptions, change the deferred-tools reminder, or move text between cache blocks. None of that is visible in the package diff.
+
+1. Run `copilotBuiltinToolAllowlist.integrationTest.ts`. The package diff does not show new built-ins, because the runtime is native; this test lists every built-in the runtime registers in a base session that the allow-list does not account for, and every allow-listed name it no longer registers. Feature- and experiment-gated built-ins (memory, canvases, image generation, the execution subagent, tool search) are not covered by it; check those by hand: create a session signed in to a GitHub account with those features on, and compare `session.rpc.tools.getCurrentMetadata()` with `availableTools` unset and with `COPILOT_DEFAULT_AVAILABLE_TOOLS`. Send one short turn before reading the metadata, because the runtime connects its GitHub MCP server only after the first turn. Tools with an `mcpServerName`, including the runtime's unprefixed `web_search`, are `mcp:` tools and are not governed by the allow-list. A new built-in is off by default because it is not in `COPILOT_ENABLED_BUILTIN_TOOL_NAMES`; list it in the PR either way. A built-in the host already uses that is missing from the filtered set is a regression.
+2. For each new built-in, first check whether it is a rename: an allow-listed tool the runtime no longer registers, replaced by a new built-in that does the same job (the test prints the new tool's description; the old definition is in the prompt baselines). A rename keeps its adoption: replace the old name with the new one in `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` and `expectedModelFacingToolNames`, add the new name to the display mapping (`CopilotToolName` in `copilotToolDisplay.ts` and the aliases in `toolPresentation.ts`) while keeping the old entry for restored sessions, regenerate the prompt snapshots, and name the rename in the PR description. Every other new built-in stays off by default: add it to `KNOWN_LEFT_OFF` in the allow-list test with a reason (for example `'new in SDK x.y.z, not reviewed'`). That is also the fix when an agent is asked to make a failing bump pass; an agent must never adopt a new tool to make a test pass. Adopting a new tool means adding it to `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` (and to `expectedModelFacingToolNames` if it is eager), which is a decision for the tool budget owners. `.github/CODENOTIFY` notifies them about changes to the allow-list, the allow-list test (including `KNOWN_LEFT_OFF`) and the prompt baselines, so both renames and left-off tools get looked at. The CLI A/B tests its own tool strategies; the host does not inherit those experiments by accident.
+3. Run the prompt snapshot suite. If `expectedModelFacingToolNames` fails, the runtime renamed or dropped a tool the host relied on, or a tool previously deferred is now eager. Handle a rename as in step 2; remove a dropped tool from the allow-list and the expected list.
+4. Read the baseline diff for description and ordering changes. A reworded built-in description appears as one rewritten line; a moved section or a changed cache split appears as a changed `cache_control` boundary. Mention both in the PR description so the cache-hit-rate dashboards can be read against the bump.
+5. Check the managed-settings schema snapshot (`copilotSdkManagedSettings.integrationTest.ts`) for new tool-related settings that should be pinned off.
+6. Check `rpc.d.ts` / `types.d.ts` in the bump for new `SessionConfig` tool options (`toolSearch`, `defer`, filters). A new option that defaults to on belongs in the launcher with an explicit value.
+
+### Prompt text and reminders
+
+Three places carry host text to the model. They have different cache behavior, and putting text in the wrong one is how a one-line reminder breaks the cache for every turn.
+
+| Place | Lifetime | Cache behavior | Use it for |
+| --- | --- | --- | --- |
+| System prompt sections (`prompts/promptRegistry.ts`, `toolInstructions.ts`, per-model contributors) | Frozen at session create/resume | Part of the prompt-cache prefix. Static sections (`identity`, `code_change_rules`, `guidelines`) sit in the shared block; `tool_instructions`, the host `content` and anything after `</environment_limitations>` are in the per-session block. Any change invalidates every later token for that session. | Guidance that is true for the whole session and identical across turns. |
+| `additionalContext` on the user turn (`handleUserPromptSubmitted`) and `<reminder>` on steering | One turn | Appended to the newest user message, after the cached prefix. Costs its own tokens once per turn, never invalidates earlier context. | Per-turn facts: a read-only snapshot, a title that needs review, a restriction that applies to this message. |
+| Runtime-injected context (`<current_datetime>`, the deferred-tools message, `<system_reminder>`) | Runtime-owned | The runtime positions these for its own cache layout. | Nothing. Do not re-emit them, paraphrase them, or add host text that depends on their position. |
+
+Rules:
+
+- **Session-constant text goes in the system prompt; turn-specific text goes in `additionalContext`.** Never put a timestamp, a count, a title, a file list or anything derived from the current turn into a system prompt section. Never put standing guidance into `additionalContext`, where it would be re-sent and re-read every turn.
+- **Do not gate system-prompt text on state that changes mid-session.** `hasTool` gates are evaluated once at launch. A gate on a client tool or setting is fine; a gate on something a turn can change produces a prompt that is silently stale, and a relaunch that changes it throws away the cache for the whole session.
+- **Do not repeat what the runtime already says.** The runtime emits the deferred-tools list, the current datetime, the environment and the available-tools line. A host line that re-lists tools is tokens on every request and goes stale as soon as the SDK changes its own wording.
+- **Keep reminder text byte-stable.** A reminder that is sent on several turns should be the same string each time so the model and the tokenizer see a familiar block; interpolate only the value that actually varies (`chatTitleReviewReminder` interpolates the title and nothing else).
+- **Bound repetition.** A reminder that asks the model to do something must stop after it is done or after a small fixed number of turns (`MAX_TITLE_REVIEW_REMINDERS`). An unbounded reminder is a per-turn tax that also trains the model to ignore it.
+- **One sentence per `tool_instructions` line, no surrounding newlines, no markdown headings.** Lines are composed into one section; formatting leaks across lines.
+- **Prefer tool descriptions over prompt lines for tool behavior.** A description is only paid for when the tool is loaded. A `tool_instructions` line is paid for by every session that has the tool, including sessions that never call it.
+- **Do not add a new `custom_instruction`, `runtime_instructions` or `last_instructions` override for fixed guidance.** Those sections are always in the per-session block, so they cannot be shared across sessions even when the runtime's stability-ordered layout is on.
+
+### What to put in the PR
+
+- Which origin the tool belongs to and the deferral lever you used.
+- For an eager tool: which of the three conditions applies, and the scope of the exception.
+- The output of the guardrail tests, or the baseline diff with each added line explained.
+- For prompt text: which place it lives in and why it is session-constant (system prompt) or turn-specific (`additionalContext`).
+- For an SDK bump: the list of new built-ins and the exclude-or-adopt decision for each.
+
+### Related
+
+- `node/copilot/prompts/AGENTS.md`: how the system message is composed, the tool-search bridge, and the prompt-cache layout.
+- `test/node/e2e/README.md`, "Prompt snapshots": what the baselines pin and how to regenerate them.
+- `.github/instructions/language-model-tool-descriptions.instructions.md`: how to word a model-facing description.

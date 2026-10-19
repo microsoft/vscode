@@ -383,7 +383,7 @@ suite('GitHub request lifecycle', () => {
 				return release.p;
 			}
 			return new Response('{}');
-		}, scheduler));
+		}, scheduler, false, undefined, { queue: { maximumAccountConcurrency: 1 } }));
 		const fetch = (path: string, priority: 'background' | 'interactive') => transport.rest(account, 'token', {
 			method: 'GET', url: `https://github.example.test/${path}`, priority,
 		}, new AbortController().signal);

@@ -22,7 +22,7 @@ import { IAgentService } from '../../common/agentService.js';
 import { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, withSessionExternal, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
@@ -551,6 +551,28 @@ suite('Mission Control host integration', () => {
 		}, { constructed: true, enabled: false, environmentId: undefined, requests: 0, handlers: 0 });
 	});
 
+	for (const session of ['ahp-session:/external', 'copilotcli:/external']) {
+		test(`does not mirror external session actions (${session})`, () => {
+			const f = createMirror();
+			const register = sinon.spy(f.publisher, 'registerSession');
+			store.add(toDisposable(() => register.restore()));
+			f.state.restoreSession({
+				resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'External',
+				status: SessionStatus.Idle, createdAt: '2026-10-07T18:00:00Z', modifiedAt: '2026-10-07T18:00:00Z',
+				_meta: withSessionExternal(undefined, true),
+			}, [], creationTimeChatStorageResource);
+			f.state.dispatchServerAction(session, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+			f.state.dispatchServerAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnStarted, turnId: 'external-turn', startedAt: '2026-10-07T18:00:00Z',
+				message: { text: 'External user message', origin: { kind: MessageKind.User } },
+			});
+			f.clock.runAll();
+			assert.deepStrictEqual({
+				events: f.events, sessions: f.mirror.statistics.sessions, registrations: register.callCount,
+			}, { events: [], sessions: 0, registrations: 0 });
+		});
+	}
+
 	test('does not advertise or forward host-wide diagnostic logs on Mission Control ingress', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const creations = sinon.spy(instantiation, 'createInstance');
@@ -567,6 +589,7 @@ suite('Mission Control host integration', () => {
 		const handlerCreation = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler);
 		assert.ok(handlerCreation);
 		const config = handlerCreation.args[4] as IProtocolServerConfig;
+		const summary = { resource: 'ahp-session:/external', provider: 'copilotcli', title: 'External', status: SessionStatus.Idle, createdAt: '2026-10-18T00:00:00Z', modifiedAt: '2026-10-18T00:00:00Z' };
 		assert.deepStrictEqual({
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
@@ -574,7 +597,10 @@ suite('Mission Control host integration', () => {
 			ahpLogDirectory: config.ahpLogDirectory?.toString(),
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
 			sessionList: config.sessionListAdapter === toMissionControlSessionList,
-		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true });
+			externalVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, true) }),
+			adoptedVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, false) }),
+			internalVisible: config.sessionSummaryFilter?.(summary),
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
@@ -720,13 +746,13 @@ suite('Mission Control host integration', () => {
 				error: outcome === 'failed' ? { name: 'Error', message: 'private server response (requestId=ABCD:1234:5678:90AB:CDEF)', status: 503, requestId: 'ABCD:1234:5678:90AB:CDEF' } : undefined,
 			});
 		}
-		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
 		const sample: ClassifiedSample<MissionControlOperationClassification> = {
 			operation: 'heartbeat', outcome: 'failed', durationMs: 42, statusCode: 503, hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 		};
 		assert.deepStrictEqual(events, [
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'register', outcome: 'succeeded', statusCode: undefined } },
-			{ eventName: 'agentHost.missionControlOperation', data: sample },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, errorCategory: 'httpServer' } },
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relay', outcome: 'succeeded', statusCode: undefined } },
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined } },
 		]);
