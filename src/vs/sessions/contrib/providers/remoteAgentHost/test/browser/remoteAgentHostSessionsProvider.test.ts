@@ -5689,7 +5689,7 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void>; setArchived?: (archived: boolean) => Promise<void> }): CloudSandboxSessionsProvider {
+	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void>; setArchived?: (archived: boolean) => Promise<void>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }): CloudSandboxSessionsProvider {
 		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:archive-test',
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
@@ -5785,6 +5785,64 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		await restored.setChatReadState(restoredSession.sessionId, restoredSession.mainChat.get().resource, false);
 		states.push(restoredSession.mainChat.get().isRead.get());
 		assert.deepStrictEqual({ states, actions: connection.dispatchedActions }, { states: [false, true, true, false], actions: [] });
+	});
+
+	test('marks recorded conversations read and unread when the connected host has no matching chat', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] = {
+			ownsSession: session => extUri.isEqual(session, backendResource),
+			deleteSessions: async () => { },
+		};
+		const provider = createSandboxProvider({ storageService: storage, deleteSessionsOnDemand });
+		provider.seedSessions([{ ...metadata, status: ProtocolSessionStatus.Idle }]);
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const states = [session.mainChat.get().isRead.get()];
+
+		await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+		states.push(session.mainChat.get().isRead.get());
+		await storage.flush();
+		provider.dispose();
+
+		const restored = createSandboxProvider({ storageService: storage, deleteSessionsOnDemand });
+		restored.setConnection(connection);
+		await timeout(0);
+		const restoredSession = restored.getSessions()[0];
+		states.push(restoredSession.mainChat.get().isRead.get());
+		await restored.setChatReadState(restoredSession.sessionId, restoredSession.mainChat.get().resource, false);
+		states.push(restoredSession.mainChat.get().isRead.get());
+
+		assert.deepStrictEqual({ states, actions: connection.dispatchedActions }, { states: [false, true, true, false], actions: [] });
+	});
+
+	test('dispatches read-state changes for a chat advertised by the connected host', async () => {
+		const provider = createSandboxProvider();
+		const backendChat = URI.parse('conversation://tenant/recorded-main');
+		connection.addSession({
+			...metadata,
+			status: ProtocolSessionStatus.Idle,
+			chats: [{ chat: backendChat, kind: 'default', isRead: false }],
+		});
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+		const read = session.mainChat.get().isRead.get();
+		await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, false);
+
+		assert.deepStrictEqual({
+			read,
+			unread: !session.mainChat.get().isRead.get(),
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			read: true,
+			unread: true,
+			actions: [
+				{ channel: backendChat.toString(), action: { type: ActionType.ChatIsReadChanged, isRead: true } },
+				{ channel: backendChat.toString(), action: { type: ActionType.ChatIsReadChanged, isRead: false } },
+			],
+		});
 	});
 
 	test('retains archive state when Mission Control rejects a mutation', async () => {
