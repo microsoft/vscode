@@ -6796,29 +6796,29 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			firstTurnToRemove = index + 1;
 		}
-		if (firstTurnToRemove >= turns.length) {
-			return;
-		}
-		if (read.thread.historyMode === 'legacy') {
-			throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
-		}
-		try {
-			const conn = targetSession
-				? (await this._ensureThreadConnection(targetSession)).connection
-				: await this._ensureConnection();
-			await conn.client.request<'thread/revert'>('thread/revert', {
-				threadId: read.thread.id,
-				beforeTurnId: turns[firstTurnToRemove].id,
-			});
-		} catch (err) {
-			this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
-			return;
+		if (firstTurnToRemove < turns.length) {
+			if (read.thread.historyMode === 'legacy') {
+				throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
+			}
+			try {
+				const conn = targetSession
+					? (await this._ensureThreadConnection(targetSession)).connection
+					: await this._ensureConnection();
+				await conn.client.request<'thread/revert'>('thread/revert', {
+					threadId: read.thread.id,
+					beforeTurnId: turns[firstTurnToRemove].id,
+				});
+			} catch (err) {
+				this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
+				return;
+			}
 		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
 		if (storage) {
 			const database = this._sessionDataService.openDatabase(storage);
 			try {
-				await database.object.deleteProviderTurns(turns.slice(firstTurnToRemove).map(turn => turn.id));
+				const afterHostTurnId = turnId !== undefined && targetSession?.codexTurnIdByHostTurnId.has(turnId) ? turnId : undefined;
+				await database.object.deleteProviderTurns(turns.slice(firstTurnToRemove).map(turn => turn.id), afterHostTurnId);
 			} finally {
 				database.dispose();
 			}

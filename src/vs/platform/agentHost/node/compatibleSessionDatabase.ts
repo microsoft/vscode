@@ -132,8 +132,8 @@ export class CompatibleSessionDatabase implements ISessionDatabase {
 		return result;
 	}
 
-	async deleteProviderTurns(...[providerTurnIds]: Parameters<ISessionDatabase['deleteProviderTurns']>): ReturnType<ISessionDatabase['deleteProviderTurns']> {
-		return this.raw.deleteProviderTurns(providerTurnIds);
+	async deleteProviderTurns(...[providerTurnIds, afterHostTurnId]: Parameters<ISessionDatabase['deleteProviderTurns']>): ReturnType<ISessionDatabase['deleteProviderTurns']> {
+		return this.raw.deleteProviderTurns(providerTurnIds, afterHostTurnId);
 	}
 
 	async insertPersistedTurn(...[record]: Parameters<ISessionDatabase['insertPersistedTurn']>): ReturnType<ISessionDatabase['insertPersistedTurn']> {

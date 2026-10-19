@@ -215,9 +215,9 @@ export interface ISessionDatabase extends IDisposable {
 	deleteTurn(turnId: string): Promise<void>;
 
 	/**
-	 * Associates a Copilot SDK event ID with a turn. The event ID corresponds
-	 * to the `user.message` event in the SDK event stream and is used by
-	 * the SDK's `history.truncate` and `sessions.fork` RPCs.
+	 * Associates a provider history ID with a host turn: a Copilot user-message
+	 * event ID or a Codex native turn ID. Used to resolve restored history and
+	 * provider truncation and fork boundaries.
 	 */
 	setTurnEventId(turnId: string, eventId: string): Promise<void>;
 
@@ -368,8 +368,8 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	deleteAllTurns(): Promise<void>;
 
-	/** Deletes the given provider turn ids (including host rows mapped to them), preserving host-persisted and foreign turns. */
-	deleteProviderTurns(providerTurnIds: readonly string[]): Promise<void>;
+	/** Deletes provider turns and later host segments of a retained native turn, preserving host-persisted and foreign turns. */
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void>;
 
 	// ---- Host-persisted turns --------------------------------------------
 

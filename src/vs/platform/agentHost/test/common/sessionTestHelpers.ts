@@ -423,11 +423,17 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._toolResultResources.clear();
 	}
 
-	async deleteProviderTurns(providerTurnIds: readonly string[]): Promise<void> {
+	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
 		const ids = new Set(providerTurnIds);
+		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
+		let afterBoundary = false;
 		for (const turnId of this._turns) {
-			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(this._turnEventIds.get(turnId) ?? ''))) {
+			const eventId = this._turnEventIds.get(turnId);
+			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
 				await this.deleteTurn(turnId);
+			}
+			if (turnId === afterHostTurnId) {
+				afterBoundary = true;
 			}
 		}
 	}

@@ -362,6 +362,10 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			first: [{ before: { path: 'edit.txt', content: 'a\n' }, after: { path: 'edit.txt', content: 'b\n' } }],
 			second: [{ before: { path: 'edit.txt', content: 'b\n' }, after: { path: 'edit.txt', content: 'c\n' } }],
 		});
+		await truncate(first);
+		assert.deepStrictEqual(await changes(), [{ before: { path: 'edit.txt', content: 'a\n' }, after: { path: 'edit.txt', content: 'b\n' } }]);
+		await restart();
+		assert.deepStrictEqual(await changes(action.turnId), []);
 	});
 
 	test('cancellation exposes the edited checkpoint before native completion is consumed', async () => {
@@ -399,6 +403,28 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		const restored = await restart();
 		assert.deepStrictEqual(restored.turns.map(turn => ({ id: turn.id, text: turn.message.text })), [{ id: local, text: '!echo kept-local-command' }]);
 	});
+
+	for (const reloadBeforeTruncation of [false, true]) {
+		test(`truncation preserves a retained local command after a native turn (reload first: ${reloadBeforeTruncation})`, async () => {
+			await start({ 'edit.txt': 'before\n' }, {
+				'codex-diff-before-local': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+middle\n*** End Patch'],
+				'codex-diff-after-local': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-middle\n+after\n*** End Patch'],
+			});
+			await runTurn('codex-diff-before-local');
+			const local = generateUuid();
+			dispatchTurn(client, session, local, '!echo kept-after-native', ++clientSeq);
+			await waitForTurn(local);
+			if (reloadBeforeTruncation) {
+				const restored = await restart();
+				assert.ok(restored.turns.some(turn => turn.id === local), 'the local command survives a reload before any truncation');
+			}
+			await runTurn('codex-diff-after-local');
+			await truncate(local);
+			const restored = await restart();
+			assert.deepStrictEqual(restored.turns.map(turn => turn.message.text), ['[scenario:codex-diff-before-local] Apply the patches.', '!echo kept-after-native']);
+			assert.deepStrictEqual(await changes(), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'middle\n' } }]);
+		});
+	}
 
 	test('shared parent and child edits retain their checkpoint across cancellation and a replacement send', async () => {
 		await start({ 'edit.txt': 'before\n' }, {

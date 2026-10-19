@@ -962,14 +962,16 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
-	deleteProviderTurns(providerTurnIds: readonly string[]): Promise<void> {
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			const foreign = await this._mayHaveForeignTurns(db);
 			await dbRun(db,
 				`DELETE FROM turns
-					WHERE (id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1)))
+					WHERE (id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1))
+						OR (rowid > (SELECT rowid FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})
+							AND event_id = (SELECT event_id FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})))
 						AND id NOT IN (SELECT turn_id FROM local_turns)${andOwnTurn('id', foreign)}`,
-				[JSON.stringify(providerTurnIds)],
+				[JSON.stringify(providerTurnIds), afterHostTurnId ?? null],
 			);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});

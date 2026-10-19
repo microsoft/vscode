@@ -8283,7 +8283,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * next reload.
 	 */
 	private async _interleaveLocalTurns(sessionStr: string, chatUri: string, turns: readonly Turn[]): Promise<Turn[]> {
-		const records = await this._localTurns.loadForChat(sessionStr, chatUri);
+		const records = await this._localTurns.loadForChat(sessionStr, chatUri, new Set(turns.map(turn => turn.id)));
 		return interleaveLocalTurns(turns, records, this._logService);
 	}
 
