@@ -25,6 +25,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
@@ -46,6 +47,7 @@ import { IExtensionManifestPropertiesService } from '../../../../services/extens
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -1553,6 +1555,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}();
+			reg.defineInstance(IAgentHostActiveClientService, activeClientService);
 			const mcpService = new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([]);
 				override readonly enablementModel = {
@@ -1804,6 +1807,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 			}());
+			reg.defineInstance(IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override readonly isBuilt = true;
+				override readonly isExtensionDevelopment = false;
+				override readonly workspaceStorageHome = URI.file('/workspaceStorage');
+			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IProgressService, new class extends mock<IProgressService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
@@ -1815,6 +1823,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override get lastFocusedWidget() { return undefined; }
 				override async reveal() { return false; }
+			}());
+			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
+				override getSession() { return undefined; }
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
 				override async request(): Promise<IRequestContext> {
@@ -2291,7 +2302,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 		firstMigrationItem.click();
 		await waitForFixtureCondition(
-			() => ctx.container.querySelector<HTMLElement>('.migration-detail-warning')?.style.display !== 'none',
+			() => {
+				const warning = ctx.container.querySelector<HTMLElement>('.migration-detail-warning');
+				return !!warning && warning.style.display !== 'none';
+			},
 			'Prompt migration detail warning did not appear',
 		);
 	}
@@ -3632,6 +3646,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationPromptDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		// Let the tree's deferred selection update finish before teardown.
+		virtualTime: { enabled: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
