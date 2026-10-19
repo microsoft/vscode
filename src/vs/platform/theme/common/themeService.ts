@@ -263,6 +263,7 @@ export interface IPartsSplash {
 		windowBorderRadius: string | undefined;
 		modernUI: boolean;
 		modernUICompact: boolean;
+		panelBorderRadius?: number;
 		partBounds: {
 			activityBar?: IPartsSplashPartBounds;
 			sideBar: IPartsSplashPartBounds | undefined;

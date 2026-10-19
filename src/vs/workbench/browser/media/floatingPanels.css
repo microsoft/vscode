@@ -22,6 +22,7 @@
  */
 
 .monaco-workbench.floating-panels {
+	--modern-ui-floating-card-border-radius: var(--workbench-panel-border-radius, var(--vscode-cornerRadius-large, 8px));
 	--modern-ui-floating-card-margin: var(--vscode-spacing-size40);
 	--modern-ui-floating-card-inner-margin: var(--vscode-spacing-sizeNone);
 	--modern-ui-floating-card-outer-margin: var(--vscode-spacing-size40);
@@ -48,7 +49,7 @@
 	 * instead — that keeps the state rules below on the normal cascade. */
 	border-left-color: var(--modern-ui-floating-card-seam-left-color, var(--modern-ui-floating-card-edge-color)) !important;
 	border-right-color: var(--modern-ui-floating-card-seam-right-color, var(--modern-ui-floating-card-edge-color)) !important;
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--modern-ui-floating-card-border-radius);
 	background-color: var(--vscode-surface-background) !important;
 	color: var(--vscode-surface-foreground);
 }
@@ -78,7 +79,7 @@
 .monaco-workbench.floating-panels .part.panel {
 	margin: var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-inner-margin) var(--modern-ui-floating-card-margin) var(--modern-ui-floating-card-margin);
 	border: 1px solid var(--modern-ui-floating-card-border-color, var(--vscode-modernPanel-border, var(--vscode-surface-border, var(--vscode-widget-border, transparent)))) !important;
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--modern-ui-floating-card-border-radius);
 	background-color: var(--vscode-panel-background) !important;
 	color: var(--vscode-surface-foreground);
 }
@@ -119,6 +120,11 @@
  */
 .monaco-workbench.floating-panels .webview-overlay-content {
 	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
+.monaco-workbench.floating-panels .part.editor:not(.modal-editor-part) > .content,
+.monaco-workbench.floating-panels .webview-overlay-content:not(.webview-overlay-modal) {
+	border-radius: var(--modern-ui-floating-card-border-radius);
 }
 
 /* Compact parts meet each other and the window chrome edge-to-edge. */
@@ -241,38 +247,38 @@
 .monaco-workbench.floating-panels .part.activitybar.left {
 	margin-left: var(--modern-ui-floating-card-outer-margin);
 	margin-right: var(--modern-ui-floating-card-inner-margin);
-	border-radius: var(--vscode-cornerRadius-large) 0 0 var(--vscode-cornerRadius-large);
+	border-radius: var(--modern-ui-floating-card-border-radius) 0 0 var(--modern-ui-floating-card-border-radius);
 }
 
 .monaco-workbench.floating-panels .part.activitybar.right {
 	margin-left: var(--modern-ui-floating-card-inner-margin);
 	margin-right: var(--modern-ui-floating-card-outer-margin);
-	border-radius: 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0;
+	border-radius: 0 var(--modern-ui-floating-card-border-radius) var(--modern-ui-floating-card-border-radius) 0;
 }
 
 /* A horizontal panel can shorten the primary side bar while the activity bar stays full-height.
  * Round the rail corner exposed beyond the attached side bar. Compact density stays connected. */
 .monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-top:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-left) .part.activitybar.left {
-	border-top-right-radius: var(--vscode-cornerRadius-large);
+	border-top-right-radius: var(--modern-ui-floating-card-border-radius);
 }
 
 .monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-top:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-right) .part.activitybar.right {
-	border-top-left-radius: var(--vscode-cornerRadius-large);
+	border-top-left-radius: var(--modern-ui-floating-card-border-radius);
 }
 
 .monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-bottom:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-left) .part.activitybar.left {
-	border-bottom-right-radius: var(--vscode-cornerRadius-large);
+	border-bottom-right-radius: var(--modern-ui-floating-card-border-radius);
 }
 
 .monaco-workbench.floating-panels:not(.modern-ui-compact).panel-position-bottom:not(.nopanel):is(.panel-alignment-justify, .panel-alignment-right) .part.activitybar.right {
-	border-bottom-left-radius: var(--vscode-cornerRadius-large);
+	border-bottom-left-radius: var(--modern-ui-floating-card-border-radius);
 }
 
 /* With the primary side bar collapsed there is no card to connect to, so the rail closes up
  * as a standalone panel with every corner rounded. Its border is already opaque on all four
  * sides. Compact density keeps its cards joined edge to edge, so it is excluded. */
 .monaco-workbench.floating-panels:not(.modern-ui-compact).nosidebar .part.activitybar {
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--modern-ui-floating-card-border-radius);
 }
 
 /* A left-hand rail gets its gap for free from the leading margin of the card beside it. A
@@ -523,9 +529,9 @@
 	margin-bottom: var(--modern-ui-floating-card-outer-margin);
 }
 
-/* Window-facing curves are concentric with the native frame, not the internal card corners. */
+/* Default window-facing curves follow the native frame unless a corner preset overrides them. */
 .monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact) {
-	--modern-ui-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-floating-card-outer-margin)));
+	--modern-ui-window-corner-radius: var(--workbench-panel-border-radius, max(0px, calc(var(--window-corner-radius) - var(--window-border-width, 0px) - var(--modern-ui-floating-card-outer-margin))));
 
 	.part.activitybar.left,
 	.part.floating-part-outer-left.floating-part-outer-bottom,

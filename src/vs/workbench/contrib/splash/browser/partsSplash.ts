@@ -12,7 +12,7 @@ import { editorBackground, foreground } from '../../../../platform/theme/common/
 import { getThemeTypeSelector, IPartsSplashPartBounds } from '../../../../platform/theme/common/themeService.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from '../../../browser/parts/editor/editor.js';
 import * as themes from '../../../common/theme.js';
-import { IWorkbenchLayoutService, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -62,6 +62,9 @@ export class PartsSplash {
 				this._didChangeTitleBarStyle = true;
 				this._savePartsSplash();
 			}
+			if (e.affectsConfiguration(LayoutSettings.PANEL_CORNER_STYLE)) {
+				savePartsSplashSoon();
+			}
 		}, this, this._disposables);
 	}
 
@@ -73,6 +76,7 @@ export class PartsSplash {
 		const theme = this._themeService.getBaseColorTheme();
 		const modernUIShellBackground = theme.getColor(themes.MODERN_UI_SHELL_BACKGROUND);
 		const modernUIInactiveShellBackground = theme.getColor(themes.MODERN_UI_INACTIVE_SHELL_BACKGROUND);
+		const editorContainer = this._layoutService.getContainer(mainWindow, Parts.EDITOR_PART);
 
 		this._partSplashService.saveWindowSplash({
 			zoomLevel: this._configService.getValue<undefined>('window.zoomLevel'),
@@ -119,6 +123,7 @@ export class PartsSplash {
 				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
 				modernUI: this._layoutService.isFloatingPanelsEnabled(),
 				modernUICompact: this._layoutService.isModernUICompact(),
+				panelBorderRadius: this._layoutService.isFloatingPanelsEnabled() && editorContainer ? Number.parseFloat(dom.getWindow(editorContainer).getComputedStyle(editorContainer).borderTopLeftRadius) : undefined,
 				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
 					activityBar: this._getPartBounds(Parts.ACTIVITYBAR_PART),
 					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),

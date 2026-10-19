@@ -11,7 +11,7 @@
 	background-color: var(--vscode-agents-background);
 	--agents-floating-panel-gap: var(--vscode-agents-layout-floatingPanelGap);
 	--part-grid-gap: var(--agents-floating-panel-gap);
-	--agents-part-corner-radius: var(--vscode-cornerRadius-large);
+	--agents-part-corner-radius: var(--workbench-panel-border-radius, var(--vscode-cornerRadius-large));
 	--agents-session-frame-inset: 0px;
 	--agents-side-pane-frame-inset: 0px;
 	--model-hover-surface-background: var(--vscode-agentsPanel-background);
@@ -173,6 +173,10 @@
 /* Where a content part's card sits in the main window's layout. */
 .agent-sessions-workbench .agents-part-card {
 	margin: 0 var(--agents-floating-panel-gap) 0 0;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .webview-overlay-content:not(.webview-overlay-modal) {
+	border-radius: var(--agents-part-corner-radius);
 }
 
 .agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
@@ -371,7 +375,7 @@
 
 /* Only the card next to a native window corner follows the frame's inset curve. */
 .monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout):not(.modern-ui-compact) {
-	--agents-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--agents-floating-panel-gap)));
+	--agents-window-corner-radius: var(--workbench-panel-border-radius, max(0px, calc(var(--window-corner-radius) - var(--agents-floating-panel-gap))));
 
 	&.nopanel.nosidebar .agents-part-card {
 		border-bottom-left-radius: var(--agents-window-corner-radius);

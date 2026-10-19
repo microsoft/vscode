@@ -12,14 +12,19 @@ import sinon from 'sinon';
 import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
+import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { PanelCornerStyleContribution } from '../../../workbench/browser/panelCornerStyle.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
-import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { MODERN_SASH_GRIP_FOREGROUND } from '../../../workbench/common/theme.js';
 import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { LayoutSettings, PanelCornerStyle, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchEnvironmentService } from '../../../workbench/services/environment/common/environmentService.js';
+import { TestLayoutService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
 import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
@@ -52,6 +57,88 @@ suite('Sessions - Agents Part Card', () => {
 		card.style.transition = 'none';
 
 		return { container, card };
+	}
+
+	for (const { preset, radius } of [
+		{ preset: PanelCornerStyle.Square, radius: 0 },
+		{ preset: PanelCornerStyle.Subtle, radius: 4 },
+		{ preset: PanelCornerStyle.Default, radius: 8 },
+		{ preset: PanelCornerStyle.Rounded, radius: 12 },
+	]) {
+		for (const compact of [false, true]) {
+			test(`applies the shared ${preset} corner preset to Agents panels with compact density ${compact} independently of Modern UI`, () => {
+				const { container, card } = createCard(true, true, false, compact);
+				container.style.setProperty('--vscode-cornerRadius-small', '4px');
+				container.style.setProperty('--vscode-cornerRadius-xLarge', '12px');
+				container.style.setProperty('--window-corner-radius', '16px');
+				container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+				card.classList.add('part', 'sessionspart');
+				const configurationService = new TestConfigurationService({
+					[LayoutSettings.MODERN_UI]: false,
+					[LayoutSettings.PANEL_CORNER_STYLE]: preset,
+				});
+				store.add(configurationService.onDidChangeConfigurationEmitter);
+				const layoutService = new class extends TestLayoutService {
+					override mainContainer = container;
+					override containers = [container];
+				}();
+				const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
+					override isSessionsWindow = true;
+				}();
+				store.add(new PanelCornerStyleContribution(configurationService, layoutService, environmentService));
+
+				const session = append(card, $('.session-view'));
+				const group = append(append(session, $('.chat-groups-view-has-gaps')), $('.chat-group-view-surface'));
+				const customView = append(container, $('.agents-part-card'));
+				const grid = append(container, $('.monaco-grid-view'));
+				const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
+				const editorGroup = append(append(editor, $('.content')), $('.editor-group-container'));
+				const auxiliaryBar = append(grid, $('.part.auxiliarybar'));
+				const panel = append(grid, $('.part.panel'));
+				const webview = append(container, $('.webview-overlay-content'));
+				const modalWebview = append(container, $('.webview-overlay-content.webview-overlay-modal'));
+				const corners = (element: HTMLElement, pseudoElement?: string) => {
+					const style = mainWindow.getComputedStyle(element, pseudoElement);
+					return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+				};
+				const corner = `${compact ? 0 : radius}px`;
+				const innerCorner = `${compact ? 0 : Math.max(0, radius - 1)}px`;
+				const allCorners = [corner, corner, corner, corner];
+				const joined = { editor: corners(editor), auxiliaryBar: corners(auxiliaryBar) };
+				const framedContent = [session, group].map(element => mainWindow.getComputedStyle(element).borderRadius);
+				container.classList.add('dock-detail-panel', 'noauxiliarybar');
+				const standaloneEditor = corners(editor);
+				const editorFrame = mainWindow.getComputedStyle(editorGroup, '::after').borderRadius;
+				const outerCorner = `${compact ? 0 : preset === PanelCornerStyle.Default ? 12 : radius}px`;
+				container.classList.add('mac', 'nosidebar', 'nopanel', 'noeditorpane');
+				const nativeWindowCorners = corners(card);
+				container.classList.remove('nopanel');
+				const nativePanelCorners = corners(panel);
+
+				assert.deepStrictEqual({
+					surfaces: [card, customView, webview].map(element => mainWindow.getComputedStyle(element).borderTopLeftRadius),
+					joined,
+					framedContent,
+					standaloneEditor,
+					editorFrame,
+					nativeWindowCorners,
+					nativePanelCorners,
+					modalWebview: mainWindow.getComputedStyle(modalWebview).borderRadius,
+				}, {
+					surfaces: [corner, corner, corner],
+					joined: {
+						editor: [corner, '0px', '0px', corner],
+						auxiliaryBar: ['0px', corner, corner, '0px'],
+					},
+					framedContent: [innerCorner, innerCorner],
+					standaloneEditor: allCorners,
+					editorFrame: innerCorner,
+					nativeWindowCorners: [corner, corner, outerCorner, outerCorner],
+					nativePanelCorners: [corner, corner, outerCorner, outerCorner],
+					modalWebview: '0px',
+				});
+			});
+		}
 	}
 
 	for (const compact of [false, true]) {

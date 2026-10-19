@@ -56,6 +56,7 @@ export const enum LayoutSettings {
 	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
 	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
 	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
+	PANEL_CORNER_STYLE = 'workbench.panelCornerStyle',
 	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
@@ -68,6 +69,13 @@ export const enum ModernUIFrostedGlassOpacity {
 export const enum ModernUIEditorTabStyle {
 	Connected = 'connected',
 	Pill = 'pill'
+}
+
+export const enum PanelCornerStyle {
+	Square = 'square',
+	Subtle = 'subtle',
+	Default = 'default',
+	Rounded = 'rounded'
 }
 
 export const enum ModernUIDensity {

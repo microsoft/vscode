@@ -11,7 +11,7 @@ export function getPartsSplashLayoutMetrics(layoutInfo: NonNullable<IPartsSplash
 		floatingMargin: compact ? 0 : 4,
 		floatingOuterMargin: compact ? 0 : 4,
 		floatingBorderWidth: 1,
-		floatingBorderRadius: compact ? 0 : 8,
+		floatingBorderRadius: compact ? 0 : layoutInfo.panelBorderRadius ?? 8,
 	};
 }
 

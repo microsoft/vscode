@@ -15,7 +15,8 @@ import { NotificationsPosition, NotificationsSettings } from '../common/notifica
 import { ACCOUNTS_AVATAR_SETTING } from '../services/authentication/common/authentication.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity } from '../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity, PanelCornerStyle } from '../services/layout/browser/layoutService.js';
+import './panelCornerStyle.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -842,6 +843,24 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'tags': ['experimental'],
 				'markdownDescription': localize({ key: 'modernUIUppercaseViewHeaders', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether view headers, side bar titles, and panel tabs use uppercase text when {0} is enabled.", '`#workbench.experimental.modernUI#`'),
+			},
+			[LayoutSettings.PANEL_CORNER_STYLE]: {
+				type: 'string',
+				enum: [PanelCornerStyle.Square, PanelCornerStyle.Subtle, PanelCornerStyle.Default, PanelCornerStyle.Rounded],
+				enumItemLabels: [
+					localize('panelCornerStyle.square.label', "Square"),
+					localize('panelCornerStyle.subtle.label', "Subtle"),
+					localize('panelCornerStyle.default.label', "Default"),
+					localize('panelCornerStyle.rounded.label', "Rounded"),
+				],
+				enumDescriptions: [
+					localize('panelCornerStyle.square', "Use square corners for workbench surfaces."),
+					localize('panelCornerStyle.subtle', "Use subtly rounded corners for workbench surfaces."),
+					localize('panelCornerStyle.default', "Follow the default corner style for each window."),
+					localize('panelCornerStyle.rounded', "Use more rounded corners for workbench surfaces."),
+				],
+				default: PanelCornerStyle.Default,
+				markdownDescription: localize({ key: 'panelCornerStyle', comment: ['{0} and {1} are placeholders for setting identifiers.'] }, "Controls the exposed corners of panel surfaces in the Agents window and, when {0} is enabled, the editor window. Does not change controls, pop-ups, borders, or spacing. Shared edges and compact layout density ({1}) keep square corners.", '`#workbench.experimental.modernUI#`', '`#window.density.layout#`'),
 			},
 			[LayoutSettings.MODERN_UI_FROSTED_GLASS]: {
 				type: 'boolean',

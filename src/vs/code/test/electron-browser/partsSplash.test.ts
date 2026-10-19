@@ -54,6 +54,22 @@ suite('Parts splash layout', () => {
 			floatingBorderRadius: 8,
 		});
 	});
+
+	for (const radius of [0, 4, 8, 12]) {
+		test(`restores the saved ${radius}px panel radius without changing gutters or compact edges`, () => {
+			const layoutInfo = new class extends mock<NonNullable<IPartsSplash['layoutInfo']>>() {
+				override modernUI = true;
+				override panelBorderRadius = radius;
+			}();
+			assert.deepStrictEqual({
+				defaultDensity: getPartsSplashLayoutMetrics(layoutInfo),
+				compact: getPartsSplashLayoutMetrics({ ...layoutInfo, modernUICompact: true }),
+			}, {
+				defaultDensity: { floatingMargin: 4, floatingOuterMargin: 4, floatingBorderWidth: 1, floatingBorderRadius: radius },
+				compact: { floatingMargin: 0, floatingOuterMargin: 0, floatingBorderWidth: 1, floatingBorderRadius: 0 },
+			});
+		});
+	}
 });
 
 suite('Parts splash colors', () => {
