@@ -37,6 +37,11 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	readonly background?: boolean;
 }
 
+/** Where {@link ISessionsManagementService.moveChat} moves a chat: after `after` (first when `undefined`) in `session`, or into a new session. */
+export type ISessionChatMoveTarget =
+	| { readonly kind: 'session'; readonly session: ISession; readonly after: IChat | undefined }
+	| { readonly kind: 'newSession' };
+
 export interface IDeferredNewSessionRequestOptions {
 	readonly kind: 'deferred';
 	readonly activity: string;
@@ -622,6 +627,24 @@ export interface ISessionsManagementService {
 
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
+
+	/** Whether the chat of `session` can be moved (see {@link moveChat}); the destination is validated when moving. */
+	canMoveChat(session: ISession, chat: IChat): boolean;
+
+	/**
+	 * Move the chat of `session` after `after` in `destination` (its own session to reorder it, or another session of
+	 * the same provider), or into a new session. Rejects with a user-facing message when the move is refused.
+	 */
+	moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void>;
+
+	/** Whether `session` can move under another session of its provider (see {@link moveSessionUnder}). */
+	canMoveSessionUnder(session: ISession): boolean;
+
+	/**
+	 * Move `session` under `destination`, its chat placed after `after` (first when `undefined`); `session` ends.
+	 * Rejects with a user-facing message when the move is refused.
+	 */
+	moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void>;
 
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;

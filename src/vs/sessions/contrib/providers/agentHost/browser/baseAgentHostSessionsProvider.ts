@@ -28,7 +28,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -96,8 +96,10 @@ import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference }
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
+import type { AgentChatMoveDestination } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
+import { toChatMoveError } from './agentHostChatMoveErrors.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
 import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCache.js';
@@ -1083,11 +1085,18 @@ class AdditionalChat extends Disposable {
 	private readonly _isRead: ISettableObservable<boolean>;
 	private readonly _origin: ChatOrigin | undefined;
 	private readonly _changesSummary: ISettableObservable<ISessionChangesSummary | undefined>;
+	private _movable: boolean;
+
+	/** Whether the host advertises this chat as a move source (`ChatSummary.movable`). */
+	get movable(): boolean {
+		return this._movable;
+	}
 
 	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, allowOfflineDrafts: IObservable<boolean> = constObservable(false)) {
 		super();
 		this.backendUri = URI.parse(summary.resource);
 		this._origin = summary.origin;
+		this._movable = summary.movable === true;
 		const modifiedAt = summary.modifiedAt ? new Date(summary.modifiedAt) : undefined;
 		this._title = observableValue('chatTitle', summary.title || localize('newChatTab', "New Chat"));
 		this._status = observableValue<SessionStatus>('chatStatus', mapProtocolStatus(summary.status));
@@ -1169,6 +1178,7 @@ class AdditionalChat extends Disposable {
 
 	update(summary: ChatSummary, supportsChatReadState: boolean = true): void {
 		const modifiedAt = new Date(summary.modifiedAt);
+		this._movable = summary.movable === true;
 		transaction(tx => {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
 			this._status.set(mapProtocolStatus(summary.status), tx);
@@ -2224,6 +2234,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return this._defaultChatBackendUri.get();
 		}
 		return chatResource.fragment ? this._additionalChats.get(chatResource.fragment)?.backendUri : undefined;
+	}
+
+	/** Whether the host advertises the chat as a move source; a session's default chat never is. */
+	isChatMovable(chatResource: URI): boolean {
+		if (isEqual(chatResource, this._defaultChat.resource) || !chatResource.fragment) {
+			return false;
+		}
+		return this._additionalChats.get(chatResource.fragment)?.movable === true;
 	}
 
 	/** Whether `chat` is one of the backend chats this session's catalog lists. */
@@ -3448,6 +3466,42 @@ class NewSession extends Disposable {
 	}
 	getConfigValues(): Record<string, unknown> | undefined { return this._config && filterSessionConfigValues(this._config.schema, this._config.values); }
 
+	/** Only pre-warming benefits from a folder draft, so other drafts keep the picked isolation. */
+	private _createsInPickedFolder(): boolean {
+		return !!this.workspaceUri && this._configurationService.getValue<boolean>(AgentHostPrewarmSessionsSettingId) === true;
+	}
+
+	private _getIsolationProperty() {
+		return this._config && getSessionWorkspaceProperties(this._config.schema).isolation;
+	}
+
+	/**
+	 * The config the backend draft is created with. With session pre-warming
+	 * on, isolation stays local until Send: the draft is created in the picked
+	 * folder even when the user picked
+	 * (or inherited) a worktree, so the host can pre-warm it, and the first
+	 * request sends the picked isolation with the rest of the draft's config
+	 * (`AgentHostSessionHandler`). The host creates a picked worktree on that
+	 * first send and discards the folder warm-up. The worktree base branch is
+	 * dropped with the isolation, so the folder draft uses its checked-out
+	 * branch until Send.
+	 */
+	private _getEagerCreateConfigValues(): Record<string, unknown> | undefined {
+		const values = this.getConfigValues();
+		const config = this._config;
+		if (!values || !config || !this._createsInPickedFolder()) {
+			return values;
+		}
+		const workspace = getSessionWorkspaceProperties(config.schema);
+		const folder = writeSessionIsolation(workspace.isolation, 'folder');
+		if (!workspace.isolation || folder === undefined || values[workspace.isolation.key] === folder) {
+			return values;
+		}
+		const eagerValues = { ...values, [workspace.isolation.key]: folder };
+		delete eagerValues[workspace.baseBranchKey];
+		return eagerValues;
+	}
+
 	trackConfigResolution(promise: Promise<void>): Promise<void> {
 		this._configResolution = promise;
 		void promise.then(
@@ -3700,6 +3754,9 @@ class NewSession extends Disposable {
 	 * Failures are non-fatal: the legacy first-message path in
 	 * `AgentHostSessionHandler._invokeAgent` re-issues `createSession` if
 	 * no session state exists at send time.
+	 *
+	 * The session is created in the picked folder whatever isolation the
+	 * draft shows; see {@link _getEagerCreateConfigValues}.
 	 */
 	eagerCreate(connection: IAgentConnection, canCreate: (() => Promise<boolean>) | undefined, isAllowed: () => boolean): void {
 		const backendUri = this.backendUri;
@@ -3732,6 +3789,11 @@ class NewSession extends Disposable {
 					await this.waitForConfigurationReady();
 				}
 				await this._activeClientScope.whenResolved();
+				// The folder isolation is written under the key the host's schema
+				// advertises, so wait for a schema when none is cached yet.
+				if (this._createsInPickedFolder() && !this._hasResolvedConfig && !this._getIsolationProperty()) {
+					await this.waitForConfigResolution();
+				}
 				if (this.cancellationToken.isCancellationRequested || this._eagerCreateSuspended || !isAllowed()) {
 					return;
 				}
@@ -3744,7 +3806,7 @@ class NewSession extends Disposable {
 					session: backendUri,
 					...(this._selectedModelId ? { model: this.getSelectedModel() } : {}),
 					workingDirectories: this.workspaceUri ? [this.workspaceUri] : undefined,
-					config: this.getConfigValues(),
+					config: this._getEagerCreateConfigValues(),
 					_meta: this._initialMetadata,
 					// MCP-style opt-in: offer to receive `progress` for any
 					// long-running bring-up (chiefly the lazy first-use SDK
@@ -6500,7 +6562,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._getModelsSnapshotForTarget(resourceScheme, desiredModelId);
 	}
 
-	getModelsSnapshotForCreation(_workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
+	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		return this._getModelsSnapshotForTarget(this.resourceSchemeForProvider(sessionTypeId), desiredModelId);
 	}
 
@@ -6836,14 +6898,53 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const destination = this._sessionCache.get(this._sessionKeyFromChatId(destinationSessionId) ?? '');
 		const connection = this.connection;
 		if (!source || !destination || !connection || !this.canMoveSessionUnder(sessionId)) {
-			throw new Error(localize('moveSessionUnavailable', "This session can't be moved."));
+			throw new SessionMoveRefusedError(localize('moveSessionUnavailable', "This session can't be moved."));
 		}
 		const backendAfter = after === undefined ? undefined : destination.getBackendChatResource(after);
 		if (after !== undefined && !backendAfter) {
-			throw new Error(localize('moveSessionAnchorNotFound', "The chat to place the session after could not be found."));
+			throw new SessionMoveRefusedError(localize('moveSessionAnchorNotFound', "The chat to place the session after could not be found."));
 		}
 		// The chat's views follow it to the destination once both catalogs reflect the move (onDidMoveChat).
-		await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
+		try {
+			await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
+		} catch (error) {
+			throw toChatMoveError(error);
+		}
+	}
+
+	canMoveChat(sessionId: string, chatUri: URI): boolean {
+		const cached = this._sessionCache.get(this._sessionKeyFromChatId(sessionId) ?? '');
+		return !!cached && !!this.connection && cached.isChatMovable(chatUri);
+	}
+
+	async moveChat(sessionId: string, chatUri: URI, destination: ISessionChatMoveDestination): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const source = this._sessionCache.get(this._sessionKeyFromChatId(sessionId) ?? '');
+		const connection = this.connection;
+		const backendChat = source?.getBackendChatResource(chatUri);
+		if (!source || !backendChat || !connection || !source.isChatMovable(chatUri)) {
+			throw new SessionMoveRefusedError(localize('moveChatUnavailable', "This chat can't be moved."));
+		}
+		let backendDestination: AgentChatMoveDestination;
+		if (destination.kind === 'session') {
+			const target = this._sessionCache.get(this._sessionKeyFromChatId(destination.sessionId) ?? '');
+			if (!target) {
+				throw new SessionMoveRefusedError(localize('moveChatDestinationNotFound', "The destination session is not available."));
+			}
+			const backendAfter = destination.after === undefined ? undefined : target.getBackendChatResource(destination.after);
+			if (destination.after !== undefined && !backendAfter) {
+				throw new SessionMoveRefusedError(localize('moveChatAnchorNotFound', "The chat to place the moved chat after could not be found."));
+			}
+			backendDestination = { kind: 'session', session: target.backendUri, after: backendAfter };
+		} else {
+			backendDestination = { kind: 'newSession' };
+		}
+		// The chat's views follow it to its new session once both catalogs reflect the move (onDidMoveChat).
+		try {
+			await connection.moveChat(backendChat, backendDestination);
+		} catch (error) {
+			throw toChatMoveError(error);
+		}
 	}
 
 	async listCanvases(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]> {
@@ -8340,8 +8441,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached) {
 			return;
 		}
+		const previousChats = cached.chats.get();
 		cached.applyChatCatalog(state);
 		this._cacheDirty = true;
+		// Session lists read `chats` when sessions change. Added and removed chats reach them with the root summary
+		// change, but a reorder of a subscribed session's chats leaves the root summary as it was.
+		const chats = cached.chats.get();
+		if (!arrayEquals(previousChats, chats) && previousChats.length === chats.length && chats.every(chat => previousChats.includes(chat))) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
 	}
 
 	/**

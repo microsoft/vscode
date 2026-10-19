@@ -10,6 +10,7 @@ export { NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID as NEW_SESSION_ACTION_ID } from
 export const UNIFIED_WORKSPACE_PICKER_SETTING = ChatConfiguration.UnifiedWorkspacePicker;
 export { COMPARE_AGENTS_ENABLED_SETTING };
 export const COMPARE_AGENTS_OPEN_IN_GRID_SETTING = 'sessions.chat.compareAgents.openInGrid';
+export const COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING = 'sessions.chat.compareAgents.showPickerHint';
 export const EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING = 'sessions.chat.experimental.newSessionComposerLayout';
 export const NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING = 'sessions.chat.experimental.newSessionComposerOptionsExpanded';
 export const AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING = 'sessions.chat.experimental.agentsPickerInAttachContextMenu';

@@ -160,6 +160,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly widgetClassNames?: (activeTab: string) => readonly string[];
 	/** Tab whose contents fix the popup's height, so switching tabs scrolls instead of resizing. */
 	readonly sizingTab?: string;
+	/** Remeasures the popup when its content mode changes, without dismissing it or changing its anchor side. */
+	readonly sizingKey?: string;
 	/** Show the checked item's hover after the popup has been positioned. */
 	readonly showCheckedItemHover?: boolean;
 	/** Optional icon buttons rendered after the tabs. */
@@ -235,6 +237,7 @@ export class TabbedActionListWidget extends Disposable {
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
+	private _sizingKey: string | undefined;
 	/** Side of the anchor the popup opened on, kept across tab swaps so it cannot jump sides. */
 	private _anchorPosition: AnchorPosition | undefined;
 
@@ -274,6 +277,12 @@ export class TabbedActionListWidget extends Disposable {
 			this._hasMeasuredSizingTab = false;
 			this._anchorPosition = undefined;
 		}
+		if (this._sizingKey !== options.sizingKey) {
+			this._fixedListHeight = undefined;
+			this._fixedPopupHeight = undefined;
+			this._hasMeasuredSizingTab = false;
+		}
+		this._sizingKey = options.sizingKey;
 
 		let activeTab = options.initialTab;
 		const popupDisposables = new DisposableStore();

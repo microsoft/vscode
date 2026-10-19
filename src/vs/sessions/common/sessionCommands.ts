@@ -59,6 +59,7 @@ export const SESSION_GRID_FOCUS_COMMANDS = {
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorkspacePicker';
 
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID = 'sessions.focusNewSessionHarnessPicker';
+export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
 
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 

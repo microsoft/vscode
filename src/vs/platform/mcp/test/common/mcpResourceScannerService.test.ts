@@ -76,7 +76,7 @@ suite('McpResourceScannerService', () => {
 				lineEndings: content.includes('\r\n') && !content.replaceAll('\r\n', '').includes('\n'),
 				names: Object.keys((await scanner.scanMcpServers(resource, undefined, format)).servers ?? {}),
 			}, {
-				document: { custom: true, mcpServers: { keep: { type: 'ws', url: 'ws://localhost', tools: ['read'] }, invalid: null, two: { type: 'local', command: 'two', args: [], tools: ['*'] } } },
+				document: { custom: true, mcpServers: { keep: { type: 'ws', url: 'ws://localhost', tools: ['read'] }, invalid: null, two: { type: 'stdio', command: 'two', args: [], tools: ['*'] } } },
 				lineEndings: true,
 				names: ['two'],
 			});
@@ -87,7 +87,7 @@ suite('McpResourceScannerService', () => {
 			await scanner.removeMcpServers(['absent'], resource, undefined, format);
 			assert.strictEqual(await fileService.exists(resource), false);
 			await scanner.addMcpServers([server('new')], resource, undefined, format);
-			assert.deepStrictEqual(JSON.parse(await read()), { mcpServers: { new: { type: 'local', command: 'new', args: [], tools: ['*'] } } });
+			assert.deepStrictEqual(JSON.parse(await read()), { mcpServers: { new: { type: 'stdio', command: 'new', args: [], tools: ['*'] } } });
 		});
 
 		for (const original of ['', 'null', '[]', '{ broken', '{"mcpServers":null}', '{"mcpServers":[]}', '{"mcpServers":"bad"}']) {

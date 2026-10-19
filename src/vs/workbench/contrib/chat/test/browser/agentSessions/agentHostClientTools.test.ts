@@ -65,6 +65,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -900,6 +901,10 @@ suite('AgentHostClientTools', () => {
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
+
+			instantiationService.stub(IAccessibilitySignalService, {
+				playSignal: async () => { },
+			} as Partial<IAccessibilitySignalService> as IAccessibilitySignalService);
 
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const inputNotifications = new Map<string, IChatInputNotification>();

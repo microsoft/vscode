@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IObservable } from '../../../../../../../base/common/observable.js';
+import { RawContextKey } from '../../../../../../../platform/contextkey/common/contextkey.js';
+
+export const ModelComparisonAvailableContext = new RawContextKey<boolean>('chatModelComparisonAvailable', false);
+export const ModelComparisonPickerFocusedContext = new RawContextKey<boolean>('chatModelComparisonPickerFocused', false);
 
 /** Comparison selection controller rendered by the shared tabbed model picker. */
 export interface IModelPickerComparison {
@@ -18,6 +22,8 @@ export interface IModelPickerComparison {
 	readonly summaryModelIds?: IObservable<readonly string[] | undefined>;
 	readonly state: IObservable<IModelPickerComparisonState | undefined>;
 	readonly label: string;
+	readonly startCommandId?: string;
+	readonly showPickerHint?: IObservable<boolean>;
 	start(): void;
 	cancel(): void;
 	reset(): void;

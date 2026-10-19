@@ -398,7 +398,7 @@ suite('CopilotCustomizationInstallations', () => {
 		assert.deepStrictEqual(requests, [{
 			name: 'demo',
 			config: {
-				type: 'local',
+				type: 'stdio',
 				command: 'node',
 				args: ['server.js'],
 				tools: ['*'],
@@ -443,6 +443,7 @@ suite('CopilotCustomizationInstallations', () => {
 						mediaType: 'application/mcp-server+json' as const,
 						installability: 'installable' as const,
 						displayName: 'Installable MCP',
+						connectorIds: ['githubcopilotfigmamcp'],
 						source: { kind: 'url' as const, url: 'https://example.test/installable-mcp' },
 						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
 					},
@@ -497,12 +498,12 @@ suite('CopilotCustomizationInstallations', () => {
 		const result = await service.search({ query: 'demo', limit: 10 });
 
 		assert.deepStrictEqual(result.kind === 'page' ? {
-			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, installable: item.installable })),
+			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, itemUrl: item.itemUrl, connectorIds: item.connectorIds, installable: item.installable })),
 			hasNextCursor: typeof result.nextCursor === 'string',
 		} : result, {
 			items: [
-				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', installable: true },
-				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', installable: true },
+				{ kind: 'skill', displayName: 'Installable Skill', itemUrl: 'https://example.test/installable-skill', connectorIds: undefined, installable: true },
+				{ kind: 'mcp', displayName: 'Installable MCP', itemUrl: 'https://example.test/installable-mcp', connectorIds: ['githubcopilotfigmamcp'], installable: true },
 			],
 			hasNextCursor: true,
 		});
