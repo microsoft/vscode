@@ -347,28 +347,19 @@ suite('Shrink Empty Lines', () => {
 		]);
 	});
 
-	test('respects variable-font settings and their accessibility-mode override', () => {
+	test('respects variable-font settings outside accessibility mode', () => {
 		const { editor } = createEditor('a\n}', {
 			shrinkEmptyLines: 0.5,
 			allowVariableFonts: false,
+			envConfig: { accessibilitySupport: AccessibilitySupport.Disabled },
 		});
 		const results = [getLineHeights(editor)];
-		const accessibilityEnabledOptions: TestCodeEditorCreationOptions = {
-			envConfig: { accessibilitySupport: AccessibilitySupport.Enabled },
-		};
-		const accessibilityDisabledOptions: TestCodeEditorCreationOptions = {
-			envConfig: { accessibilitySupport: AccessibilitySupport.Disabled },
-		};
 
 		editor.updateOptions({ allowVariableFonts: true });
 		results.push(getLineHeights(editor));
-		editor.updateOptions(accessibilityEnabledOptions);
+		editor.updateOptions({ allowVariableFonts: false, allowVariableFontsInAccessibilityMode: true });
 		results.push(getLineHeights(editor));
-		editor.updateOptions({ allowVariableFontsInAccessibilityMode: true });
-		results.push(getLineHeights(editor));
-		editor.updateOptions({ allowVariableFontsInAccessibilityMode: false });
-		results.push(getLineHeights(editor));
-		editor.updateOptions(accessibilityDisabledOptions);
+		editor.updateOptions({ allowVariableFonts: true, allowVariableFontsInAccessibilityMode: false });
 		results.push(getLineHeights(editor));
 
 		assert.deepStrictEqual(results, [
@@ -376,8 +367,30 @@ suite('Shrink Empty Lines', () => {
 			[19, 10],
 			[19, 19],
 			[19, 10],
+		]);
+	});
+
+	test('respects the variable-font override in accessibility mode', () => {
+		const { editor } = createEditor('a\n}', {
+			shrinkEmptyLines: 0.5,
+			allowVariableFonts: true,
+			allowVariableFontsInAccessibilityMode: false,
+			envConfig: { accessibilitySupport: AccessibilitySupport.Enabled },
+		});
+		const results = [getLineHeights(editor)];
+
+		editor.updateOptions({ allowVariableFontsInAccessibilityMode: true });
+		results.push(getLineHeights(editor));
+		editor.updateOptions({ allowVariableFonts: false });
+		results.push(getLineHeights(editor));
+		editor.updateOptions({ allowVariableFontsInAccessibilityMode: false });
+		results.push(getLineHeights(editor));
+
+		assert.deepStrictEqual(results, [
 			[19, 19],
 			[19, 10],
+			[19, 10],
+			[19, 19],
 		]);
 	});
 
