@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { toAction } from '../../../../../../../base/common/actions.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -155,6 +156,90 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 				['4ch', '3ch'],
 			],
 		});
+	});
+
+	test('reveals icon row actions after the change counts and updates them when their state changes', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = document.createElement('div');
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [
+			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
+		]);
+		const undoOffered = observableValue('undoOffered', false);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+			rowActionIcons: true,
+			getRowActions: (_diff, reader) => [
+				toAction({ id: 'keep', label: 'Keep', run: () => undefined }),
+				...(undoOffered.read(reader) ? [toAction({ id: 'undo', label: 'Undo', run: () => undefined })] : []),
+			],
+		}));
+		const readRow = () => {
+			const row = container.querySelector('.monaco-list-row')!;
+			return {
+				withLinkActions: row.classList.contains('chat-summary-list-row-with-actions'),
+				labelOrder: Array.from(row.querySelector('.monaco-icon-label')!.children).map(element => element.classList.item(0)),
+				actions: Array.from(row.querySelectorAll('.action-label')).map(action => action.getAttribute('aria-label')),
+			};
+		};
+		const states = [readRow()];
+		undoOffered.set(true, undefined);
+		states.push(readRow());
+
+		const labelOrder = ['monaco-icon-label-container', 'insertions-and-deletions', 'chat-summary-list-icon-actions'];
+		assert.deepStrictEqual(states, [
+			{ withLinkActions: false, labelOrder, actions: ['Keep'] },
+			{ withLinkActions: false, labelOrder, actions: ['Keep', 'Undo'] },
+		]);
+	});
+
+	test('keeps keyboard focus on a row action while the rows are rebuilt, and on the list once its file leaves', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const file = (path: string): IEditSessionEntryDiff => ({ ...emptySessionEntryDiff(URI.file(path), URI.file(path)), added: 1 });
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [file('/a.ts'), file('/b.ts')]);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+			rowActionIcons: true,
+			getRowActions: () => [
+				toAction({ id: 'keep', label: 'Keep', run: () => undefined }),
+				toAction({ id: 'undo', label: 'Undo', run: () => undefined }),
+			],
+		}));
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		const fileName = (element: Element | null | undefined) => element?.closest('.monaco-list-row')?.querySelector('.label-name')?.textContent;
+		const readFocus = () => {
+			const active = dom.getActiveElement();
+			return active === list
+				? { list: true, file: fileName(list.querySelector('.monaco-list-row.focused')) }
+				: { action: active?.getAttribute('aria-label'), file: fileName(active) };
+		};
+		const rowOf = (name: string) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(row => fileName(row) === name)!;
+		rowOf('b.ts').querySelector<HTMLElement>('.action-label[aria-label="Undo"]')!.focus();
+		const states = [readFocus()];
+		diffs.set([file('/a.ts'), file('/b.ts')], undefined);
+		states.push(readFocus());
+		diffs.set([file('/c.ts'), file('/a.ts'), file('/b.ts')], undefined);
+		states.push(readFocus());
+		diffs.set([file('/c.ts'), file('/a.ts')], undefined);
+		states.push(readFocus());
+		diffs.set([], undefined);
+		states.push(readFocus());
+
+		assert.deepStrictEqual(states, [
+			{ action: 'Undo', file: 'b.ts' },
+			{ action: 'Undo', file: 'b.ts' },
+			{ action: 'Undo', file: 'b.ts' },
+			{ list: true, file: 'a.ts' },
+			{ list: true, file: undefined },
+		]);
 	});
 
 	test('opens row diffs using snapshots and missing create or delete sides', () => {

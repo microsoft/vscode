@@ -21,9 +21,12 @@ suite('Chat Accessibility Help', () => {
 			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
 			disclosure: help.includes('Enter or Space to expand or collapse it'),
 			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+			fileActions: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep and Undo'),
+			headingActions: help.includes('The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor'),
+			undo: help.includes('Undo reverts the session\'s changes after any confirmation the session asks for'),
 			editorNavigation: help.includes('Navigate between edits in the editor'),
-			editorSignals: help.includes('accessibility.signals.editsKept'),
-		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+			editorSignals: help.includes('Sounds will play when a change is accepted or undone'),
+		}, { sessionChanges: true, disclosure: true, openDiff: true, fileActions: true, headingActions: true, undo: true, editorNavigation: true, editorSignals: true });
 	});
 
 	test('does not describe the editor working set on other chat surfaces', () => {
@@ -32,7 +35,7 @@ suite('Chat Accessibility Help', () => {
 			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
 			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
-		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill') || help.includes('move between Keep and Undo')), [false, false, false, false]);
 	});
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
