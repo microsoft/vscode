@@ -1904,11 +1904,13 @@ export class AgentService extends Disposable implements IAgentService {
 			applyChatMove: move => this._logRefusedServerToolMove(this._applyServerToolMove(move)),
 			isKnownSessionLink: (session, chatId) => {
 				const key = session.toString();
-				const chats = this._stateManager.getSessionState(key)?.chats ?? (this._stateManager.getSessionSummary(key) ?? this._stateManager.getSurfacedSessionSummary(key))?.chats;
-				if (chats === undefined) {
+				const state = this._stateManager.getSessionState(key);
+				const summary = state ? undefined : this._stateManager.getSessionSummary(key) ?? this._stateManager.getSurfacedSessionSummary(key);
+				if (!state && !summary) {
 					return false;
 				}
-				return chatId === undefined || chats.some(chat => chat.resource === chatId || getAgentHostChatId(chat.resource) === chatId);
+				// A loaded or listed session is known; a chat of it only among its recorded chats, which a single-chat summary may not list.
+				return chatId === undefined || (state?.chats ?? summary?.chats ?? []).some(chat => chat.resource === chatId || getAgentHostChatId(chat.resource) === chatId);
 			},
 		};
 	}

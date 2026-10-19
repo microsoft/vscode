@@ -3444,11 +3444,13 @@ suite('SessionServerTools', () => {
 			assert.deepStrictEqual({ off, on, baseMentionsMove: Object.values(base).some(description => description?.includes('move_session')) }, {
 				off: { descriptions: base, chats: 3 },
 				on: {
-					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, `${description} \`move_session\` takes these links too.`])),
+					// Right after the sentence about `chats`, before the rest of the description.
+					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, description?.replace(name === SessionServerToolName.ListSessions ? 'and `rename_chat`.' : 'like `list_sessions`.', match => `${match} \`move_session\` takes these links too.`)])),
 					chats: 3,
 				},
 				baseMentionsMove: false,
 			});
+			assert.deepStrictEqual(Object.values(on.descriptions).map(description => description?.endsWith('takes these links too.')), [false, false]);
 		});
 
 		test('every call asks for confirmation, with a display for its operation that links what moves when the host knows it', () => {

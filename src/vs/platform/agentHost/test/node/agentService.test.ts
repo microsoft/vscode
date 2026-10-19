@@ -36773,6 +36773,43 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('the host links a move_session confirmation only to sessions and chats it knows, a single-chat session included', async () => {
+					const { service, source, target, peer } = await setupMove();
+					const accessor = moveToolAccessor(service);
+					const host = (service as unknown as { readonly _serverToolHost: IAgentServerToolHost })._serverToolHost;
+					const unknown = URI.parse('copilot:/unknown');
+					const message = (args: unknown) => {
+						const confirmation = host.getConfirmationDisplay(SessionServerToolName.MoveSession, args)?.confirmationMessage;
+						return typeof confirmation === 'string' ? confirmation : confirmation?.markdown;
+					};
+					const sessionLink = (session: URI, chat?: URI) => buildOpenSessionLinkUri(session, chat && getAgentHostChatId(chat));
+					assert.deepStrictEqual({
+						known: {
+							// The target has no nested session: a single-chat session is known as a session.
+							singleChatSession: accessor.isKnownSessionLink(target, undefined),
+							session: accessor.isKnownSessionLink(source, undefined),
+							chat: accessor.isKnownSessionLink(source, getAgentHostChatId(peer)),
+							chatOfAnotherSession: accessor.isKnownSessionLink(target, getAgentHostChatId(peer)),
+							unknownChat: accessor.isKnownSessionLink(source, 'gone'),
+							unknownSession: accessor.isKnownSessionLink(unknown, undefined),
+						},
+						messages: {
+							known: message({ session: sessionLink(source, peer), into: sessionLink(target) }),
+							unknown: message({ session: sessionLink(source, URI.parse(buildChatUri(source, 'gone'))), into: sessionLink(unknown) }),
+							chatUri: message({ session: peer.toString(), into: sessionLink(target) }),
+							notALink: message({ session: 'not a link', into: 'not a session' }),
+						},
+					}, {
+						known: { singleChatSession: true, session: true, chat: true, chatOfAnotherSession: false, unknownChat: false, unknownSession: false },
+						messages: {
+							known: `Move [this nested session](<${sessionLink(source, peer)}>) into [the destination session](<${sessionLink(target)}>)? It keeps its history and folders.`,
+							unknown: 'Move this nested session into the destination session? It keeps its history and folders.',
+							chatUri: `Move this session into [the destination session](<${sessionLink(target)}>) as a nested session? It keeps its history and folders.`,
+							notALink: 'Move this session into the destination session as a nested session? It keeps its history and folders.',
+						},
+					});
+				});
+
 				test('the move_session check and its move run in the move sequencer, after a move in progress, never beside it', async () => {
 					const { service, source, target, peer } = await setupMove();
 					const sequencer = (service as unknown as { readonly _chatMoveSequencer: Sequencer })._chatMoveSequencer;
