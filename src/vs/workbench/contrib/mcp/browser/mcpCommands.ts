@@ -1593,22 +1593,27 @@ export class OpenUserMcpResourceCommand extends Action2 {
 			detail: basename(copilotGlobalResource),
 			tooltip: labelService.getUriLabel(copilotGlobalResource),
 			configuration: { resource: copilotGlobalResource, empty: emptyCopilotGlobalMcpConfiguration },
-		}, {
-			label: localize('mcp.userConfig.vscode', "VS Code User Configuration"),
-			description: hasLegacy ? localize('mcp.userConfig.legacy', "Legacy") : localize('mcp.userConfig.legacyNotExisting', "Legacy, not existing"),
-			detail: basename(legacyResource),
-			tooltip: labelService.getUriLabel(legacyResource),
-			configuration: { resource: legacyResource, empty: emptyVscodeMcpConfiguration },
-		}, {
+		}];
+		// The legacy file is only offered when it already exists, so new configuration goes to Copilot Global.
+		if (hasLegacy) {
+			items.push({
+				label: localize('mcp.userConfig.vscode', "VS Code User Configuration"),
+				description: localize('mcp.userConfig.legacy', "Legacy"),
+				detail: basename(legacyResource),
+				tooltip: labelService.getUriLabel(legacyResource),
+				configuration: { resource: legacyResource, empty: emptyVscodeMcpConfiguration },
+			});
+		}
+		items.push({
 			type: 'separator',
 		}, {
 			label: localize('mcp.userConfig.openCustomizations', "Open MCP Customizations"),
 			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
-		}];
+		});
 
 		const selected = await quickInputService.pick(items, {
 			title: localize('mcp.userConfig.title', "Open User MCP Configuration"),
-			placeHolder: localize('mcp.userConfig.placeholder', "Select the configuration to open. Files that don't exist are created when selected."),
+			placeHolder: localize('mcp.userConfig.placeholder', "Select the configuration to open"),
 			matchOnDescription: true,
 			matchOnDetail: true,
 		});

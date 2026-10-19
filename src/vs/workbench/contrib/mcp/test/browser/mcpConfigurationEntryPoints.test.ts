@@ -1028,14 +1028,14 @@ suite('MCP configuration entry points', () => {
 			return { ...fixture, created, commands };
 		}
 
-		for (const [selection, existing] of [['Copilot Global', [vscodeUser]], ['VS Code User Configuration', [copilotGlobal]], ['Copilot Global', [copilotGlobal, vscodeUser]]] as const) {
-			test(`offers every user configuration and opens ${selection} (existing: ${existing.map(uri => uri.path).join(', ')})`, async () => {
+		for (const [selection, existing] of [['Copilot Global', []], ['Copilot Global', [copilotGlobal]], ['Copilot Global', [vscodeUser]], ['VS Code User Configuration', [copilotGlobal, vscodeUser]]] as const) {
+			test(`opens ${selection} and offers the legacy file only when it exists (existing: ${existing.map(uri => uri.path).join(', ') || 'none'})`, async () => {
 				const fixture = setupOpenUser(copilotGlobal, [...existing]);
 				fixture.quickInput.selections.push(selection);
 				await new OpenUserMcpResourceCommand().run(fixture.instantiation);
 				const selected = selection === 'Copilot Global' ? copilotGlobal : vscodeUser;
-				const hasCopilotGlobal = existing.includes(copilotGlobal);
-				const hasVscodeUser = existing.includes(vscodeUser);
+				const hasCopilotGlobal = existing.some(uri => uri === copilotGlobal);
+				const hasVscodeUser = existing.some(uri => uri === vscodeUser);
 				assert.deepStrictEqual({
 					pickers: fixture.quickInput.pickLabels,
 					descriptions: fixture.quickInput.pickOptions.map(options => options.descriptions),
@@ -1044,12 +1044,12 @@ suite('MCP configuration entry points', () => {
 					opened: fixture.opened.map(uri => uri.path),
 					commands: fixture.commands,
 				}, {
-					pickers: [['Copilot Global', 'VS Code User Configuration', 'Open MCP Customizations']],
-					descriptions: [[hasCopilotGlobal ? 'Recommended' : 'Recommended, not existing', hasVscodeUser ? 'Legacy' : 'Legacy, not existing', undefined]],
-					details: [['mcp-config.json', 'mcp.json', undefined]],
-					created: existing.includes(selected) ? [] : [{
-						resource: selected.path,
-						content: JSON.stringify(selected === copilotGlobal ? { mcpServers: {} } : { servers: {} }, null, '\t'),
+					pickers: [['Copilot Global', ...(hasVscodeUser ? ['VS Code User Configuration'] : []), 'Open MCP Customizations']],
+					descriptions: [[hasCopilotGlobal ? 'Recommended' : 'Recommended, not existing', ...(hasVscodeUser ? ['Legacy'] : []), undefined]],
+					details: [['mcp-config.json', ...(hasVscodeUser ? ['mcp.json'] : []), undefined]],
+					created: hasCopilotGlobal || selected !== copilotGlobal ? [] : [{
+						resource: copilotGlobal.path,
+						content: JSON.stringify({ mcpServers: {} }, null, '\t'),
 					}],
 					opened: [selected.path],
 					commands: [],
