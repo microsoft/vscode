@@ -270,7 +270,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		if (!isPhoneLayout(accessor.get(IWorkbenchLayoutService))) {
 			content.push(localize('sessionsChat.emptyEditorAddTab', "When the side panel's editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions, such as Changes, Files, Browser, and Search, with their keybindings. Press Tab to reach the list, use the Up and Down arrow keys to move between actions, and press Enter or Space to open one. For an action with a submenu, such as Canvas, press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list."));
 			content.push(localize('sessionsChat.customizations', "Focus Chat Customizations in the left sidebar{0}.", `<keybinding:${FOCUS_AI_CUSTOMIZATION_VIEW_ID}>`));
-			content.push(localize('sessionsChat.layoutDensity', "Choose Default or Compact from View > Layout Density, or change the window.density.layout setting. Default uses a taller title bar. Compact uses a shorter title bar, removes the gaps between parts, and reduces pane spacing. Changes apply immediately."));
+			content.push(localize('sessionsChat.layoutDensity', "Choose Default or Compact from View > Appearance > Layout Density, or change the window.density.layout setting. Default uses a taller title bar. Compact uses a shorter title bar, removes the gaps between parts, and reduces pane spacing. Changes apply immediately."));
 		}
 		content.push(localize('sessionsChat.toggleSidePanel', "Toggle the side panel (the editor area together with the auxiliary bar) open or closed{0}.", '<keybinding:workbench.action.agentToggleSidePanel>'));
 
