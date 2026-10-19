@@ -90,7 +90,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatRespondent, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -488,6 +488,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _pendingFirstRenderSessionResource: URI | undefined;
 
 	// Coding agent locking state
+	private _respondent: { readonly resource: URI; readonly respondent: IChatRespondent } | undefined;
 	private _lockedAgent?: {
 		id: string;
 		name: string;
@@ -3028,6 +3029,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
+		if (this._respondent && !isEqual(this._respondent.resource, model.sessionResource)) {
+			// A respondent belongs to the chat it was set for; the host sets one again for the next chat.
+			this._respondent = undefined;
+			this.listWidget.updateRendererOptions({ responseIdentity: undefined });
+		}
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
@@ -3060,16 +3066,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;
 
-		if (this._lockedAgent) {
-			let placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder;
-			if (!placeholder) {
-				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
-			}
-			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
-		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
-		}
+		this._applyInputPlaceholder();
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
 			if (!this.viewModel || this._store.isDisposed) {
@@ -3221,6 +3218,48 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setInputPlaceholder(placeholder: string): void {
 		this.viewModel?.setInputPlaceholder(placeholder);
+	}
+
+	/**
+	 * Presents the bound chat as answered by `respondent`, an agent other than the one its session
+	 * type serves, or restores that agent's presentation. The input placeholder, response identity
+	 * and selectable models follow the respondent; requests still go to the session type's agent.
+	 */
+	setRespondent(respondent: IChatRespondent | undefined): void {
+		const resource = this.viewModel?.sessionResource;
+		const next = respondent && resource ? { resource, respondent } : undefined;
+		const previous = this._respondent;
+		if (isEqual(previous?.resource, next?.resource) && previous?.respondent.label === next?.respondent.label
+			&& previous?.respondent.modelSessionType === next?.respondent.modelSessionType && previous?.respondent.icon.id === next?.respondent.icon.id) {
+			return;
+		}
+		this._respondent = next;
+		this.inputPart.setModelSessionTypeOverride(next?.respondent.modelSessionType);
+		this.listWidget.updateRendererOptions({ responseIdentity: next ? { label: next.respondent.label, icon: next.respondent.icon } : undefined });
+		if (previous && !next) {
+			this.viewModel?.resetInputPlaceholder();
+		}
+		this._applyInputPlaceholder();
+		this.rerenderListIfConnected();
+	}
+
+	private _applyInputPlaceholder(): void {
+		if (!this.viewModel) {
+			return;
+		}
+		let placeholder: string | undefined;
+		if (this._respondent && isEqual(this._respondent.resource, this.viewModel.sessionResource)) {
+			placeholder = localize('chat.input.placeholder.respondent', "Chat with {0}", this._respondent.respondent.label);
+		} else if (this._lockedAgent) {
+			placeholder = this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id)?.inputPlaceholder
+				|| localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
+		}
+		if (placeholder) {
+			this.viewModel.setInputPlaceholder(placeholder);
+			this.inputEditor.updateOptions({ placeholder });
+		} else if (this.viewModel.inputPlaceholder) {
+			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+		}
 	}
 
 	resetInputPlaceholder(): void {

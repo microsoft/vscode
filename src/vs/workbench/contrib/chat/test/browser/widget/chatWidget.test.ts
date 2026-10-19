@@ -18,6 +18,8 @@ import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetR
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -137,6 +139,46 @@ suite('ChatWidget', () => {
 			whenVisible: messages.filter(message => message.includes(`traceId=${trace.id} event=firstRender`)).length,
 			privateData: messages.some(message => message.includes('private-session')),
 		}, { whileHidden: 0, whenVisible: 1, privateData: false });
+	});
+
+	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
+		const resource = URI.parse('agent-host-copilotcli:/session#peer');
+		let placeholder: string | undefined;
+		const viewModel = upcastPartial<ChatViewModel>({
+			sessionResource: resource,
+			get inputPlaceholder() { return placeholder; },
+			setInputPlaceholder: (text: string) => { placeholder = text; },
+			resetInputPlaceholder: () => { placeholder = undefined; },
+		});
+		const editorPlaceholders: (string | undefined)[] = [];
+		const rendererOptions: (IChatListItemRendererOptions['responseIdentity'])[] = [];
+		const modelSessionTypes: (string | undefined)[] = [];
+		const inputPart = upcastPartial<ChatInputPart>({
+			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
+			setModelSessionTypeOverride: (sessionType: string | undefined) => { modelSessionTypes.push(sessionType); },
+		});
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_viewModel: viewModel,
+			_lockedAgent: { id: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', prefix: '@copilot ' },
+			inputPartDisposable: { value: inputPart },
+			configurationService: new TestConfigurationService(),
+			chatSessionsService: upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }),
+			listWidget: { updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); } },
+			rerenderListIfConnected: () => { },
+		});
+
+		widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		const answeredByClaude = placeholder;
+		widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		widget.setRespondent(undefined);
+
+		assert.deepStrictEqual({ answeredByClaude, restored: placeholder, editorPlaceholders, rendererOptions, modelSessionTypes }, {
+			answeredByClaude: 'Chat with Claude',
+			restored: 'Chat with Copilot',
+			editorPlaceholders: ['Chat with Claude', 'Chat with Copilot'],
+			rendererOptions: [{ label: 'Claude', icon: Codicon.claude }, undefined],
+			modelSessionTypes: ['agent-host-claude', undefined],
+		});
 	});
 
 	function createRequestToolsWidget() {

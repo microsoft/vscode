@@ -15,7 +15,9 @@ import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -47,7 +49,7 @@ import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRe
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
-import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -60,7 +62,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, getChatRespondent, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -86,6 +88,44 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('a chat answered by another harness than its session\'s presents that harness and selects from its models', () => {
+		const sessionResource = URI.parse('agent-host-copilotcli:/session');
+		const chat = (fragment: string, harness?: string) => ({ resource: sessionResource.with({ fragment }), ...(harness ? { harness } : {}) } as IChat);
+		const main = chat('', 'copilot');
+		const sameHarness = chat('same');
+		const otherHarness = chat('other', 'claude');
+		const session = { sessionId: 'session', providerId: 'test', harness: 'copilot', chats: constObservable([main, sameHarness, otherHarness]) } as unknown as ISession;
+		const known = observableValue<boolean>('known', false);
+		const providers = new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T | undefined {
+				return new class extends mock<ISessionsProvider>() {
+					override getModelsSnapshot(_sessionId: string, _desired?: string, chatResource?: URI) {
+						return { models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: chatResource?.fragment === 'other' ? 'agent-host-claude' : 'agent-host-copilotcli' };
+					}
+					override getHarnessPresentation(harness: string, reader?: IReader) {
+						return known.read(reader) && harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined;
+					}
+				}() as unknown as T;
+			}
+		}();
+		const respondents: unknown[] = [];
+		disposables.add(autorun(reader => respondents.push(getChatRespondent(session, otherHarness.resource, providers, reader))));
+		known.set(true, undefined);
+
+		assert.deepStrictEqual({
+			main: getChatRespondent(session, main.resource, providers, undefined),
+			sameHarness: getChatRespondent(session, sameHarness.resource, providers, undefined),
+			otherHarness: respondents,
+		}, {
+			main: undefined,
+			sameHarness: undefined,
+			otherHarness: [
+				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: 'agent-host-claude' },
+				{ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' },
+			],
+		});
+	});
 
 	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -785,6 +825,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_preparationModel: { value: undefined },
 			_loadChat: (chatResource: URI) => loads.push(chatResource),
 		}) as {
@@ -823,6 +864,7 @@ suite('Sessions - Chat View', () => {
 			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
 			_isPrimaryObs: constObservable(false),
 			_modelRef: { value: undefined },
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_liveModelReady: liveModelReady,
 			_modelReadOnly: modelReadOnly,
@@ -905,6 +947,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
@@ -1191,6 +1234,7 @@ suite('Sessions - Chat View', () => {
 			_loadFailure: loadFailure,
 			_preparationModel: { value: undefined },
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
 			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
@@ -1499,6 +1543,7 @@ suite('Sessions - Chat View', () => {
 			_preparationModel: { value: undefined, clear: () => { } },
 			hasVisibleTranscriptContent: observableValue('transcript', false),
 			_modelRef: modelRef,
+			_respondentBinding: disposables.add(new MutableDisposable()),
 			_loadCts: loadCts,
 			_openDiagnostics: disposables.add(new MutableDisposable()),
 			element: dom.$('div'),
@@ -4190,6 +4235,7 @@ suite('Sessions - Chat View', () => {
 			_openDiagnostics: viewStore.add(new MutableDisposable()),
 			chatOpenDiagnosticsService: viewStore.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			_modelRef: viewStore.add(new MutableDisposable<IChatModelReference>()),
+			_respondentBinding: viewStore.add(new MutableDisposable()),
 			_preparationModel: { value: undefined },
 			isLoadingTranscript: observableValue('loading', false),
 			element: dom.$('div'),

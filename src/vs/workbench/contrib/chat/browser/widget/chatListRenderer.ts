@@ -1834,8 +1834,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const isSystemInitiatedRequest = isRequestVM(element) && !!element.isSystemInitiated;
 
-		templateData.username.textContent = element.username;
-		const hideChatUserIdentity = shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
+		// A chat answered by another agent than its session type's presents that agent, which is not the session type's.
+		const responseIdentity = isResponseVM(element) ? this.rendererOptions.responseIdentity : undefined;
+		templateData.username.textContent = responseIdentity?.label ?? element.username;
+		const hideChatUserIdentity = responseIdentity
+			? this.environmentService.isSessionsWindow
+			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
 		templateData.username.classList.toggle('hidden', hideChatUserIdentity);
 		templateData.avatarContainer.classList.toggle('hidden', hideChatUserIdentity);
 
@@ -2085,7 +2089,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		let icon: URI | ThemeIcon;
 		if (isResponseVM(element)) {
-			icon = this.getAgentIcon(element.agent?.metadata);
+			icon = this.rendererOptions.responseIdentity?.icon ?? this.getAgentIcon(element.agent?.metadata);
 		} else if (isRequestVM(element)) {
 			icon = element.avatarIcon ?? Codicon.account;
 		} else {
