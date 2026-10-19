@@ -1678,7 +1678,7 @@ suite('ChatWidget', () => {
 	});
 
 	for (const policyDuringRequest of [false, true]) {
-		test(`automatically migrates a chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
+		test(`does not automatically migrate a Local chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
 			const fixture = createAutomaticMigrationFixture({ hasRequests: false });
 			let calls = 0;
 			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
@@ -1697,13 +1697,41 @@ suite('ChatWidget', () => {
 			fixture.requestInProgress.set(true, undefined);
 			fixture.requestInProgress.set(false, undefined);
 			await timeout(0);
+			// Local chat sessions remain manual-only: no automatic migration or archiving
+			assert.strictEqual(fixture.archived.read(undefined), false, 'Legacy local chat must not be archived');
 			assert.deepStrictEqual({ beforeCompletion, afterCompletion, finalCalls: calls }, {
+				beforeCompletion: 0, afterCompletion: 0, finalCalls: 0,
+			});
+			// Manual Move to Copilot banner action works
+			await fixture.banner.runAction();
+			assert.strictEqual(calls, 1, 'Explicit Move to Copilot banner action must run');
+		});
+
+		test(`automatically migrates a Claude chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
+			const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/empty-then-policy'), hasRequests: false });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+			fixture.visible.set(true, undefined);
+			fixture.setHasRequests(true);
+			fixture.requestInProgress.set(true, undefined);
+			if (policyDuringRequest) {
+				fixture.policy.set(true, undefined);
+			}
+			await timeout(0);
+			const beforeCompletion = fixture.automaticCalls.length;
+			fixture.requestInProgress.set(false, undefined);
+			fixture.policy.set(true, undefined);
+			await timeout(0);
+			const afterCompletion = fixture.automaticCalls.length;
+			fixture.requestInProgress.set(true, undefined);
+			fixture.requestInProgress.set(false, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ beforeCompletion, afterCompletion, finalCalls: fixture.automaticCalls.length }, {
 				beforeCompletion: 0, afterCompletion: 1, finalCalls: 1,
 			});
 		});
 	}
 
-	test('automatically migrates displayed Local history once after policy and the active request settle', async () => {
+	test('does not automatically migrate or archive displayed Local history when policy is active, requiring manual Move to Copilot', async () => {
 		const fixture = createAutomaticMigrationFixture();
 		let calls = 0;
 		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
@@ -1723,12 +1751,17 @@ suite('ChatWidget', () => {
 		fixture.policy.set(false, undefined);
 		fixture.policy.set(true, undefined);
 		await timeout(0);
+		// Regression assertions: legacy local chat history is NOT automatically migrated or archived on open
+		assert.strictEqual(fixture.archived.read(undefined), false, 'Legacy local chat session must not be archived');
 		assert.deepStrictEqual({ hiddenCalls, activeCalls, immediateCalls, displayedCalls, finalCalls: calls }, {
-			hiddenCalls: 0, activeCalls: 0, immediateCalls: 0, displayedCalls: 1, finalCalls: 1,
+			hiddenCalls: 0, activeCalls: 0, immediateCalls: 0, displayedCalls: 0, finalCalls: 0,
 		});
+		// Manual explicit Move to Copilot banner action works
+		await fixture.banner.runAction();
+		assert.strictEqual(calls, 1, 'Explicit Move to Copilot banner action must run');
 	});
 
-	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
+	test('temporary Local prohibition retains Local history without automatic migration or archiving', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		let allowLocal = true;
@@ -1746,7 +1779,12 @@ suite('ChatWidget', () => {
 		allowLocal = false;
 		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
 		await timeout(0);
-		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
+		// Local migration is manual-only: no automatic migration or archiving
+		assert.strictEqual(fixture.archived.read(undefined), false, 'Session must not be archived by temporary Local prohibition');
+		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 0, errors: [] });
+		// Explicit Move to Copilot action
+		await fixture.banner.runAction();
+		assert.strictEqual(calls, 1, 'Explicit Move to Copilot banner action must run');
 	});
 
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
@@ -1768,9 +1806,8 @@ suite('ChatWidget', () => {
 
 	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived', 'moved'] as const) {
 		test(`cancels scheduled automatic migration when ${scenario}`, async () => {
-			const fixture = createAutomaticMigrationFixture();
-			let calls = 0;
-			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/cancelling') });
+			fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
 			fixture.policy.set(true, undefined);
 			fixture.visible.set(true, undefined);
 			if (scenario === 'hidden') {
@@ -1785,11 +1822,11 @@ suite('ChatWidget', () => {
 				fixture.archived.set(true, undefined);
 			}
 			await timeout(0);
-			assert.strictEqual(calls, 0);
+			assert.strictEqual(fixture.automaticCalls.length, 0);
 		});
 	}
 
-	test('failed automatic migration keeps an enabled manual retry without automatically retrying', async () => {
+	test('failed manual Move to Copilot keeps an enabled retry without automatic failure', async () => {
 		const fixture = createAutomaticMigrationFixture();
 		let calls = 0;
 		fixture.banner.setAction({
@@ -1806,22 +1843,28 @@ suite('ChatWidget', () => {
 		fixture.visible.set(false, undefined);
 		fixture.visible.set(true, undefined);
 		await timeout(0);
-		const failedCalls = calls;
-		const message = fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent;
+		const initialCalls = calls;
+		assert.strictEqual(initialCalls, 0, 'No automatic failure should occur on open for Local chat');
+		assert.strictEqual(fixture.archived.read(undefined), false, 'Opening legacy history must not archive the session');
 		const link = fixture.banner.domNode.querySelector('a')!;
-		const disabled = link.getAttribute('aria-disabled');
-		link.click();
-		await timeout(0);
-		assert.deepStrictEqual({ failedCalls, message, disabled, calls, errors: fixture.errors }, {
+		assert.strictEqual(link.getAttribute('aria-disabled'), 'false');
+		// Trigger manual Move to Copilot which fails first time
+		await assert.rejects(async () => fixture.banner.runAction(), /Host unavailable/);
+		const failedCalls = calls;
+		assert.strictEqual(link.getAttribute('aria-disabled'), 'false');
+		// Retry manual Move to Copilot which succeeds
+		await fixture.banner.runAction();
+		assert.deepStrictEqual({ initialCalls, failedCalls, finalCalls: calls }, {
+			initialCalls: 0,
 			failedCalls: 1,
-			message: 'Couldn\'t move this chat to Copilot. Use Move to Copilot to try again.',
-			disabled: 'false', calls: 2, errors: ['Failed to automatically move Local chat to Copilot'],
+			finalCalls: 2,
 		});
 	});
 
 	test('cancelled automatic migration restores the ordinary banner without reporting an error', async () => {
-		const fixture = createAutomaticMigrationFixture();
-		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { throw new CancellationError(); } });
+		const fixture = createAutomaticMigrationFixture({ resource: URI.parse('agent-host-claude:/cancellation') });
+		fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { } });
+		fixture.setAutomaticRun(async () => { throw new CancellationError(); });
 		fixture.visible.set(true, undefined);
 		fixture.policy.set(true, undefined);
 		await timeout(0);
