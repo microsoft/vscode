@@ -6032,7 +6032,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
-		await provider.openSessionCanvas(session, request, chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
+		const credentials = await this._resolveExecutionCredentials(session.toString());
+		await provider.openSessionCanvas(session, request, chat, {
+			...this._chatContext(session, chat, this._chatStorageResource(session, chat)),
+			...(credentials ? { credentials } : {}),
+		});
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
@@ -9123,8 +9127,8 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!this._authService.getSessionCredentialPrincipal(session.toString())) {
 					return undefined;
 				}
-				const source = await this._resolveExecutionCredentials(session.toString(), credentials);
-				return source ? this._prepareColdRestoreCredentials(session.toString(), source) : undefined;
+				this._checkCredentialPrincipal(session.toString(), credentials);
+				return credentials;
 			};
 			const restoreSession = async (session: URI) => {
 				let restorationCredentials: IAgentHostCredentialSource | undefined;

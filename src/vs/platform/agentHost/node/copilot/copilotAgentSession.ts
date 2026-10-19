@@ -70,7 +70,6 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS, streamingToolDisplayText } from '../../common/streamingToolCallDisplay.js';
 import { isAgentFeedbackAnnotationsAttachment, renderAgentFeedbackAnnotationsAttachment } from '../../common/meta/agentFeedbackAttachments.js';
-import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { isHostSnapshotAttachment } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../common/sessionDataService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -93,7 +92,8 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
-import { NonPtyShellTerminalStreams, parseSpilledShellCompletion, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
+import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
+import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './copilotSessionHistory.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -5657,44 +5657,9 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _computeMappedEvents(agentScope: 'primary' | 'all'): Promise<IMappedSessionEvents> {
 		this._logService.trace(`[Copilot:${this.sessionId}] Reading persisted session events: scope=${agentScope}`);
-		const pages: SessionEvent[][] = [];
-		const seenCursors = new Set<string>();
-		let cursor: string | undefined;
-		while (true) {
-			if (this._store.isDisposed) {
-				throw new CancellationError();
-			}
-			// Backward paging fixes the history boundary even if new events arrive during the read.
-			const page = await this._awaitControlPlaneRpc('rpc.eventLog.read', this._wrapper.session.rpc.eventLog.read({
-				cursor, max: 1000, direction: 'backward', agentScope, includeEphemeral: false,
-			}));
-			if (this._store.isDisposed) {
-				throw new CancellationError();
-			}
-			if (page.cursorStatus !== 'ok') {
-				throw new Error(localize('copilot.historyChanged', "Session history changed while it was loading. Reopen the session to try again."));
-			}
-			if (page.hasMore && (!page.cursor || seenCursors.has(page.cursor))) {
-				throw new Error(localize('copilot.invalidHistoryCursor', "The Copilot runtime returned an invalid history cursor. Reopen the session to try again."));
-			}
-
-			pages.push(page.events.filter(event => event.type !== 'system.message').map(event => {
-				if (event.type !== 'assistant.message') {
-					return event;
-				}
-				const data = { ...event.data };
-				delete data.encryptedContent;
-				delete data.reasoningOpaque;
-				delete data.reasoningBlocks;
-				return { ...event, data };
-			}));
-			if (!page.hasMore) {
-				break;
-			}
-			seenCursors.add(page.cursor);
-			cursor = page.cursor;
-		}
-		const events = pages.reverse().flat();
+		const events = await readCopilotSessionEvents(cursor => this._awaitControlPlaneRpc('rpc.eventLog.read', this._wrapper.session.rpc.eventLog.read({
+			cursor, max: 1000, direction: 'backward', agentScope, includeEphemeral: false,
+		})), this._lifetimeCts.token);
 		this._seedSubagentDisplayNames(events);
 		this._logService.trace(`[Copilot:${this.sessionId}] Read ${events.length} persisted event(s); reconstructing turns`);
 		return this._withDatabase(async db => {
@@ -5718,38 +5683,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _restoreStoredShellOutputs(mapped: IMappedSessionEvents, db: ISessionDatabase): Promise<void> {
-		await this._restoreStoredShellOutputsForChat(mapped.turns, this._chatChannelUri, db);
+		await restoreStoredShellOutputsForChat(mapped.turns, this._storageUri, this._ownerSessionUri, this._chatChannelUri, db);
 		for (const [parentToolCallId, turns] of mapped.subagentTurnsByToolCallId) {
-			await this._restoreStoredShellOutputsForChat(turns, URI.parse(this._subagentChatUri(parentToolCallId)), db);
-		}
-	}
-
-	private async _restoreStoredShellOutputsForChat(turns: readonly Turn[], chat: URI, db: ISessionDatabase): Promise<void> {
-		for (const turn of turns) {
-			for (const part of turn.responseParts) {
-				if (part.kind !== ResponsePartKind.ToolCall
-					|| part.toolCall.status !== ToolCallStatus.Completed
-					|| !isShellTool(part.toolCall.toolName)) {
-					continue;
-				}
-				const terminal = part.toolCall.content?.find((content): content is ToolResultTerminalContent => content.type === ToolResultContentType.Terminal);
-				if (terminal && terminal.isPty !== false) {
-					continue;
-				}
-				if (await db.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
-					continue;
-				}
-				const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
-				const terminalContent: ToolResultTerminalContent = {
-					type: ToolResultContentType.Terminal,
-					title: part.toolCall.displayName,
-					isPty: false,
-					result: parseSpilledShellCompletion(text) ?? { truncated: true, preview: '' },
-					...terminal,
-					resource: buildNonPtyShellTerminalUri(this._storageUri, this._ownerSessionUri, chat, part.toolCall.toolCallId),
-				};
-				part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
-			}
+			await restoreStoredShellOutputsForChat(turns, this._storageUri, this._ownerSessionUri, URI.parse(this._subagentChatUri(parentToolCallId)), db);
 		}
 	}
 
