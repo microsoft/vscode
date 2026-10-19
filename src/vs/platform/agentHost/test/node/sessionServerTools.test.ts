@@ -3150,7 +3150,9 @@ suite('SessionServerTools', () => {
 			const checked: string[] = [];
 			const scheduled: string[] = [];
 			const accessor = createAccessor({
-				listSessions: async () => sessions,
+				// Only the sessions a call names are read.
+				listSessions: async () => { throw new Error('move_session must not list every session'); },
+				getSession: async session => sessions.find(meta => meta.session.toString() === session.toString()),
 				checkChatMove: async move => { checked.push(describeMove(move)); },
 				applyChatMove: async move => {
 					applied.push(describeMove(move));
@@ -3203,7 +3205,7 @@ suite('SessionServerTools', () => {
 			const moved = buildChatUri(source, 'moved');
 			const listed = sessions.map(meta => meta.session.toString() === target ? { ...meta, chats: [...meta.chats ?? [], { chat: URI.parse(moved), kind: 'peer' as const }] } : meta);
 			const { group, applied, checked, scheduled } = createMoveGroup({
-				listSessions: async () => listed,
+				getSession: async session => listed.find(meta => meta.session.toString() === session.toString()),
 				getChatOwner: chat => chat === moved ? target : mintedTestChatOwner(chat),
 			});
 			const results = [
@@ -3305,6 +3307,20 @@ suite('SessionServerTools', () => {
 			});
 		});
 
+		test('a move of the calling chat the host would refuse is refused when requested, not scheduled', async () => {
+			const archived = createMoveGroup({ checkChatMove: async () => { throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionArchived, 'archived'); } });
+			const unsupported = createMoveGroup({ checkChatMove: async () => { throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Unsupported, 'no backing'); } });
+			assert.deepStrictEqual({
+				archived: await run(archived.group, { into: link(target) }, buildChatUri(caller, 'peer')),
+				unsupported: await run(unsupported.group, { relationship: 'independent' }, buildChatUri(caller, 'peer')),
+				scheduled: [...archived.scheduled, ...unsupported.scheduled],
+			}, {
+				archived: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.SessionArchived)}`,
+				unsupported: `error: ${getMoveRefusalMessage(AgentChatMoveRefusal.Unsupported)}`,
+				scheduled: [],
+			});
+		});
+
 		test('is offered only while moving chats is enabled, for an agent with nested sessions; otherwise every tool list is unchanged', async () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const session = 'copilot:/gated';
@@ -3384,9 +3400,10 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('the description limits it to moves the user asks for and makes a move of the calling chat the final tool call', () => {
+		test('the description states the cross-field rules, limits it to moves the user asks for and makes a move of the calling chat the final tool call', () => {
 			const description = moveSessionToolDefinition.description ?? '';
 			assert.deepStrictEqual([
+				'Pass `into` for every move except `independent`, which takes neither `into` nor `after`.',
 				'Use this only when the user asks to move or reorganize sessions; never to tidy up sessions on your own.',
 				'The user is asked to confirm every move.',
 				'make it your final tool call',

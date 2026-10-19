@@ -5,11 +5,11 @@
 
 import { feedbackServerToolGroup } from './agentFeedbackServerTools.js';
 import { createSessionServerToolGroup, type ISessionServerToolAccessor } from './sessionServerTools.js';
-import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolDisplaySource, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
 import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } from './sessionIsolationTools.js';
-import { createSessionMoveToolGroup } from './sessionMoveTools.js';
+import { createSessionMoveToolGroup, moveSessionToolDisplay } from './sessionMoveTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -34,7 +34,8 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
 		createSessionIsolationToolGroup(isolationAccessor),
-		createSessionMoveToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled),
+		// Only where it can run: the pure display path below displays it through `moveSessionToolDisplay`.
+		...(sessionAccessor ? [createSessionMoveToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled ?? (() => true))] : []),
 	];
 }
 
@@ -42,7 +43,7 @@ export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccess
  * The groups used by the pure {@link getServerToolDisplay} path. Built without a
  * session accessor since display never invokes `execute`.
  */
-const serverToolGroupsForDisplay: readonly IServerToolGroup[] = buildServerToolGroups();
+const serverToolGroupsForDisplay: readonly IServerToolDisplaySource[] = [...buildServerToolGroups(), moveSessionToolDisplay];
 
 /**
  * Whether {@link toolName} (a tool name as seen on a tool call) refers to the

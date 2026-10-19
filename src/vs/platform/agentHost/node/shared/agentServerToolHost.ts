@@ -135,6 +135,9 @@ export interface IServerToolGroup {
 	getDisplay?(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined;
 }
 
+/** What the pure display path ({@link IServerToolGroup.getDisplay} without a host) needs of a group. */
+export type IServerToolDisplaySource = Pick<IServerToolGroup, 'definitions' | 'legacyToolNames' | 'getDisplay'>;
+
 /**
  * Bridges the agent host's server tools to the authoritative state tree.
  * Agents execute a server tool by name; the host routes it to the owning

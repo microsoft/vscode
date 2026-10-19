@@ -1108,7 +1108,7 @@ interface IResolvedCreateChatArgs {
  * link (as returned by `create_session`/`get_current_session`) — against the
  * set of known sessions. Returns `undefined` when it matches no known session.
  */
-export function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
+function resolveKnownSession(sessionInput: string, sessions: readonly IAgentSessionMetadata[]): URI | undefined {
 	// Normalize an open-session link back to its backend session URI.
 	const fromLink = parseOpenSessionLinkUri(sessionInput);
 	const candidate = fromLink?.toString() ?? sessionInput;

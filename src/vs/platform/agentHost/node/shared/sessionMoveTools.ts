@@ -12,8 +12,8 @@ import type { IAgentServerToolDefinition } from '../../common/agentServerTools.j
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { getAgentHostChatId, isAhpChatChannel, type ToolDefinition, type URI as ProtocolURI } from '../../common/state/sessionState.js';
-import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
-import { resolveDefaultChat, resolveKnownSession, resolveLinkedChat, sessionToolRequiresConfirmation, type ISessionServerToolAccessor, type ISessionServerToolMove, type SessionServerToolMoveAnchor } from './sessionServerTools.js';
+import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolDisplaySource, IServerToolGroup } from './agentServerToolHost.js';
+import { resolveDefaultChat, resolveLinkedChat, sessionToolRequiresConfirmation, type ISessionServerToolAccessor, type ISessionServerToolMove, type SessionServerToolMoveAnchor } from './sessionServerTools.js';
 
 /** Process-wide backstop against runaway `move_session` calls, independent of the per-call user confirmation. */
 const maxMovedSessions = 50;
@@ -28,10 +28,10 @@ const moveSessionInputSchema: ToolDefinition['inputSchema'] = {
 		relationship: {
 			type: 'string',
 			enum: [...moveSessionRelationshipValues],
-			description: 'Use `independent` to make a nested session its own top-level session; omit `into` and `after` then. Otherwise omit it; defaults to `nested`.',
+			description: 'Use `independent` to make a nested session its own top-level session; `into` and `after` must then be omitted. Otherwise omit it; defaults to `nested`.',
 		},
-		into: { type: 'string', description: 'For `nested`: the session to move it into, as a session URI from `list_sessions` or an `agent-host-session://` link. Pass its current session to reorder it there.' },
-		after: { type: 'string', description: 'For `nested`: an `agent-host-session://` link to a nested session of `into`, or to `into`\'s main session, to place it after. Omit to place it at the end.' },
+		into: { type: 'string', description: 'Required unless `relationship` is `independent`, which forbids it: the session to move it into, as a session URI from `list_sessions` or an `agent-host-session://` link. Pass its current session to reorder it there.' },
+		after: { type: 'string', description: 'Only with `into`; forbidden with `independent`: an `agent-host-session://` link to a nested session of `into`, or to `into`\'s main session, to place it after. Omit to place it at the end.' },
 	},
 };
 
@@ -39,7 +39,7 @@ const moveSessionInputSchema: ToolDefinition['inputSchema'] = {
 export const moveSessionToolDefinition: IAgentServerToolDefinition = {
 	name: SessionServerToolName.MoveSession,
 	title: 'Move Session',
-	description: 'Move a nested session or a whole session when the user asks to reorganize sessions: reorder a nested session within its session, move it into another session, make it its own session (`independent`), or move a session that has no nested sessions into another session as a nested session. Use this only when the user asks to move or reorganize sessions; never to tidy up sessions on your own. To start new work, use `create_session` instead. A moved session keeps its history, folders and running work; both sessions must use the same agent. Get links from `list_sessions` or `get_current_session`. The user is asked to confirm every move. When it moves the chat this tool runs in, the move happens after this turn ends: make it your final tool call.',
+	description: 'Move a nested session or a whole session when the user asks to reorganize sessions: reorder a nested session within its session, move it into another session, make it its own session (`independent`), or move a session that has no nested sessions into another session as a nested session. Pass `into` for every move except `independent`, which takes neither `into` nor `after`. Use this only when the user asks to move or reorganize sessions; never to tidy up sessions on your own. To start new work, use `create_session` instead. A moved session keeps its history, folders and running work; both sessions must use the same agent. Get links from `list_sessions` or `get_current_session`. The user is asked to confirm every move. When it moves the chat this tool runs in, the move happens after this turn ends: make it your final tool call.',
 	inputSchema: moveSessionInputSchema,
 	annotations: { readOnlyHint: false },
 	topLevelChatOnly: true,
@@ -89,11 +89,37 @@ function getRelationship(value: unknown): MoveSessionRelationship {
 }
 
 /**
- * Resolves `move_session` arguments. Sessions are named only by links and session URIs matched against the known
- * sessions; a chat only by a link's chat id, matched against that session's recorded chats, or as the calling chat,
- * whose session is its recorded owner. A chat URI is never read for its owner.
+ * Looks up the known session a session input names: a session URI or an `agent-host-session://` link. Reads only the
+ * sessions a call names, each once.
  */
-export function getMoveSessionArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChat: ProtocolURI | undefined, getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): IResolvedMoveSessionArgs {
+export type MoveSessionLookup = (input: string) => Promise<IAgentSessionMetadata | undefined>;
+
+/** A {@link MoveSessionLookup} over {@link getSession}, which answers for known sessions only. */
+export function createMoveSessionLookup(getSession: (session: URI) => Promise<IAgentSessionMetadata | undefined>): MoveSessionLookup {
+	const lookups = new Map<string, Promise<IAgentSessionMetadata | undefined>>();
+	return input => {
+		let resource: URI | undefined;
+		try {
+			resource = parseOpenSessionLinkUri(input) ?? URI.parse(input, true);
+		} catch {
+			return Promise.resolve(undefined);
+		}
+		const key = resource.toString();
+		let lookup = lookups.get(key);
+		if (!lookup) {
+			lookup = getSession(resource).then(metadata => metadata?.session.toString() === key ? metadata : undefined);
+			lookups.set(key, lookup);
+		}
+		return lookup;
+	};
+}
+
+/**
+ * Resolves `move_session` arguments. Sessions are named only by links and session URIs of known sessions; a chat only
+ * by a link's chat id, matched against that session's recorded chats, or as the calling chat, whose session is its
+ * recorded owner. A chat URI is never read for its owner.
+ */
+export async function getMoveSessionArgs(rawArgs: unknown, lookup: MoveSessionLookup, currentChat: ProtocolURI | undefined, getChatOwner: (chat: ProtocolURI) => ProtocolURI | undefined, getDefaultChat: (session: ProtocolURI) => ProtocolURI | undefined): Promise<IResolvedMoveSessionArgs> {
 	const args = (rawArgs ?? {}) as IMoveSessionArgs;
 	const relationship = getRelationship(args.relationship);
 	const sessionInput = getOptionalString(args.session, 'session');
@@ -108,12 +134,14 @@ export function getMoveSessionArgs(rawArgs: unknown, sessions: readonly IAgentSe
 
 	let session: URI;
 	let chat: URI;
+	let sessions: readonly IAgentSessionMetadata[];
 	if (sessionInput !== undefined) {
-		const known = resolveKnownSession(sessionInput, sessions);
+		const known = await lookup(sessionInput);
 		if (!known) {
 			throw invalidInput('session must be an `agent-host-session://` link or the URI of a known session (see list_sessions).');
 		}
-		session = known;
+		session = known.session;
+		sessions = [known];
 		const chatId = parseOpenSessionLinkChatId(sessionInput);
 		const linked = chatId !== undefined ? resolveLinkedChat(sessions, session, chatId) : resolveDefaultChat(sessions, session, getDefaultChat);
 		if (!linked) {
@@ -127,6 +155,8 @@ export function getMoveSessionArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		}
 		session = URI.parse(owner);
 		chat = URI.parse(currentChat);
+		const known = await lookup(owner);
+		sessions = known ? [known] : [];
 	}
 	const defaultChat = resolveDefaultChat(sessions, session, getDefaultChat);
 	const wholeSession = defaultChat !== undefined && isEqual(chat, defaultChat);
@@ -140,16 +170,17 @@ export function getMoveSessionArgs(rawArgs: unknown, sessions: readonly IAgentSe
 		return { operation: 'promote', move: { kind: 'chat', session, chat, destination: { kind: 'newSession' } }, chat, self };
 	}
 
-	const into = resolveKnownSession(intoInput!, sessions);
-	if (!into) {
+	const intoSession = await lookup(intoInput!);
+	if (!intoSession) {
 		throw invalidInput('into must be an `agent-host-session://` link or the URI of a known session (see list_sessions).');
 	}
+	const into = intoSession.session;
 	let after: SessionServerToolMoveAnchor = 'end';
 	if (afterInput !== undefined) {
-		const afterSession = resolveKnownSession(afterInput, sessions);
+		const afterSession = await lookup(afterInput);
 		const afterChatId = parseOpenSessionLinkChatId(afterInput);
-		const anchor = afterSession && isEqual(afterSession, into)
-			? afterChatId !== undefined ? resolveLinkedChat(sessions, into, afterChatId) : resolveDefaultChat(sessions, into, getDefaultChat)
+		const anchor = afterSession && isEqual(afterSession.session, into)
+			? afterChatId !== undefined ? resolveLinkedChat([intoSession], into, afterChatId) : resolveDefaultChat([intoSession], into, getDefaultChat)
 			: undefined;
 		if (!anchor) {
 			throw invalidInput('after must be a link to a nested session of `into`, or to its main session. Omit it to place the session at the end.');
@@ -318,24 +349,24 @@ function getMoveSessionDisplay(args: unknown, result?: IServerToolDisplayResult)
 	}
 }
 
+/** How every provider displays `move_session`, also where no host runs it (restored history). */
+export const moveSessionToolDisplay: IServerToolDisplaySource = {
+	definitions: [moveSessionToolDefinition],
+	getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result),
+};
+
 /**
  * Creates the `move_session` server-tool group. It is a group of its own, never materialized, so that its tool follows
  * the `chatMoves.enabled` setting on every read: with the setting off it adds nothing to any tool list.
- *
- * The {@link accessor} is optional for the pure display path, as for the session group.
  */
-export function createSessionMoveToolGroup(accessor?: ISessionServerToolAccessor, areAgentOrchestrationLimitsEnabled: () => boolean = () => true): IServerToolGroup {
+export function createSessionMoveToolGroup(accessor: ISessionServerToolAccessor, areAgentOrchestrationLimitsEnabled: () => boolean): IServerToolGroup {
 	let movedSessionCount = 0;
 	return {
-		definitions: [moveSessionToolDefinition],
-		isEnabled: toolName => toolName === SessionServerToolName.MoveSession && accessor?.isChatMoveEnabled() === true,
-		isEnabledForSession: (_toolName, sessionUri) => accessor?.supportsChatMoves(URI.parse(sessionUri)) === true,
+		...moveSessionToolDisplay,
+		isEnabled: toolName => toolName === SessionServerToolName.MoveSession && accessor.isChatMoveEnabled(),
+		isEnabledForSession: (_toolName, sessionUri) => accessor.supportsChatMoves(URI.parse(sessionUri)),
 		canRequireConfirmation: toolName => sessionToolRequiresConfirmation(toolName),
-		getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result),
-		async execute(_stateManager, context, toolName, rawArgs): Promise<string> {
-			if (!accessor) {
-				throw new Error(`Session server tool "${toolName}" cannot run: the group was built without a session accessor.`);
-			}
+		async execute(_stateManager, context, _toolName, rawArgs): Promise<string> {
 			if (!accessor.isChatMoveEnabled()) {
 				throw new Error(getMoveRefusalMessage(AgentChatMoveRefusal.Disabled));
 			}
@@ -343,7 +374,7 @@ export function createSessionMoveToolGroup(accessor?: ISessionServerToolAccessor
 				throw new Error(`Refusing to move more than ${maxMovedSessions} sessions from server tools in this process.`);
 			}
 			const currentChat = isAhpChatChannel(context.chatUri) ? context.chatUri : undefined;
-			const args = getMoveSessionArgs(rawArgs, await accessor.listSessions(), currentChat, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
+			const args = await getMoveSessionArgs(rawArgs, createMoveSessionLookup(session => accessor.getSession(session)), currentChat, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
 			try {
 				if (args.self) {
 					if (!context.turnId) {
