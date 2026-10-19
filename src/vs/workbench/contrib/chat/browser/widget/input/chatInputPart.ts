@@ -1130,24 +1130,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 		}));
 
-		// React to chat session option changes for the active session
-		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
-				// Options changed for our current session - refresh pickers
-				this.refreshChatSessionPickers();
-			}
-		}));
-
-		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource) {
-				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-				if (getChatSessionType(sessionResource) === chatSessionType || delegateSessionType === chatSessionType) {
-					this.refreshChatSessionPickers();
-				}
-			}
-		}));
+		this.registerChatSessionPickerListeners();
 
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
@@ -2894,6 +2877,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			&& g.items.length > 0
 			&& this.evaluateOptionGroupVisibility(g)
 		);
+	}
+
+	private registerChatSessionPickerListeners(): void {
+		// A history-backed chat can open before its live session contribution is registered.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.refreshChatSessionPickers()));
+		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
+				this.refreshChatSessionPickers();
+			}
+		}));
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource) {
+				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+				if (getChatSessionType(sessionResource) === chatSessionType || delegateSessionType === chatSessionType) {
+					this.refreshChatSessionPickers();
+				}
+			}
+		}));
 	}
 
 	/**

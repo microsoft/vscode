@@ -39,7 +39,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
-import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
+import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -319,10 +319,10 @@ class MockAgentService implements IAgentService {
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return {}; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
-	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions }[] = [];
+	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions; initialMessageContext?: IAgentCreateChatInitialMessageContext }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
-		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, _credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
+		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}), ...(initialMessageContext ? { initialMessageContext } : {}) });
 		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
@@ -2300,14 +2300,19 @@ suite('ProtocolServerHandler', () => {
 		const result = (message: ProtocolMessage) => hasKey(message, { result: true }) ? message.result : undefined;
 		assert.deepStrictEqual({
 			mismatch: errorCode(findResponse(mismatch.sent, 1)),
-			passive: errorCode(await passiveResult),
+			passive: await passiveResult,
 			outside: errorCode(await outsideResult),
 			created: result(await created),
 			listed: result(await listed),
 			configs: agentService.createSessionConfigs.length,
 		}, {
 			mismatch: JsonRpcErrorCodes.InvalidParams,
-			passive: JsonRpcErrorCodes.InvalidRequest,
+			passive: {
+				jsonrpc: '2.0', id: 2, error: {
+					code: JsonRpcErrorCodes.InvalidRequest,
+					message: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				},
+			},
 			outside: JsonRpcErrorCodes.InvalidParams,
 			created: null,
 			listed: { items: [] },
@@ -6174,9 +6179,48 @@ suite('ProtocolServerHandler', () => {
 			response: findResponse(transport.sent, 2), reason: envelope.rejectionReason, activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, result: { serverSeq: envelope.serverSeq } },
-			reason: 'Passive relay connections cannot mutate state', activeClients: [],
+			reason: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.', activeClients: [],
 		});
 	});
+
+	for (const requestForm of [false, true]) {
+		test(`${requestForm ? 'request' : 'notification'}-form message dispatch explains read-only access without starting a turn`, async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'read-only-client', true));
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'read-only-client', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [defaultChatUri],
+			}));
+			await handler.whenIdle();
+			transport.sent.length = 0;
+			const chat = stateManager.getChatState(defaultChatUri);
+			const params = {
+				channel: defaultChatUri, clientSeq: 1, action: {
+					type: ActionType.ChatTurnStarted, turnId: 'read-only-turn', startedAt: '2026-10-18T00:00:00.000Z',
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				},
+			};
+			transport.simulateMessage(requestForm ? request(2, 'dispatchAction', params) : notification('dispatchAction', params));
+			await handler.whenIdle();
+			const envelopes = findNotifications(transport.sent, 'action').map(message => message.params as ActionEnvelope);
+			assert.deepStrictEqual({
+				rejections: envelopes.map(envelope => ({
+					channel: envelope.channel, action: envelope.action.type, reason: envelope.rejectionReason,
+				})),
+				response: findResponse(transport.sent, 2),
+				chat: stateManager.getChatState(defaultChatUri),
+				handledActions: agentService.handledActions,
+			}, {
+				rejections: [{
+					channel: defaultChatUri, action: ActionType.ChatTurnStarted,
+					reason: 'This connection is read-only. You can view sessions, but you cannot create sessions, send messages, or make changes.',
+				}],
+				response: requestForm ? { jsonrpc: '2.0', id: 2, result: { serverSeq: envelopes[0].serverSeq } } : undefined,
+				chat,
+				handledActions: [],
+			});
+		});
+	}
 
 	test('request-form dispatch stops waiting and releases acknowledgement listeners on disconnect', async () => {
 		stateManager.createSession(makeSessionSummary());
@@ -6673,7 +6717,7 @@ suite('ProtocolServerHandler', () => {
 		const relay = disposables.add(new MockProtocolServer());
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay,
-			{ sessionListAdapter: toMissionControlSessionList },
+			{ sessionSummaryFilter: summary => !readSessionExternal(summary._meta), sessionListAdapter: toMissionControlSessionList },
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 		));
@@ -6681,6 +6725,113 @@ suite('ProtocolServerHandler', () => {
 		relay.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { clientId, clientInfo, protocolVersions: [PROTOCOL_VERSION] }));
 		return transport;
+	}
+
+	test('Mission Control excludes external sessions from listings without changing local, SSH or tunnel listings', async () => {
+		for (const external of [false, true]) {
+			for (const archived of [false, true]) {
+				agentService.listedSessions.push({
+					session: URI.parse(`copilot:/session-${external}-${archived}`),
+					startTime: 0, modifiedTime: 1,
+					status: archived ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+					_meta: withSessionExternal(undefined, external),
+				});
+			}
+		}
+		const listed = [];
+		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel, AgentHostClientConnectionKind.MissionControl]) {
+			const transport = connectionKind === AgentHostClientConnectionKind.MissionControl
+				? connectMissionControlListClient('external-list')
+				: connectClient(`external-list-${connectionKind}`, undefined, undefined, { 'vscode.clientConnectionKind': connectionKind });
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'listSessions'));
+			const response = await responsePromise;
+			listed.push(hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined);
+		}
+		assert.deepStrictEqual(listed, [
+			...Array.from({ length: 3 }, () => agentService.listedSessions.map(item => item.session.toString())),
+			agentService.listedSessions.filter(item => !readSessionExternal(item._meta)).map(item => item.session.toString()),
+		]);
+	});
+
+	test('Mission Control filters listings using current session provenance', async () => {
+		for (const external of [false, true]) {
+			const summary = { ...makeSessionSummary(`copilot:/current-${external}`), _meta: withSessionExternal(undefined, external) };
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource), startTime: 0, modifiedTime: 1,
+				_meta: withSessionExternal(undefined, !external),
+			});
+		}
+		const transport = connectMissionControlListClient('current-provenance');
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		assert.deepStrictEqual(hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items.map(item => item.resource) : undefined,
+			['copilot:/current-false']);
+	});
+
+	for (const restored of [false, true]) {
+		test(`Mission Control excludes external session catalogue additions and changes (${restored ? 'restored' : 'surfaced'})`, () => {
+			const local = connectClient('external-local', ['ahp-root://']);
+			const missionControl = connectMissionControlListClient('external-relay');
+			local.sent.length = 0;
+			missionControl.sent.length = 0;
+			for (const external of [false, true]) {
+				const summary = { ...makeSessionSummary(`copilot:/notification-${external}`), _meta: withSessionExternal(undefined, external) };
+				if (restored) {
+					stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+					stateManager.setSessionSummaryPublished(summary.resource, true);
+					stateManager.dispatchServerAction(summary.resource, { type: ActionType.SessionTitleChanged, title: 'Retitled' });
+					stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(summary.resource)!]);
+				} else {
+					stateManager.announceSurfacedSession(summary);
+					stateManager.updateSurfacedSessionTitle(summary.resource, 'Retitled');
+				}
+			}
+			assert.deepStrictEqual([local, missionControl].map(client => ({
+				added: findNotifications(client.sent, 'root/sessionAdded').map(message => (message.params as SessionAddedParams).summary.resource),
+				changed: findNotifications(client.sent, 'root/sessionSummaryChanged').map(message => (message.params as SessionSummaryChangedParams).session),
+			})), [
+				{ added: ['copilot:/notification-false', 'copilot:/notification-true'], changed: ['copilot:/notification-false', 'copilot:/notification-true'] },
+				{ added: ['copilot:/notification-false'], changed: ['copilot:/notification-false'] },
+			]);
+		});
+	}
+
+	for (const listed of [false, true]) {
+		test(`Mission Control announces an adopted session after ${listed ? 'listing' : 'receiving'} a filtered external session`, async () => {
+			const transport = connectMissionControlListClient('adopted-session');
+			const local = connectClient('adoption-local', ['ahp-root://']);
+			const summary = { ...makeSessionSummary('copilot:/adopted'), _meta: withSessionExternal(undefined, true) };
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			stateManager.setSessionSummaryPublished(summary.resource, true);
+			agentService.listedSessions.push({
+				session: URI.parse(summary.resource), startTime: 0, modifiedTime: 1, _meta: summary._meta,
+			});
+			if (listed) {
+				const responsePromise = waitForResponse(transport, 2);
+				transport.simulateMessage(request(2, 'listSessions'));
+				await responsePromise;
+			}
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			stateManager.dispatchServerAction(summary.resource, { type: ActionType.SessionMetaChanged, _meta: withSessionExternal(undefined, false) });
+			stateManager.setSessionSummaryPublished(summary.resource, true);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(summary.resource)!]);
+			stateManager.dispatchServerAction(summary.resource, { type: ActionType.SessionTitleChanged, title: 'Adopted title' });
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(summary.resource)!]);
+			assert.deepStrictEqual([transport, local].map(client => ({
+				added: findNotifications(client.sent, 'root/sessionAdded').map(message => {
+					const added = (message.params as SessionAddedParams).summary;
+					return { resource: added.resource, title: added.title, external: readSessionExternal(added._meta) };
+				}),
+				changed: findNotifications(client.sent, 'root/sessionSummaryChanged').map(message => (message.params as SessionSummaryChangedParams).changes),
+			})), [
+				{ added: [{ resource: summary.resource, title: summary.title, external: false }], changed: [{ title: 'Adopted title' }] },
+				{ added: [], changed: [{ _meta: withSessionExternal(undefined, false) }, { title: 'Adopted title' }] },
+			]);
+		});
 	}
 
 	test('listSessions retains all archived sessions on listeners without a session-list adapter', async () => {
@@ -7596,7 +7747,7 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat for an additional chat forwards working directories and grows the catalog', async () => {
+		test('createChat for an additional chat forwards an exact title and working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -7605,6 +7756,7 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', {
 				channel: sessionUri,
 				chat: peerChat,
+				title: '  Exact fresh title  ',
 				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
@@ -7618,13 +7770,68 @@ suite('ProtocolServerHandler', () => {
 				created: [{
 					session: sessionUri,
 					chat: peerChat,
-					options: { workingDirectories: [URI.file('/workspace')] },
+					options: {
+						title: '  Exact fresh title  ',
+						workingDirectories: [URI.file('/workspace')],
+					},
 				}],
 				inCatalog: true,
 			});
 		});
 
-		test('createChat forwards a fork source and ignores its working directories', async () => {
+		test('createChat forwards an initial message with the submitting client context', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-initial-message');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			const message = { text: 'Start the fork', origin: { kind: MessageKind.User } };
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				initialMessage: message,
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				options: agentService.createdChats[0].options,
+				clientId: agentService.createdChats[0].initialMessageContext?.clientId,
+			}, {
+				result: null,
+				options: { initialMessage: message },
+				clientId: 'client-initial-message',
+			});
+		});
+
+		test('createChat accepts a fork initial message without a separate capability', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-legacy-fork-initial-message');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			const message = { text: 'Continue the legacy fork', origin: { kind: MessageKind.User } };
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+				initialMessage: message,
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				options: agentService.createdChats[0].options,
+			}, {
+				result: null,
+				options: {
+					initialMessage: message,
+					fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
+				},
+			});
+		});
+
+		test('createChat forwards an exact title and fork source while ignoring working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -7633,6 +7840,7 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', {
 				channel: sessionUri,
 				chat: peerChat,
+				title: '  Exact fork title  ',
 				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
 				workingDirectories: [URI.file('/workspace').toString()],
 			}));
@@ -7647,6 +7855,7 @@ suite('ProtocolServerHandler', () => {
 					session: sessionUri,
 					chat: peerChat,
 					options: {
+						title: '  Exact fork title  ',
 						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
 					},
 				}],

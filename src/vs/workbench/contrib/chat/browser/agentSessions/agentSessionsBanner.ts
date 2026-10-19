@@ -85,7 +85,7 @@ export function createAgentsBanner(
 		}
 	}));
 	let accountResolved = false;
-	const shouldOfferSignIn = () => accountResolved && defaultAccountService?.currentDefaultAccount === null && configurationService.getValue<boolean>(ChatConfiguration.WelcomePageSignInEnabled) === true;
+	const shouldOfferSignIn = () => accountResolved && defaultAccountService?.currentDefaultAccount === null && configurationService.getValue<boolean>(ChatConfiguration.WelcomePageSignInEnabled) !== false;
 	const updateButton = () => {
 		const offerSignIn = shouldOfferSignIn();
 		const buttonText = offerSignIn ? localize('agentsBanner.signIn', "Sign in to GitHub") : label;
