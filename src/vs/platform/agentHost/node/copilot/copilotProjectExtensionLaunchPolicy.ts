@@ -74,6 +74,8 @@ export class CopilotProjectExtensionLaunchPolicy {
 			const worktreeDirectory = await this._canonicalFileUri(trustGrant.worktreeDirectory, 'inherited extension trust worktree');
 			const repositoryRoot = await this._canonicalFileUri(trustGrant.repositoryRoot, 'inherited extension trust repository');
 			if (worktreeDirectory && repositoryRoot
+				&& isEqual(worktreeDirectory, trustGrant.worktreeDirectory)
+				&& isEqual(repositoryRoot, trustGrant.repositoryRoot)
 				&& roots.some(root => isEqual(root, worktreeDirectory))
 				&& isWorktreeUnderRepository(worktreeDirectory, repositoryRoot)) {
 				acquiredGrant = { worktreeDirectory, repositoryRoot };

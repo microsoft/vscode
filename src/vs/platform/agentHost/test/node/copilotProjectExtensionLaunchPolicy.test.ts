@@ -138,19 +138,21 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 		const repository = join(root, 'repository');
 		const worktree = join(root, 'repository.worktrees', 'session');
 		const swappedWorktree = join(root, 'repository.worktrees', 'swapped');
+		const siblingWorktree = join(root, 'repository.worktrees', 'sibling');
 		const ordinaryFolder = join(root, 'repository.worktrees', 'ordinary');
-		const workspace = join(root, 'workspace');
 		const extensionDirectory = join(worktree, '.github', 'extensions', 'preview');
 		const swappedExtensionDirectory = join(swappedWorktree, '.github', 'extensions', 'preview');
+		const siblingExtensionDirectory = join(siblingWorktree, '.github', 'extensions', 'preview');
 		const modulePath = join(extensionDirectory, 'extension.mjs');
 		const swappedModulePath = join(swappedExtensionDirectory, 'extension.mjs');
 		await fs.mkdir(repository, { recursive: true });
 		await fs.mkdir(extensionDirectory, { recursive: true });
 		await fs.mkdir(swappedExtensionDirectory, { recursive: true });
+		await fs.mkdir(siblingExtensionDirectory, { recursive: true });
 		await fs.mkdir(ordinaryFolder, { recursive: true });
-		await fs.mkdir(workspace, { recursive: true });
 		await fs.writeFile(modulePath, '');
 		await fs.writeFile(swappedModulePath, '');
+		await fs.writeFile(join(siblingExtensionDirectory, 'extension.mjs'), '');
 		const { configurationService, policy } = createPolicy();
 		try {
 			configurationService.updateRootConfig({
@@ -172,7 +174,7 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 				repositoryRoot: URI.file(repository),
 			});
 			await fs.rm(swappedWorktree, { recursive: true, force: true });
-			await fs.symlink(workspace, swappedWorktree, process.platform === 'win32' ? 'junction' : 'dir');
+			await fs.symlink(siblingWorktree, swappedWorktree, process.platform === 'win32' ? 'junction' : 'dir');
 			const swappedAdmission = disposables.add(await policy.acquireAdmission([URI.file(swappedWorktree)], swappedGrant));
 			const swappedAfterValidation = await policy.resolveLaunch(swappedModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 			swappedAdmission.dispose();

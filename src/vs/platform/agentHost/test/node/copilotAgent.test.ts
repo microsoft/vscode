@@ -25906,6 +25906,47 @@ suite('CopilotAgent', () => {
 			}
 		}).timeout(30_000);
 
+		test('resume leaves unresolved project metadata available for later resolution', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/resume-unresolved-project-`);
+			const workingDirectory = URI.file(join(root, 'workspace'));
+			await fs.mkdir(workingDirectory.fsPath, { recursive: true });
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const session = AgentSession.uri('copilotcli', 'resume-unresolved-project');
+			const chat = sessionBackedChat('resume-unresolved-project');
+			const dbRef = sessionDataService.openDatabase(session);
+			await dbRef.object.setMetadata('copilot.workingDirectory', workingDirectory.toString());
+			dbRef.dispose();
+			const client = new TestCopilotClient([sdkSession('resume-unresolved-project', workingDirectory.fsPath, { repository: 'owner/repository' })]);
+			client.resumeSession = async id => new MockCopilotSession(id) as unknown as CopilotSession;
+			const agent = createTestAgent(disposables, {
+				copilotClient: client,
+				useRealResumePath: true,
+				sessionDataService,
+			});
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await (agent as unknown as AgentInternals)._resumeSession('resume-unresolved-project', chat);
+				const beforeMetadata = sessionDataService.openDatabase(session);
+				const resolvedBeforeMetadata = await beforeMetadata.object.getMetadata('copilot.project.resolved');
+				beforeMetadata.dispose();
+				const metadata = await agent.getChatMetadata(chat, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({
+					resolvedBeforeMetadata,
+					project: metadata?.project && {
+						uri: metadata.project.uri.toString(),
+						displayName: metadata.project.displayName,
+					},
+				}, {
+					resolvedBeforeMetadata: undefined,
+					project: { uri: 'https://github.com/owner/repository', displayName: 'repository' },
+				});
+			} finally {
+				await fs.rm(root, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		}).timeout(30_000);
+
 		test('resume replaces the complete SDK system message when configured', async () => {
 			const workingDirectory = await fs.mkdtemp(`${os.tmpdir()}/resume-system-message-`);
 			const promptOverrideFile = '/prompt.yaml';

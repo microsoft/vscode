@@ -7818,7 +7818,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					workingDirectory,
 					workingDirectories: launchWorkingDirectories,
 					project: effectiveProject,
-					projectResolved: true,
+					projectResolved: effectiveProject !== undefined,
 					projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
 				});
 			}
@@ -8629,7 +8629,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await this._storeSessionMetadata({ storage: sessionUri, owner: owner.get() }, {
 						workingDirectories: launchWorkingDirectories,
 						project: effectiveProject,
-						projectResolved: true,
+						projectResolved: effectiveProject !== undefined,
 						projectExtensionTrustGrant: projectExtensionTrustGrant ?? null,
 					});
 				}, token);
