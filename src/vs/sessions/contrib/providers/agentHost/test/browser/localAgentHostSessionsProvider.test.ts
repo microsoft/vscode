@@ -12111,6 +12111,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 					harnesses: ['otheragent', 'otheragent'],
 				});
 			}));
+
+			test('a chat whose reported agent changes (e.g. moved in from another session) is rebuilt with that harness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				const session = setupMultiChatSession(provider, 'harness-moved');
+				const peer = buildChatUri(AgentSession.uri('copilotcli', 'harness-moved').toString(), 'moved');
+				setupCatalog('harness-moved', [makeChatSummary(peer, 'Moved')]);
+				const before = session.chats.get().find(chat => chat.resource.fragment === 'moved')?.harness;
+				setupCatalog('harness-moved', [{ ...makeChatSummary(peer, 'Moved'), provider: 'otheragent' }]);
+
+				assert.deepStrictEqual({ before, after: session.chats.get().find(chat => chat.resource.fragment === 'moved')?.harness }, { before: 'copilot', after: 'otheragent' });
+			}));
+
+			test('harness presentation follows the agents a restored host advertises', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.setAgents([copilotAgent]);
+				const provider = createProvider(disposables, agentHost);
+				const observed: (string | undefined)[] = [];
+				disposables.add(autorun(reader => observed.push(provider.getHarnessPresentation('otheragent', reader)?.label)));
+				agentHost.setAgents([copilotAgent, otherAgent]);
+				await timeout(0);
+
+				assert.deepStrictEqual(observed, [undefined, provider.sessionTypes.find(type => type.id === 'otheragent')?.label]);
+				assert.ok(observed[1]);
+			}));
 		});
 
 		test('forkChat sends an optional title with only fork support and returns the host-published named peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

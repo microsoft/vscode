@@ -1910,6 +1910,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			const chatId = getAgentHostChatId(chat.chat);
 			let entry = this._additionalChats.get(chatId);
+			if (entry && entry.agentProvider !== (readChatMetadataProvider(chat) ?? this.agentProvider)) {
+				// See `_applyChatCatalog`: the chat behind this id changed agent, so it is rebuilt.
+				this._additionalChats.deleteAndDispose(chatId);
+				entry = undefined;
+			}
 			if (!entry) {
 				entry = this._createAdditionalChat(chatId, {
 					resource: chat.chat.toString(),
@@ -2121,6 +2126,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 			const chatId = getAgentHostChatId(summary.resource);
 			let entry = this._additionalChats.get(chatId);
+			if (entry && entry.agentProvider !== (summary.provider ?? this.agentProvider)) {
+				// A chat's agent is fixed, so a different one means a different chat behind this id (e.g. a
+				// chat moved in from a session of another agent): rebuild it from what the catalog reports.
+				this._additionalChats.deleteAndDispose(chatId);
+				entry = undefined;
+			}
 			if (!entry) {
 				entry = this._createAdditionalChat(chatId, summary);
 				this._additionalChats.set(chatId, entry);
@@ -4836,15 +4847,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessionTypes.fire();
 	}
 
+	private _sessionTypesChangedSignal: IObservable<void> | undefined;
+
 	/**
-	 * Returns the {@link ThemeIcon} associated with a known agent provider, or
-	 * `undefined` when the provider is not recognised.
+	 * Presents a harness by the session type of the agent behind it, re-evaluating for `reader`
+	 * as the host's advertised agents load or change. `undefined` until that agent is advertised.
 	 */
-	getHarnessPresentation(harness: string): IHarnessPresentation | undefined {
+	getHarnessPresentation(harness: string, reader?: IReader): IHarnessPresentation | undefined {
+		if (reader) {
+			this._sessionTypesChangedSignal ??= observableSignalFromEvent(this, this.onDidChangeSessionTypes);
+			this._sessionTypesChangedSignal.read(reader);
+		}
 		const sessionType = this._sessionTypes.find(type => toAgentHostHarness(type.id) === harness);
 		return sessionType ? { label: sessionType.label, icon: sessionType.icon } : undefined;
 	}
 
+	/**
+	 * Returns the {@link ThemeIcon} associated with a known agent provider, or
+	 * `undefined` when the provider is not recognised.
+	 */
 	private iconForAgentProvider(provider: string): ThemeIcon | undefined {
 		if (provider === CopilotCLISessionType.id) {
 			return CopilotCLISessionType.icon;

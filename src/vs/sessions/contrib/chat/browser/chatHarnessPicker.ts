@@ -18,7 +18,7 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { getChatHarness, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IHarnessPresentation } from '../../../services/sessions/common/sessionsProvider.js';
+import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../../services/sessions/common/sessionsProvider.js';
 
 interface IChatHarnessChoice {
 	readonly harness: string;
@@ -30,7 +30,7 @@ interface IChatHarnessChoice {
  * The harness choices for a new peer chat of `session`: offered only while its
  * active chat is an unsent peer draft and the session advertises more than one.
  */
-export function getChatHarnessChoices(session: IActiveSession | undefined, getPresentation: (harness: string) => IHarnessPresentation | undefined, reader: IReader | undefined): readonly IChatHarnessChoice[] {
+export function getChatHarnessChoices(session: IActiveSession | undefined, getPresentation: (harness: string) => IHarnessPresentation, reader: IReader | undefined): readonly IChatHarnessChoice[] {
 	if (!session || !session.isCreated.read(reader)) {
 		return [];
 	}
@@ -39,7 +39,7 @@ export function getChatHarnessChoices(session: IActiveSession | undefined, getPr
 	if (harnesses.length < 2 || isEqual(activeChat.resource, session.mainChat.read(reader).resource) || activeChat.status.read(reader) !== SessionStatus.Untitled) {
 		return [];
 	}
-	return harnesses.map(harness => ({ harness, presentation: getPresentation(harness) ?? { label: harness, icon: Codicon.agent } }));
+	return harnesses.map(harness => ({ harness, presentation: getPresentation(harness) }));
 }
 
 /**
@@ -65,15 +65,17 @@ export class ChatHarnessPicker extends Disposable {
 		this._choices = derived(this, reader => {
 			const session = this._session.read(reader);
 			const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
-			return getChatHarnessChoices(session, harness => provider?.getHarnessPresentation?.(harness), reader);
+			return getChatHarnessChoices(session, harness => getHarnessPresentationOrDefault(provider, harness, reader), reader);
 		});
 		this.isVisible = this._choices.map(choices => choices.length > 0);
 	}
 
-	render(container: HTMLElement): void {
+	/** Renders the picker into `container`, before `anchor` when given and otherwise last. */
+	render(container: HTMLElement, anchor?: Node | null): void {
 		this._renderDisposables.clear();
 
-		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-harness-picker'));
+		const slot = dom.$('.sessions-chat-picker-slot.sessions-chat-harness-picker');
+		container.insertBefore(slot, anchor ?? null);
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 		const trigger = this._triggerElement = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
@@ -91,7 +93,8 @@ export class ChatHarnessPicker extends Disposable {
 				return;
 			}
 			const current = getChatHarness(session, session.activeChat.read(reader));
-			const presentation = choices.find(choice => choice.harness === current)?.presentation ?? { label: current, icon: Codicon.agent };
+			const provider = this._sessionsProvidersService.getProvider(session.providerId);
+			const presentation = choices.find(choice => choice.harness === current)?.presentation ?? getHarnessPresentationOrDefault(provider, current, reader);
 			dom.append(trigger, renderIcon(presentation.icon));
 			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label')).textContent = presentation.label;
 			dom.append(trigger, renderIcon(Codicon.chevronDownCompact)).classList.add('sessions-chat-dropdown-chevron');

@@ -12,7 +12,7 @@ import { $, addDisposableGenericMouseDownListener, addDisposableGenericMouseUpLi
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
-import { autorun, IObservable } from '../../../base/common/observable.js';
+import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Action, Separator } from '../../../base/common/actions.js';
@@ -31,7 +31,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { localize } from '../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, SessionStatus } from '../../services/sessions/common/session.js';
-import { IHarnessPresentation } from '../../services/sessions/common/sessionsProvider.js';
+import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../services/sessions/common/sessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
@@ -107,6 +107,10 @@ export interface IChatCompositeBarDelegate {
  * The bar is a passive renderer driven by an {@link IChatCompositeBarDelegate}
  * supplied via {@link setGroup}.
  */
+function getChatTabHover(titlePath: string, harness: IHarnessPresentation | undefined): string {
+	return harness ? localize('chatTabHarnessHover', "{0} ({1})", titlePath, harness.label) : titlePath;
+}
+
 export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -300,13 +304,16 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsContainer.setAttribute('aria-label', label);
 	}
 
-	/** The harness of a chat whose harness differs from its session's main chat, if any. */
-	private _getDistinctChatHarness(session: IActiveSession, chat: IChat): IHarnessPresentation | undefined {
+	/**
+	 * Presents a chat's harness when it differs from its session's main chat, re-evaluating for `reader`
+	 * as the provider learns its harnesses (a restored session can render before its host advertises them).
+	 */
+	private _getDistinctChatHarness(session: IActiveSession, chat: IChat, reader: IReader | undefined): IHarnessPresentation | undefined {
 		const harness = getChatHarness(session, chat);
-		if (harness === getChatHarness(session, session.mainChat.get())) {
+		if (harness === getChatHarness(session, session.mainChat.read(reader))) {
 			return undefined;
 		}
-		return this._sessionsProvidersService.getProvider(session.providerId)?.getHarnessPresentation?.(harness) ?? { label: harness, icon: Codicon.agent };
+		return getHarnessPresentationOrDefault(this._sessionsProvidersService.getProvider(session.providerId), harness, reader);
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], mainChatId: string): void {
@@ -384,8 +391,7 @@ export class ChatCompositeBar extends Disposable {
 
 		const labelEl = $('.chat-composite-bar-tab-label.modern-ui-editor-tab-label');
 		const labelWidget = this._tabDisposables.add(new IconLabel(labelEl));
-		// A chat's harness never changes, so a chat using another harness than its session's is marked once.
-		const harness = session ? this._getDistinctChatHarness(session, chat) : undefined;
+		const harness = (reader: IReader | undefined) => session ? this._getDistinctChatHarness(session, chat, reader) : undefined;
 		let titlePath = '';
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
@@ -400,15 +406,21 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('has-description', description.length > 0);
 			titlePath = [...ancestors, title].join(' / ');
 			const statusLabel = localize('chatTabAriaLabel', "{0}, {1}", titlePath, getSessionConversationStatusAriaLabel(status));
-			const label = harness ? localize('chatTabHarnessAriaLabel', "{0}, uses harness {1}", statusLabel, harness.label) : statusLabel;
+			const chatHarness = harness(reader);
+			const label = chatHarness ? localize('chatTabHarnessAriaLabel', "{0}, uses harness {1}", statusLabel, chatHarness.label) : statusLabel;
 			tab.setAttribute('aria-label', isRead ? label : localize('chatTabUnreadAriaLabel', "{0}, unread", label));
 		}));
 
-		if (harness) {
-			const harnessIcon = $('.chat-composite-bar-tab-harness', { 'aria-hidden': true });
-			harnessIcon.classList.add(...ThemeIcon.asClassNameArray(harness.icon));
-			tab.appendChild(harnessIcon);
-		}
+		const harnessIcon = $('.chat-composite-bar-tab-harness', { 'aria-hidden': true });
+		tab.appendChild(harnessIcon);
+		this._tabDisposables.add(autorun(reader => {
+			const chatHarness = harness(reader);
+			harnessIcon.className = 'chat-composite-bar-tab-harness';
+			harnessIcon.classList.toggle('hidden', !chatHarness);
+			if (chatHarness) {
+				harnessIcon.classList.add(...ThemeIcon.asClassNameArray(chatHarness.icon));
+			}
+		}));
 
 		// Lock icon shown for read-only (non-interactive) chats.
 		const lockIcon = $('.chat-composite-bar-tab-lock');
@@ -427,7 +439,7 @@ export class ChatCompositeBar extends Disposable {
 		tab.appendChild(inputContainer);
 
 		// Delayed hover showing the full chat title (useful when the title is truncated)
-		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: harness ? localize('chatTabHarnessHover', "{0} ({1})", titlePath, harness.label) : titlePath })));
+		this._tabDisposables.add(this._hoverService.setupDelayedHover(tab, () => ({ content: getChatTabHover(titlePath, harness(undefined)) })));
 		this._tabDisposables.add(addDisposableListener(tab, EventType.MOUSE_ENTER, () => {
 			this._connectedTabOverflowEdge.classList.toggle('connected-tab-hovered', tab.classList.contains('active'));
 		}));

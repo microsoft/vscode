@@ -7265,6 +7265,35 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('without a harness, reuses only a draft of the main harness and creates a chat of the main harness', async () => {
+			const otherDraft: IChat = { ...stubChat, resource: URI.parse('test:///other-draft'), harness: 'other', status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
+			const session = stubSession({ sessionId: 'main-harness-reuse', providerId: 'test', harness: 'main', chats: constObservable([otherDraft]) });
+			const requests: (ICreateNewChatOptions | undefined)[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(_sessionId?: string, _prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
+					requests.push(options);
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			// The New Chat action passes no options; the composer resets with `forceNew` after a background send.
+			const fromAction = await service.createNewChatInSession(session);
+			const afterSend = await service.createNewChatInSession(session, { forceNew: true });
+
+			assert.deepStrictEqual({
+				fromAction: fromAction?.resource.toString(),
+				afterSend: afterSend?.resource.toString(),
+				requestedHarnesses: requests.map(options => options?.harness),
+			}, {
+				fromAction: createdChat.resource.toString(),
+				afterSend: createdChat.resource.toString(),
+				requestedHarnesses: [undefined, undefined],
+			});
+		});
+
 		test('reuses an untitled chat only when it uses the requested harness', async () => {
 			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
 			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created'), harness: 'other' };

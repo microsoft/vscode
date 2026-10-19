@@ -32,7 +32,6 @@ import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
-import { ChatProvidersSettingId } from '../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -220,7 +219,8 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(chatTabsMode === SessionsChatTabsMode.Single
 			? localize('sessionsChat.sessionsListChatsAsSessionView', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to show a chat as the session view. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript.")
 			: localize('sessionsChat.sessionsListChatsAsTabs', "Sessions with multiple user-facing chats show those chats nested beneath the session in the Sessions list. Use the arrow keys to navigate the list and Enter to open a chat as a tab. Side chats and subagent chats are omitted from this nested list: side chats are reachable from the Side Chats dropdown in the session's overflow menu, and subagent chats open from their pills in the chat transcript."));
-		if (configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled)) {
+		// Only where it applies: a shown session lets its new chats choose among its harnesses.
+		if (accessor.get(ISessionsService).visibleSessions?.get().some(session => (session?.capabilities.get().supportsChatHarnesses?.length ?? 0) > 1)) {
 			content.push(localize('sessionsChat.newChatAgentPicker', "When a session offers more than one harness for its chats, the new-chat composer shows a harness picker in its input toolbar. Use Tab to reach it and Enter or Space to open it, then the arrow keys and Enter to choose the harness for the new chat. Choosing another harness replaces the unsent new chat. A chat keeps its harness; forks and side chats use the harness of the chat they come from. A chat tab whose harness differs from the session's shows that harness's icon and names it, and a Sessions list row whose chats use different harnesses says so."));
 		}
 		const promoteNewChatAction = SessionsListPromoteNewChatActionContext.getValue(accessor.get(IContextKeyService)) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;

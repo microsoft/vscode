@@ -128,11 +128,8 @@ export class NewChatInSessionWidget extends Disposable {
 			return;
 		}
 		const picker = this._register(this.instantiationService.createInstance(ChatHarnessPicker, this._session));
-		picker.render(container);
-		const slot = container.lastElementChild;
-		if (slot) {
-			container.prepend(slot);
-		}
+		// Leads the session controls, ahead of the mode and permission pickers.
+		picker.render(container, container.firstChild);
 	}
 
 	private _renderSubSessionTip(): void {
@@ -226,7 +223,7 @@ export class NewChatInSessionWidget extends Disposable {
 
 	// --- Send ---
 
-	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+	protected async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
 		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;

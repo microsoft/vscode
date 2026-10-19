@@ -365,6 +365,10 @@
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
+.session-chat-tabs-bar .chat-composite-bar-tab .chat-composite-bar-tab-harness.hidden {
+	display: none;
+}
+
 /* While editing, the tab expands to its max width. */
 .session-chat-tabs-bar .chat-composite-bar-tabs > .chat-composite-bar-tab.editing {
 	cursor: default;
