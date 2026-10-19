@@ -10,7 +10,7 @@ export type CopilotSessionRefreshReason = 'workingDirectoryChanged' | 'primaryDi
 export type CopilotRuntimeMutation = 'sandboxUpdate' | 'mcpEnable' | 'mcpDisable' | 'agentSelect' | 'userRequested' | 'extensionsReload' | 'customizationsChanged';
 type CopilotRuntimeRestartPhase = 'turnPrepare' | 'inTurn' | 'idle';
 
-type CopilotRuntimeRestartEvent = IAgentHostEventTelemetry & {
+export type CopilotRuntimeRestartEvent = IAgentHostEventTelemetry & {
 	kind: 'sdkSession' | 'mcpServer';
 	cause: CopilotSessionRefreshReason | CopilotRuntimeMutation | 'runtime';
 	firstTurn: boolean;
