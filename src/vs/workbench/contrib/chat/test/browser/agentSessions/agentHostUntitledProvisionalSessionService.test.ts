@@ -66,6 +66,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
 	readonly disposeAttempts: URI[] = [];
 	createGate: DeferredPromise<void> | undefined;
+	disposeGate: DeferredPromise<void> | undefined;
 	confirmationGate: DeferredPromise<void> | undefined;
 	confirmationError: Error | undefined;
 	rejectionReason: string | undefined;
@@ -127,6 +128,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async disposeSession(session: URI): Promise<void> {
 		this.disposeAttempts.push(session);
+		const gate = this.disposeGate;
+		this.disposeGate = undefined;
+		if (gate) {
+			await gate.p;
+		}
 		if (this.failNextDispose) {
 			this.failNextDispose = false;
 			throw new Error('dispose failed');
@@ -501,6 +507,32 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			whileReleased: undefined,
 			reloaded: true,
 			configured: true,
+			createCount: 2,
+			disposed: [first?.toString()],
+		});
+	});
+
+	test('a draft reloaded while its old backend is still disposing gets a new backend', async () => {
+		// The chat editor waits for model disposal, not for backend cleanup.
+		const ui = untitledChatUri('reloaded-during-disposal');
+		const first = await provisional.getOrCreate(ui, 'copilot', undefined);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.disposeGate = gate;
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		onDidCreateChatModel.fire(new class extends mock<IChatModel>() { override readonly sessionResource = ui; }());
+		const reloaded = provisional.getOrCreate(ui, 'copilot', undefined);
+		gate.complete();
+		const backend = await reloaded;
+
+		assert.deepStrictEqual({
+			replaced: backend !== undefined && backend.toString() !== first?.toString(),
+			current: provisional.get(ui)?.toString() === backend?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			replaced: true,
+			current: true,
 			createCount: 2,
 			disposed: [first?.toString()],
 		});

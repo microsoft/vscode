@@ -544,7 +544,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		const inflight = this._pending.get(sessionResource);
 		if (inflight) {
-			return inflight.then(() => this.get(sessionResource));
+			// A settled disposal leaves no entry and fires no change, so retry: a
+			// draft reloaded on this URI meanwhile still needs its own backend.
+			return inflight.then(() => this.get(sessionResource)
+				?? (this._entries.has(sessionResource) ? undefined : this.getOrCreate(sessionResource, provider, workingDirectory)));
 		}
 
 		const entry = this._ensureEntry(sessionResource, provider, workingDirectory);
