@@ -13,7 +13,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/edi
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../../nls.js';
@@ -199,9 +199,10 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		}
 	}
 
+	const isLocal = LocalChatSessionUri.isLocalSession(resource) || getChatSessionType(resource) === localChatSessionType;
 	const session = migratedSession
 		?? instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource))
-		?? (twin && resource === twin ? createFallbackAgentSession(twin) : undefined);
+		?? ((isLocal || (twin && resource === twin)) ? createFallbackAgentSession(resource) : undefined);
 	if (!session) {
 		throw new Error(`Chat session not found: ${resource.toString()}`);
 	}
