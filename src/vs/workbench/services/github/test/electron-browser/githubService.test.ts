@@ -107,6 +107,29 @@ suite('Native workbench GitHub API clients', () => {
 		result.dispose();
 	});
 
+	test('forwards an explicitly selected grant through IPC without choosing the default account', async () => {
+		const { service, requests, client, accounts } = setup();
+		accounts.currentDefaultAccount = null;
+		const authorization = { providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'] };
+		const result = await service.acquireAccountApiClient(authorization, signal());
+		assert.deepStrictEqual({ sameClient: result === client, requests }, {
+			sameClient: true, requests: [{ ...authorization, authorizationServer: undefined }],
+		});
+		result.dispose();
+	});
+
+	test('disposes an explicit shared-process lease that arrives after cancellation', async () => {
+		const { service, client, delay, pending, started, disposed } = setup();
+		delay();
+		const controller = new AbortController();
+		const rejected = assert.rejects(service.acquireAccountApiClient({ providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'] }, controller.signal));
+		await started.p;
+		controller.abort(new Error('cancelled'));
+		await pending.complete(client);
+		await rejected;
+		assert.strictEqual(disposed(), 1);
+	});
+
 	test('disposes a late shared-process lease after cancellation', async () => {
 		const { service, client, delay, pending, started, disposed } = setup();
 		delay();

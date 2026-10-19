@@ -38,7 +38,7 @@ import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPa
 import { mainWindow } from '../../../../base/browser/window.js';
 
 /**
- * The width (in pixels) of the editor card border drawn on every side when the
+ * The width (in pixels) of each visible editor card border when the
  * Modern UI Update experiment is enabled (`modernUI/media/editorBorder.css`).
  * The editor reserves this thickness when laying out its contents so they sit
  * inside the frame instead of overflowing (and being clipped by) the border.
@@ -1452,9 +1452,10 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			height = Math.max(0, height - top - bottom);
 
 			// Reserve space for the Modern UI editor border (modernUI/media/editorBorder.css) so content doesn't get clipped.
-			const borderTotal = this.getFloatingBorderWidth() * 2;
-			width = Math.max(0, width - borderTotal);
-			height = Math.max(0, height - borderTotal);
+			const borderWidth = this.getFloatingBorderWidth();
+			const leftBorderWidth = this.layoutService.isModernUICompact() && !outerLeft ? 0 : borderWidth;
+			width = Math.max(0, width - (leftBorderWidth + borderWidth));
+			height = Math.max(0, height - borderWidth * 2);
 
 			this.element.classList.toggle('floating-editor-outer-left', outerLeft);
 			this.element.classList.toggle('floating-editor-outer-right', outerRight);

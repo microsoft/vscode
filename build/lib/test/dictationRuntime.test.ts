@@ -17,15 +17,15 @@ import {
 } from '../../dictation-runtime/nuget.ts';
 
 const dependencies: IFoundryDependencyVersions = {
-	onnxruntime: { version: '1.30.0' },
-	'onnxruntime-genai': { version: '0.17.1' },
+	onnxruntime: { version: '1.28.0' },
+	'onnxruntime-genai': { version: '0.15.2' },
 };
 
 suite('dictation runtime', () => {
 	test('uses the Foundry Local 2.x dependency artifact set', () => {
 		assert.deepStrictEqual(getStandardArtifacts(dependencies), [
-			{ name: 'Microsoft.ML.OnnxRuntime', version: '1.30.0' },
-			{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: '0.17.1' },
+			{ name: 'Microsoft.ML.OnnxRuntime', version: '1.28.0' },
+			{ name: 'Microsoft.ML.OnnxRuntimeGenAI.Foundry', version: '0.15.2' },
 		]);
 	});
 
@@ -63,7 +63,7 @@ suite('dictation runtime', () => {
 				}
 				await assert.rejects(
 					fetchDependencyLibraries(target, getStandardArtifacts(dependencies), targetDirectory, { feeds: [] }),
-					/Failed to download Microsoft\.ML\.OnnxRuntime 1\.30\.0 from any feed/,
+					/Failed to download Microsoft\.ML\.OnnxRuntime 1\.28\.0 from any feed/,
 				);
 			}
 		} finally {

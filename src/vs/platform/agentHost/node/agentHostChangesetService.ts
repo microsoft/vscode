@@ -12,6 +12,7 @@ import { autorun, derived, observableFromEvent } from '../../../base/common/obse
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -46,12 +47,12 @@ import {
 	withSessionGitState,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentConfigurationService, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedSessionDatabases, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -63,7 +64,7 @@ import { dedupeSessionFileDiffs } from './agentHostMultiRootDiff.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { reportAgentHostStaticChangesetComputed, reportAgentHostTurnChangesetComputed, type IMultiRootTurnDiffMetrics, type StaticChangesetOutcome, type TurnChangesetOutcome } from './agentHostChangesetTelemetry.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession } from '../common/agent.js';
+import { AgentSession, type IAgent } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -198,11 +199,26 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 	) {
 		super();
 		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._observeUncommittedRoot(owner)));
+		this._register(this._providerService.onDidRegisterProvider(provider => this._observeProviderTurnEdits(provider)));
+		for (const provider of this._providerService.getProviders()) {
+			this._observeProviderTurnEdits(provider);
+		}
+	}
+
+	private _observeProviderTurnEdits(provider: IAgent): void {
+		if (provider.onDidStoreTurnEdits) {
+			this._register(provider.onDidStoreTurnEdits(({ chat, turnIds }) => {
+				if (this._chatOwnership.getChatOwner(chat.toString())) {
+					this._onTrackedEditsChanged(chat.toString(), turnIds);
+				}
+			}));
+		}
 	}
 
 	/** Creates the diff-count service; overridable so tests can supply a synchronous in-process computer. */
@@ -406,23 +422,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _getSessionSummaryWorkingDirectories(session: ProtocolURI): readonly ProtocolURI[] | undefined {
-		const state = this._stateManager.getSessionState(session);
-		if (!state) {
-			return undefined;
-		}
-
-		const workingDirectories: ProtocolURI[] = [];
-		const seen = new Set<ProtocolURI>();
-		for (const owner of [session, ...state.chats.map(chat => chat.resource)]) {
-			for (const workingDirectory of this._configurationService.getEffectiveWorkingDirectories(owner) ?? []) {
-				if (!seen.has(workingDirectory)) {
-					seen.add(workingDirectory);
-					workingDirectories.push(workingDirectory);
-				}
-			}
-		}
-
-		return workingDirectories.length ? workingDirectories : undefined;
+		return getSessionSummaryWorkingDirectories(this._stateManager, session);
 	}
 
 	private _getBranchSummaryOwners(session: ProtocolURI): readonly ProtocolURI[] {
@@ -900,6 +900,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				return { diffs: [], outcome: 'computed' };
 			}
+			const pendingEdits = this._waitForTurnEdits(trackedSource.owner, turnId);
+			if (pendingEdits) {
+				await pendingEdits;
+			}
 			if (strategy === 'fileEditTracker') {
 				const folderScope = this._getTrackedEditFolderScope(trackedSource.owner, this._configurationService.getEffectiveWorkingDirectories(trackedSource.owner));
 				return { diffs: await computeTurnDiffs(trackedSource.storage, trackedSource.db, this._diffComputeService, turnId, folderScope), outcome: 'computed' };
@@ -908,6 +912,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} finally {
 			trackedSource.dispose();
 		}
+	}
+
+	/** Returns a native persistence barrier without introducing a wait for providers that do not need one. */
+	private _waitForTurnEdits(owner: ProtocolURI, turnId: string): Promise<void> | undefined {
+		const session = this._containingSessionUri(owner);
+		const chat = this._chatOwnership.getChatOwner(owner) !== undefined ? owner : this._chatOwnership.getDefaultChat(session);
+		return chat ? this._providerService.getProviderForSession(session)?.waitForTurnEdits?.(URI.parse(chat), turnId) : undefined;
 	}
 
 	private async _computeTurnDiffsUsingGit(session: ProtocolURI, turnId: string, source: GitTurnDiffSource): Promise<ITurnDiffResult> {
@@ -1445,6 +1456,48 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		};
 	}
 
+	openTrackedSessionDatabases(owner: ProtocolURI): ITrackedSessionDatabases {
+		// Mirrors the `fileEditTracker` Session Changes computation in
+		// `_doComputeStaticChangeset`: same databases, directories, and scope.
+		const isChat = isAhpChatChannel(owner);
+		const workingDirectories = isChat
+			? this._getEffectiveWorkingDirectories(owner)
+			: this._getSessionSummaryWorkingDirectories(owner);
+		const storage = this._getTrackedDatabaseUri(owner);
+		const ref = this._sessionDataService.openDatabase(URI.parse(storage));
+		let peers: { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
+		let others: ReturnType<ISessionDataService['openDatabase']>[] = [];
+		try {
+			if (isChat) {
+				others = this._openOtherSessionChangesSources(owner, storage);
+			} else {
+				peers = this._openPeerChatSources(owner, true);
+			}
+		} catch (err) {
+			ref.dispose();
+			throw err;
+		}
+		return {
+			sources: [
+				// Databases are keyed by storage, which differs from the chat once it moves between sessions.
+				{ chat: isChat ? owner : this._chatOwnership.getDefaultChat(owner) ?? owner, db: ref.object },
+				...peers.map(peer => ({ chat: peer.chat, db: peer.ref.object })),
+			],
+			otherChatDatabases: others.map(other => other.object),
+			workingDirectories,
+			folderScope: this._getTrackedEditFolderScope(owner, workingDirectories),
+			dispose: () => {
+				for (const peer of peers) {
+					peer.ref.dispose();
+				}
+				for (const other of others) {
+					other.dispose();
+				}
+				ref.dispose();
+			},
+		};
+	}
+
 	/**
 	 * Opens the databases whose edits the containing session's Session Changes
 	 * combine with those in `storage`: the session's own and each peer chat's.
@@ -1471,8 +1524,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	onFileEditsDiscarded(owner: ProtocolURI, turnIds: readonly string[]): void {
-		// The discarded edits change past results, so recompute from scratch
-		// (no changedTurnId) rather than incrementally.
+		this._onTrackedEditsChanged(owner, turnIds);
+	}
+
+	private _onTrackedEditsChanged(owner: ProtocolURI, turnIds: readonly string[]): void {
+		// Snapshots arriving late and discarded edits both invalidate prior results: recompute from scratch.
 		for (const turnId of turnIds) {
 			this._cancelDebouncedTurnDiffComputation(owner, turnId);
 			if (this._hasSubscription(owner, buildTurnChangesetUri(owner, turnId))) {
@@ -2148,9 +2204,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * databases with the session DB. Returns an empty array for single-chat
 	 * sessions. Callers MUST dispose every returned `ref`.
 	 */
-	private _openPeerChatSources(session: ProtocolURI, requireAllSources = false): { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
+	private _openPeerChatSources(session: ProtocolURI, requireAllSources = false): { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
 		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
-		const sources: { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
+		const sources: { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
 		for (const chat of chats) {
 			if (this._chatOwnership.isDefaultChat(session, chat.resource)) {
 				continue;
@@ -2158,7 +2214,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			try {
 				const storage = this._getTrackedDatabaseUri(chat.resource);
 				const ref = this._sessionDataService.openDatabase(URI.parse(storage));
-				sources.push({ sessionUri: storage, ref });
+				sources.push({ sessionUri: storage, chat: chat.resource, ref });
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
 				if (requireAllSources) {

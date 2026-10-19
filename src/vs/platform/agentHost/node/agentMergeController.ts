@@ -12,14 +12,15 @@ import { autorun } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
-import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
+import { PullRequestChecks, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState } from '../common/agentMerge.js';
+import { AgentMergeConfigKey, AgentMergeConfiguration, AgentMergeConfigurationChangeScope, AgentMergeDisableReason, AgentMergeFolderState, AgentMergeSessionOverrides, AgentMergeTarget, AGENT_MERGE_UNKNOWN_COMMIT, agentMergeConfigurationChangedNotice, agentMergeDisableReasons, agentMergeDisabledNotice, agentMergeEnabledNotice, agentMergeGateFragments, agentMergeMergePullRequestDemotedNotice, agentMergeRootConfigSchema, classifyAgentMergeRequiredChecks, evaluateAgentMerge, isAnyAgentMergeEnabled, readAgentMergeFolderState, readAgentMergeFolderStates, readAgentMergeChatInjectedConfigurations, readAgentMergeInjectedConfiguration, resolveMergeMethod, shouldStopMergingAfterAgentChanges, withAgentMergeFolderControllerState, withAgentMergeChatInjectedConfiguration, withAgentMergeFolderState, withAgentMergeInjectedConfiguration, hasAgentMergeFolderControllerState, hasAgentMergeElevation, AgentMergeFolderControllerState, getAgentMergeCheckActivity, getAgentMergeRepairBlockers, hasAgentMergeRepairProgress } from '../common/agentMerge.js';
 import { buildAgentMergePrompt } from '../common/agentMergePrompt.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -36,14 +37,26 @@ import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, ChatRemovalReason, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
-import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
+import { getWorkflowRuns, IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
 import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 const snapshotDebounce = 30_000;
 const backstopInterval = 10 * 60_000;
 const maximumRepeatedPromptCount = 3;
+/** Repair turns in a row without progress; see {@link hasAgentMergeRepairProgress}. */
 const maximumTotalPromptCount = 6;
+/** Repair turns per enablement, however much progress they make, so a fix-and-new-feedback cycle cannot run forever. */
+const maximumLifetimePromptCount = 20;
+/**
+ * How long the checks must stay unchanged before a repair turn that would only
+ * fix CI starts while other checks are still pending. Waiting for every check
+ * could stall forever, since some checks only complete after the others pass,
+ * such as an approval that is given once CI is green.
+ */
+const ciQuietPeriod = 10 * 60_000;
+/** The longest a repair turn that would only fix CI waits for pending checks, from when it was first held. */
+const maximumCIHold = 60 * 60_000;
 /** How long one unchanged indeterminate cause may persist before Agent Merge gives up. */
 const maximumIndeterminateDuration = 30 * 60_000;
 /** How long a gap between indeterminate observations may be before the budget window restarts. */
@@ -81,6 +94,7 @@ interface IActiveAgentMergeTurnContext extends IAgentMergeTurnContext {
 class AgentMergeRuntime extends Disposable {
 
 	readonly clientReference = this._register(new MutableDisposable<IReference<IGitHubClient>>());
+	readonly apiClientReference = this._register(new MutableDisposable<IGitHubAccountClient>());
 	readonly subscription = this._register(new MutableDisposable<PullRequestSubscription>());
 	readonly snapshotObserver = this._register(new MutableDisposable<DisposableStore>());
 	readonly cancellation = new CancellationTokenSource();
@@ -98,12 +112,21 @@ class AgentMergeRuntime extends Disposable {
 	indeterminate: { readonly cause: string; readonly since: number; observedAt: number } | undefined;
 	/** The refused fragment a credential was last requested for, if any. */
 	reportedCredentialFailure: string | undefined;
+	/** When the checks of the current head last changed, so CI-only repair can wait for them to settle. */
+	checkActivity: { readonly headSha: string; digest: string; pending: boolean; changedAt: number; holdSince: number | undefined } | undefined;
 
 	get client(): IGitHubClient {
 		if (!this.clientReference.value) {
 			throw new GitHubRequestError('Agent Merge has no authorized GitHub client', 'authentication');
 		}
 		return this.clientReference.value.object;
+	}
+
+	get apiClient(): IGitHubAccountClient {
+		if (!this.apiClientReference.value) {
+			throw new GitHubRequestError('Agent Merge has no authorized GitHub API client', 'authentication');
+		}
+		return this.apiClientReference.value;
 	}
 
 	constructor(
@@ -948,6 +971,10 @@ export class AgentMergeController extends Disposable {
 			runtime.indeterminate = undefined;
 			runtime.reportedCredentialFailure = undefined;
 		}
+		const ciOnlyRepair = gate.kind === 'prompt' && gate.actions.every(action => action === 'fixCI');
+		if (gate.kind === 'prompt' || gate.kind === 'noWork' || gate.kind === 'merge') {
+			this._observeCheckActivity(runtime, snapshot.checks.value!, ciOnlyRepair);
+		}
 		switch (gate.kind) {
 			case 'indeterminate':
 				this._reportBlockedCredential(session, runtime, snapshot);
@@ -989,11 +1016,31 @@ export class AgentMergeController extends Disposable {
 					runtime.backstopScheduler.schedule();
 					return;
 				}
-				const repeatedPromptCount = agentMerge.lastPromptFingerprint === gate.fingerprint ? (agentMerge.repeatedPromptCount ?? 0) + 1 : 0;
-				const totalPromptCount = (agentMerge.totalPromptCount ?? 0) + 1;
-				if (repeatedPromptCount >= maximumRepeatedPromptCount || totalPromptCount > maximumTotalPromptCount) {
-					this._logService.warn(`[AgentMergeController] Repair attempt budget exhausted: session=${session}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}`);
-					this._disable(session, runtime.folderKey, agentMerge, agentMergeDisableReasons.repairBudgetExhausted());
+				// Other repairs push anyway and restart CI, so only CI-only repair waits.
+				const ciHold = ciOnlyRepair ? this._getCIRepairHold(runtime) : 0;
+				if (ciHold > 0) {
+					this._logService.info(`[AgentMergeController] Holding CI repair until the checks settle: session=${session}, failedChecks=${gate.context.failedChecks.length}, nextEvaluationMs=${ciHold}`);
+					runtime.backstopScheduler.schedule(ciHold);
+					return;
+				}
+				const progressed = hasAgentMergeRepairProgress(snapshot, target.commentWatermark, { headSha: agentMerge.lastPromptHeadSha, blockers: agentMerge.lastPromptBlockers });
+				if (progressed && (agentMerge.repeatedPromptCount || agentMerge.totalPromptCount)) {
+					this._logService.info(`[AgentMergeController] Previous repair made progress, resetting the repair budget: session=${session}, previousRepeatedAttempts=${agentMerge.repeatedPromptCount ?? 0}, previousTotalAttempts=${agentMerge.totalPromptCount ?? 0}`);
+				}
+				const repeatedPromptCount = !progressed && agentMerge.lastPromptFingerprint === gate.fingerprint ? (agentMerge.repeatedPromptCount ?? 0) + 1 : 0;
+				const totalPromptCount = (progressed ? 0 : agentMerge.totalPromptCount ?? 0) + 1;
+				const lifetimePromptCount = (agentMerge.lifetimePromptCount ?? agentMerge.totalPromptCount ?? 0) + 1;
+				let exhaustedReason: AgentMergeDisableReason | undefined;
+				if (lifetimePromptCount > maximumLifetimePromptCount) {
+					exhaustedReason = agentMergeDisableReasons.repairLimitReached(maximumLifetimePromptCount);
+				} else if (repeatedPromptCount >= maximumRepeatedPromptCount) {
+					exhaustedReason = agentMergeDisableReasons.repairBudgetExhausted();
+				} else if (totalPromptCount > maximumTotalPromptCount) {
+					exhaustedReason = agentMergeDisableReasons.repairWithoutProgress(maximumTotalPromptCount);
+				}
+				if (exhaustedReason) {
+					this._logService.warn(`[AgentMergeController] Repair attempt budget exhausted: session=${session}, actions=${gate.actions.join(',')}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}, lifetimeAttempts=${lifetimePromptCount}`);
+					this._disable(session, runtime.folderKey, agentMerge, exhaustedReason);
 					return;
 				}
 				const turnId = generateUuid();
@@ -1013,6 +1060,7 @@ export class AgentMergeController extends Disposable {
 					configuration,
 					snapshot,
 					client: runtime.client,
+					apiClient: runtime.apiClient,
 					signal: runtime.abortController.signal,
 					commentWatermark: gate.context.commentWatermark,
 					reviewReplies: [],
@@ -1038,12 +1086,19 @@ export class AgentMergeController extends Disposable {
 					return;
 				}
 				this._activeTurns.set(key, context);
-				this._logService.info(`[AgentMergeController] Started repair turn: session=${session}, turn=${turnId}, actions=${gate.actions.join(',')}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}`);
+				// Each repair gets its own hold window, so a later CI-only repair on this head waits for the checks again.
+				if (runtime.checkActivity) {
+					runtime.checkActivity.holdSince = undefined;
+				}
+				this._logService.info(`[AgentMergeController] Started repair turn: session=${session}, turn=${turnId}, actions=${gate.actions.join(',')}, repeatedAttempts=${repeatedPromptCount}, totalAttempts=${totalPromptCount}, lifetimeAttempts=${lifetimePromptCount}`);
 				this._updateAgentMergeState(session, runtime.folderKey, {
 					lastPromptFingerprint: gate.fingerprint,
 					lastPromptAt: new Date().toISOString(),
 					repeatedPromptCount,
 					totalPromptCount,
+					lastPromptHeadSha: gate.context.headSha,
+					lastPromptBlockers: getAgentMergeRepairBlockers(gate.actions, gate.context),
+					lifetimePromptCount,
 					repairBaseCommit,
 				});
 				return;
@@ -1119,7 +1174,7 @@ export class AgentMergeController extends Disposable {
 		if (pending.length === 0) {
 			return;
 		}
-		const runs = await runtime.client.mutations.listWorkflowRuns(ref, headSha, runtime.abortController.signal);
+		const runs = await getWorkflowRuns(runtime.apiClient, ref, headSha, runtime.abortController.signal, { priority: 'background' });
 		for (const request of pending) {
 			const state = this._stateManager.getSessionState(session.toString());
 			const current = readAgentMergeFolderState(state?.config?.values, runtime.folderKey, this._sessionFolderKey(state));
@@ -1140,20 +1195,21 @@ export class AgentMergeController extends Disposable {
 				this._schedule(key, 0);
 				return;
 			}
-			const run = runs.find(run => run.id === request.options.runId && run.headSha === request.headSha);
+			const run = runs.find(run => String(run.id) === request.options.runId && run.head_sha === request.headSha);
 			if (!run) {
 				this._logService.warn(`[AgentMergeController] Deferred workflow run is no longer available: session=${session}, run=${request.options.runId}`);
 				runtime.deferredWorkflowReruns.delete(request.options.runId);
 				this._schedule(key, 0);
 				continue;
 			}
-			if (run.runAttempt > request.options.expectedRunAttempt) {
+			const runAttempt = run.run_attempt ?? 1;
+			if (runAttempt > request.options.expectedRunAttempt) {
 				request.settled = true;
-				this._logService.info(`[AgentMergeController] Deferred workflow was already rerun: session=${session}, run=${run.id}, currentAttempt=${run.runAttempt}`);
+				this._logService.info(`[AgentMergeController] Deferred workflow was already rerun: session=${session}, run=${run.id}, currentAttempt=${runAttempt}`);
 				continue;
 			}
-			if (run.runAttempt < request.options.expectedRunAttempt || run.status?.toUpperCase() !== 'COMPLETED' || !run.conclusion) {
-				this._logService.debug(`[AgentMergeController] Waiting to rerun workflow: session=${session}, run=${run.id}, status=${run.status}, currentAttempt=${run.runAttempt}`);
+			if (runAttempt < request.options.expectedRunAttempt || run.status?.toUpperCase() !== 'COMPLETED' || !run.conclusion) {
+				this._logService.debug(`[AgentMergeController] Waiting to rerun workflow: session=${session}, run=${run.id}, status=${run.status}, currentAttempt=${runAttempt}`);
 				continue;
 			}
 			if (!isFailedConclusion(run.conclusion)) {
@@ -1167,8 +1223,8 @@ export class AgentMergeController extends Disposable {
 				this._logService.info(`[AgentMergeController] Deferred workflow rerun requested: session=${session}, run=${run.id}, outcome=${result.outcome}`);
 			} finally {
 				// Failed or unconfirmed mutations return to the ordinary, budgeted repair flow.
-				if (!request.settled && runtime.deferredWorkflowReruns.get(run.id) === request) {
-					runtime.deferredWorkflowReruns.delete(run.id);
+				if (!request.settled && runtime.deferredWorkflowReruns.get(request.options.runId) === request) {
+					runtime.deferredWorkflowReruns.delete(request.options.runId);
 					this._schedule(key, 0);
 				}
 			}
@@ -1239,6 +1295,7 @@ export class AgentMergeController extends Disposable {
 			runtime.snapshotObserver.clear();
 			runtime.subscription.clear();
 			runtime.clientReference.clear();
+			runtime.apiClientReference.clear();
 			runtime.ref = undefined;
 			runtime.credentialChat = chat;
 			runtime.credentialSource = source;
@@ -1248,6 +1305,7 @@ export class AgentMergeController extends Disposable {
 	private async _resolveRef(parsed: IParsedPullRequestUrl, runtime: AgentMergeRuntime, chat: string): Promise<PullRequestRef | undefined> {
 		this._captureRuntimeCredentials(runtime, chat);
 		runtime.clientReference.value ??= this._gitHubService.acquireRepositoryClient(runtime.abortController.signal, runtime.credentialSource, runtime.credentialSource ? chat : undefined);
+		runtime.apiClientReference.value ??= this._gitHubService.acquireRepositoryApiClient(runtime.abortController.signal, runtime.credentialSource, runtime.credentialSource ? chat : undefined);
 		const credential = await runtime.client.credentials.getCredential(runtime.abortController.signal);
 		// The bound pull request URL carries its own host: after a restore or an
 		// endpoint switch the same owner/repo/number can name a different GitHub
@@ -1276,7 +1334,8 @@ export class AgentMergeController extends Disposable {
 				reviewThreads: true,
 				includeBodies: true,
 			},
-			checks: { required: true },
+			// Optional checks never gate merging, but they show whether CI is still running; see `_getCIRepairHold`.
+			checks: { required: true, includeOptional: true },
 			mergeability: true,
 		});
 		this._logService.debug(`[AgentMergeController] Created pull request subscription: key=${key}, priority=background`);
@@ -1855,6 +1914,48 @@ export class AgentMergeController extends Disposable {
 		}
 		this._logService.warn(`[AgentMergeController] Indeterminate budget exhausted: session=${session}, cause=${cause}`);
 		return true;
+	}
+
+	/**
+	 * Records when the checks of the pull request head last changed. A new head
+	 * or a first observation counts as a change, since how long the checks were
+	 * already unchanged is unknown. The CI hold window only lasts while the gate
+	 * keeps asking for CI-only repair.
+	 */
+	private _observeCheckActivity(runtime: AgentMergeRuntime, checks: PullRequestChecks, ciOnlyRepair: boolean): void {
+		const now = Date.now();
+		const { digest, pending } = getAgentMergeCheckActivity(checks);
+		const current = runtime.checkActivity;
+		if (current?.headSha !== checks.headSha) {
+			runtime.checkActivity = { headSha: checks.headSha, digest, pending, changedAt: now, holdSince: undefined };
+			return;
+		}
+		if (current.digest !== digest) {
+			current.digest = digest;
+			current.changedAt = now;
+		}
+		current.pending = pending;
+		if (!ciOnlyRepair) {
+			current.holdSince = undefined;
+		}
+	}
+
+	/**
+	 * How long a repair turn that would only fix CI should wait, or 0 to start
+	 * it now. It waits while checks are pending and still changing, so one turn
+	 * sees every failure and a rerun can finish first, but it starts once they
+	 * have been quiet for {@link ciQuietPeriod}, since a check that only
+	 * completes after the others pass never changes, and after
+	 * {@link maximumCIHold} at most.
+	 */
+	private _getCIRepairHold(runtime: AgentMergeRuntime): number {
+		const activity = runtime.checkActivity;
+		if (!activity?.pending) {
+			return 0;
+		}
+		const now = Date.now();
+		activity.holdSince ??= now;
+		return Math.max(0, Math.min(activity.changedAt + ciQuietPeriod, activity.holdSince + maximumCIHold) - now);
 	}
 
 	private _logGateResult(session: string, gate: ReturnType<typeof evaluateAgentMerge>): void {

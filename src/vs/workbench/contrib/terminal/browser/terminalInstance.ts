@@ -2353,9 +2353,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
-	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
-		if (info.requiresAction) {
+	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo | undefined): void {
+		if (info?.requiresAction) {
 			this.xterm?.raw.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
+		} else {
+			this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}

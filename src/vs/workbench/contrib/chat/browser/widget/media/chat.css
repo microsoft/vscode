@@ -3308,6 +3308,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* When the heading's buttons need the room, the file count truncates instead of the line counts. */
+.interactive-session .chat-session-working-set .working-set-title .monaco-button {
+	max-width: 100%;
+}
+
+.interactive-session .chat-session-working-set .working-set-title .monaco-button-mdlabel {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .interactive-session .chat-session-working-set .insertions-and-deletions {
 	display: flex;
 	flex-shrink: 0;
@@ -3327,6 +3339,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-session-working-set .deletions {
 	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Keep and Undo stay quiet until a file row is hovered, focused, or selected, like the editing session's working set. */
+.interactive-session .chat-session-working-set .chat-summary-list-icon-actions {
+	display: none;
+	flex-shrink: 0;
+	padding-left: var(--vscode-spacing-size60);
+}
+
+.interactive-session .chat-session-working-set .monaco-list-row:hover .chat-summary-list-icon-actions,
+.interactive-session .chat-session-working-set .monaco-list-row.focused .chat-summary-list-icon-actions,
+.interactive-session .chat-session-working-set .monaco-list-row.selected .chat-summary-list-icon-actions {
+	display: flex;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {

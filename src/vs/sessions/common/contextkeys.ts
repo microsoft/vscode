@@ -122,7 +122,8 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 //#region < --- Experiments --- >
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
-export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT = true;
+export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
 
 //#endregion

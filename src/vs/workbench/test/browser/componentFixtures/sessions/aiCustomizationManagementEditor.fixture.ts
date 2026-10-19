@@ -25,6 +25,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
@@ -46,6 +47,7 @@ import { IExtensionManifestPropertiesService } from '../../../../services/extens
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -1555,6 +1557,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}();
+			reg.defineInstance(IAgentHostActiveClientService, activeClientService);
 			const mcpService = new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([]);
 				override readonly enablementModel = {
@@ -1805,6 +1808,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 			}());
+			reg.defineInstance(IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override readonly isBuilt = true;
+				override readonly isExtensionDevelopment = false;
+				override readonly workspaceStorageHome = URI.file('/workspaceStorage');
+			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 			reg.defineInstance(IProgressService, new class extends mock<IProgressService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
@@ -1816,6 +1824,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
 				override get lastFocusedWidget() { return undefined; }
 				override async reveal() { return false; }
+			}());
+			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
+				override getSession() { return undefined; }
 			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
 				override async request(): Promise<IRequestContext> {
@@ -1964,9 +1975,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
-			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
-			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
-			'Discover must link each customization type from its description.',
+			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
+			&& descriptionLinks.join('\n') === 'Learn more',
+			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
@@ -2248,9 +2259,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				assert(targetWindow.getComputedStyle(marketplacePrimaryAction).outlineStyle === 'none', 'Focused marketplace MCP rows must not retain an inner primary-action outline.');
 				marketplacePrimaryAction.blur();
 			}
-			for (const scrollbar of ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .scrollbar')) {
-				scrollbar.style.visibility = 'hidden';
-			}
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 	} else if (options.selectedSection === AICustomizationManagementSection.McpServers) {
@@ -2269,16 +2277,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		if (options.selectedSection === AICustomizationManagementSection.McpServers) {
-			await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
-			// Allow the 500ms hide delay and 800ms fade transition to complete.
-			await new Promise(resolve => setTimeout(resolve, 2400));
-			for (let attempt = 0; attempt < 20 && ctx.container.querySelector('.scrollbar.vertical.visible'); attempt++) {
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
-		} else {
-			await new Promise(resolve => setTimeout(resolve, 1400));
-		}
+		await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
 	}
 
 	if (options.migrationDashboard) {
@@ -2304,7 +2303,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 		firstMigrationItem.click();
 		await waitForFixtureCondition(
-			() => ctx.container.querySelector<HTMLElement>('.migration-detail-warning')?.style.display !== 'none',
+			() => {
+				const warning = ctx.container.querySelector<HTMLElement>('.migration-detail-warning');
+				return !!warning && warning.style.display !== 'none';
+			},
 			'Prompt migration detail warning did not appear',
 		);
 	}
@@ -2758,16 +2760,10 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		input.dispatchEvent(new InputEvent('input', { bubbles: true, data: searchQuery, inputType: 'insertText' }));
 	}
 
-	// Wait for the marketplace query to resolve, then wait for scrollbar fade transition
-	// (visible → invisible takes ~2s after programmatic scroll/list populate)
+	// Wait for the marketplace query to resolve
 	await new Promise(resolve => setTimeout(resolve, searchQuery ? 600 : 100));
 	// Blur the search input to prevent cursor blink instability in screenshots
 	(widget.element.querySelector('input') as HTMLElement)?.blur();
-	// Force-hide scrollbars to avoid fade-transition instability
-	for (const scrollbar of widget.element.querySelectorAll<HTMLElement>('.scrollbar')) {
-		scrollbar.style.visibility = 'hidden';
-	}
-	await new Promise(resolve => setTimeout(resolve, 200));
 }
 
 function renderPluginHomeMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -3651,6 +3647,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationPromptDetailNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		// Let the tree's deferred selection update finish before teardown.
+		virtualTime: { enabled: false },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -4182,7 +4180,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Scrolled-to-bottom variants — verify last items are fully visible above footer
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 1500 },
 		expectedVisualDescriptions: ['The scrolled Prompts tree has no vertical indent guide beneath group chevrons, its sticky group header matches the panel background, and its final rows remain inside the panel above the bottom inset.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -4193,7 +4190,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 5000 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -4203,7 +4199,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,

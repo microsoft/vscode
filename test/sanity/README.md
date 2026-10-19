@@ -59,11 +59,11 @@ there is no update service metadata to compare against.
 
 ### Timeouts
 
-Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
-30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
-between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup
-within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so
-increasing these waits can cause a retry to start before the previous attempt has cleaned up.
+The UI tests open a Markdown preview and wait up to one minute for its webview to render, then up to one minute for its document to finish loading. Resource monitoring remains active through document loading so delayed script failures are also detected. This catches webview resource loading failures (for example 401 responses for remote authorities with uppercase letters such as `wsl+Ubuntu`), and any webview resource response with an error status fails the test. Browsers that refuse to register the webview service worker (such as Chromium on Debian 12) cannot load any webview, so the check is skipped there with a pipeline warning.
+
+Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run; this does not install a missing WSL2 kernel or re-enable unavailable WSL coverage.
+
+Extension installation makes at most three attempts, each allowing 30 seconds to click Install, 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup, the Markdown preview check and cleanup within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so increasing these waits can cause a retry to start before the previous attempt has cleaned up.
 
 ## Scripts
 
@@ -88,6 +88,105 @@ The `run-docker.sh` script accepts the following options:
 |`--base-image <image>`|Override the base Docker image (e.g., "ubuntu:24.04")|
 
 All other arguments are passed through to the sanity test runner.
+
+## Focused Linux Copilot Shim Package Lifecycle Suite
+
+`test-copilot-shim` is intentionally separate from the normal sanity runner. It does not use the single-quality `TestContext`, capability-based skipping, fresh-install helpers, or Mocha retry behavior from `src/index.ts`. It requires an explicit fixture manifest, one explicit package format, and an explicit Mocha selector; it always runs with `retries: 0` and bails after a stateful failure.
+
+The suite must run as root **only inside a provisioned disposable Linux container or VM**. Root and an environment flag are not sufficient evidence of isolation. The runner refuses non-Linux hosts, unavailable `dpkg`/`rpm`, a missing marker, a marker from another mount namespace, bind/subdirectory mounts for `/usr` or `/etc`, non-provisioned marker directories, existing `code`/`code-insiders`/`code-oss` packages, `/etc/vscode/policy.json`, or existing `/usr/bin/copilot`, `/usr/local/bin/copilot`, VS Code payload directories, and launcher entries. It never falls back to a skipped scenario.
+
+The marker is created only by `scripts/provision-copilot-shim-runner.sh`. It requires a unique `VSCODE_COPILOT_SHIM_RUNNER_ID`, creates root-owned probes under `/usr/share/vscode-copilot-shim-package-lifecycle/<id>` and `/etc/vscode-copilot-shim-package-lifecycle/<id>`, and writes a mount-namespace-bound marker at `/run/vscode-copilot-shim-package-lifecycle/<id>/marker.json`. The harness accepts only that marker layout and uses the marker's test-owned work/evidence roots. Successful scenarios remove only fixture packages and paths introduced by the scenario. Failed scenarios retain package state and write their command transcript to the marker's evidence root.
+
+For a prepared workspace, the safe source-only helper check is:
+
+```bash
+npm run test-copilot-shim-rendering
+```
+
+It verifies the checked-in `resources/linux/copilot-link.sh` source has no unresolved rendering markers or RPM macros, has literal Stable/Insiders targets, and defines `vscode_copilot_link`. It does not invoke a package manager or mutate package state.
+
+On Linux, this check runs the same helper with `sh` and `bash` against stub shims and a temporary link path. It covers the `CopilotCliCommand` policy that each shim reports, the DEB `add-copilot-command` debconf answer, and hand-over on removal. It doesn't need root and doesn't touch `/usr/bin/copilot`:
+
+```bash
+npm run test-copilot-shim-helper
+```
+
+### Fixture Manifest and Generation
+
+The generated manifest is self-contained: package paths are relative to the manifest, and it records DEB/RPM format, package architecture, identity, role, actual package name/version, a monotonically declared revision ordinal, payload kind, launcher/shim paths, source revision, generation command, production templates/specs used, deliberate fixture adjustments, and the SHA-256 of the exact helper source. Its JSON schema is [`fixtures/copilot-shim-fixtures.schema.json`](fixtures/copilot-shim-fixtures.schema.json). The generator rejects missing fixture roles, equal initial/upgrade revisions, a relabelled `code-oss` source, unresolved paths, and incomplete current Stable/Insiders payloads.
+
+Use [`fixtures/copilot-shim-fixture-plan.example.json`](fixtures/copilot-shim-fixture-plan.example.json) as a plan template. A complete plan supplies, for **both DEB and RPM**, branded `code` and `code-insiders` initial, strictly newer upgrade, and older no-shim inputs; `code-oss` initial/upgrade negative inputs; and no manually assembled VS Code package. The generator creates its own tiny foreign-command package only for the test case that proves package-manager ownership preservation. It does not duplicate the VS Code link helper or relabel an OSS package.
+
+Each source root in the plan must be a disposable, already branded source/build copy rather than this checkout. Put the prepared payload that production Gulp expects beside it as `../VSCode-linux-<arch>`, then create this marker in the disposable source root before running the generator:
+
+```json
+{
+	"schemaVersion": 1,
+	"purpose": "vscode-copilot-shim-fixture-source",
+	"disposable": true,
+	"sourceRevision": "<exact-source-commit>"
+}
+```
+
+Keep every entry in its own parent directory so its prepared payload cannot be confused with another revision or identity. For example, the `code-initial` plan entry uses `/fixtures/code-initial/source` and its prepared payload is `/fixtures/code-initial/VSCode-linux-x64`; `code-upgrade` uses a different `/fixtures/code-upgrade/` parent. The source root's real `product.json` must already name `code`, `code-insiders`, or `code-oss`; the tool only reads that branding and fails on a mismatch. It does not modify the live checkout's branding. `sourceKind: "prepared-payload"` means the prepared payload was supplied before package construction; `sourceKind: "source-build"` records that the disposable copy built it. In both cases the generator invokes the actual production `vscode-linux-<arch>-prepare-deb/build-deb` and `prepare-rpm/build-rpm` Gulp tasks, so it consumes the real templates, package file lists, `resources/linux/copilot-link.sh`, and build rendering callbacks. It copies generated DEB controls and RPM specs into `provenance/` beside the manifest for review.
+
+From `test/sanity`, after compiling this package and preparing the disposable inputs:
+
+```bash
+npm run compile
+npm run generate-copilot-shim-fixtures -- \
+	--plan ./fixtures/copilot-shim-fixture-plan.json \
+	--output ./artifacts/copilot-shim-fixtures
+```
+
+This creates `./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json`. A `minimal-lifecycle` entry is generated only after the actual production prepare task; it trims the staged app payload while retaining the generated edition launcher, nested shim, and `chrome-sandbox` required by the generated RPM spec. It may accelerate lifecycle coverage, but it does **not** establish full product launcher behavior. Complete source-built initial and upgrade fixtures remain mandatory for current `code` and `code-insiders`: K1 explicitly installs both and invokes each nested edition launcher with `--version`, `--no-sandbox`, and a scenario-local `--user-data-dir` because the isolated package runner runs as root. The remaining lifecycle matrix prefers a matching minimal fixture when available and otherwise uses the complete fixture. Every available initial/upgrade payload-kind pair is checked for distinct, strictly increasing metadata.
+
+### Running in an Isolated Package Runner
+
+Use one disposable Debian-family runner and one disposable RPM-family runner. The exact focused commands are:
+
+```bash
+npm run test-copilot-shim -- \
+	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
+	--format deb \
+	--grep 'DEB (K[1-9]|OSS|warns)'
+
+npm run test-copilot-shim -- \
+	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
+	--format rpm \
+	--grep 'RPM (K[1-9]|OSS|warns)'
+```
+
+The preferred container wrapper compiles no code and does not mount host `/usr` or `/etc`; it mounts only the read-only sanity workspace, read-only fixture bundle, and a retained evidence directory:
+
+```bash
+bash scripts/run-copilot-shim-container.sh \
+	--container ubuntu \
+	--format deb \
+	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
+	--grep 'DEB (K[1-9]|OSS|warns)'
+
+bash scripts/run-copilot-shim-container.sh \
+	--container fedora \
+	--format rpm \
+	--fixtures ./artifacts/copilot-shim-fixtures/copilot-shim-fixtures.json \
+	--grep 'RPM (K[1-9]|OSS|warns)'
+```
+
+The wrapper invokes `scripts/provision-copilot-shim-runner.sh` before the package suite and retains diagnostics under `artifacts/copilot-shim-evidence/<runner-id>/` if a test fails. For a VM or another runner launcher, set the marker variables described above, run the provisioning script inside that disposable root filesystem, and then run the corresponding package-local command. Never run the suite directly against a developer or CI host image that contains user packages, policy, `/usr`, or `/etc` state.
+
+The suite inspects actual DEB control scripts and actual RPM `rpm -qp --scripts` output after macro expansion, compares the embedded helper byte-for-byte with the provenance source, checks unresolved markers, literal targets, and lifecycle call sites, and verifies `/usr/bin/copilot` is absent from package payload/file lists. During transactions it checks nested payload ownership with `dpkg-query`/`rpm -qf`, verifies the shared path has no package owner except in the deliberate foreign-owner fixture, records real helper mutation order through narrowly scoped wrappers for `/usr/bin/copilot` and `copilot.vscode-copilot.*` staging paths, and blocks `curl`/`wget` to prove package scripts did not install or download the real Copilot CLI. It also seeds an independent CLI and user-data sentinel in the test-owned home and verifies both remain unchanged.
+
+| Acceptance coverage | Focused assertions |
+| --- | --- |
+| K1–K2 | Fresh absence, exact symlink creation, cross-edition takeover, payload/database ownership, launcher behavior |
+| K3 | Separate and batched upgrades in both input orders; final owner equals the last observed successful helper hook, never merely either edition |
+| K4–K6 | Non-owner removal, usable/missing/non-executable/older-no-shim fallback, and both owner-first removal orders |
+| K7–K8 | Exact recognized dangling repair; foreign regular/valid/dangling links; relative and indirect healthy links; foreign package ownership; administrator replacement |
+| K9 | Reconfigure/reinstall, remove/purge or repeated RPM erase handling, old-version cleanup, OSS and unrecognized-helper no-op behavior, launcher and independent data preservation |
+| Warning recovery | Injected helper creation, replacement, and final-removal failures must warn while the package transaction/configured state succeeds; a later transaction repairs the command |
+
+The focused suite is an implementation gate for source-built fixtures, not an official-artifact release gate. It does not validate Snap/archive exposure, image-based Fedora variants, or a publisher-signed artifact. Run ordinary artifact-backed desktop sanity separately once changed official DEB/RPM artifacts are available.
 
 ## Containers
 

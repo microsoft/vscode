@@ -1223,12 +1223,6 @@ export namespace ConfigKey {
 	export const ReadFileToolAllowLineAdjustments = defineSetting<boolean>('chat.tools.readFile.allowLineAdjustments', ConfigType.ExperimentBased, false);
 }
 
-export function getAllConfigKeys(): string[] {
-	return Object.values(ConfigKey).flatMap(namespace =>
-		Object.values(namespace).map(setting => setting.fullyQualifiedId)
-	);
-}
-
 const nextEditProviderIds: string[] = [];
 export function registerNextEditProviderId(providerId: string): string {
 	nextEditProviderIds.push(providerId);

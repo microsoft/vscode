@@ -102,6 +102,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
 	openTrackedTurnDatabase(): undefined { return undefined; }
+	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }

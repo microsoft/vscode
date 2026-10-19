@@ -16,6 +16,23 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot sandboxed MCP servers restart at the start of the first turn
+
+A user with the sandbox enabled starts a session that has a stdio MCP server, then sends a first message. The server should start once inside the sandbox. Instead, the runtime first starts it with the settings it had before the sandbox update, then cancels it and starts it again inside the sandbox while the first turn is being prepared. Users with several MCP servers see the turn wait for every server to start twice, one after another, before the first response.
+
+- Test: `runtime MCP: first turn does not restart MCP servers` in `suites/copilotRuntimeMcpSuite.ts`.
+- Scope: Copilot provider with the sandbox enabled and `sandboxMcpServers` on, all platforms. Observed with bundled runtime `1.0.99-2`, and live with `1.0.99-1`.
+- Expected: one probe process start, and no `stopped` or `starting` state for the server after it first reports `Ready`.
+- Observed: two or three process starts. Runtime log: `mcp graph load: ensure_loaded (first load)`, then `apply_session_settings {"sandbox_changed":false}`, then `apply_session_settings {"sandbox_changed":true}`, then `serve finished {"quit_reason":"Cancelled"}`, then `sandbox_spawn sandbox launch directory`. The host sends exactly one `options.update({ sandboxConfig })` after `createSession` and no other sandbox, MCP, or agent-selection requests before the restart. The recording run passed once, so the outcome is timing-dependent.
+- Gate: only this test is skipped. It asserts the desired contract. Remove the skip after the runtime starts sandboxed MCP servers once.
+- Reproduce: temporarily replace this test's `test.skip` with `test`, then repeat:
+
+  ```bash
+  ./scripts/test-integration.sh \
+    --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
+    --grep "first turn does not restart MCP servers"
+  ```
+
 ### Copilot strict managed-model resume is nondeterministic
 
 An SDK client can opt into mandatory model-option locks. If an administrator changes the required effort after a conversation was saved with another effort, resuming should apply the new lock and retain the conversation history. The runtime intermittently rejects that resume instead. VS Code's current integration deliberately omits the strict opt-in, and its default-only resume tests remain enabled.
@@ -112,6 +129,15 @@ Starting two Codex chats in the same empty workspace can fail before the first p
   ```
 
 - Host mitigation: on Linux, `CodexAgent` runs `thread/start`, `thread/resume`, and `thread/fork` one at a time per workspace root ([codexThreadCreationSequencer.ts](../../../node/codex/codexThreadCreationSequencer.ts)), so chats starting together in one workspace no longer fail their first message. Sandboxed shell commands that two chats run at the same moment in one workspace can still race, and so can several Agent Host processes sharing a workspace; that remains upstream. No upstream Codex issue tracks it yet. The defect: in [`bwrap.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/bwrap.rs), readable roots are bound whenever they exist, with no check for another setup's transient mount targets (writable roots have one); it is unchanged on Codex `main`.
+
+### Codex Linux sandbox helpers orphaned mid-session
+
+An Agent Host E2E job on Linux can pass every suite and still fail the step, because the test tmpfs cannot be unmounted: `umount: <tmpfs>: target is busy`. Between 2026-10-07 and 2026-10-17 this failed 13 PR runs (about 1 in 217). The holder is a `bwrap ... --argv0 codex-linux-sandbox ... --codex-run-as-fs-helper` process whose parent is PID 1. It still has its pre-exec `bwrap` command line and its launcher's process group, and it holds files inherited from the Agent Host server.
+
+- Mechanism: Codex runs each filesystem helper as a `codex-linux-sandbox` launcher. The launcher forks `bwrap --die-with-parent` into its own process group, and when Codex drops the helper it kills only that launcher ([`fs_sandbox.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/exec-server/src/fs_sandbox.rs), [`linux_run_main.rs`](https://github.com/openai/codex/blob/rust-v0.162.0/codex-rs/linux-sandbox/src/linux_run_main.rs)). The outer bwrap then dies with the launcher. If that happens right after bwrap clones its sandbox child, the child blocks forever on an eventfd that never reports the outer bwrap's death; it binds its own lifetime to its parent only after that wait ([`bubblewrap.c`](https://github.com/containers/bubblewrap/blob/main/bubblewrap.c)).
+- Timing: the holder's age dates its clone while its Agent Host server and app-server were still running, several seconds before that server shut down. It is orphaned mid-session, outside the app-server's process tree, so killing the app-server's tree at teardown does not reach it.
+- Upstream: [openai/codex#54877](https://github.com/openai/codex/issues/54877) and [containers/bubblewrap#633](https://github.com/containers/bubblewrap/issues/633).
+- Test mitigation: on an unmount failure, [tmpfs.sh](../../../../../../../test/integration/agentHost/tmpfs.sh) checks every holder. If all of them are orphaned Codex filesystem helpers (parent PID 1 and `--codex-run-as-fs-helper` on the command line), it describes each one, kills it, reports a GitHub Actions warning, and retries the unmount. Any other holder, or an unmount that still fails, remains fatal with the same holder diagnostics. Remove this mitigation once a fixed Codex or bubblewrap ships.
 
 ### Codex context snapshot flake
 
@@ -965,6 +991,10 @@ A user can ask Claude to delete a file from the workspace through its shell tool
   ```bat
   scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
+
+### Codex turn-diff shell fixture uses Bash
+
+The `shell-intercepted patches use the same turn-diff tracking` provider-integration fixture is separately POSIX-only because it sends a Bash heredoc through Codex's shell. Native patch tracking, checkpoint, steering, subagent, and restart coverage in [codexTurnDiff.integrationTest.ts](../providerIntegration/codexTurnDiff.integrationTest.ts) stays enabled on Windows.
 
 ### Codex file creation replay on Windows
 
