@@ -36,7 +36,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -127,6 +127,8 @@ const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
+/** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
+const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
 const SESSION_SHORTCUT_SECTION_TEMPLATE_ID = 'session-shortcut-section';
 const SESSION_SHORTCUT_ROW_HEIGHT = 28;
 const SESSION_SECTION_FOCUS_FROM_POINTER_CLASS = 'session-section-focus-from-pointer';
@@ -183,6 +185,9 @@ function sortingToMode(sorting: SessionsSorting): SessionSortMode {
 
 /** Fallback spacing (ms) used when assigning synthetic sort keys past an open boundary. */
 const SORT_FALLBACK_STEP_MS = 60_000;
+
+/** Spacing (ms) between synthetic sort keys that keep dropped sessions directly next to their anchor. */
+const ADJACENT_SORT_STEP_MS = 1;
 
 export interface ISessionSection {
 	readonly id: string;
@@ -3112,31 +3117,119 @@ class SessionsAccessibilityProvider {
 //#region Drag and Drop
 
 /**
- * Callbacks the sessions list provides to its drag-and-drop controller so the
- * controller can validate and apply manual reordering without owning the list
- * model itself.
+ * Where dropped sessions end up. Each placement is a rung of the list's
+ * placement precedence (archived > pinned > custom group > ungrouped section),
+ * so moving sessions into one only changes the state that precedence reads.
+ */
+type SessionListPlacement =
+	| { readonly kind: 'archived' }
+	| { readonly kind: 'pinned' }
+	| { readonly kind: 'group'; readonly groupId: string }
+	/** The section a session renders in when it is neither archived, pinned, nor grouped. */
+	| { readonly kind: 'section'; readonly sectionId: string };
+
+/** The list-owned state a session needs to render in a placement. */
+interface ISessionPlacementState {
+	readonly archived: boolean;
+	/** The pin state, or `undefined` to leave it unchanged. */
+	readonly pinned?: boolean;
+	/** The custom group, `null` for none, or `undefined` to leave membership unchanged. */
+	readonly groupId?: string | null;
+}
+
+function getPlacementState(placement: SessionListPlacement): ISessionPlacementState {
+	switch (placement.kind) {
+		case 'archived':
+			return { archived: true };
+		case 'pinned':
+			return { archived: false, pinned: true };
+		case 'group':
+			return { archived: false, pinned: false, groupId: placement.groupId };
+		case 'section':
+			return { archived: false, pinned: false, groupId: null };
+	}
+}
+
+/** The placement of the sessions rendered under a section or group id, or `undefined` when it does not accept sessions. */
+function getSectionPlacement(sectionId: string): SessionListPlacement | undefined {
+	if (sectionId === 'pinned') {
+		return { kind: 'pinned' };
+	}
+	if (sectionId === 'archived') {
+		return { kind: 'archived' };
+	}
+	if (sectionId.startsWith('group:')) {
+		return { kind: 'group', groupId: sectionId.slice('group:'.length) };
+	}
+	return isShortcutSection(sectionId) ? undefined : { kind: 'section', sectionId };
+}
+
+function getPlacementHeader(placement: SessionListPlacement): ISessionDropTargetHeader {
+	switch (placement.kind) {
+		case 'archived':
+			return { kind: 'section', id: 'archived' };
+		case 'pinned':
+			return { kind: 'section', id: 'pinned' };
+		case 'group':
+			return { kind: 'group', id: placement.groupId };
+		case 'section':
+			return { kind: 'section', id: placement.sectionId };
+	}
+}
+
+/** A session row that dropped sessions are positioned against. */
+interface ISessionDropAnchor {
+	readonly session: ISession;
+	readonly position: 'before' | 'after';
+	/**
+	 * The anchor's section is derived from the sort key (date sections), so the
+	 * sessions must stay next to the anchor rather than drift past a neighbour
+	 * in another section.
+	 */
+	readonly staysInSection: boolean;
+}
+
+/** Row feedback shown while hovering a drop target. */
+interface ISessionDropFeedback {
+	readonly position: ListDragOverEffectPosition;
+	/** The list index that shows the feedback, when it differs from the hovered row. */
+	readonly index?: number;
+}
+
+/** Where sessions dropped on a list target go. */
+interface ISessionDropDestination {
+	readonly placement: SessionListPlacement;
+	/** The row to position the sessions against; `undefined` keeps their natural sort position. */
+	readonly anchor?: ISessionDropAnchor;
+	/** Whether the drop may restore archived sessions. */
+	readonly restoresArchived: boolean;
+	/** Row feedback; `undefined` relies on the destination header highlight alone. */
+	readonly feedback?: ISessionDropFeedback;
+}
+
+/** What a valid session drop changes: the placement of at least one session, or only the manual order. */
+type SessionDropEffect = 'move' | 'reorder';
+
+/**
+ * Callbacks the sessions list provides to its drag-and-drop controller. The
+ * controller decides where a drop goes; the list decides whether its sessions
+ * may go there and applies the change.
  */
 interface ISessionsListDndDelegate {
-	/** Whether a session may participate in reordering within its current section. */
-	isReorderable(session: ISession): boolean;
-	/** Whether a session currently renders in the Pinned section. */
-	isSessionPinned(session: ISession): boolean;
-	/** Whether the dragged sessions may be reordered relative to the given target. */
-	canDropOn(dragged: ISession[], target: ISession): boolean;
+	/** The placement of the section or group a rendered session row belongs to. */
+	getRowPlacement(session: ISession): SessionListPlacement | undefined;
+	/** The visible nested chat rows of a rendered session, in display order. */
+	getVisibleChatRows(session: ISession): readonly ISessionChatItem[];
+	/** The rendered date sections in display order, or `undefined` when not grouping by date. */
+	getDateSections(): readonly ISessionSection[] | undefined;
+	/** What moving the sessions to the destination changes, or `undefined` when the move is not allowed. */
+	getSessionDropEffect(sessions: readonly ISession[], destination: ISessionDropDestination): SessionDropEffect | undefined;
+	/** Move the sessions to the destination. */
+	moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): void;
+	/** Place the chats before/after a sibling chat of the same session. */
+	reorderChats(chats: readonly ISessionChatItem[], target: ISessionChatItem, position: 'before' | 'after'): void;
 	/** Whether a group or workspace header participates in top-level reordering. */
 	isHeaderReorderable(element: ISessionGroupItem | ISessionSection): boolean;
-	/** Apply the reorder, placing the dragged sessions before/after the target. */
-	reorder(dragged: ISession[], target: ISession, position: 'before' | 'after'): void;
-	/** The id of the group the session belongs to, or `undefined`. */
-	getGroupIdOfSession(session: ISession): string | undefined;
-	/** The workspace or External section a grouped session can return to, if available. */
-	getUngroupedSectionIdOfSession(session: ISession): string | undefined;
-	/** Add the given sessions to the group. */
-	addSessionsToGroup(sessions: ISession[], groupId: string, target: ISession | undefined, position: 'before' | 'after' | undefined): void;
-	/** Remove the given sessions from their group, optionally placing them before/after a target. */
-	removeSessionsFromGroup(sessions: ISession[], target: ISession | undefined, position: 'before' | 'after' | undefined): void;
-	/** Pin the given sessions, optionally placing them before/after a pinned target. */
-	pinSessions(sessions: ISession[], target: ISession | undefined, position: 'before' | 'after' | undefined): void;
 	/** Highlight only the header that will receive the dragged sessions. */
 	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
 	/** Reorder a top-level header (group or workspace section) before/after another. */
@@ -3148,23 +3241,20 @@ interface ISessionDropTargetHeader {
 	readonly id: string;
 }
 
-interface ISessionMembershipDropTarget {
-	readonly sessions: ISession[];
-	readonly header: ISessionDropTargetHeader;
-	readonly target: ISession | undefined;
-	readonly position: 'before' | 'after' | undefined;
-}
-
-interface ISessionAddToGroupDropTarget extends ISessionMembershipDropTarget {
-	readonly groupId: string;
-}
-
 /** A top-level header (group or workspace section) currently being dragged to reorder. */
 interface IDraggedHeader {
 	/** The reorder identity (`group:<id>` or `workspace:<label>`). */
 	readonly id: string;
 	/** Whether the dragged header is a workspace section (vs. a user group). */
 	readonly isWorkspace: boolean;
+}
+
+/** A resolved drop: its hover feedback and what dropping does. */
+interface ISessionsListDropOperation {
+	readonly reaction: ITreeDragOverReaction;
+	/** The header highlighted as the destination of the drop. */
+	readonly header?: ISessionDropTargetHeader;
+	run(): void;
 }
 
 class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
@@ -3209,7 +3299,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (workspaceSection) {
 			return workspaceSection.label;
 		}
-		const sessions = this.toSessions(elements);
+		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
 			return undefined;
 		}
@@ -3220,13 +3310,13 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : [];
+		const elements = this.draggedElements(data);
 		const chatItem = elements.find(isSessionChatItem);
 		if (chatItem) {
 			fillSessionChatDragData(originalEvent, chatItem.session.sessionId, chatItem.chat.resource);
 			return;
 		}
-		const sessions = this.toSessions(elements);
+		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
 			return;
 		}
@@ -3247,255 +3337,167 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		this.delegate.setDropTargetHeader(undefined);
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
-		const draggedHeader = this.draggedHeader(data);
-		if (draggedHeader) {
-			this.delegate.setDropTargetHeader(undefined);
-			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
-		}
+	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+		const operation = this.resolveDrop(data, targetElement, targetIndex, targetSector);
+		this.delegate.setDropTargetHeader(operation?.header);
+		return operation?.reaction ?? false;
+	}
 
-		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
-		if (pinTarget) {
-			this.delegate.setDropTargetHeader(pinTarget.header);
-			return this.toMembershipDropReaction(pinTarget);
-		}
-
-		const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
-		if (addToGroupTarget) {
-			this.delegate.setDropTargetHeader(addToGroupTarget.header);
-			return this.toMembershipDropReaction(addToGroupTarget);
-		}
-
-		const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
-		if (removeFromGroupTarget) {
-			this.delegate.setDropTargetHeader(removeFromGroupTarget.header);
-			return this.toMembershipDropReaction(removeFromGroupTarget);
-		}
-
+	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
 		this.delegate.setDropTargetHeader(undefined);
-		const target = this.resolveReorderTarget(data, targetElement);
-		if (!target) {
-			return false;
+		this.resolveDrop(data, targetElement, targetIndex, targetSector)?.run();
+	}
+
+	/** Resolve dropping the current drag on a target. Each kind of dragged item has its own resolver. */
+	private resolveDrop(data: IDragAndDropData, target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+		const elements = this.draggedElements(data);
+		const header = this.draggedHeader(elements);
+		if (header) {
+			return this.resolveHeaderDrop(header, target, sector);
 		}
-		const position = sectorToPosition(targetSector);
+		if (elements.length > 0 && elements.every(isSessionChatItem)) {
+			return this.resolveChatDrop(elements, target, sector);
+		}
+		const sessions = elements.filter(isSessionItem);
+		return sessions.length > 0 ? this.resolveSessionDrop(sessions, target, targetIndex, sector) : undefined;
+	}
+
+	private resolveHeaderDrop(header: IDraggedHeader, target: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+		const targetRef = target && this.headerRefOf(target);
+		if (!targetRef || targetRef === header.id) {
+			return undefined;
+		}
+		const position = sectorToPosition(sector);
 		return {
-			accept: true,
-			effect: {
-				type: ListDragOverEffectType.Move,
-				position: position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before,
-			},
+			reaction: toDropReaction({ position: toEffectPosition(position) }),
+			run: () => this.delegate.reorderSection(header.id, targetRef, position, header.isWorkspace),
 		};
 	}
 
-	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
-		this.delegate.setDropTargetHeader(undefined);
-		try {
-			const draggedHeader = this.draggedHeader(data);
-			if (draggedHeader) {
-				if (targetElement) {
-					const targetRef = this.headerRefOf(targetElement);
-					if (targetRef && targetRef !== draggedHeader.id) {
-						this.delegate.reorderSection(draggedHeader.id, targetRef, sectorToPosition(targetSector), draggedHeader.isWorkspace);
-					}
-				}
-				return;
-			}
-
-			const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
-			if (pinTarget) {
-				this.delegate.pinSessions(pinTarget.sessions, pinTarget.target, pinTarget.position);
-				return;
-			}
-
-			const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
-			if (addToGroupTarget) {
-				this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
-				return;
-			}
-
-			const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
-			if (removeFromGroupTarget) {
-				this.delegate.removeSessionsFromGroup(removeFromGroupTarget.sessions, removeFromGroupTarget.target, removeFromGroupTarget.position);
-				return;
-			}
-
-			const target = this.resolveReorderTarget(data, targetElement);
-			if (!target) {
-				return;
-			}
-			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
-		} finally {
-			this.delegate.setDropTargetHeader(undefined);
+	/** Nested chats reorder among the visible chats of their own session. */
+	private resolveChatDrop(chats: readonly ISessionChatItem[], target: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+		if (!target || !isSessionChatItem(target)) {
+			return undefined;
 		}
-	}
-
-	private onHeaderDragOver(draggedHeader: IDraggedHeader, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
-		if (!targetElement) {
-			return false;
+		if (chats.some(chat => chat.session.sessionId !== target.session.sessionId || isEqual(chat.chat.resource, target.chat.resource))) {
+			return undefined;
 		}
-		const targetRef = this.headerRefOf(targetElement);
-		if (!targetRef || targetRef === draggedHeader.id) {
-			return false;
-		}
-		const position = sectorToPosition(targetSector);
+		const position = sectorToPosition(sector);
 		return {
-			accept: true,
-			effect: {
-				type: ListDragOverEffectType.Move,
-				position: position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before,
-			},
+			reaction: toDropReaction({ position: toEffectPosition(position) }),
+			run: () => this.delegate.reorderChats(chats, target, position),
 		};
 	}
 
-	private resolvePinTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionMembershipDropTarget | undefined {
-		if (!targetElement) {
+	private resolveSessionDrop(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
+		const destination = this.resolveSessionDestination(sessions, target, targetIndex, sector);
+		const effect = destination && this.delegate.getSessionDropEffect(sessions, destination);
+		if (!destination || !effect) {
 			return undefined;
 		}
-
-		let target: ISession | undefined;
-		if (isSessionSection(targetElement)) {
-			if (targetElement.id !== 'pinned') {
-				return undefined;
-			}
-		} else if (isSessionItem(targetElement) && this.delegate.isSessionPinned(targetElement)) {
-			target = targetElement;
-		} else {
-			return undefined;
-		}
-
-		const dragged = this.draggedSessions(data);
-		const hasArchived = dragged.some(session => session.isArchived.get());
-		const allPinned = dragged.every(session => this.delegate.isSessionPinned(session));
-		if (dragged.length === 0 || hasArchived || allPinned) {
-			return undefined;
-		}
-		if (target && dragged.some(session => session.sessionId === target.sessionId)) {
-			return undefined;
-		}
+		// A reorder shown as an insertion line needs no header; anything else marks where the sessions land.
+		const showsInsertionLine = destination.feedback !== undefined && destination.feedback.position !== ListDragOverEffectPosition.Over;
 		return {
-			sessions: dragged,
-			header: { kind: 'section', id: 'pinned' },
-			target,
-			position: target ? sectorToPosition(targetSector) : undefined,
-		};
-	}
-
-	private resolveAddToGroupTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionAddToGroupDropTarget | undefined {
-		if (!targetElement) {
-			return undefined;
-		}
-		let groupId: string | undefined;
-		let target: ISession | undefined;
-		if (isSessionGroupItem(targetElement)) {
-			groupId = targetElement.group.id;
-		} else if (isSessionPlaceholder(targetElement) && targetElement.sectionId.startsWith('group:')) {
-			groupId = targetElement.sectionId.slice('group:'.length);
-		} else if (isSessionItem(targetElement)) {
-			groupId = this.delegate.getGroupIdOfSession(targetElement);
-			target = groupId === undefined ? undefined : targetElement;
-		}
-		if (groupId === undefined) {
-			return undefined;
-		}
-
-		const dragged = this.draggedSessions(data);
-		const hasArchived = dragged.some(session => session.isArchived.get());
-		const allInGroup = dragged.every(session => this.delegate.getGroupIdOfSession(session) === groupId);
-		if (dragged.length === 0 || hasArchived || allInGroup) {
-			return undefined;
-		}
-		if (target && dragged.some(session => session.sessionId === target.sessionId)) {
-			return undefined;
-		}
-		return {
-			sessions: dragged,
-			groupId,
-			header: { kind: 'group', id: groupId },
-			target,
-			position: target ? sectorToPosition(targetSector) : undefined,
-		};
-	}
-
-	/** Resolves a drop from a custom group back into the session's workspace or External section. */
-	private resolveRemoveFromGroupTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): ISessionMembershipDropTarget | undefined {
-		if (!targetElement) {
-			return undefined;
-		}
-
-		let sectionId: string | undefined;
-		let target: ISession | undefined;
-		if (isSessionSection(targetElement)) {
-			sectionId = targetElement.id.startsWith('workspace:') || targetElement.id === EXTERNAL_SESSIONS_SECTION_ID ? targetElement.id : undefined;
-		} else if (isSessionItem(targetElement) && this.delegate.getGroupIdOfSession(targetElement) === undefined) {
-			sectionId = this.delegate.getUngroupedSectionIdOfSession(targetElement);
-			target = sectionId === undefined ? undefined : targetElement;
-		}
-		if (sectionId === undefined) {
-			return undefined;
-		}
-
-		// Grouped sessions can only return to their own default section.
-		const dragged = this.draggedSessions(data);
-		const canRemove = dragged.every(session =>
-			this.delegate.getGroupIdOfSession(session) !== undefined
-			&& this.delegate.getUngroupedSectionIdOfSession(session) === sectionId);
-		if (dragged.length === 0 || !canRemove) {
-			return undefined;
-		}
-		return {
-			sessions: dragged,
-			header: { kind: 'section', id: sectionId },
-			target,
-			position: target ? sectorToPosition(targetSector) : undefined,
+			reaction: toDropReaction(destination.feedback),
+			header: effect === 'move' || !showsInsertionLine ? getPlacementHeader(destination.placement) : undefined,
+			run: () => this.delegate.moveSessions(sessions, destination),
 		};
 	}
 
 	/**
-	 * Resolve the session the drop should be positioned against, or `undefined`
-	 * if the current drag is not a valid in-list reorder.
+	 * Map the hovered element to where dropped sessions go, with one case per
+	 * kind of list element. Whether the sessions may go there is decided by
+	 * {@link ISessionsListDndDelegate.getSessionDropEffect}.
 	 */
-	private resolveReorderTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined): ISession | undefined {
-		if (!targetElement || !isSessionItem(targetElement)) {
+	private resolveSessionDestination(sessions: readonly ISession[], target: SessionListItem | undefined, targetIndex: number | undefined, sector: ListViewTargetSector | undefined): ISessionDropDestination | undefined {
+		const over: ISessionDropFeedback = { position: ListDragOverEffectPosition.Over };
+		if (target === undefined) {
+			return this.resolveEmptySpaceDestination(sessions);
+		}
+		if (isSessionGroupItem(target)) {
+			return { placement: { kind: 'group', groupId: target.group.id }, restoresArchived: true, feedback: over };
+		}
+		if (isSessionSection(target)) {
+			return this.resolveSectionHeaderDestination(sessions, target);
+		}
+		if (isSessionPlaceholder(target) || (isSessionShowMore(target) && target.kind === 'sessions')) {
+			const placement = getSectionPlacement(target.sectionId);
+			return placement && { placement, restoresArchived: true, feedback: over };
+		}
+		if (isSessionShowMore(target)) {
 			return undefined;
 		}
-		const target = targetElement;
-		if (!this.delegate.isReorderable(target)) {
-			return undefined;
+		if (isSessionChatItem(target)) {
+			// A nested chat row stands for its parent session: drop below the parent and all of its chats.
+			const chatIndex = this.delegate.getVisibleChatRows(target.session).indexOf(target);
+			const parentIndex = targetIndex === undefined || chatIndex < 0 ? undefined : targetIndex - chatIndex - 1;
+			return this.resolveRowDestination(sessions, target.session, 'after', parentIndex);
 		}
-		const dragged = this.draggedSessions(data);
-		if (dragged.length === 0 || dragged.some(s => s.sessionId === target.sessionId)) {
-			return undefined;
-		}
-		if (dragged.some(s => !this.delegate.isReorderable(s))) {
-			return undefined;
-		}
-		if (!this.delegate.canDropOn(dragged, target)) {
-			return undefined;
-		}
-		return target;
+		return this.resolveRowDestination(sessions, target, sectorToPosition(sector), targetIndex);
 	}
 
-	private toMembershipDropReaction(target: ISessionMembershipDropTarget): ITreeDragOverReaction {
-		let position = ListDragOverEffectPosition.Over;
-		if (target.position === 'after') {
-			position = ListDragOverEffectPosition.After;
-		} else if (target.position === 'before') {
-			position = ListDragOverEffectPosition.Before;
+	private resolveRowDestination(sessions: readonly ISession[], row: ISession, position: 'before' | 'after', rowIndex: number | undefined): ISessionDropDestination | undefined {
+		const placement = this.delegate.getRowPlacement(row);
+		if (!placement || sessions.some(session => session.sessionId === row.sessionId)) {
+			return undefined;
 		}
+		if (placement.kind === 'archived') {
+			// Archived sessions keep a fixed order, so their rows only stand for the section.
+			return { placement, restoresArchived: true };
+		}
+		// Dropping after a session lands below its nested chats, so show the line there.
+		const feedback: ISessionDropFeedback = position === 'after' && rowIndex !== undefined
+			? { position: ListDragOverEffectPosition.After, index: rowIndex + this.delegate.getVisibleChatRows(row).length }
+			: { position: toEffectPosition(position) };
 		return {
-			accept: true,
-			effect: {
-				type: ListDragOverEffectType.Move,
-				position,
-			},
+			placement,
+			anchor: { session: row, position, staysInSection: isDateSectionPlacement(placement) },
+			restoresArchived: true,
+			feedback,
 		};
 	}
 
-	private draggedHeader(data: IDragAndDropData): IDraggedHeader | undefined {
-		if (!(data instanceof ElementsDragAndDropData)) {
+	/** Date sections derive from the sort key, so a header drop places the sessions at the top of that section. */
+	private resolveSectionHeaderDestination(sessions: readonly ISession[], section: ISessionSection): ISessionDropDestination | undefined {
+		const placement = getSectionPlacement(section.id);
+		if (!placement) {
 			return undefined;
 		}
-		const elements = data.elements as SessionListItem[];
+		const over: ISessionDropFeedback = { position: ListDragOverEffectPosition.Over };
+		if (!isDateSectionPlacement(placement)) {
+			return { placement, restoresArchived: true, feedback: over };
+		}
+		const draggedIds = new Set(sessions.map(session => session.sessionId));
+		const first = section.sessions.find(session => !draggedIds.has(session.sessionId));
+		return {
+			placement,
+			anchor: first && { session: first, position: 'before', staysInSection: true },
+			restoresArchived: true,
+			feedback: over,
+		};
+	}
+
+	/** Below the last row, sessions go to the end of the date sections. Archived sessions stay put. */
+	private resolveEmptySpaceDestination(sessions: readonly ISession[]): ISessionDropDestination | undefined {
+		const dateSections = this.delegate.getDateSections();
+		if (!dateSections) {
+			return undefined;
+		}
+		const lastSection = dateSections.at(-1);
+		const draggedIds = new Set(sessions.map(session => session.sessionId));
+		const last = lastSection?.sessions.findLast(session => !draggedIds.has(session.sessionId));
+		return {
+			placement: { kind: 'section', sectionId: lastSection?.id ?? DATE_SECTION_IDS[0] },
+			anchor: last && { session: last, position: 'after', staysInSection: true },
+			restoresArchived: false,
+		};
+	}
+
+	private draggedElements(data: IDragAndDropData): SessionListItem[] {
+		return data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : [];
+	}
+
+	private draggedHeader(elements: readonly SessionListItem[]): IDraggedHeader | undefined {
 		const groupItem = elements.find(isSessionGroupItem);
 		if (groupItem && this.delegate.isHeaderReorderable(groupItem)) {
 			return { id: `group:${groupItem.group.id}`, isWorkspace: false };
@@ -3517,18 +3519,30 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 		return undefined;
 	}
+}
 
-	private draggedSessions(data: IDragAndDropData): ISession[] {
-		return this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
-	}
-
-	private toSessions(elements: SessionListItem[]): ISession[] {
-		return elements.filter(isSessionItem);
-	}
+function isDateSectionPlacement(placement: SessionListPlacement): boolean {
+	return placement.kind === 'section' && DATE_SECTION_IDS.includes(placement.sectionId);
 }
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+function toEffectPosition(position: 'before' | 'after'): ListDragOverEffectPosition {
+	return position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before;
+}
+
+function toDropReaction(feedback: ISessionDropFeedback | undefined): ITreeDragOverReaction {
+	if (!feedback) {
+		// An empty feedback list suppresses both row and whole-list feedback.
+		return { accept: true, feedback: [] };
+	}
+	return {
+		accept: true,
+		effect: { type: ListDragOverEffectType.Move, position: feedback.position },
+		feedback: feedback.index === undefined ? undefined : [feedback.index],
+	};
 }
 
 //#endregion
@@ -3628,7 +3642,7 @@ export interface ISessionsList {
 	beginRenameGroup(groupId: string): void;
 	beginRenameSession(session: ISession): boolean;
 	beginRenameChat(item: ISessionChatItem): boolean;
-	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void;
+	addSessionsToGroup(sessions: ISession[], groupId: string): void;
 	getGroupsInDisplayOrder(): ISessionGroup[];
 }
 
@@ -4087,16 +4101,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					reportExternalApplicationBadgeShowFromExperimentTrigger,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
-					isReorderable: session => this.isReorderable(session),
-					isSessionPinned: session => this.isSessionPinned(session),
-					canDropOn: (dragged, target) => this.canReorderOnto(dragged, target),
+					getRowPlacement: session => this.getRowPlacement(session),
+					getVisibleChatRows: session => this.getVisibleChatRows(session),
+					getDateSections: () => this.getDateSections(),
+					getSessionDropEffect: (sessions, destination) => this.getSessionDropEffect(sessions, destination),
+					moveSessions: (sessions, destination) => this.moveSessions(sessions, destination).catch(onUnexpectedError),
+					reorderChats: (chats, target, position) => this.reorderChats(chats, target, position),
 					isHeaderReorderable: element => !isSessionGroupItem(element) || !element.comparison || this.options.grouping() === SessionsGrouping.Date,
-					reorder: (dragged, target, position) => this.reorderSessions(dragged, target, position),
-					getGroupIdOfSession: session => this._sessionGroupsService.getGroupOfSession(session.sessionId),
-					getUngroupedSectionIdOfSession: session => this.getUngroupedSectionIdOfSession(session),
-					addSessionsToGroup: (sessions, groupId, target, position) => this.addSessionsToGroup(sessions, groupId, target, position),
-					removeSessionsFromGroup: (sessions, target, position) => this.removeSessionsFromGroup(sessions, target, position),
-					pinSessions: (sessions, target, position) => this.pinSessions(sessions, target, position),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
 				})),
@@ -4716,7 +4727,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting);
+				const chats = this.orderSessionListChats(session, sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting), sorting);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -5328,102 +5339,233 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.tree.closeFind();
 	}
 
-	// Context menu
+	// -- Drag and drop --
 
-	/**
-	 * Whether a session may participate in manual reordering. Archived (Done)
-	 * sessions keep their fixed section.
-	 */
-	private isReorderable(session: ISession): boolean {
-		return !session.isArchived.get();
+	/** The placement of the section or group a rendered session row belongs to. */
+	private getRowPlacement(session: ISession): SessionListPlacement | undefined {
+		const parent = this.tree.getParentElement(session);
+		if (parent && isSessionGroupItem(parent)) {
+			return { kind: 'group', groupId: parent.group.id };
+		}
+		return parent && isSessionSection(parent) ? getSectionPlacement(parent.id) : undefined;
+	}
+
+	private getVisibleChatRows(session: ISession): readonly ISessionChatItem[] {
+		const node = this.tree.getNode(session);
+		if (node.collapsed) {
+			return [];
+		}
+		return node.children
+			.filter(child => child.visible)
+			.map(child => child.element)
+			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element));
+	}
+
+	private getDateSections(): readonly ISessionSection[] | undefined {
+		if (this.options.grouping() !== SessionsGrouping.Date) {
+			return undefined;
+		}
+		return this.tree.getNode().children
+			.map(child => child.element)
+			.filter((element): element is ISessionSection => !!element && isSessionSection(element) && DATE_SECTION_IDS.includes(element.id));
 	}
 
 	/**
-	 * Whether the dragged sessions can be reordered relative to the target.
-	 * Reordering stays within the same scope: dragged sessions must share the
-	 * target's group membership, and (when grouping by workspace) its workspace.
+	 * The ungrouped sections a session can render in, following the list's
+	 * placement precedence below custom groups. Date sections share one sort
+	 * order, so a session may render in either of them.
 	 */
-	private canReorderOnto(dragged: ISession[], target: ISession): boolean {
-		const targetPinned = this.isSessionPinned(target);
-		if (dragged.some(s => this.isSessionPinned(s) !== targetPinned)) {
-			return false;
+	private getUngroupedSectionIds(session: ISession): readonly string[] {
+		if (this.groupExternalSessions && session.isExternal?.get()) {
+			return [EXTERNAL_SESSIONS_SECTION_ID];
 		}
-		if (targetPinned) {
-			return true;
+		if (isQuickChatSession(session)) {
+			return [QUICK_CHATS_SECTION_ID];
 		}
+		if (this.options.grouping() === SessionsGrouping.Workspace) {
+			return [`workspace:${sessionWorkspaceLabel(session)}`];
+		}
+		return DATE_SECTION_IDS;
+	}
 
-		const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
-		if (dragged.some(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) !== targetGroup)) {
+	/**
+	 * The sessions a session is manually ordered among, or `undefined` when its
+	 * section keeps a fixed order (archived sessions and comparison groups).
+	 */
+	private getReorderScope(session: ISession): string | undefined {
+		if (session.isArchived.get() || isAutomationSession(session)) {
+			return undefined;
+		}
+		if (this.isSessionPinned(session)) {
+			return 'pinned';
+		}
+		const group = this.getRenderedSessionGroup(session);
+		if (group) {
+			return this.isComparisonGroup(group.id) ? undefined : `group:${group.id}`;
+		}
+		return this.getUngroupedSectionIds(session)[0];
+	}
+
+	/** Whether the session may move into the destination, regardless of its position. */
+	private canMoveSession(session: ISession, destination: ISessionDropDestination): boolean {
+		const { placement } = destination;
+		const state = getPlacementState(placement);
+		if (session.isArchived.get() && !state.archived && !destination.restoresArchived) {
 			return false;
 		}
-		const targetExternal = this.isRenderedInExternalSection(target);
-		if (dragged.some(s => this.isRenderedInExternalSection(s) !== targetExternal)) {
+		if (placement.kind === 'section' && !this.getUngroupedSectionIds(session).includes(placement.sectionId)) {
 			return false;
 		}
-		if (targetExternal) {
-			return true;
-		}
-		if (targetGroup === undefined && this.options.grouping() === SessionsGrouping.Workspace) {
-			const targetLabel = sessionWorkspaceLabel(target);
-			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
+		const groupId = this._sessionGroupsService.getGroupOfSession(session.sessionId) ?? null;
+		if (state.groupId !== undefined && state.groupId !== groupId) {
+			// Comparison groups own their membership.
+			if (this.isActiveComparisonSession(session) || (state.groupId !== null && this.isComparisonGroup(state.groupId))) {
+				return false;
+			}
 		}
 		return true;
 	}
 
-	/**
-	 * Reorder the dragged sessions so they land as a contiguous block before or
-	 * after the target session, persisting a synthetic sort key (the midpoint of
-	 * the surrounding sessions' keys). When the dragged sessions' natural
-	 * timestamps already sort them into the dropped slot, any stored override is
-	 * dropped instead so the list falls back to natural ordering.
-	 */
-	private reorderSessions(dragged: ISession[], target: ISession, position: 'before' | 'after'): void {
-		const mode = sortingToMode(this.options.sorting());
-		const grouping = this.options.grouping();
-		const getKey = (s: ISession) => this._sessionsListModelService.getSortKey(s, mode);
+	/** Whether moving the session into the placement changes any of its list state. */
+	private changesPlacement(session: ISession, placement: SessionListPlacement): boolean {
+		const state = getPlacementState(placement);
+		return session.isArchived.get() !== state.archived
+			|| (state.pinned !== undefined && this.isSessionPinned(session) !== state.pinned)
+			|| (state.groupId !== undefined && (this._sessionGroupsService.getGroupOfSession(session.sessionId) ?? null) !== state.groupId);
+	}
 
-		// Derive neighbours from the actual visible display order (which already
-		// respects filtering and grouping) so the drop slot matches what the user
-		// sees.
-		const targetPinned = this.isSessionPinned(target);
-		let scope = this.getVisibleSessions().filter(s => this.isReorderable(s));
-		scope = scope.filter(s => this.isSessionPinned(s) === targetPinned);
-		if (!targetPinned) {
-			const targetGroup = this._sessionGroupsService.getGroupOfSession(target.sessionId);
-			scope = scope.filter(s => this._sessionGroupsService.getGroupOfSession(s.sessionId) === targetGroup);
-			const targetExternal = this.isRenderedInExternalSection(target);
-			scope = scope.filter(s => this.isRenderedInExternalSection(s) === targetExternal);
-			if (!targetExternal && targetGroup === undefined && grouping === SessionsGrouping.Workspace) {
-				const targetLabel = sessionWorkspaceLabel(target);
-				scope = scope.filter(s => sessionWorkspaceLabel(s) === targetLabel);
+	private getSessionDropEffect(sessions: readonly ISession[], destination: ISessionDropDestination): SessionDropEffect | undefined {
+		if (!sessions.every(session => this.canMoveSession(session, destination))) {
+			return undefined;
+		}
+		if (sessions.some(session => this.changesPlacement(session, destination.placement))) {
+			return 'move';
+		}
+		return destination.anchor && this.getReorderScope(destination.anchor.session) !== undefined ? 'reorder' : undefined;
+	}
+
+	/**
+	 * Move sessions into the destination by applying only the archive, pin, and
+	 * group changes its placement needs, then position them next to the anchor.
+	 */
+	private async moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): Promise<void> {
+		const state = getPlacementState(destination.placement);
+		if (state.archived) {
+			const toArchive = sessions.filter(session => !session.isArchived.get());
+			if (toArchive.length > 0) {
+				await this.commandService.executeCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, toArchive);
+			}
+			return;
+		}
+
+		// Archived sessions lose their group membership, so restore them before changing it.
+		for (const session of sessions) {
+			if (session.isArchived.get()) {
+				await this._sessionsManagementService.unarchiveSession(session);
+			}
+		}
+		if (state.pinned) {
+			for (const session of sessions) {
+				this._sessionsListModelService.pinSession(session);
+			}
+		} else if (state.pinned === false) {
+			this._sessionsListModelService.unpinSessions(sessions.filter(session => this.isSessionPinned(session)));
+		}
+		if (state.groupId === null) {
+			for (const session of sessions) {
+				if (this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined) {
+					this._sessionGroupsService.removeFromGroup(session.sessionId);
+				}
+			}
+		} else if (state.groupId !== undefined) {
+			const groupId = state.groupId;
+			const joining = sessions.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== groupId);
+			if (joining.length > 0) {
+				this._sessionGroupsService.addToGroup(joining.map(session => session.sessionId), groupId);
+			}
+		}
+		if (destination.anchor) {
+			this.reorderSessions(sessions, destination.anchor);
+		}
+	}
+
+	/**
+	 * Reorder the sessions so they land as a contiguous block next to the anchor,
+	 * persisting synthetic sort keys between the surrounding sessions' keys. When
+	 * the sessions' natural timestamps already sort them into the slot, any stored
+	 * override is cleared instead so the list falls back to natural ordering.
+	 */
+	private reorderSessions(sessions: readonly ISession[], anchor: ISessionDropAnchor): void {
+		const scope = this.getReorderScope(anchor.session);
+		if (scope === undefined) {
+			return;
+		}
+		const mode = sortingToMode(this.options.sorting());
+		const getKey = (session: ISession) => this._sessionsListModelService.getSortKey(session, mode);
+
+		// Neighbours come from every session that shares the anchor's sort order,
+		// including collapsed sections, so the slot matches the rendered order.
+		const draggedIds = new Set(sessions.map(session => session.sessionId));
+		const remaining = this.sessions
+			.filter(session => !draggedIds.has(session.sessionId) && this.getReorderScope(session) === scope)
+			.sort((a, b) => getKey(b) - getKey(a));
+		const anchorIndex = remaining.findIndex(session => session.sessionId === anchor.session.sessionId);
+		if (anchorIndex === -1) {
+			return;
+		}
+		const dragged = [...sessions].sort((a, b) => getKey(b) - getKey(a));
+		const insertIndex = anchor.position === 'before' ? anchorIndex : anchorIndex + 1;
+		const above: ISession | undefined = remaining[insertIndex - 1];
+		const below: ISession | undefined = remaining[insertIndex];
+		let aboveKey = above && getKey(above);
+		let belowKey = below && getKey(below);
+		if (anchor.staysInSection) {
+			// Hug the anchor when the far side of the gap belongs to another section.
+			// An open boundary belongs to the first or last date section.
+			const dateSections = this.getDateSections() ?? [];
+			const anchorSection = dateSections.find(section => section.sessions.includes(anchor.session));
+			const isInAnchorSection = (neighbour: ISession | undefined, boundarySection: ISessionSection | undefined) =>
+				neighbour ? !!anchorSection?.sessions.includes(neighbour) : anchorSection === boundarySection;
+			const span = (dragged.length + 1) * ADJACENT_SORT_STEP_MS;
+			const anchorKey = getKey(anchor.session);
+			if (anchor.position === 'before' && !isInAnchorSection(above, dateSections.at(0))) {
+				aboveKey = Math.min(aboveKey ?? Number.POSITIVE_INFINITY, anchorKey + span);
+			} else if (anchor.position === 'after' && !isInAnchorSection(below, dateSections.at(-1))) {
+				belowKey = Math.max(belowKey ?? Number.NEGATIVE_INFINITY, anchorKey - span);
 			}
 		}
 
-		const draggedIds = new Set(dragged.map(s => s.sessionId));
-		const draggedOrdered = scope.filter(s => draggedIds.has(s.sessionId));
-		if (draggedOrdered.length === 0) {
-			return;
-		}
-		const remaining = scope.filter(s => !draggedIds.has(s.sessionId));
-
-		const targetIndex = remaining.findIndex(s => s.sessionId === target.sessionId);
-		if (targetIndex === -1) {
-			return;
-		}
-
-		const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-		const above = remaining[insertIndex - 1];
-		const below = remaining[insertIndex];
-
 		const { set, clear } = computeReorderSortChanges({
-			draggedIds: draggedOrdered.map(s => s.sessionId),
-			naturalKeys: draggedOrdered.map(s => this._sessionsListModelService.getNaturalSortKey(s, mode)),
-			aboveKey: above ? getKey(above) : undefined,
-			belowKey: below ? getKey(below) : undefined,
+			draggedIds: dragged.map(session => session.sessionId),
+			naturalKeys: dragged.map(session => this._sessionsListModelService.getNaturalSortKey(session, mode)),
+			aboveKey,
+			belowKey,
 			now: Date.now(),
 			fallbackStep: SORT_FALLBACK_STEP_MS,
 		});
 		this._sessionsListModelService.applySortChanges(mode, set, clear);
+	}
+
+	/** Persist the session's nested chat order with the dragged chats placed before/after a sibling chat. */
+	private reorderChats(chats: readonly ISessionChatItem[], target: ISessionChatItem, position: 'before' | 'after'): void {
+		const rendered = this.tree.getNode(target.session).children
+			.map(child => child.element)
+			.filter((element): element is ISessionChatItem => !!element && isSessionChatItem(element))
+			.map(item => item.chat.resource.toString());
+		const draggedResources = new Set(chats.map(item => item.chat.resource.toString()));
+		const order = rendered.filter(resource => !draggedResources.has(resource));
+		const targetIndex = order.indexOf(target.chat.resource.toString());
+		if (targetIndex === -1) {
+			return;
+		}
+		order.splice(position === 'before' ? targetIndex : targetIndex + 1, 0, ...rendered.filter(resource => draggedResources.has(resource)));
+		this._sessionsListModelService.setChatOrder(target.session.sessionId, sortingToMode(this.options.sorting()), order);
+	}
+
+	private orderSessionListChats(session: ISession, chats: readonly IChat[], sorting: SessionsSorting): readonly IChat[] {
+		return chats.length > 1
+			? applyManualChatOrder(chats, this._sessionsListModelService.getChatOrder(session.sessionId, sortingToMode(sorting)))
+			: chats;
 	}
 
 	// -- Groups --
@@ -5592,51 +5734,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return visit(this.tree.getNode().children);
 	}
 
-	addSessionsToGroup(sessions: ISession[], groupId: string, target?: ISession, position?: 'before' | 'after'): void {
+	addSessionsToGroup(sessions: ISession[], groupId: string): void {
 		if (this.isComparisonGroup(groupId) || sessions.some(session => this.isActiveComparisonSession(session))) {
 			return;
 		}
 		const groupSessions = sessions.filter(session => !session.isArchived.get());
 		this._sessionsListModelService.unpinSessions(groupSessions);
 		this._sessionGroupsService.addToGroup(groupSessions.map(s => s.sessionId), groupId);
-		if (target && position) {
-			this.reorderSessions(groupSessions, target, position);
-		}
-	}
-
-	/**
-	 * Take the given sessions out of their custom group so they render in their
-	 * own section again, optionally placing them before/after a target session
-	 * of that section.
-	 */
-	private removeSessionsFromGroup(sessions: ISession[], target?: ISession, position?: 'before' | 'after'): void {
-		if (sessions.some(session => this.isActiveComparisonSession(session))) {
-			return;
-		}
-		const groupedSessions = sessions.filter(session => this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined);
-		if (groupedSessions.length === 0) {
-			return;
-		}
-		for (const session of groupedSessions) {
-			this._sessionGroupsService.removeFromGroup(session.sessionId);
-		}
-		if (target && position) {
-			this.reorderSessions(groupedSessions, target, position);
-		}
-	}
-
-	/** The section a grouped session can return to by dragging it out of its custom group. */
-	private getUngroupedSectionIdOfSession(session: ISession): string | undefined {
-		if (session.isArchived.get() || this.isSessionPinned(session)) {
-			return undefined;
-		}
-		if (this.groupExternalSessions && session.isExternal?.get()) {
-			return EXTERNAL_SESSIONS_SECTION_ID;
-		}
-		if (this.options.grouping() !== SessionsGrouping.Workspace || isQuickChatSession(session)) {
-			return undefined;
-		}
-		return `workspace:${sessionWorkspaceLabel(session)}`;
 	}
 
 	private commitGroupEdit(group: ISessionGroup, name: string): void {
@@ -6035,16 +6139,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._sessionsListModelService.pinSession(session);
 	}
 
-	private pinSessions(sessions: ISession[], target?: ISession, position?: 'before' | 'after'): void {
-		const pinnable = sessions.filter(session => !session.isArchived.get());
-		for (const session of pinnable) {
-			this._sessionsListModelService.pinSession(session);
-		}
-		if (target && position) {
-			this.reorderSessions(pinnable, target, position);
-		}
-	}
-
 	unpinSession(session: ISession): void {
 		this._sessionsListModelService.unpinSession(session);
 	}
@@ -6353,6 +6447,23 @@ function sortSessionListChats(chats: readonly IChat[], sorting: SessionsSorting)
 		(b.updatedAt.get()?.getTime() ?? b.createdAt.getTime()) -
 		(a.updatedAt.get()?.getTime() ?? a.createdAt.getTime())
 	);
+}
+
+/**
+ * Apply a manual chat order: the chats it lists fill the positions they hold
+ * in the natural order, in manual order, while unlisted chats such as newly
+ * created ones keep their natural position.
+ */
+export function applyManualChatOrder(chats: readonly IChat[], order: readonly string[] | undefined): readonly IChat[] {
+	if (!order || chats.length < 2) {
+		return chats;
+	}
+	const rank = new Map(order.map((resource, index) => [resource, index]));
+	const ordered = chats
+		.filter(chat => rank.has(chat.resource.toString()))
+		.sort((a, b) => (rank.get(a.resource.toString()) ?? 0) - (rank.get(b.resource.toString()) ?? 0));
+	let next = 0;
+	return chats.map(chat => rank.has(chat.resource.toString()) ? ordered[next++] : chat);
 }
 
 function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {

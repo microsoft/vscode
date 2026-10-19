@@ -67,7 +67,7 @@ import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -3881,47 +3881,7 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('dragging a grouped session out of its group', () => {
-		const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
-
-		interface IDropHarness {
-			readonly container: HTMLElement;
-			/** Session ids passed to `removeFromGroup`, in call order. */
-			readonly removedFromGroup: string[];
-			readonly sortChanges: readonly ISortChangeRecord[];
-		}
-
-		function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false): IDropHarness {
-			const removedFromGroup: string[] = [];
-			const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
-			const harness = createListHarness(disposables, sessions, instantiationService => {
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, groupExternalSessions);
-				instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
-					override readonly onDidChange = onDidChange.event;
-					override getGroups() { return [group]; }
-					override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
-					override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
-					override getSessionIdsInGroup(groupId: string) {
-						return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
-					}
-					override removeFromGroup(sessionId: string) {
-						if (!memberships.delete(sessionId)) {
-							return;
-						}
-						removedFromGroup.push(sessionId);
-						onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
-					}
-				});
-			});
-			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Workspace,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			return { container, removedFromGroup, sortChanges: harness.sortChanges };
-		}
+	suite('drag and drop', () => {
 
 		function sessionRow(container: HTMLElement, title: string): HTMLElement {
 			const row = [...container.querySelectorAll<HTMLElement>('.session-title')]
@@ -3956,90 +3916,300 @@ suite('Sessions - SessionsList', () => {
 			return highlighted;
 		}
 
-		test('drops onto its own workspace section header and leaves the group', () => {
-			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
-			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
-			const memberships = new Map([[grouped.sessionId, group.id]]);
-			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, ordinary], memberships);
+		/** Drag `source` below the last row, returning the headers highlighted while hovering. */
+		function dragToEmptySpace(source: HTMLElement, container: HTMLElement): string[] {
+			const target = container.querySelector<HTMLElement>('.monaco-list-rows');
+			assert.ok(target);
+			return drag(source, target, container);
+		}
 
-			const highlighted = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'vscode'), container);
+		suite('dragging a grouped session out of its group', () => {
+			const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
 
-			assert.deepStrictEqual({ highlighted, removedFromGroup, reordered: sortChanges.length }, {
-				highlighted: ['vscode'],
-				removedFromGroup: [grouped.sessionId],
-				reordered: 0,
+			interface IDropHarness {
+				readonly container: HTMLElement;
+				/** Session ids passed to `removeFromGroup`, in call order. */
+				readonly removedFromGroup: string[];
+				readonly sortChanges: readonly ISortChangeRecord[];
+			}
+
+			function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false, grouping = SessionsGrouping.Workspace): IDropHarness {
+				const removedFromGroup: string[] = [];
+				const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
+				const harness = createListHarness(disposables, sessions, instantiationService => {
+					void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, groupExternalSessions);
+					instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+						override readonly onDidChange = onDidChange.event;
+						override getGroups() { return [group]; }
+						override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
+						override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+						override getSessionIdsInGroup(groupId: string) {
+							return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
+						}
+						override removeFromGroup(sessionId: string) {
+							if (!memberships.delete(sessionId)) {
+								return;
+							}
+							removedFromGroup.push(sessionId);
+							onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
+						}
+					});
+				});
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 800);
+				return { container, removedFromGroup, sortChanges: harness.sortChanges };
+			}
+
+			test('drops onto its own workspace section header and leaves the group', () => {
+				const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+				const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
+				const memberships = new Map([[grouped.sessionId, group.id]]);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, ordinary], memberships);
+
+				const highlighted = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'vscode'), container);
+
+				assert.deepStrictEqual({ highlighted, removedFromGroup, reordered: sortChanges.length }, {
+					highlighted: ['vscode'],
+					removedFromGroup: [grouped.sessionId],
+					reordered: 0,
+				});
+			});
+
+			test('drops between the sessions of its own workspace section', () => {
+				const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+				const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
+				const memberships = new Map([[grouped.sessionId, group.id]]);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, ordinary], memberships);
+
+				const highlighted = drag(sessionRow(container, 'Grouped'), sessionRow(container, 'Ordinary'), container);
+
+				assert.deepStrictEqual({
+					highlighted,
+					removedFromGroup,
+					reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+				}, {
+					highlighted: ['vscode'],
+					removedFromGroup: [grouped.sessionId],
+					reordered: [[grouped.sessionId]],
+				});
+			});
+
+			test('refuses an unrelated workspace section and its sessions', () => {
+				const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+				const other = createTestSession('Other', { workspaceLabel: 'monaco' }).session;
+				const memberships = new Map([[grouped.sessionId, group.id]]);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, other], memberships);
+
+				const ontoSection = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'monaco'), container);
+				const ontoSession = drag(sessionRow(container, 'Grouped'), sessionRow(container, 'Other'), container);
+
+				assert.deepStrictEqual({ ontoSection, ontoSession, removedFromGroup, reordered: sortChanges.length }, {
+					ontoSection: [],
+					ontoSession: [],
+					removedFromGroup: [],
+					reordered: 0,
+				});
+			});
+
+			test('returns grouped external sessions to External instead of their workspace', () => {
+				const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode', isExternal: true }).session;
+				const external = createTestSession('External', { workspaceLabel: 'monaco', isExternal: true }).session;
+				const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, external, regular], new Map([[grouped.sessionId, group.id]]), true);
+
+				const workspaceTarget = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'vscode'), container);
+				const externalTarget = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'External'), container);
+
+				assert.deepStrictEqual({ workspaceTarget, externalTarget, removedFromGroup, reordered: sortChanges.length }, {
+					workspaceTarget: [],
+					externalTarget: ['External'],
+					removedFromGroup: ['Grouped'],
+					reordered: 0,
+				});
+			});
+
+			test('reorders external sessions across workspaces without crossing into regular sessions', () => {
+				const first = createTestSession('First', { workspaceLabel: 'vscode', isExternal: true }).session;
+				const second = createTestSession('Second', { workspaceLabel: 'monaco', isExternal: true }).session;
+				const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
+				const { container, sortChanges } = renderGroupedList([first, second, regular], new Map(), true);
+
+				drag(sessionRow(container, 'First'), sessionRow(container, 'Regular'), container);
+				const regularDropChanges = sortChanges.length;
+				drag(sessionRow(container, 'First'), sessionRow(container, 'Second'), container);
+
+				assert.deepStrictEqual({
+					regularDropChanges,
+					reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+				}, {
+					regularDropChanges: 0,
+					reordered: [['First']],
+				});
+			});
+
+			test('drops into the date sections when grouping by date', () => {
+				const first = createTestSession('First').session;
+				const second = createTestSession('Second').session;
+				const today = createTestSession('Today').session;
+				const lastMonth = createTestSession('LastMonth', { createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }).session;
+				const memberships = new Map([[first.sessionId, group.id], [second.sessionId, group.id]]);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([first, second, today, lastMonth], memberships, false, SessionsGrouping.Date);
+
+				const ontoSession = drag(sessionRow(container, 'First'), sessionRow(container, 'Today'), container);
+				const ontoOlderSection = drag(sessionRow(container, 'Second'), sectionRow(container, 'Older'), container);
+
+				assert.deepStrictEqual({
+					ontoSession,
+					ontoOlderSection,
+					removedFromGroup,
+					reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+				}, {
+					ontoSession: ['Recent'],
+					ontoOlderSection: ['Older'],
+					removedFromGroup: ['First', 'Second'],
+					reordered: [['First'], ['Second']],
+				});
+			});
+
+			test('returns grouped quick chats to Chats and refuses other sections', () => {
+				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
+				const grouped = createTestSession('Grouped').session;
+				const chat = createTestSession('Chat', { isQuickChat: true }).session;
+				const regular = createTestSession('Regular').session;
+				const memberships = new Map([[groupedChat.sessionId, group.id], [grouped.sessionId, group.id]]);
+				const { container, removedFromGroup, sortChanges } = renderGroupedList([groupedChat, grouped, chat, regular], memberships, false, SessionsGrouping.Date);
+
+				const chatOntoRecent = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Recent'), container);
+				const sessionOntoChats = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'Chats'), container);
+				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
+
+				assert.deepStrictEqual({ chatOntoRecent, sessionOntoChats, chatOntoChats, removedFromGroup, reordered: sortChanges.length }, {
+					chatOntoRecent: [],
+					sessionOntoChats: [],
+					chatOntoChats: ['Chats'],
+					removedFromGroup: ['GroupedChat'],
+					reordered: 0,
+				});
 			});
 		});
 
-		test('drops between the sessions of its own workspace section', () => {
-			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
-			const ordinary = createTestSession('Ordinary', { workspaceLabel: 'vscode' }).session;
-			const memberships = new Map([[grouped.sessionId, group.id]]);
-			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, ordinary], memberships);
+		suite('moving between placements', () => {
+			const DAY_MS = 24 * 60 * 60 * 1000;
 
-			const highlighted = drag(sessionRow(container, 'Grouped'), sessionRow(container, 'Ordinary'), container);
+			function renderList(sessions: ISession[], grouping: SessionsGrouping, options: IListHarnessOptions = {}) {
+				const harness = createListHarness(disposables, sessions, options);
+				const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+				void configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+				const container = harness.createContainer(400, 800);
+				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.setExcludeArchived(false);
+				list.layout(800, 400);
+				for (const section of ['pinned', 'older', 'archived']) {
+					list.setItemCollapsed({ section }, false);
+				}
+				return { ...harness, list, container };
+			}
 
-			assert.deepStrictEqual({
-				highlighted,
-				removedFromGroup,
-				reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
-			}, {
-				highlighted: ['vscode'],
-				removedFromGroup: [grouped.sessionId],
-				reordered: [[grouped.sessionId]],
+			function sortKeys(sortChanges: readonly ISortChangeRecord[]): Record<string, number>[] {
+				return sortChanges.map(change => Object.fromEntries(change.set));
+			}
+
+			test('unpins sessions dropped into their own section', () => {
+				const pinned = createTestSession('Pinned', { workspaceLabel: 'vscode' }).session;
+				const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
+				const { container, pinChanges, sortChanges } = renderList([pinned, regular], SessionsGrouping.Workspace, { pinnedSessionIds: new Set([pinned.sessionId]) });
+
+				const ontoHeader = drag(sessionRow(container, 'Pinned'), sectionRow(container, 'vscode'), container);
+				const ontoRow = drag(sessionRow(container, 'Pinned'), sessionRow(container, 'Regular'), container);
+
+				assert.deepStrictEqual({ ontoHeader, ontoRow, pinChanges, reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]) }, {
+					ontoHeader: ['vscode'],
+					ontoRow: ['vscode'],
+					pinChanges: [{ sessionId: 'Pinned', pinned: false }, { sessionId: 'Pinned', pinned: false }],
+					reordered: [['Pinned']],
+				});
 			});
-		});
 
-		test('refuses an unrelated workspace section and its sessions', () => {
-			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
-			const other = createTestSession('Other', { workspaceLabel: 'monaco' }).session;
-			const memberships = new Map([[grouped.sessionId, group.id]]);
-			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, other], memberships);
+			test('archives sessions dropped on Done and restores archived sessions dropped elsewhere', async () => {
+				const active = createTestSession('Active').session;
+				const done = createTestSession('Finished', { isArchived: true }).session;
+				const { container, commandService, managementService, sortChanges } = renderList([active, done], SessionsGrouping.Date);
 
-			const ontoSection = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'monaco'), container);
-			const ontoSession = drag(sessionRow(container, 'Grouped'), sessionRow(container, 'Other'), container);
+				const ontoDone = drag(sessionRow(container, 'Active'), sectionRow(container, 'Done'), container);
+				const ontoActive = drag(sessionRow(container, 'Finished'), sessionRow(container, 'Active'), container);
+				await timeout(0);
 
-			assert.deepStrictEqual({ ontoSection, ontoSession, removedFromGroup, reordered: sortChanges.length }, {
-				ontoSection: [],
-				ontoSession: [],
-				removedFromGroup: [],
-				reordered: 0,
+				assert.deepStrictEqual({
+					ontoDone,
+					ontoActive,
+					commands: commandService.calls.filter(call => call.commandId === ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID).map(call => ({ commandId: call.commandId, sessionIds: (call.args[0] as ISession[]).map(session => session.sessionId) })),
+					unarchived: managementService.unarchived.map(session => session.sessionId),
+					reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
+				}, {
+					ontoDone: ['Done'],
+					ontoActive: ['Recent'],
+					commands: [{ commandId: ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, sessionIds: ['Active'] }],
+					unarchived: ['Finished'],
+					reordered: [['Finished']],
+				});
 			});
-		});
 
-		test('returns grouped external sessions to External instead of their workspace', () => {
-			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode', isExternal: true }).session;
-			const external = createTestSession('External', { workspaceLabel: 'monaco', isExternal: true }).session;
-			const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
-			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, external, regular], new Map([[grouped.sessionId, group.id]]), true);
+			test('places sessions at the top of the date section whose header they are dropped on', () => {
+				const now = Date.now();
+				const today = createTestSession('Today', { createdAt: new Date(now) }).session;
+				const lastMonth = createTestSession('LastMonth', { createdAt: new Date(now - 30 * DAY_MS) }).session;
+				const earlier = createTestSession('Earlier', { createdAt: new Date(now - 40 * DAY_MS) }).session;
+				const { container, sortChanges } = renderList([today, lastMonth, earlier], SessionsGrouping.Date);
 
-			const workspaceTarget = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'vscode'), container);
-			const externalTarget = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'External'), container);
+				const ontoOlder = drag(sessionRow(container, 'Today'), sectionRow(container, 'Older'), container);
+				const ontoRecent = drag(sessionRow(container, 'Earlier'), sectionRow(container, 'Recent'), container);
+				const [olderKeys, recentKeys] = sortKeys(sortChanges);
 
-			assert.deepStrictEqual({ workspaceTarget, externalTarget, removedFromGroup, reordered: sortChanges.length }, {
-				workspaceTarget: [],
-				externalTarget: ['External'],
-				removedFromGroup: ['Grouped'],
-				reordered: 0,
+				assert.deepStrictEqual({ ontoOlder, ontoRecent, olderKeys, earlierAboveToday: recentKeys.Earlier > now }, {
+					ontoOlder: ['Older'],
+					ontoRecent: ['Recent'],
+					olderKeys: { Today: lastMonth.createdAt.getTime() + 1 },
+					earlierAboveToday: true,
+				});
 			});
-		});
 
-		test('reorders external sessions across workspaces without crossing into regular sessions', () => {
-			const first = createTestSession('First', { workspaceLabel: 'vscode', isExternal: true }).session;
-			const second = createTestSession('Second', { workspaceLabel: 'monaco', isExternal: true }).session;
-			const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
-			const { container, sortChanges } = renderGroupedList([first, second, regular], new Map(), true);
+			test('moves sessions dropped below the last row to the end of the date sections, except archived ones', () => {
+				const now = Date.now();
+				const grouped = createTestSession('Grouped', { createdAt: new Date(now) }).session;
+				const pinned = createTestSession('Pinned', { createdAt: new Date(now) }).session;
+				const recent = createTestSession('Recent', { createdAt: new Date(now) }).session;
+				const older = createTestSession('Older', { createdAt: new Date(now - 30 * DAY_MS) }).session;
+				const archived = createTestSession('Finished', { isArchived: true }).session;
+				const { container, removedFromGroups, pinChanges, managementService, sortChanges } = renderList([grouped, pinned, recent, older, archived], SessionsGrouping.Date, {
+					groups: [{ id: 'g', name: 'Group', createdAt: 1 }],
+					memberships: new Map([[grouped.sessionId, 'g']]),
+					pinnedSessionIds: new Set([pinned.sessionId]),
+				});
 
-			drag(sessionRow(container, 'First'), sessionRow(container, 'Regular'), container);
-			const regularDropChanges = sortChanges.length;
-			drag(sessionRow(container, 'First'), sessionRow(container, 'Second'), container);
+				const highlighted = ['Grouped', 'Pinned', 'Finished'].map(title => dragToEmptySpace(sessionRow(container, title), container));
 
-			assert.deepStrictEqual({
-				regularDropChanges,
-				reordered: sortChanges.map(change => [...change.set.keys(), ...change.clear]),
-			}, {
-				regularDropChanges: 0,
-				reordered: [['First']],
+				assert.deepStrictEqual({
+					highlighted,
+					removedFromGroups,
+					pinChanges,
+					unarchived: managementService.unarchived,
+					sortKeys: sortKeys(sortChanges),
+				}, {
+					highlighted: [['Older'], ['Older'], []],
+					removedFromGroups: ['Grouped'],
+					pinChanges: [{ sessionId: 'Pinned', pinned: false }],
+					unarchived: [],
+					sortKeys: [{ Grouped: older.createdAt.getTime() - 60_000 }, { Pinned: older.createdAt.getTime() - 60_000 }],
+				});
 			});
 		});
 	});
@@ -7094,6 +7264,86 @@ suite('Sessions - SessionsList', () => {
 				sessionPayload: '',
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
 			});
+		});
+
+		test('reorders nested chats by dragging and renders the stored order', () => {
+			const main = createChat('Main chat');
+			const chats = ['First chat', 'Second chat', 'Third chat'].map(title => createChat(title, ChatOriginKind.User));
+			const [first, , third] = chats;
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, ...chats]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session], {
+				chatOrders: new Map([[session.sessionId, [third.resource.toString(), first.resource.toString()]]]),
+			});
+			const container = harness.createContainer();
+			harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			})).layout(300, 400);
+			setSessionChatsExpanded(container, true);
+			const rendered = chatRowTitles(container);
+			const chatRow = (title: string) => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.querySelector('.session-chat-title')?.textContent === title)
+				?.closest<HTMLElement>('.monaco-list-row');
+			const source = chatRow('First chat');
+			const target = chatRow('Third chat');
+			assert.ok(source && target);
+
+			const dataTransfer = new DataTransfer();
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+
+			const titleOf = new Map(chats.map(chat => [chat.resource.toString(), chat.title.get()]));
+			assert.deepStrictEqual({
+				rendered,
+				stored: harness.chatOrderChanges.map(change => ({ mode: change.mode, order: change.order.map(resource => titleOf.get(resource)) })),
+			}, {
+				rendered: ['Third chat', 'Second chat', 'First chat'],
+				stored: [{ mode: 'created', order: ['First chat', 'Third chat', 'Second chat'] }],
+			});
+		});
+
+		test('drops a session onto a nested chat row below the chat\'s session', () => {
+			const now = Date.now();
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Parent', { createdAt: new Date(now) }).session;
+			const parent: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const other = createTestSession('Other', { createdAt: new Date(now + 60_000) }).session;
+			const harness = createListHarness(disposables, [parent, other]);
+			const container = harness.createContainer();
+			harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			})).layout(300, 400);
+			setSessionChatsExpanded(container, true, 'Parent');
+			const otherRow = [...container.querySelectorAll<HTMLElement>('.session-title')]
+				.find(element => element.textContent === 'Other')
+				?.closest<HTMLElement>('.monaco-list-row');
+			const peerRow = container.querySelector<HTMLElement>('.session-chat-item')?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(otherRow && peerRow);
+
+			const dataTransfer = new DataTransfer();
+			otherRow.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			peerRow.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			peerRow.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
+			otherRow.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
+
+			assert.deepStrictEqual(harness.sortChanges.map(change => Object.fromEntries(change.set)), [{ Other: now - 60_000 }]);
 		});
 
 		test('starts nested chats expanded and uses the native twistie only for sessions with nested chats', () => {
