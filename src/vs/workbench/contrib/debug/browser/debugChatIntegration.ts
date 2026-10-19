@@ -281,12 +281,24 @@ function createDebugVariableEntry(expression: IExpression): IDebugVariableEntry 
  */
 export function createPausedLocationEntry(stackFrame: IStackFrame): IChatRequestFileEntry {
 	const uri = stackFrame.source.uri;
+	if (stackFrame.range.startLineNumber < 1) {
+		// Debug adapters report line 0 when they don't know where the frame is paused.
+		// Attach the file without a range so the model isn't pointed at the wrong line.
+		const frameDescription = stackFrame.name ? ` in "${stackFrame.name}"` : '';
+		return {
+			kind: 'file',
+			value: uri,
+			id: `debug-paused-location:${uri.toString()}`,
+			name: basename(uri),
+			modelDescription: `The debugger is currently paused somewhere in this file${frameDescription}. The debug adapter did not report the line it is paused on.`,
+		};
+	}
+
 	let range = Range.lift(stackFrame.range);
-	if (range.startLineNumber < 1 || range.startColumn < 1) {
-		// Debug adapters report 0 for a line or column they don't know. Attach the whole
-		// line instead, since chat participants can't handle a range with a zero position.
-		const lineNumber = Math.max(1, range.startLineNumber);
-		range = new Range(lineNumber, 1, lineNumber + 1, 1);
+	if (range.startColumn < 1) {
+		// Debug adapters report column 0 when they don't know it. Attach the whole line
+		// instead, since chat participants can't handle a range with a zero position.
+		range = new Range(range.startLineNumber, 1, range.startLineNumber + 1, 1);
 	} else if (range.isEmpty()) {
 		range = range.setEndPosition(range.startLineNumber + 1, 1);
 	}
