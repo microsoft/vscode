@@ -415,6 +415,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	override readonly onDidReplaceSession = Event.None;
 	override readonly onDidDiscardNewSession = Event.None;
 	override readonly onDidReplaceNewDraftSession = Event.None;
+	override readonly onDidMoveChat = Event.None;
 
 	constructor(private readonly sessions: ReadonlyMap<string, ITestSession>) {
 		super();
@@ -422,6 +423,14 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 
 	override getSessions(): ISession[] {
 		return [...this.sessions.values()].map(session => session.session);
+	}
+
+	override canMoveChat(): boolean {
+		return false;
+	}
+
+	override canMoveSessionUnder(): boolean {
+		return false;
 	}
 
 	override getSession(resource: URI): ISession | undefined {
