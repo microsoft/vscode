@@ -47,7 +47,7 @@ import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
-import { ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -4354,17 +4354,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * Agent providers a new peer chat may use: those advertising multiple chats and not
 	 * disabled by policy, only while the connection advertises chats backed by different
-	 * agents and the user enabled the feature.
+	 * agents, the host's root config still allows them (another window can turn them off
+	 * after the handshake), and the user enabled the feature.
 	 */
 	protected get _chatProviders(): IObservable<readonly string[] | undefined> {
 		if (!this._chatProvidersObs) {
 			const enabled = observableConfigValue(ChatProvidersSettingId.Enabled, false, this._baseConfigurationService);
+			const rootConfigChanged = observableSignalFromEvent(this, this.onDidChangeRootConfig);
 			this._chatProvidersObs = derivedOpts<readonly string[] | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
 				if (!enabled.read(reader)) {
 					return undefined;
 				}
 				this._connectionChanged.read(reader);
 				if (!this.connection?.initializeResult.read(reader)?.multipleChatProviders) {
+					return undefined;
+				}
+				rootConfigChanged.read(reader);
+				if (this._rootConfig?.values[ChatProvidersConfigKey.Enabled] !== true) {
 					return undefined;
 				}
 				const providers = [...this._agentCapabilities.read(reader) ?? []]

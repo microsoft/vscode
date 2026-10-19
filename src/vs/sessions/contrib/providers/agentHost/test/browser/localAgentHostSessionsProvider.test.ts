@@ -25,7 +25,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
-import { ChatProvidersSettingId } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -12007,8 +12007,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const otherAgent = { provider: 'otheragent', displayName: 'Other', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo;
 			const copilotAgent = { provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo;
 
+			function setHostGate(enabled: boolean): void {
+				agentHost.setRootState({
+					agents: [copilotAgent, otherAgent, { provider: 'singlechat', displayName: 'Single', description: '', models: [], capabilities: {} } as AgentInfo],
+					config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: enabled } },
+				});
+			}
+
 			function enableChatProviders(options: { setting?: boolean; hostCapability?: boolean } = {}): TestConfigurationService {
-				agentHost.setAgents([copilotAgent, otherAgent, { provider: 'singlechat', displayName: 'Single', description: '', models: [], capabilities: {} } as AgentInfo]);
+				setHostGate(true);
 				if (options.hostCapability !== false) {
 					agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), multipleChatProviders: {} }, undefined);
 				}
@@ -12020,6 +12027,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 				agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(defaultChat, ''), ...chats], { defaultChat }));
 				return defaultChat;
 			}
+
+			test('stops advertising chat harnesses when the host turns its gate off after the handshake', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				const session = setupMultiChatSession(provider, 'harness-gate-flip');
+				const before = session.capabilities.get().supportsChatHarnesses;
+				setHostGate(false);
+				const off = session.capabilities.get().supportsChatHarnesses;
+				setHostGate(true);
+				assert.deepStrictEqual({ before: !!before?.length, off, after: !!session.capabilities.get().supportsChatHarnesses?.length }, { before: true, off: undefined, after: true });
+			}));
 
 			test('advertises chat harnesses only with the setting, the host capability, and a multi-chat session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const harnesses = (configurationService: TestConfigurationService, rawId: string) => {
