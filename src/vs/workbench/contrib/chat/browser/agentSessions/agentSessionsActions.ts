@@ -40,6 +40,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
+import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -413,6 +415,7 @@ export class CollapseAllAgentSessionSectionsAction extends Action2 {
 abstract class BaseAgentSessionAction extends Action2 {
 
 	protected readonly supportsChildSessions: boolean = false;
+	protected readonly supportsMultiSelection: boolean = false;
 
 	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
@@ -429,7 +432,10 @@ abstract class BaseAgentSessionAction extends Action2 {
 			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 			const focused = chatView?.getFocusedSessions().at(0);
 			if (focused) {
-				sessions = [focused];
+				const selected = this.supportsMultiSelection ? chatView?.agentSessionsControl?.getSelectedSessions() : undefined;
+				sessions = selected?.includes(focused)
+					? selected.filter(session => isAgentSessionChild(session) === isAgentSessionChild(focused))
+					: [focused];
 			}
 		}
 
@@ -447,10 +453,18 @@ abstract class BaseAgentSessionAction extends Action2 {
 
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor() {
 		super({
-			id: 'agentSession.markUnread',
+			id: AGENT_SESSION_MARK_UNREAD_ACTION_ID,
 			title: localize2('markUnread', "Mark as Unread"),
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.KeyU,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.agentSessionsViewerFocused, WorkbenchListFocusContextKey),
+			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
@@ -472,10 +486,18 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
 export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor() {
 		super({
-			id: 'agentSession.markRead',
+			id: AGENT_SESSION_MARK_READ_ACTION_ID,
 			title: localize2('markRead', "Mark as Read"),
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.KeyI,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.agentSessionsViewerFocused, WorkbenchListFocusContextKey),
+			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',

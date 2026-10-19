@@ -793,7 +793,9 @@ export class TestContext {
 	 */
 	public run(command: string, ...args: string[]): SpawnSyncReturns<string> {
 		this.log(`Running command: ${command} ${args.join(' ')}`);
-		return spawnSync(command, args, { encoding: 'utf-8' }) as SpawnSyncReturns<string>;
+		// A hung synchronous wsl call would block the event loop, so Mocha could never time out the test.
+		const timeout = command === 'wsl' ? 5 * 60 * 1000 : undefined;
+		return spawnSync(command, args, { encoding: 'utf-8', timeout }) as SpawnSyncReturns<string>;
 	}
 
 	/**

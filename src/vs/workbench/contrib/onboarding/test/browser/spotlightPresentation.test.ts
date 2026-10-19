@@ -1040,6 +1040,31 @@ suite('SpotlightPresentation', () => {
 		});
 	});
 
+	test('closes an opened target before a step for another element and when the tour ends', () => runWithFakedTimers({}, async () => {
+		const container = createContainer();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+		const shared = createTarget(container, 'test.spotlight.closeShared');
+		const other = createTarget(container, 'test.spotlight.closeOther');
+		const log: string[] = [];
+		const provide = (label: string, element: HTMLElement) => disposables.add(registerOnboardingTargetProvider(`test.spotlight.close.${label}`, () => ({
+			element,
+			open: () => {
+				log.push(`open ${label}`);
+				element.click();
+			},
+			close: () => log.push(`close ${label}${container.querySelector('.spotlight-overlay') ? '' : ' after the overlay'}`),
+		})));
+		provide('first', shared);
+		provide('second', shared);
+		provide('third', other);
+		const step = (label: string): ISpotlightStep => ({ id: label, targetId: `test.spotlight.close.${label}`, title: label, description: label, openTarget: true, advanceOnTargetClick: true });
+
+		await presentation.run(createScenario('test.spotlight.close', step('first'), step('second'), step('third')), { targetWindow: mainWindow, onAbort: Event.None });
+
+		assert.deepStrictEqual(log, ['open first', 'open second', 'close second', 'open third', 'close third']);
+	}));
+
 	test('does not show a step after aborting during variation resolution', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));

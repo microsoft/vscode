@@ -21,8 +21,8 @@ const EXECUTION_SUBAGENT_ENV_KEYS = new Set([
 	'EXECUTION_SUBAGENT_MODEL',
 ]);
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET, omitAmbientAuthentication = false, executionSubagent: { enabled: boolean; model: string } = { enabled: false, model: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL }): Record<string, string | undefined> {
-	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET, searchSubagentModel = '', omitAmbientAuthentication = false, executionSubagent: { enabled: boolean; model: string } = { enabled: false, model: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL }): Record<string, string | undefined> {
+	const normalizedOmittedKeys = new Set([...omittedKeys, 'SEARCH_SUBAGENT_MODEL'].map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
 		const normalizedKey = isWindows ? key.toUpperCase() : key;
@@ -63,6 +63,9 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['AUTO_APPROVAL'] = 'true';
 	env['SKILL_CHAR_BUDGET'] = String(skillCharBudget);
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
+	if (searchSubagentModel) {
+		env['SEARCH_SUBAGENT_MODEL'] = searchSubagentModel;
+	}
 	// Supply VS Code's defaults through ExP, so runtime assignments can override
 	// either setting. Do not inherit the direct model override, which bypasses ExP.
 	env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT'] = String(executionSubagent.enabled);

@@ -6,9 +6,13 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../../../base/browser/dom.js';
+import { ContextView, ContextViewDOMPosition } from '../../../../../../../../base/browser/ui/contextview/contextview.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../../../../../base/common/keybindings.js';
+import { OS } from '../../../../../../../../base/common/platform.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
@@ -23,6 +27,8 @@ import { TabbedActionListWidget } from '../../../../../../../../platform/actionW
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewDelegate, IContextViewService } from '../../../../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IHoverService } from '../../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -145,6 +151,7 @@ suite('TabbedModelPicker', () => {
 		inDialog?: boolean;
 		/** Vertical placement of the anchor, which otherwise sits at the bottom of the window like the chat input. */
 		anchorTop?: string;
+		realContextView?: boolean;
 		policyDefault?: string;
 		userDefault?: string;
 		selectedModelId?: string;
@@ -153,6 +160,8 @@ suite('TabbedModelPicker', () => {
 		controlManifest?: IModelsControlManifest;
 		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
+		showManageModels?: boolean;
+		comparisonKeybinding?: number;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
 		comparison?: IModelPickerComparison;
@@ -165,10 +174,10 @@ suite('TabbedModelPicker', () => {
 		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
 		const anchor = dom.append(anchorContainer, dom.$('button'));
 		anchor.style.cssText = `position: fixed; ${options.anchorTop !== undefined ? `top: ${options.anchorTop}` : 'bottom: 20px'}; left: 20px; width: 120px; height: 22px;`;
-		const popup = dom.append(container, dom.$('div'));
+		let popup = dom.append(container, dom.$('div'));
 		const render = disposables.add(new MutableDisposable());
 		let activeDelegate: IContextViewDelegate | undefined;
-		const contextView = upcastPartial<IContextViewService>({
+		let contextView = upcastPartial<IContextViewService>({
 			showContextView: delegate => {
 				activeDelegate = delegate;
 				render.value = delegate.render(popup) ?? undefined;
@@ -184,6 +193,20 @@ suite('TabbedModelPicker', () => {
 			getContextViewElement: () => popup,
 			layout: () => { },
 		});
+		if (options.realContextView) {
+			const view = disposables.add(new ContextView(container, ContextViewDOMPosition.ABSOLUTE));
+			popup = view.getViewElement();
+			contextView = upcastPartial<IContextViewService>({
+				showContextView: delegate => {
+					activeDelegate = delegate;
+					view.show(delegate);
+					return { close: () => view.hide() };
+				},
+				hideContextView: () => view.hide(),
+				getContextViewElement: () => popup,
+				layout: () => view.layout(),
+			});
+		}
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new class extends TestConfigurationService {
 			managed = options.policyDefault !== undefined;
@@ -198,7 +221,13 @@ suite('TabbedModelPicker', () => {
 		instantiationService.set(IContextViewService, contextView);
 		instantiationService.set(IHoverService, NullHoverService);
 		instantiationService.set(IOpenerService, NullOpenerService);
-		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		const keybindingService = new MockKeybindingService();
+		if (options.comparisonKeybinding) {
+			const binding = decodeKeybinding(options.comparisonKeybinding, OS)!;
+			sinon.stub(keybindingService, 'lookupKeybinding').returns(keybindingService.resolveKeybinding(binding)[0]);
+		}
+		instantiationService.set(IKeybindingService, keybindingService);
+		instantiationService.set(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
 		instantiationService.set(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return true; }
 		}());
@@ -248,7 +277,7 @@ suite('TabbedModelPicker', () => {
 			comparisonModels: options.comparisonModels,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
-			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
+			configurationAccess: access, isUBB: false, showManageModels: options.showManageModels ?? false, providerPlaceholders: options.providerPlaceholders ?? [],
 			unavailableContext: { show: !!options.showUnavailable, currentVSCodeVersion: '1.140.0', manageSettingsUrl: undefined, updateStateType: StateType.Idle },
 			onUnavailableLinkClick: () => { },
 			onSelect: model => selections.push(model.identifier),
@@ -623,6 +652,7 @@ suite('TabbedModelPicker', () => {
 		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		let finished = false;
 		const comparison: IModelPickerComparison = {
+			showPickerHint: constObservable(true),
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set(attempts, undefined),
 			cancel: () => state.set(undefined, undefined),
@@ -641,36 +671,25 @@ suite('TabbedModelPicker', () => {
 		const { popup, picker, selections, values } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), promotional, ...models.slice(1)], comparison });
 		const hides: boolean[] = [];
 		disposables.add(picker.onDidHide(event => hides.push(event.finishedComparison)));
-		const comparisonAction = element(popup, '[data-id="comparison"]');
 		const searchAction = element(popup, '[data-id="search"]');
 		assert.deepStrictEqual({
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
-			comparison: {
-				ariaLabel: comparisonAction.getAttribute('aria-label'),
-				htmlTitle: comparisonAction.getAttribute('title'),
-				pressed: comparisonAction.getAttribute('aria-pressed'),
-				alignedWithSearch: comparisonAction.classList.contains('align-end'),
-			},
+			comparison: popup.querySelector('[data-id="comparison"]')?.getAttribute('aria-pressed'),
+			footer: element(popup, '.tabbed-action-list-footer .monaco-button').getAttribute('aria-label'),
 			search: {
 				ariaLabel: searchAction.getAttribute('aria-label'),
 				htmlTitle: searchAction.getAttribute('title'),
-				marginLeft: dom.getWindow(searchAction).getComputedStyle(searchAction).marginLeft,
 			},
 		}, {
 			actions: ['comparison', 'search'],
-			comparison: {
-				ariaLabel: 'Compare Models',
-				htmlTitle: null,
-				pressed: 'false',
-				alignedWithSearch: true,
-			},
+			comparison: 'false',
+			footer: 'Send Query to Multiple Models',
 			search: {
 				ariaLabel: 'Search Models',
 				htmlTitle: 'Search Models',
-				marginLeft: '0px',
 			},
 		});
-		comparisonAction.click();
+		element(popup, '.tabbed-action-list-footer .monaco-button').click();
 		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-comparison-actions .monaco-button')].filter(button => button.style.display !== 'none');
 		/** Each footer button's label, with `(disabled)` when it is shown but cannot be used. */
 		const buttons = () => footerButtons().map(button => `${button.getAttribute('aria-label') ?? button.textContent?.trim()}${button.classList.contains('disabled') ? ' (disabled)' : ''}`);
@@ -750,6 +769,117 @@ suite('TabbedModelPicker', () => {
 		button('Done').click();
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
 	});
+
+	test('model management retains its Add Models label and plus icon', () => {
+		const { popup } = createPicker({ showManageModels: true });
+		const action = element(popup, '[data-id="addProvider"]');
+		assert.deepStrictEqual({
+			label: action.getAttribute('aria-label'),
+			addIcon: !!action.querySelector('.codicon-add'),
+			comparisonFooter: !!popup.querySelector('.tabbed-action-list-footer'),
+		}, { label: 'Add Models...', addIcon: true, comparisonFooter: false });
+	});
+
+	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			showPickerHint: constObservable(true),
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models', startCommandId: 'test.compareModels',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: () => { }, back: () => { }, next: () => { }, finish: () => { }, setCount: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const shortcut = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM;
+		const { picker, popup, selections } = createPicker({ comparison, comparisonKeybinding: shortcut });
+		const label = element(popup, '.tabbed-action-list-footer .monaco-button').textContent;
+		picker.openWithFilter({ startComparison: true });
+		assert.deepStrictEqual({
+			label,
+			step: state.get()?.title,
+			selections,
+			visible: picker.isVisible,
+			footer: popup.querySelector('.model-picker-comparison-actions') !== null,
+			toggle: popup.querySelector('[aria-label="Compare Models"][aria-pressed="true"]') !== null,
+		}, {
+			label: `Send Query to Multiple Models (${new MockKeybindingService().resolveKeybinding(decodeKeybinding(shortcut, OS)!)[0].getLabel()})`,
+			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
+		});
+	});
+
+	for (const showHint of [undefined, false, true]) {
+		test(`comparison discovery footer is opt-in (${showHint}) and preserves the comparison toggle`, () => {
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary: constObservable(undefined), state: constObservable(undefined), label: 'Compare Models',
+				showPickerHint: showHint === undefined ? undefined : constObservable(showHint),
+				start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { popup } = createPicker({ comparison });
+			assert.deepStrictEqual({
+				hint: !!popup.querySelector('.tabbed-action-list-footer'),
+				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-layers'),
+			}, { hint: showHint === true, toggle: true });
+		});
+	}
+
+	for (const anchorTop of ['50.5px', '400.5px', undefined]) {
+		test(`comparison preserves the normal list viewport and stays anchored after reopening (${anchorTop ?? 'bottom'})`, () => {
+			const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+			const summary = observableValue<string | undefined>('summary', undefined);
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary, state, label: 'Compare Models',
+				start: () => state.set({
+					title: 'Attempts', description: 'Select two or more models to run one prompt in parallel and compare their responses side by side.',
+					summary: '', selectedModelIds: [], multiple: true, maxSelections: 10,
+					canGoBack: false, canGoNext: false, canFinish: true,
+				}, undefined),
+				cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+				select: () => { }, setCount: () => { }, back: () => { }, next: () => { },
+				finish: () => summary.set('2 Attempts', undefined),
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { picker, popup, anchor, context } = createPicker({
+				comparison, realContextView: true, anchorTop,
+				models: [...models, ...Array.from({ length: 25 }, (_, index) => model(`Other-${index}`))],
+				comparisonModels: anchorTop === '400.5px'
+					? [...models, ...Array.from({ length: 50 }, (_, index) => model(`Other-${index}`))]
+					: undefined,
+				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
+			});
+			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
+			const initialRows = listHeight();
+			const initialModels = listRows(popup);
+			element(popup, '[aria-label="Compare Models"]').click();
+			const bounds = () => element(popup, '.chat-model-picker-widget').getBoundingClientRect();
+			const first = bounds();
+			const firstRows = listHeight();
+			if (!context.comparisonModels) {
+				assert.deepStrictEqual(listRows(popup), initialModels);
+			}
+			element(popup, '[aria-label="Compare Models"]').click();
+			assert.deepStrictEqual({ rows: listRows(popup), height: listHeight() }, { rows: initialModels, height: initialRows });
+			element(popup, '[aria-label="Compare Models"]').click();
+			element(popup, '.model-picker-comparison-done').click();
+			anchor.style.width = '38px';
+			picker.show(anchor, context);
+			const reopened = bounds();
+			assert.deepStrictEqual({
+				sameListViewport: firstRows === initialRows,
+				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
+				stableHeight: reopened.height === first.height,
+				stableRows: listHeight() === firstRows,
+				aligned: reopened.left === anchor.getBoundingClientRect().left,
+				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
+				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
+			}, { sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
+		});
+	}
 
 	test('comparison shows every harness tab and selects attempts, judge, and synthesizer across them', () => {
 		const copilot = models[0];
@@ -1831,6 +1961,21 @@ suite('TabbedModelPicker', () => {
 			});
 		});
 	}
+
+	test('Free plans do not upsell HydraFusion while Fusion presents it', () => {
+		const fusion = createFusionModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [fusion, hydra, ...models],
+			selectedModelId: fusion.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+		});
+		assert.strictEqual(result.popup.querySelector('.chat-model-picker-unavailable'), null);
+	});
 
 	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
 		const auto = createAutoModel();
