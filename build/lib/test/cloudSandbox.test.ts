@@ -564,6 +564,7 @@ suite('Cloud Sandbox install setup', () => {
 			export const root = process.cwd(), stateFile = root + '/node_modules/.postinstall-state',
 				stateContentsFile = root + '/node_modules/.postinstall-state-contents', forceInstallMessage = '';
 			export function isUpToDate() { return true; }
+			export function getOutdatedDirs() { return []; }
 			export function computeState() { return {}; }
 			export function computeContents() { return {}; }
 		`);
