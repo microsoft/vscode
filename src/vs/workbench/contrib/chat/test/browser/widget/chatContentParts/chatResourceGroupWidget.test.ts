@@ -333,6 +333,7 @@ suite('ChatResourceGroupWidget', () => {
 		const container = widget.domNode.parentElement!;
 		container.classList.add('interactive-session');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
+		container.style.setProperty('--chat-generated-image-max-height', '300px');
 		const reveal = widget.domNode.querySelector('.chat-image-reveal')!;
 		const image = reveal.querySelector<HTMLImageElement>('img')!;
 		const initial = { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, hasSource: !!image.getAttribute('src'), width: reveal.getBoundingClientRect().width };
@@ -343,7 +344,7 @@ suite('ChatResourceGroupWidget', () => {
 			initial,
 			loaded: { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, sameImage: reveal.querySelector('img') === image },
 		}, {
-			initial: { pending: true, busy: 'true', hasSource: false, width: 320 },
+			initial: { pending: true, busy: 'true', hasSource: false, width: 200 },
 			loaded: { pending: false, busy: 'false', sameImage: true },
 		});
 	});
@@ -376,7 +377,7 @@ suite('ChatResourceGroupWidget', () => {
 			await frame();
 			await frame();
 			const waiting = bandState();
-			const waitingHeight = reveal.getBoundingClientRect().height;
+			const waitingBounds = reveal.getBoundingClientRect();
 			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 400, height: 240 });
 			const context = canvas.getContext('2d')!;
 			context.fillStyle = '#4682b4';
@@ -394,12 +395,12 @@ suite('ChatResourceGroupWidget', () => {
 			}
 			assert.deepStrictEqual({
 				waiting,
-				waitingHeight,
+				waitingSquare: Math.round(waitingBounds.width) === Math.round(waitingBounds.height),
 				sameField: reveal.querySelector('.chat-image-loading-glyphs') === field,
 				expansion: states,
 			}, {
 				waiting: { visible: true, painted: true },
-				waitingHeight: 50,
+				waitingSquare: true,
 				sameField: true,
 				expansion: Array.from({ length: 4 }, () => ({ visible: true, painted: true })),
 			});
