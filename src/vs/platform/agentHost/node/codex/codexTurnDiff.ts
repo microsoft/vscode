@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { resolve } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import type { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, toFileOperationResult, type IFileService } from '../../../files/common/files.js';
 import type { ILogService } from '../../../log/common/log.js';
 
 interface IDiffHunk {
@@ -204,7 +204,9 @@ export class CodexTurnDiff {
 		const changes: ICodexFileChange[] = [];
 		for (const [path, after] of next) {
 			const touched = this._current.has(path);
-			if ((touched ? this._current.get(path) : this._baseline.get(path)) === after) {
+			const unchanged = (touched ? this._current.get(path) : this._baseline.get(path)) === after;
+			// After another turn wrote the path, an unchanged view is a stale re-report or a rewrite; disk tells them apart.
+			if (unchanged && (!touched || this._latest.get(path) === after || !await this._isOnDisk(path, after))) {
 				continue;
 			}
 			// Another native turn may have written this path since this turn last did.
@@ -216,6 +218,15 @@ export class CodexTurnDiff {
 			}
 		}
 		return changes;
+	}
+
+	/** Whether the file holds `content`, where `undefined` means it does not exist. */
+	private async _isOnDisk(path: string, content: string | undefined): Promise<boolean> {
+		try {
+			return (await this._fileService.readFile(URI.file(path))).value.toString() === content;
+		} catch (error) {
+			return content === undefined && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND;
+		}
 	}
 
 	/** Full contents of one diff section, verified against both blob hashes. */

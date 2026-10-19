@@ -194,6 +194,17 @@ suite('Codex turn diff tracking', () => {
 		]);
 	});
 
+	test('a parent that writes a shared path back to its own last contents records that rewrite', async () => {
+		const parent = track('parent-native');
+		const patch = diff('original\n', 'parent\n', '@@ -1 +1 @@\n-original\n+parent\n');
+		await write('parent\n');
+		await update(parent, patch);
+		await write('child\n');
+		await update(track('child-native'), diff('parent\n', 'child\n', '@@ -1 +1 @@\n-parent\n+child\n'));
+		await write('parent\n');
+		assert.deepStrictEqual(await update(parent, patch), [{ path: expectedPath('edit.txt'), before: 'child\n', after: 'parent\n' }]);
+	});
+
 	for (const [name, parentLast, expected] of [
 		['re-reports its unchanged diff', diff('original\n', 'parent\n', '@@ -1 +1 @@\n-original\n+parent\n'), []],
 		['writes last', diff('original\n', 'last\n', '@@ -1 +1 @@\n-original\n+last\n'), [{ path: expectedPath('edit.txt'), before: 'child\n', after: 'last\n' }]],
