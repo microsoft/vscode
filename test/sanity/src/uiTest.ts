@@ -171,6 +171,17 @@ export class UITest {
 				.frameLocator('#active-frame');
 			try {
 				await preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 });
+
+				// The heading can appear before asynchronous preview scripts finish loading.
+				const previewElement = await preview.owner().elementHandle();
+				assert.ok(previewElement, 'Markdown preview frame is missing');
+				try {
+					const frame = await previewElement.contentFrame();
+					assert.ok(frame, 'Markdown preview frame is detached');
+					await frame.waitForLoadState('load', { timeout: 60_000 });
+				} finally {
+					await previewElement.dispose();
+				}
 			} catch (error) {
 				// Some browsers, such as Chromium on Debian 12, refuse to register the webview service worker,
 				// so no webview can load there at all. That is a property of the browser, not a resource loading failure.
