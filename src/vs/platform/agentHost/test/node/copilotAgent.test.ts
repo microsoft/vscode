@@ -66,11 +66,12 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
@@ -113,7 +114,7 @@ import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/co
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
+import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -722,6 +723,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly sessions: {
 			readonly fork: CopilotClient['rpc']['sessions']['fork'];
 			readonly list: CopilotClient['rpc']['sessions']['list'];
+			readPersistedEvents: CopilotClient['rpc']['sessions']['readPersistedEvents'];
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
@@ -818,6 +820,7 @@ class TestCopilotClient implements ITestCopilotClient {
 		},
 		sessions: {
 			fork: async () => ({ sessionId: 'forked-session' }),
+			readPersistedEvents: async () => { throw new Error('Persisted history is not configured'); },
 			list: async params => {
 				this.sessionListRequests.push(params);
 				this.sessionListStarted?.complete();
@@ -5709,6 +5712,7 @@ suite('CopilotAgent', () => {
 			const factory = stub(agent as unknown as { _createCopilotClient(options: CopilotClientOptions): CopilotClient }, '_createCopilotClient').callsFake(clientOptions => {
 				options.push(clientOptions);
 				const client = new TestCopilotClient(metadata, [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+				client.rpc.sessions.readPersistedEvents = async () => ({ events: history, cursor: 'end', hasMore: false, cursorStatus: 'ok' });
 				client.createSession = async config => {
 					const runtime = new MockCopilotSession(config.sessionId);
 					runtime.historyEvents.push(...history);
@@ -6170,7 +6174,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('restores isolated backing metadata without a token and resumes history with a fresh sponsor', async () => {
+		test('reads isolated history and lists canvases without a sponsor, then resumes execution with a fresh sponsor', async () => {
 			const data = disposables.add(new TestSessionDataService());
 			const original = setup(data);
 			const session = AgentSession.uri('copilotcli', 'scoped-cold');
@@ -6191,26 +6195,222 @@ suite('CopilotAgent', () => {
 				id: 'saved-idle', timestamp: '2026-01-01T00:00:02Z', parentId: 'saved-answer',
 				type: 'session.idle', ephemeral: true, data: {},
 			}];
-			const restored = setup(data, [sdkSession(sdkId, directory.fsPath)], history);
+			const restored = setup(data, [sdkSession(sdkId, directory.fsPath)], history, { [AgentHostCanvasesEnabledConfigKey]: true });
 			const missing = { getCredential: () => { throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Fresh authentication required'); } };
 			const fresh = { getCredential: () => ({ resource: 'https://api.github.com', token: 'fresh', expiresAt: undefined, revision: 1 }) };
 			try {
-				await restored.agent.materializeChat(chat, { ...exactChatContext(session, chat, session), credentials: missing }, reserved.providerData);
-				const beforeHistory = restored.options.filter(options => options.gitHubToken !== undefined).length;
+				const observing = { ...exactChatContext(session, chat, session), credentials: missing };
+				await restored.agent.materializeChat(chat, observing, reserved.providerData);
+				const turns = await restored.agent.chats.getMessages(chat, observing);
+				const canvases = await restored.agent.listSessionCanvases(session, chat, observing);
+				const beforeSend = {
+					launches: restored.launches.length,
+					canvases,
+					clients: restored.options.map(options => ({ mode: options.mode, token: options.gitHubToken })),
+					stops: restored.clients.map(client => client.stopCallCount),
+				};
+				await assert.rejects(restored.agent.chats.sendMessage(chat, 'Unavailable', [directory], undefined, 'missing-turn', undefined, observing), /Fresh authentication required/);
 				const context = { ...exactChatContext(session, chat, session), credentials: fresh };
-				const turns = await restored.agent.chats.getMessages(chat, context);
+				await restored.agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context);
 				await restored.agent.chats.sendMessage(chat, 'Continue', [directory], undefined, 'fresh-turn', undefined, context);
+				restored.launches[0].runtime.canvases.push({
+					canvasId: 'preview', extensionId: 'project:preview', displayName: 'Preview', description: 'Preview generated content.',
+				});
+				const liveCanvases = await restored.agent.listSessionCanvases(session, chat, context);
 				assert.deepStrictEqual({
-					beforeHistory,
+					beforeSend,
 					identity: restored.launches[0]?.sessionId,
 					token: restored.launches[0]?.config.gitHubToken,
 					question: turns[0]?.message.text,
 					sends: restored.launches[0]?.runtime.sendCalls,
-				}, { beforeHistory: 0, identity: sdkId, token: 'fresh', question: 'Remember the isolated conversation', sends: 1 });
+					liveCanvases: liveCanvases.map(canvas => canvas.canvasId),
+				}, {
+					beforeSend: { launches: 0, canvases: [], clients: [0, 1].map(() => ({ mode: 'empty', token: undefined })), stops: [1, 1] },
+					identity: sdkId, token: 'fresh', question: 'Remember the isolated conversation', sends: 1,
+					liveCanvases: ['preview'],
+				});
 			} finally {
 				await disposeAgent(restored.agent);
 			}
 		});
+
+		test('live registration refreshes a cached isolated canvas inventory after an early registry event without dropping open canvases', async () => {
+			const directory = URI.file(process.cwd());
+			const sdkId = 'canvas-sdk';
+			const { agent, launches } = setup(undefined, [sdkSession(sdkId, directory.fsPath)], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilotcli', 'scoped-canvas-registration');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			let cached: readonly IAgentCanvasInfo[] = [];
+			let earlyInventory: readonly string[] = [];
+			const refreshes: Promise<void>[] = [];
+			const memberships: (readonly { resource: string }[] | undefined)[] = [];
+			const listener = disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
+					memberships.push(signal.action.canvases);
+					refreshes.push(agent.listSessionCanvases(session, chat, context).then(canvases => { cached = canvases; }));
+				}
+			}));
+			const beforeRegistration = stub(CopilotAgentSession.prototype, 'revalidateTelemetryBeforeRegistration').callsFake(async () => {
+				const runtime = launches[0].runtime;
+				runtime.canvases.push({ canvasId: 'preview', extensionId: 'project:preview', displayName: 'Preview', description: 'Preview generated content.' });
+				const envelope = { timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true as const };
+				runtime.emit({ ...envelope, id: 'canvas-open', type: 'session.canvas.opened', data: { instanceId: 'preview-instance', canvasId: 'preview', extensionId: 'project:preview', title: 'Preview', url: 'https://example.test/preview' } });
+				runtime.emit({ ...envelope, id: 'canvas-registry', type: 'session.canvas.registry_changed', data: { canvases: [] } });
+				await Promise.all(refreshes);
+				earlyInventory = cached.map(canvas => canvas.canvasId);
+			});
+			disposables.add(toDisposable(() => beforeRegistration.restore()));
+			try {
+				await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sdkId }));
+				await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+				await Promise.all(refreshes);
+				assert.deepStrictEqual({
+					earlyInventory,
+					cached: cached.map(canvas => canvas.canvasId),
+					notifications: memberships.length,
+					preservesMembership: memberships.every(membership => membership?.length === 1 && membership[0].resource === memberships[0]?.[0].resource),
+				}, { earlyInventory: [], cached: ['preview'], notifications: 3, preservesMembership: true });
+			} finally {
+				listener.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('paged isolated history shares one replay across a moved chat and concurrent child transcripts without activation', async () => {
+			const data = disposables.add(new TestSessionDataService());
+			const owner = AgentSession.uri('copilotcli', 'history-owner');
+			const storage = AgentSession.uri('copilotcli', 'history-storage');
+			const chat = defaultChatUri(storage);
+			const child = URI.parse(subagentChatUri('shaped', owner.toString(), chat.toString(), 'task'));
+			const sibling = URI.parse(subagentChatUri('shaped', owner.toString(), chat.toString(), 'sibling-task'));
+			const events = toSessionEvents([
+				{ type: 'user.message', id: 'question', data: { content: 'Parent question' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'shell', toolName: 'bash', arguments: { command: 'build' } } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'shell', success: true, result: { content: 'Saved output' } } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { description: 'Explore', agent_type: 'explore' } } },
+				{ type: 'subagent.started', agentId: 'child', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explorer', agentDescription: 'Explore' } },
+				{ type: 'user.message', agentId: 'child', data: { content: 'Child question' } },
+				{ type: 'assistant.message', agentId: 'child', data: { messageId: 'child-answer', content: 'Child answer' } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'sibling-task', toolName: 'task', arguments: { description: 'Explore sibling', agent_type: 'explore' } } },
+				{ type: 'subagent.started', agentId: 'sibling', data: { toolCallId: 'sibling-task', agentName: 'explore', agentDisplayName: 'Sibling', agentDescription: 'Explore sibling' } },
+				{ type: 'user.message', agentId: 'sibling', data: { content: 'Sibling question' } },
+				{ type: 'assistant.message', agentId: 'sibling', data: { messageId: 'sibling-answer', content: 'Sibling answer' } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'sibling-task', success: true } },
+				{ type: 'assistant.message', data: { messageId: 'parent-answer', content: 'Parent answer' } },
+			]);
+			const readStarted = new DeferredPromise<void>();
+			const readGate = new DeferredPromise<void>();
+			const requests: Parameters<CopilotClient['rpc']['sessions']['readPersistedEvents']>[0][] = [];
+			const { agent, launches, options } = setup(data, [], events, undefined, {
+				onClientCreated: client => {
+					client.rpc.sessions.readPersistedEvents = async params => {
+						requests.push(params);
+						readStarted.complete();
+						await readGate.p;
+						const end = params.cursor === undefined ? events.length : Number(params.cursor);
+						const start = Math.max(0, end - 5);
+						return { events: events.slice(start, end), cursor: String(start), hasMore: start > 0, cursorStatus: 'ok' };
+					};
+				},
+			});
+			const credentials = { getCredential: () => { assert.fail('History must not request a credential'); } };
+			const context = { ...exactChatContext(owner, chat, storage), credentials };
+			const database = data.openDatabase(storage);
+			try {
+				await database.object.createTurn('question');
+				await database.object.storeTerminalOutput('question', 'shell', VSBuffer.fromString('retained output').buffer);
+				await agent.materializeChat(chat, context, undefined);
+				const parentRead = agent.chats.getMessages(chat, context);
+				await readStarted.p;
+				const childRead = agent.chats.getMessages(child, {
+					...context, origin: { kind: ChatOriginKind.Tool, chat: chat.toString(), toolCallId: 'task' },
+				});
+				const siblingRead = agent.chats.getMessages(sibling, {
+					...context, origin: { kind: ChatOriginKind.Tool, chat: chat.toString(), toolCallId: 'sibling-task' },
+				});
+				readGate.complete();
+				const [parent, childTurns, siblingTurns] = await Promise.all([parentRead, childRead, siblingRead]);
+				const childAgain = await agent.chats.getMessages(child, {
+					...context, origin: { kind: ChatOriginKind.Tool, chat: chat.toString(), toolCallId: 'task' },
+				});
+				const markdown = (turns: readonly Turn[]) => turns.flatMap(turn => turn.responseParts).flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []);
+				const shell = parent[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'shell');
+				assert.deepStrictEqual({
+					requests,
+					parent: { question: parent[0].message.text, markdown: markdown(parent) },
+					child: { question: childTurns[0].message.text, markdown: markdown(childTurns) },
+					sibling: { question: siblingTurns[0].message.text, markdown: markdown(siblingTurns) },
+					childAgain: markdown(childAgain),
+					terminal: shell?.kind === ResponsePartKind.ToolCall && shell.toolCall.status === 'completed' ? shell.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)?.resource : undefined,
+					launches: launches.length,
+					clients: options.map(option => option.mode),
+				}, {
+					requests: [undefined, '9', '4'].map(cursor => ({ sessionId: 'history-storage', cursor, max: 1000, direction: 'backward' })),
+					parent: { question: 'Parent question', markdown: ['Parent answer'] },
+					child: { question: 'Child question', markdown: ['Child answer'] },
+					sibling: { question: 'Sibling question', markdown: ['Sibling answer'] },
+					childAgain: ['Child answer'],
+					terminal: buildNonPtyShellTerminalUri(storage, owner, chat, 'shell'),
+					launches: 0, clients: ['empty'],
+				});
+				await agent.chats.releaseChat(chat, context);
+				await agent.chats.getMessages(chat, context);
+				const movedOwner = AgentSession.uri('copilotcli', 'new-history-owner');
+				const moved = { ...context, owner: fixedChatOwnerRef(movedOwner) };
+				await agent.materializeChat(chat, moved, undefined);
+				const movedHistory = await agent.chats.getMessages(chat, moved);
+				const movedShell = movedHistory[0].responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'shell');
+				assert.deepStrictEqual({
+					reads: requests.length,
+					clients: options.length,
+					terminal: movedShell?.kind === ResponsePartKind.ToolCall && movedShell.toolCall.status === 'completed' ? movedShell.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)?.resource : undefined,
+				}, { reads: 9, clients: 3, terminal: buildNonPtyShellTerminalUri(storage, movedOwner, chat, 'shell') });
+			} finally {
+				readGate.complete();
+				database.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const failure of ['expired', 'repeated', 'rpc'] as const) {
+			test(`fails an isolated ${failure} history read explicitly and stops its storage client`, async () => {
+				let failed = false;
+				const { agent, clients, options, launches } = setup(undefined, [], [], undefined, {
+					onClientCreated: client => {
+						client.rpc.sessions.readPersistedEvents = async () => {
+							if (failed) {
+								return { events: [], cursor: 'end', hasMore: false, cursorStatus: 'ok' };
+							}
+							if (failure === 'rpc') {
+								throw new Error('Journal unavailable');
+							}
+							return { events: [], cursor: 'same', hasMore: true, cursorStatus: failure === 'expired' ? 'expired' : 'ok' };
+						};
+					},
+				});
+				const session = AgentSession.uri('copilotcli', `scoped-history-${failure}`);
+				const chat = defaultChatUri(session);
+				const credentials = { getCredential: () => { assert.fail('History must not request a credential'); } };
+				const context = { ...exactChatContext(session, chat, session), credentials };
+				try {
+					await agent.materializeChat(chat, context, undefined);
+					await assert.rejects(agent.chats.getMessages(chat, context), failure === 'rpc' ? /Journal unavailable/ : failure === 'expired' ? /history changed/ : /invalid history cursor/);
+					failed = true;
+					const retried = await agent.chats.getMessages(chat, context);
+					assert.deepStrictEqual({
+						clients: options.map(options => ({ mode: options.mode, token: options.gitHubToken })),
+						stops: clients.map(client => client.stopCallCount),
+						launches: launches.length,
+						retried,
+					}, { clients: [0, 1].map(() => ({ mode: 'empty', token: undefined })), stops: [1, 1], launches: 0, retried: [] });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		test('pins prepare and send, survives global auth restarts and rolls over only at idle boundaries', async () => {
 			const { agent, clients, options, launches } = setup();
