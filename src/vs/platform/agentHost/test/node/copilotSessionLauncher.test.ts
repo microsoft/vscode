@@ -65,7 +65,7 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
-	setMcpServerDisplayNames: () => { },
+	setCopilotConnectorServers: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
@@ -1421,7 +1421,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 			const launched = await launcher.launch(plan, {
 				...testRuntime,
-				setMcpServerDisplayNames: displayNames => connectorDisplayNames = new Map(displayNames),
+				setCopilotConnectorServers: connectorServers => connectorDisplayNames = new Map([...connectorServers.servers].map(([serverName, server]) => [serverName, server.displayName])),
 			});
 			try {
 				assert.deepStrictEqual({

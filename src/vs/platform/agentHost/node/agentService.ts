@@ -5952,7 +5952,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// Only an idle draft can run its provider before the first send. An
 		// ephemeral one is short-lived by design and launches with MCP disabled,
 		// so warming it would start nothing worth having.
-		if (isIdleProvisional && !isEphemeral) {
+		// A dispose that arrived during creation is waiting for it (see
+		// `disposeSession`); warming that draft would outlive it.
+		if (isIdleProvisional && !isEphemeral && !this._sessionResidency.isBeingDisposed(session)) {
 			this._sessionPrewarmer.onProvisionalSessionCreated({ provider, session, defaultChat, workingDirectories: config?.workingDirectories });
 		}
 		return session;
@@ -8332,7 +8334,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * next reload.
 	 */
 	private async _interleaveLocalTurns(sessionStr: string, chatUri: string, turns: readonly Turn[]): Promise<Turn[]> {
-		const records = await this._localTurns.loadForChat(sessionStr, chatUri);
+		const records = await this._localTurns.loadForChat(sessionStr, chatUri, new Set(turns.map(turn => turn.id)));
 		return interleaveLocalTurns(turns, records, this._logService);
 	}
 
@@ -8900,9 +8902,18 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._completions.triggerCharacters;
 	}
 
+	/**
+	 * Disposes a session once a `createSession` for it that was requested
+	 * earlier has settled, so the provider has registered what it must tear
+	 * down. Creation never disposes its own session, so this cannot wait on itself.
+	 */
 	async disposeSession(session: URI): Promise<void> {
 		this._logService.trace(`[AgentService] disposeSession: ${session.toString()}`);
-		await this._sessionResidency.runDisposal(session, () => this._doDisposeSession(session, 'delete'));
+		const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
+		await this._sessionResidency.runDisposal(session, async () => {
+			await creation?.catch(() => undefined);
+			await this._doDisposeSession(session, 'delete');
+		});
 	}
 
 	/**
@@ -8912,7 +8923,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	async disposeSessionIf(session: URI, validate: () => Promise<boolean>, canCommit: () => boolean): Promise<boolean> {
 		this._logService.trace(`[AgentService] disposeSessionIf: ${session.toString()}`);
+		const creation = this._sessionCreationSequencer.peek(AgentSession.id(session));
 		return this._sessionResidency.runDisposal(session, async () => {
+			await creation?.catch(() => undefined);
 			if (!await validate() || !canCommit()) {
 				return false;
 			}
