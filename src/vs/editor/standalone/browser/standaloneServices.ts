@@ -980,9 +980,6 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
 		return Disposable.None;
 	}
-	isAuthorityTrusted(scheme: string, authority: string): boolean {
-		return false;
-	}
 	getTrustedUris(): URI[] {
 		return [];
 	}

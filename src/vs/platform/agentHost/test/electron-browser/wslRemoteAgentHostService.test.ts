@@ -261,7 +261,6 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 			override readonly onDidChangeTrustedFolders = Event.None;
 			override readonly onDidChangeTrust = Event.None;
-			override isAuthorityTrusted() { return false; }
 			override getTrustedUris() { return []; }
 		});
 		instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() { });

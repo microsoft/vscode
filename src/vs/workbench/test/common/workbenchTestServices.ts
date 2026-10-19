@@ -420,10 +420,6 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 		return toDisposable(() => this.trustedAuthorities.delete(entry));
 	}
 
-	isAuthorityTrusted(scheme: string, authority: string): boolean {
-		return Array.from(this.trustedAuthorities).some(entry => entry.scheme === scheme && isEqualAuthority(entry.authority, authority));
-	}
-
 	async setTrustedUris(folders: URI[]): Promise<void> {
 		this.trustedUris = new ResourceSet(folders);
 	}
