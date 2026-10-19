@@ -65,15 +65,6 @@
 	text-overflow: ellipsis;
 }
 
-/* One icon per compare-mode attempt, replacing the generic layers icon and joined
- * name list; a tight row reads as "a small set of models" at a glance. */
-.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-comparison-attempt-icons {
-	display: flex;
-	align-items: center;
-	flex: 0 0 auto;
-	gap: var(--vscode-spacing-size20);
-}
-
 .chat-input-picker-item .action-label.model-picker-split.compact .model-picker-name {
 	flex: 0 0 auto;
 	width: 22px;
@@ -499,6 +490,16 @@
 	background: var(--vscode-modernTab-activeBackground);
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder, transparent);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='comparison'] {
+	border: var(--vscode-strokeThickness) solid transparent;
+}
+
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='comparison'].checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background: var(--vscode-inputOption-activeBackground);
+	border-color: var(--vscode-inputOption-activeBorder);
 }
 
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:focus-visible,

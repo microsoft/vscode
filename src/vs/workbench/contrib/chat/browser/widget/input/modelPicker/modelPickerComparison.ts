@@ -10,12 +10,6 @@ export interface IModelPickerComparison {
 	readonly available: IObservable<boolean>;
 	/** Composer label for the committed selection, independent of the open setup draft. */
 	readonly summary: IObservable<string | undefined>;
-	/**
-	 * One model id per attempt in the committed selection (duplicated for extra variant
-	 * attempts of the same model), parallel to `summary`. When all ids are distinct, the
-	 * composer shows each attempt's own icon; repeated ids retain the labeled summary.
-	 */
-	readonly summaryModelIds?: IObservable<readonly string[] | undefined>;
 	readonly state: IObservable<IModelPickerComparisonState | undefined>;
 	readonly label: string;
 	start(): void;
