@@ -4003,7 +4003,7 @@ suite('ActionListWidget', () => {
 			listOptions: { showFilter: false },
 		});
 
-		const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .icon');
+		const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon:not(.action-list-submenu-indicator)');
 		const submenuIndicator = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .action-list-submenu-indicator');
 
 		assert.strictEqual(icon?.getAttribute('aria-hidden'), 'true');
