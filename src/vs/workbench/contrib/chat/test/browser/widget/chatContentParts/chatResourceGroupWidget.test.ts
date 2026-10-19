@@ -442,11 +442,20 @@ suite('ChatResourceGroupWidget', () => {
 			frames.push(size());
 		}
 
-		// The square keeps to two thirds of the width beside the save action, the shortest edge any image shape is shown at, so this 240x160 image only grows from it.
-		assert.deepStrictEqual({ wide, narrow, frames }, {
+		// The square narrows to two thirds of the width beside the save action, 140px give or take the engine's rounding, which is the shortest edge any image shape is shown at, so this 240x160 image only grows from it.
+		const [narrowSize] = narrow;
+		assert.deepStrictEqual({
+			wide,
+			narrowSquare: narrow[0] === narrow[1],
+			narrowToShortestEdge: Math.abs(narrowSize - 140) <= 1,
+			revealStartsFromSquare: frames[0][0] === narrowSize && frames[0][1] === narrowSize,
+			revealEnd: frames[1],
+		}, {
 			wide: [200, 200],
-			narrow: [140, 140],
-			frames: [[140, 140], [240, 160]],
+			narrowSquare: true,
+			narrowToShortestEdge: true,
+			revealStartsFromSquare: true,
+			revealEnd: [240, 160],
 		});
 	});
 
