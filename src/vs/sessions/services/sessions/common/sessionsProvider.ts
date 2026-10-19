@@ -6,7 +6,9 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -205,6 +207,14 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 export interface IHarnessPresentation {
 	readonly label: string;
 	readonly icon: ThemeIcon;
+}
+
+/**
+ * Presents `harness` through `provider`, falling back to a generic presentation
+ * while the provider does not know it yet; a raw harness id is never shown.
+ */
+export function getHarnessPresentationOrDefault(provider: Pick<ISessionsProvider, 'getHarnessPresentation'> | undefined, harness: string, reader: IReader | undefined): IHarnessPresentation {
+	return provider?.getHarnessPresentation?.(harness, reader) ?? { label: localize('otherHarness', "Other Harness"), icon: Codicon.agent };
 }
 
 /**
@@ -632,8 +642,10 @@ export interface ISessionsProvider {
 	/**
 	 * Presentation of a harness this provider serves, in the identity space of
 	 * {@link ISession.harness}, for surfaces that show or pick a chat's harness.
+	 * Pass a `reader` to re-evaluate when the provider learns about its harnesses
+	 * (e.g. once a restored session's host advertises its agents).
 	 */
-	getHarnessPresentation?(harness: string): IHarnessPresentation | undefined;
+	getHarnessPresentation?(harness: string, reader?: IReader): IHarnessPresentation | undefined;
 
 	/**
 	 * Create a new chat in the given session and return it.

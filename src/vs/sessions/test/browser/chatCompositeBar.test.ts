@@ -13,7 +13,7 @@ import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
+import { constObservable, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
@@ -181,7 +181,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly secondaryHarness?: string }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]> }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -199,8 +199,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const showSessionActions = observableValue('test.showSessionActions', true);
 	const provider = options?.isAgentHost ? new class extends mock<ISessionsProvider>() {
 		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-		override getHarnessPresentation(harness: string) {
-			return harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined;
+		override getHarnessPresentation(harness: string, reader?: IReader) {
+			const known = options?.knownHarnesses?.read(reader) ?? ['claude'];
+			return harness === 'claude' && known.includes(harness) ? { label: 'Claude', icon: Codicon.claude } : undefined;
 		}
 	}() : undefined;
 
@@ -983,6 +984,23 @@ suite('Sessions - ChatCompositeBar', () => {
 			{ harnessIcon: false, ariaLabel: 'Main Chat, State: Completed' },
 			{ harnessIcon: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
 		]);
+	});
+
+	test('presents a restored chat\'s harness generically until its provider learns it', () => {
+		const knownHarnesses = observableValue<readonly string[]>('knownHarnesses', []);
+		const { tabs } = createHarness(disposables, { isAgentHost: true, secondaryHarness: 'claude', knownHarnesses });
+		const snapshot = () => ({
+			icon: [...tabs[1].querySelector('.chat-composite-bar-tab-harness')!.classList].filter(name => name.startsWith('codicon-')),
+			ariaLabel: tabs[1].getAttribute('aria-label'),
+		});
+
+		const cold = snapshot();
+		knownHarnesses.set(['claude'], undefined);
+
+		assert.deepStrictEqual({ cold, loaded: snapshot() }, {
+			cold: { icon: ['codicon-agent'], ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Other Harness' },
+			loaded: { icon: ['codicon-claude'], ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
+		});
 	});
 
 	test('renders unread state from each chat', () => {

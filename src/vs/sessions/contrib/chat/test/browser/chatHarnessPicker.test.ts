@@ -11,6 +11,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { getHarnessPresentationOrDefault } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getChatHarnessChoices } from '../../browser/chatHarnessPicker.js';
 
 suite('ChatHarnessPicker', () => {
@@ -33,8 +34,8 @@ suite('ChatHarnessPicker', () => {
 	}
 
 	test('offers the advertised harnesses only for an unsent peer draft of a session offering more than one', () => {
-		const presentation = (harness: string) => harness === 'copilot' ? { label: 'Copilot', icon: Codicon.copilot } : undefined;
-		const choices = (s: IActiveSession | undefined) => getChatHarnessChoices(s, presentation, undefined).map(choice => [choice.harness, choice.presentation.label]);
+		const provider = { getHarnessPresentation: (harness: string) => harness === 'copilot' ? { label: 'Copilot', icon: Codicon.copilot } : undefined };
+		const choices = (s: IActiveSession | undefined) => getChatHarnessChoices(s, harness => getHarnessPresentationOrDefault(provider, harness, undefined), undefined).map(choice => [choice.harness, choice.presentation.label]);
 		assert.deepStrictEqual({
 			offered: choices(session({ harnesses: ['copilot', 'claude'] })),
 			notAdvertised: choices(session({})),
@@ -44,7 +45,7 @@ suite('ChatHarnessPicker', () => {
 			newSession: choices(session({ harnesses: ['copilot', 'claude'], isCreated: false })),
 			noSession: choices(undefined),
 		}, {
-			offered: [['copilot', 'Copilot'], ['claude', 'claude']],
+			offered: [['copilot', 'Copilot'], ['claude', 'Other Harness']],
 			notAdvertised: [],
 			single: [],
 			mainChat: [],

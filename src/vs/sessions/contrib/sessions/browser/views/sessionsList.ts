@@ -1417,7 +1417,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
 		// Shown when the session's chats use more than one harness; the row's label says so.
 		const mixedHarnessIndicator = DOM.append(titleRow, $('.session-mixed-harness-indicator'));
-		mixedHarnessIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.layers));
+		mixedHarnessIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.combine));
 		mixedHarnessIndicator.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
 		const comparisonAttemptStatusIcon = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-icon'));
@@ -1585,13 +1585,17 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			template.pendingVoiceIndicator.classList.toggle('visible', this._voicePlaybackService.hasPendingResponse(pendingVoiceResource));
 		}));
 
-		template.elementDisposables.add(this.hoverService.setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
-			template.mixedHarnessIndicator,
-			localize('sessionMixedHarnesses', "Chats in this session use different harnesses"),
-		));
+		// The hover lives only while the row is mixed; the autorun's store releases it otherwise.
 		template.elementDisposables.add(autorun(reader => {
-			template.mixedHarnessIndicator.classList.toggle('visible', hasMixedChatHarnesses(element, reader));
+			const mixed = hasMixedChatHarnesses(element, reader);
+			template.mixedHarnessIndicator.classList.toggle('visible', mixed);
+			if (mixed) {
+				reader.store.add(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('mouse'),
+					template.mixedHarnessIndicator,
+					localize('sessionMixedHarnesses', "Chats in this session use different harnesses"),
+				));
+			}
 		}));
 
 		// Toolbar context
