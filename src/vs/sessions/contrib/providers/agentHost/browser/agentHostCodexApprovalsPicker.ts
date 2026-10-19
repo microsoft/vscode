@@ -6,18 +6,21 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { getCodexApprovalsPickerListOptions } from '../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
+import { getCodexApprovalsPickerListOptions, showCodexPermissionsChangeNotice } from '../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownCodexApprovalsSchema } from './agentHostPermissionPickerDelegate.js';
 
@@ -52,6 +55,7 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
@@ -74,6 +78,17 @@ export class AgentHostCodexApprovalsPicker extends AgentHostSessionEnumPicker {
 
 	protected _getWidgetAriaLabel(): string {
 		return localize('agentHostCodexApprovalsPicker.ariaLabel', "Approvals Picker");
+	}
+
+	protected override _onDidSelectValue(previousValue: string, selectedValue: string, chat: URI): void {
+		const activeChat = this._session.get()?.activeChat.get();
+		if (!activeChat || !isEqual(activeChat.resource, chat)) {
+			return;
+		}
+		const status = activeChat.status.get();
+		if (status === SessionStatus.InProgress || status === SessionStatus.NeedsInput) {
+			showCodexPermissionsChangeNotice(this._dialogService, previousValue, selectedValue);
+		}
 	}
 
 	protected override _getListOptions(): IActionListOptions {
