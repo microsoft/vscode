@@ -28,8 +28,10 @@ import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -170,6 +172,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ILabelService, { getHostLabel: () => 'Test Host' });
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount = null;
+		}());
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => {
@@ -191,6 +196,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 			showChannel: async () => { },
 		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount = null;
+		}());
 		options.configure?.(instantiationService);
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));
 	}

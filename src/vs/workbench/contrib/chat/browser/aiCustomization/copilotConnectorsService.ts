@@ -906,6 +906,7 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		tags: connector.tags,
 		capabilities: connector.capabilities,
 		representativeQueries: connector.representativeQueries,
+		connectorIds: [...new Set([connector.name, ...connector.mcpServers.map(server => server.name)])],
 		url: connector.documentation,
 		externalUrl: connector.documentation?.toString(true),
 		icon: connector.icon,

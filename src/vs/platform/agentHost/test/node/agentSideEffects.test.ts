@@ -9905,10 +9905,18 @@ suite('AgentSideEffects', () => {
 			await discarded.p;
 		});
 
-		test('ChatTruncated fires onSessionTruncated once', () => {
+		test('ChatTruncated refreshes changesets once after provider data is truncated', async () => {
 			setupSession();
 
-			const changesets = new FakeChangesetService();
+			const truncation = new DeferredPromise<void>();
+			const refreshed = new DeferredPromise<void>();
+			agent.truncateChat = () => truncation.p;
+			const changesets = new class extends FakeChangesetService {
+				override onSessionTruncated(session: string): void {
+					super.onSessionTruncated(session);
+					refreshed.complete();
+				}
+			};
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -9920,6 +9928,9 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 			});
 
+			assert.deepStrictEqual(changesets.truncates, []);
+			truncation.complete();
+			await refreshed.p;
 			assert.deepStrictEqual(changesets.truncates, [sessionUri.toString()]);
 		});
 

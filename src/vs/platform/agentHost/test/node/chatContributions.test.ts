@@ -2188,6 +2188,19 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['gitRepositoryRoots', 'checkpointAndChangeset']);
 	});
 
+	test('cancelled turns refresh tracked changesets without capturing a completed Git checkpoint', () => {
+		const observed: string[] = [];
+		const contributions = createBuiltInContributions(disposables, observed);
+		const calls: Array<{ channel: string; turnId: string | undefined }> = [];
+		contributions.changesets.onTurnComplete = (channel, turnId) => { calls.push({ channel, turnId }); };
+		const turn = turnEnd('cancelled', { kind: 'cancelled' });
+		contributions.service.turnEnd(turn);
+		assert.deepStrictEqual({ calls, checkpoint: observed.includes('checkpointAndChangeset') }, {
+			calls: [{ channel: turn.channel, turnId: turn.turnId }, { channel: turn.session, turnId: turn.turnId }],
+			checkpoint: false,
+		});
+	});
+
 	test('refreshes repository roots for completed and cancelled turns, not rejected or resumable requests', () => {
 		const contributions = createBuiltInContributions(disposables);
 		const refreshed: string[] = [];

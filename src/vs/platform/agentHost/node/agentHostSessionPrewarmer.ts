@@ -69,9 +69,10 @@ export interface IAgentHostPrewarmCandidate {
  * A worktree draft never warms: its enablement stays pending until its
  * worktree is created on the first send, so it fails gate 3. A client that
  * keeps the isolation choice local until Send (the Agents window) never
- * creates such a draft: its draft warms as a folder draft, and a worktree
- * send discards that warm launch and starts cold in the worktree (see
- * `CopilotAgent._takeEarlyLaunch`).
+ * creates such a draft: it creates the draft in the picked folder even when
+ * the user picked a worktree, so the draft warms as a folder draft, and a
+ * worktree send discards that warm launch and starts cold in the worktree
+ * (see `CopilotAgent._takeEarlyLaunch`).
  */
 export class AgentHostSessionPrewarmer extends Disposable {
 
