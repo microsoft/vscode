@@ -46,7 +46,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -1855,6 +1855,25 @@ suite('SessionsManagementService', () => {
 				listed: [session],
 				sameSession: true,
 			});
+		});
+
+		test('forwards changeset operation invocations while their provider is registered', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidInvokeChangesetOperation = disposables.add(new Emitter<ISessionChangesetOperationInvokedEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidInvokeChangesetOperation = onDidInvokeChangesetOperation.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const invocations: ISessionChangesetOperationInvokedEvent[] = [];
+			disposables.add(service.onDidInvokeChangesetOperation(e => invocations.push(e)));
+			const registration = disposables.add(providersService.registerProvider(provider));
+
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'commit' });
+			registration.dispose();
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'sync' });
+
+			assert.deepStrictEqual(invocations, [{ session, operationId: 'commit' }]);
 		});
 
 		test('seeds cached sessions before subscribing to reentrant provider changes', () => {

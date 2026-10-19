@@ -97,7 +97,7 @@ import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostChatMoveTracker } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestRefPresentation } from '../../../github/browser/pullRequestIconStatus.js';
@@ -903,6 +903,11 @@ export interface IAgentHostAdapterOptions {
 	readonly useSessionTitleForDefaultChat?: boolean;
 	/** Identifies provider placeholders that must not replace an existing display title. */
 	readonly isSessionTitlePlaceholder?: (title: string, session: URI) => boolean;
+	/**
+	 * Reports that the user invoked a changeset operation of this adapter's
+	 * session, once any confirmation it requires was accepted and before it runs.
+	 */
+	readonly onDidInvokeChangesetOperation?: (operationId: string, metadata: Record<string, unknown> | undefined) => void;
 }
 
 /**
@@ -4080,6 +4085,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	protected readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
+	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent> = this._onDidInvokeChangesetOperation.event;
+
 	protected readonly _onDidChangeSessionConfig = this._register(new Emitter<string>());
 	readonly onDidChangeSessionConfig = this._onDidChangeSessionConfig.event;
 	private readonly _onDidChangeAgentMergeSessionState = this._register(new Emitter<string>());
@@ -4565,6 +4573,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 			getBackendDefaultChat: (backendSession, reader) => this._backendDefaultChat(backendSession, reader),
 			connectionStatus: this.remoteConnectionStatus,
+			// Operations only run on the changesets of the adapter created below.
+			onDidInvokeChangesetOperation: (operationId, metadata) => this._onDidInvokeChangesetOperation.fire({ session: adapter, operationId, metadata }),
 			...this._adapterOptions(provider),
 		} satisfies IAgentHostAdapterOptions;
 
@@ -5242,6 +5252,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 				getBackendDefaultChat: (backendSession, reader) => this._backendDefaultChat(backendSession, reader),
 				connectionStatus: this.remoteConnectionStatus,
+				// Operations only run on the changesets of the draft created here.
+				onDidInvokeChangesetOperation: (operationId, metadata) => this._onDidInvokeChangesetOperation.fire({ session: newSession.session, operationId, metadata }),
 				...this._adapterOptions(sessionType.id),
 			} satisfies IAgentHostAdapterOptions);
 		} catch (err) {
