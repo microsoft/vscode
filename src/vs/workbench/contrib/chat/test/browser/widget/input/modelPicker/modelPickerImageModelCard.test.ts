@@ -15,7 +15,7 @@ import { ImageModelCard } from '../../../../../browser/widget/input/modelPicker/
 suite('ImageModelCard', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('lists what the model can do and its rates, folded away with every other card\'s', () => {
+	test('describes the model and its rates, folded away with every other card\'s', () => {
 		const onDidChange = disposables.add(new Emitter<void>());
 		let expanded = false;
 		const disclosure: IPricingDisclosure = { isExpanded: () => expanded, setExpanded: next => { expanded = next; onDidChange.fire(); }, onDidChange: onDidChange.event };
@@ -28,7 +28,6 @@ suite('ImageModelCard', () => {
 		}));
 
 		const text = (selector: string) => card.element.querySelector(selector)?.textContent;
-		const capabilities = card.element.querySelector<HTMLElement>('.chat-image-model-card-capabilities')!;
 		const toggle = card.element.querySelector<HTMLElement>('.chat-model-card-pricing-toggle')!;
 		const body = card.element.querySelector<HTMLElement>('.chat-model-card-pricing-body')!;
 		const disclosureState = () => ({ expanded: toggle.getAttribute('aria-expanded'), hidden: body.inert });
@@ -40,11 +39,8 @@ suite('ImageModelCard', () => {
 
 		assert.deepStrictEqual({
 			name: card.headerElement.textContent,
+			sections: [...card.element.children].map(section => section.className),
 			description: text('.chat-model-card-description'),
-			capabilities: {
-				label: mainWindow.document.getElementById(capabilities.getAttribute('aria-labelledby')!)?.textContent,
-				items: [...capabilities.children].map(item => ({ text: item.textContent, iconHidden: item.firstElementChild?.getAttribute('aria-hidden') })),
-			},
 			pricing: {
 				badge: text('.chat-model-card-pricing-toggle .chat-model-card-badge'),
 				controlsPrices: toggle.getAttribute('aria-controls') === body.id,
@@ -55,14 +51,8 @@ suite('ImageModelCard', () => {
 			disclosure: { collapsed, opened, foldedByAnotherCard: disclosureState() },
 		}, {
 			name: 'GPT Image 2.5 Flare',
+			sections: ['chat-model-card-description', 'chat-model-card-section chat-model-card-pricing collapsible'],
 			description: 'Prompts and selected images are sent to this model. Image generation works only if your account has access to it.',
-			capabilities: {
-				label: 'Capabilities',
-				items: [
-					{ text: 'Generate images from a prompt', iconHidden: 'true' },
-					{ text: 'Edit existing images', iconHidden: 'true' },
-				],
-			},
 			pricing: {
 				badge: 'Preview',
 				controlsPrices: true,

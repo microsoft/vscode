@@ -753,7 +753,7 @@ suite('TabbedModelPicker', () => {
 				{ id: 'off', label: 'Off', description: 'Agents cannot generate or edit images.' },
 				{
 					id: 'gpt-image-2.5-flare', label: 'GPT Image 2.5 Flare', description: '- **Image tokens:** 800 input / 3,000 output',
-					details: { capabilities: ['generate', 'edit'], rates: { textInput: 500, textOutput: 0, imageInput: 800, imageOutput: 3000 }, previewRates: true },
+					details: { rates: { textInput: 500, textOutput: 0, imageInput: 800, imageOutput: 3000 }, previewRates: true },
 				},
 			],
 			selectedModelId: selected,
@@ -825,7 +825,7 @@ suite('TabbedModelPicker', () => {
 				hint: 'Choose the model Copilot uses to generate and edit images. Its charges are in addition to the conversation model.',
 				imageRows: [
 					{ label: 'Off, Agents cannot generate or edit images.', popup: null, actions: [] },
-					{ label: 'GPT Image 2.5 Flare, Generate images from a prompt, Edit existing images', popup: 'dialog', actions: ['GPT Image 2.5 Flare Details'] },
+					{ label: 'GPT Image 2.5 Flare', popup: 'dialog', actions: ['GPT Image 2.5 Flare Details'] },
 				],
 			},
 			afterChoosing: { visible: true, rows: ['Off', 'GPT Image 2.5 Flare (current)'], toggle: 'Image Models: GPT Image 2.5 Flare (filled)', imageModel: 'gpt-image-2.5-flare', chatSelections: [] },
@@ -852,7 +852,7 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('an image model\'s Details page says what it can do and costs, and Back returns to its row', async () => {
+	test('an image model\'s Details page says where requests go and what they cost, and Back returns to its row', async () => {
 		const { imageModels } = createImageModels();
 		const { popup, picker } = createPicker({ comparison: idleComparison(), imageModels });
 		element(popup, '[data-id="imageModels"]').click();
@@ -862,7 +862,7 @@ suite('TabbedModelPicker', () => {
 		const shown = {
 			label: page.getAttribute('aria-label'),
 			name: page.querySelector('.chat-model-card-name')?.textContent,
-			capabilities: [...page.querySelectorAll('.chat-image-model-card-capability')].map(item => item.textContent),
+			description: page.querySelector('.chat-model-card-description')?.textContent,
 			pricing: pricing.getAttribute('aria-expanded'),
 			prices: [...page.querySelectorAll('.chat-model-card-pricing-row')].map(row => `${row.firstElementChild?.textContent}: ${row.lastElementChild?.textContent}`),
 		};
@@ -875,7 +875,7 @@ suite('TabbedModelPicker', () => {
 			shown: {
 				label: 'GPT Image 2.5 Flare Details',
 				name: 'GPT Image 2.5 Flare',
-				capabilities: ['Generate images from a prompt', 'Edit existing images'],
+				description: 'Prompts and selected images are sent to this model. Image generation works only if your account has access to it.',
 				pricing: 'false',
 				prices: ['Text Input: 500', 'Text Output: 0', 'Image Input: 800', 'Image Output: 3000'],
 			},

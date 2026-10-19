@@ -89,14 +89,13 @@ suite('ImageGenerationConfiguration', () => {
 		assert.deepStrictEqual(imageGenerationModelChoiceList.map(({ id, description, details }) => ({
 			id,
 			details: details && {
-				capabilities: details.capabilities,
 				ratesMatchDescription: description.includes(`**Text tokens:** ${format(details.rates.textInput)} input / ${format(details.rates.textOutput)} output`)
 					&& description.includes(`**Image tokens:** ${format(details.rates.imageInput)} input / ${format(details.rates.imageOutput)} output`),
 				previewMatchesDescription: details.previewRates === description.includes('**Preview rates'),
 			},
 		})), [
 			{ id: 'off', details: undefined },
-			{ id: 'gpt-image-2.5-flare', details: { capabilities: ['generate', 'edit'], ratesMatchDescription: true, previewMatchesDescription: true } },
+			{ id: 'gpt-image-2.5-flare', details: { ratesMatchDescription: true, previewMatchesDescription: true } },
 		]);
 	});
 

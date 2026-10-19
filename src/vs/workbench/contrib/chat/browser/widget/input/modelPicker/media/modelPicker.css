@@ -1307,28 +1307,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-/* An image model's capabilities, one per line behind a quiet icon. */
-.chat-image-model-card-capabilities {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
-	margin: var(--vscode-spacing-sizeNone);
-	padding: var(--vscode-spacing-sizeNone);
-	list-style: none;
-}
-
-.chat-image-model-card-capability {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-}
-
-.chat-image-model-card-capability > .codicon {
-	flex: 0 0 auto;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-codiconFontSize-compact);
-}
-
 .chat-model-card-description p {
 	margin: 0;
 }

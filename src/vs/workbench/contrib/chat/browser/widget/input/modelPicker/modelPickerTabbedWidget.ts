@@ -52,7 +52,7 @@ import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAI
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerComparison } from './modelPickerComparison.js';
 import { IModelPickerImageModels } from './modelPickerImageModels.js';
-import { getImageModelCapabilityLabel, ImageModelCard } from './modelPickerImageModelCard.js';
+import { ImageModelCard } from './modelPickerImageModelCard.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -856,7 +856,7 @@ export class TabbedModelPicker extends Disposable {
 		return actions;
 	}
 
-	/** One row per image model with the one in use checked; a model's Details shows what it can do and costs. */
+	/** One row per image model with the one in use checked; a model's Details shows what it costs. */
 	private _buildImageModelItems(imageModels: IModelPickerImageModels): IActionListItem<IActionWidgetDropdownAction>[] {
 		const selectedModelId = imageModels.selectedModelId.get();
 		return imageModels.models.map(model => {
@@ -874,10 +874,8 @@ export class TabbedModelPicker extends Disposable {
 				},
 				kind: ActionListItemKind.Action,
 				label: model.label,
-				// A model's row says what it does and its Details has the rest; Off has only its description.
-				ariaDescription: details
-					? details.capabilities.map(capability => getImageModelCapabilityLabel(capability)).join(', ')
-					: renderAsPlaintext(new MarkdownString(model.description), { omitMarkdownSyntax: true }),
+				// A model's details are on its page; Off has nothing more to show, so its row reads its description.
+				ariaDescription: details ? undefined : renderAsPlaintext(new MarkdownString(model.description), { omitMarkdownSyntax: true }),
 				// Right Arrow on the row opens the same details as its button.
 				opensDialog: !!details,
 				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
