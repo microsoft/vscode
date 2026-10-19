@@ -16170,7 +16170,9 @@ suite('AgentHostChatContribution', () => {
 	suite('keep and undo review', () => {
 		for (const enabled of [true, false]) {
 			test(`reviews the edits of chats in the chat view and editors (enabled=${enabled})`, () => {
-				const { editingSessionProviders } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
+				const { editingSessionProviders, instantiationService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
+				// The review listens for deleted files; the shared stub file service has no working events.
+				instantiationService.stub(IFileService, upcastPartial<IFileService>({ onDidFilesChange: Event.None }));
 				const provider = editingSessionProviders.get('agent-host-copilot')!;
 				// The chat service creates the editing session of a chat before it registers the chat model.
 				const chat = disposables.add(provider.createEditingSession(URI.parse('agent-host-copilot:/chat'), true));

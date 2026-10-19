@@ -60,7 +60,7 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		super();
 		this.initialContent = this.originalModel.getValue();
 		this._register(disposables);
-		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state, isExternalEditInProgress));
+		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, this.originalModel, this.modifiedModel, this.state, isExternalEditInProgress, false));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this.revertMarkdownPreviewState();

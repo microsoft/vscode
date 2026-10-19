@@ -136,7 +136,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this._textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
-			this.originalModel, this.modifiedModel, this._stateObs, event => this._isExternalEdit(event)));
+			this.originalModel, this.modifiedModel, this._stateObs, event => this._isExternalEdit(event), this._userEditsKeepAgentChanges()));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
@@ -195,6 +195,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	 */
 	protected _isExternalEdit(_event: IModelContentChangedEvent): boolean {
 		return this._isExternalEditInProgress;
+	}
+
+	/**
+	 * Whether a user edit of an agent change keeps that change, so that undoing
+	 * never discards text the user wrote. Called while constructing the entry.
+	 */
+	protected _userEditsKeepAgentChanges(): boolean {
+		return false;
 	}
 
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
@@ -318,7 +326,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
 
-		const diffInfo = this._textModelChangeService.diffInfo;
+		const diffInfo = this.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
 	}

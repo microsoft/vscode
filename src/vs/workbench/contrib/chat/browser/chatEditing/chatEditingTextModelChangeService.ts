@@ -14,9 +14,10 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { StringEdit, StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
@@ -129,6 +130,12 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		private readonly state: IObservable<ModifiedFileEntryState>,
 		/** Whether a change of the modified model is an external edit, attributed to the agent. */
 		isExternalEditInProgress: ((event: IModelContentChangedEvent) => boolean) | undefined,
+		/**
+		 * Whether a user edit of an agent change keeps that change, so that the
+		 * user owns the resulting text and undoing never discards it. Otherwise
+		 * the user's text becomes part of the agent change.
+		 */
+		private readonly _userEditsKeepAgentChanges: boolean,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
@@ -379,10 +386,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			// e_ai - ai edits
 			// e_user - user edits
 			//
-			const e_ai = this._originalToModifiedEdit;
+			let e_ai = this._originalToModifiedEdit;
 			const e_user = edit;
 
-			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()));
+			let e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()));
+
+			if (e_user_r === undefined && this._userEditsKeepAgentChanges) {
+				e_user_r = this._keepAgentChangesEditedBy(e_user);
+				e_ai = this._originalToModifiedEdit;
+			}
 
 			if (e_user_r === undefined) {
 				// user edits overlaps/conflicts with AI edits
@@ -400,6 +412,38 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				this._didUserEditModel.fire();
 			}
 		}
+	}
+
+	/**
+	 * Moves the agent changes that a user edit overlaps into the original
+	 * model, as if they were kept, and returns the user edit rebased onto the
+	 * new original. Undoing a hunk overlaps its own changes, which the rebased
+	 * edit then reverts in the original as well.
+	 */
+	private _keepAgentChangesEditedBy(userEdit: StringEdit): StringEdit | undefined {
+		const original = this.originalModel.getValue();
+		const kept: StringReplacement[] = [];
+		const remaining: StringReplacement[] = [];
+		let modifiedDelta = 0;
+		let keptDelta = 0;
+		for (const change of this._originalToModifiedEdit.replacements) {
+			const modifiedRange = OffsetRange.ofStartAndLength(change.replaceRange.start + modifiedDelta, change.newText.length);
+			modifiedDelta += change.newText.length - change.replaceRange.length;
+			// Rebasing onto the change alone fails exactly when the user edit overlaps it.
+			const inverse = new StringEdit([new StringReplacement(modifiedRange, change.replaceRange.substring(original))]);
+			if (userEdit.tryRebase(inverse) === undefined) {
+				kept.push(change);
+				keptDelta += change.newText.length - change.replaceRange.length;
+			} else {
+				remaining.push(new StringReplacement(change.replaceRange.delta(keptDelta), change.newText));
+			}
+		}
+		if (kept.length === 0) {
+			return undefined;
+		}
+		this.originalModel.applyEdits(offsetEditToEditOperations(new StringEdit(kept), this.originalModel));
+		this._originalToModifiedEdit = new StringEdit(remaining);
+		return userEdit.tryRebase(this._originalToModifiedEdit.inverse(this.originalModel.getValue()));
 	}
 
 	private async _keepHunk(change: DetailedLineRangeMapping): Promise<boolean> {

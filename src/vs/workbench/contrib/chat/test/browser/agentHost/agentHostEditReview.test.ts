@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { constObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
@@ -15,14 +15,16 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditSources } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
@@ -47,6 +49,12 @@ suite('AgentHostEditReview', () => {
 	let snapshots: ResourceMap<string>;
 	let saves: string[];
 	let deletes: string[];
+	/** Document encodings other than UTF-8. */
+	let encodings: ResourceMap<string>;
+	/** Runs while a before snapshot is read, as the user and other chats go on. */
+	let onSnapshotRead: ((resource: URI) => void) | undefined;
+	let onDidFilesChange: Emitter<FileChangesEvent>;
+	let instantiationService: TestInstantiationService;
 	const otherSessions = observableValue<readonly IChatEditReviewSession[]>('otherSessions', []);
 
 	function getModel(resource: URI): ITextModel {
@@ -89,12 +97,24 @@ suite('AgentHostEditReview', () => {
 		return (await entry.getDiffInfo()).changes.length;
 	}
 
+	function asSession(of: AgentHostEditReview): IChatEditReviewSession {
+		return new class extends mock<IChatEditReviewSession>() {
+			override readonly chatSessionResource = of.chatSessionResource;
+			override getEntry(uri: URI) {
+				return of.getEntry(uri);
+			}
+		}();
+	}
+
 	setup(() => {
 		models = new ResourceMap<ITextModel>();
 		disk = new ResourceMap<string>();
 		snapshots = new ResourceMap<string>();
 		saves = [];
 		deletes = [];
+		encodings = new ResourceMap<string>();
+		onSnapshotRead = undefined;
+		onDidFilesChange = store.add(new Emitter<FileChangesEvent>());
 		otherSessions.set([], undefined);
 
 		const collection = new ServiceCollection();
@@ -109,7 +129,7 @@ suite('AgentHostEditReview', () => {
 				const object = new class extends mock<IResolvedTextFileEditorModel>() {
 					override readonly textEditorModel = textEditorModel;
 					override getLanguageId() { return 'typescript'; }
-					override getEncoding() { return 'utf8'; }
+					override getEncoding() { return encodings.get(resource) ?? 'utf8'; }
 					override async setEncoding() { }
 					override isDirty(): this is IResolvedTextFileEditorModel { return false; }
 					override async revert() { }
@@ -139,15 +159,19 @@ suite('AgentHostEditReview', () => {
 			}
 		}());
 		collection.set(IFileService, new class extends mock<IFileService>() {
-			override readonly onDidFilesChange = Event.None;
+			override readonly onDidFilesChange = onDidFilesChange.event;
 			override watch(_resource: URI) {
 				return Disposable.None;
+			}
+			override async exists(resource: URI): Promise<boolean> {
+				return disk.has(resource);
 			}
 			override async readFile(resource: URI): Promise<IFileContent> {
 				const content = snapshots.get(resource);
 				if (content === undefined) {
 					throw new Error(`Snapshot not found: ${resource}`);
 				}
+				onSnapshotRead?.(resource);
 				return { value: VSBuffer.fromString(content) } as IFileContent;
 			}
 			override async del(resource: URI): Promise<void> {
@@ -175,7 +199,7 @@ suite('AgentHostEditReview', () => {
 			override handleCodeRejected(): void { }
 		}());
 
-		const instantiationService = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		instantiationService = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
 		modelService = instantiationService.get(IModelService);
 		store.add(instantiationService.get(IEditorWorkerService) as TestWorkerService);
 		review = store.add(instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
@@ -227,6 +251,44 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
+	test('keeps an agent change the user edits, so that undoing never discards the user\'s text', async () => {
+		const uri = URI.file('/a.ts');
+		agentWrites(uri, 'x = 2\nz = 0\ny = 2\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/a.ts', 'x = 1\nz = 0\ny = 1\n')]);
+		await review.endTurn('turn-1');
+		const entry = getEntry('/a.ts');
+		await waitForState(entry.diffInfo.map(diff => diff.changes.length === 2 ? true : undefined));
+
+		// The user rewrites the value the agent wrote.
+		getModel(uri).applyEdits([EditOperation.replace(new Range(1, 5, 1, 6), '3')]);
+		await timeout(10);
+		const agentChanges = await changeCount(entry);
+		await review.reject(uri);
+
+		assert.deepStrictEqual({ agentChanges, disk: disk.get(uri) }, { agentChanges: 1, disk: 'x = 3\nz = 0\ny = 1\n' });
+	});
+
+	test('stops reviewing a file once the user\'s edits leave nothing to decide', async () => {
+		const uri = URI.file('/a.ts');
+		agentWrites(uri, 'x = 2\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/a.ts', 'x = 1\n')]);
+		await review.endTurn('turn-1');
+		const entry = getEntry('/a.ts');
+		await waitForState(entry.changesCount.map(count => count === 1 ? true : undefined));
+
+		// The user rewrites the only value the agent wrote, which keeps it.
+		getModel(uri).applyEdits([EditOperation.replace(new Range(1, 5, 1, 6), '3')]);
+		await waitForState(entry.changesCount.map(count => count === 0 ? true : undefined));
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			{ reviewed: review.entries.get().length, text: getModel(uri).getValue(), disk: disk.get(uri) },
+			{ reviewed: 0, text: 'x = 3\n', disk: 'x = 2\n' },
+		);
+	});
+
 	test('reviews nothing outside an observed turn, with unsaved changes, or without a readable baseline', async () => {
 		agentWrites(URI.file('/history.ts'), 'after');
 		agentWrites(URI.file('/dirty.ts'), 'after');
@@ -261,6 +323,44 @@ suite('AgentHostEditReview', () => {
 		await review.endTurn('turn-1');
 
 		assert.deepStrictEqual(review.entries.get().length, 0);
+	});
+
+	test('does not review a file the user changes, or another chat starts reviewing, while its edit is read', async () => {
+		agentWrites(URI.file('/typed.ts'), 'after\n');
+		agentWrites(URI.file('/shared.ts'), 'after\n');
+		const other = store.add(instantiationService.createInstance(AgentHostEditReview, URI.parse('agent-host-copilot:/other')));
+		otherSessions.set([review, other].map(asSession), undefined);
+		onSnapshotRead = resource => {
+			if (resource.path === '/typed.ts') {
+				userTypes(URI.file('/typed.ts'), 'typed while the edit was read\n');
+			}
+		};
+
+		review.beginTurn('turn-1');
+		other.beginTurn('turn-1');
+		await Promise.all([
+			review.addEdits('turn-1', [edit('/typed.ts', 'before\n'), edit('/shared.ts', 'before\n')]),
+			other.addEdits('turn-1', [edit('/shared.ts', 'before\n')]),
+		]);
+		await Promise.all([review.endTurn('turn-1'), other.endTurn('turn-1')]);
+
+		assert.deepStrictEqual({
+			typed: review.getEntry(URI.file('/typed.ts')) !== undefined,
+			reviewsOfShared: [review, other].filter(candidate => candidate.getEntry(URI.file('/shared.ts'))).length,
+		}, { typed: false, reviewsOfShared: 1 });
+	});
+
+	test('reviews only UTF-8 documents, because the agent host decodes its snapshots as UTF-8', async () => {
+		agentWrites(URI.file('/bom.ts'), 'after\n');
+		agentWrites(URI.file('/latin1.ts'), 'after\n');
+		encodings.set(URI.file('/bom.ts'), 'utf8bom');
+		encodings.set(URI.file('/latin1.ts'), 'windows1252');
+
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/bom.ts', 'before\n'), edit('/latin1.ts', 'before\n')]);
+		await review.endTurn('turn-1');
+
+		assert.deepStrictEqual(review.entries.get().map(entry => entry.modifiedURI.path), ['/bom.ts']);
 	});
 
 	test('keeping only moves the baseline, undoing writes the file back to disk', async () => {
@@ -306,6 +406,25 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
+	test('undoing the only change after a turn saves it before the review ends', async () => {
+		const uri = URI.file('/a.ts');
+		agentWrites(uri, 'a\nB\nc\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/a.ts', 'a\nb\nc\n')]);
+		await review.endTurn('turn-1');
+		const entry = getEntry('/a.ts');
+		const diff = await waitForState(entry.diffInfo.map(value => value.changes.length === 1 ? value : undefined));
+
+		await diff.undo(diff.changes[0]);
+		await timeout(10);
+
+		assert.deepStrictEqual({ disk: disk.get(uri), saves, entries: review.entries.get().length }, {
+			disk: 'a\nb\nc\n',
+			saves: ['/a.ts (no participants)'],
+			entries: 0,
+		});
+	});
+
 	test('can keep and undo files the agent is not editing while a turn runs', async () => {
 		agentWrites(URI.file('/a.ts'), 'after\n');
 		review.beginTurn('turn-1');
@@ -332,6 +451,20 @@ suite('AgentHostEditReview', () => {
 		await review.reject(URI.file('/new.ts'));
 
 		assert.deepStrictEqual({ deletes, entries: review.entries.get().length }, { deletes: ['/new.ts'], entries: 0 });
+	});
+
+	test('undoing a created file keeps text the user wrote in it', async () => {
+		const uri = URI.file('/new.ts');
+		agentWrites(uri, 'generated\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/new.ts', undefined, 'create')]);
+		await review.endTurn('turn-1');
+		await changeCount(getEntry('/new.ts'));
+
+		userTypes(uri, 'mine\n');
+		await review.reject(uri);
+
+		assert.deepStrictEqual({ deletes, disk: disk.get(uri) }, { deletes: [], disk: 'mine\n' });
 	});
 
 	test('reviews a decided file again from its current content', async () => {
@@ -382,5 +515,43 @@ suite('AgentHostEditReview', () => {
 		await review.endTurn('turn-1');
 
 		assert.deepStrictEqual(review.entries.get().length, 0);
+	});
+
+	test('drops the review of a file the agent deletes or renames, or that is gone', async () => {
+		for (const path of ['/deleted.ts', '/renamed.ts', '/gone.ts', '/removed.ts']) {
+			agentWrites(URI.file(path), 'after\n');
+		}
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', ['/deleted.ts', '/renamed.ts', '/gone.ts', '/removed.ts'].map(path => edit(path, 'before\n')));
+		await review.endTurn('turn-1');
+		await Promise.all(['/deleted.ts', '/renamed.ts', '/gone.ts', '/removed.ts'].map(path => changeCount(getEntry(path))));
+
+		// One file is deleted outside of the agent's edits, another one while the agent reports it as edited.
+		disk.delete(URI.file('/removed.ts'));
+		onDidFilesChange.fire(new FileChangesEvent([{ resource: URI.file('/removed.ts'), type: FileChangeType.DELETED }], false));
+		disk.delete(URI.file('/gone.ts'));
+		review.beginTurn('turn-2');
+		await review.addEdits('turn-2', [
+			edit('/deleted.ts', 'after\n', 'delete'),
+			{ ...edit('/moved.ts', 'after\n', 'rename'), originalUri: URI.file('/renamed.ts') },
+			edit('/gone.ts', 'after\n'),
+		]);
+		await review.endTurn('turn-2');
+
+		assert.deepStrictEqual(review.entries.get().map(entry => entry.modifiedURI.path), []);
+	});
+
+	test('undoing a file that was deleted meanwhile does not bring it back', async () => {
+		const uri = URI.file('/a.ts');
+		agentWrites(uri, 'after\n');
+		review.beginTurn('turn-1');
+		await review.addEdits('turn-1', [edit('/a.ts', 'before\n')]);
+		await review.endTurn('turn-1');
+		await changeCount(getEntry('/a.ts'));
+
+		disk.delete(uri);
+		await review.reject(uri);
+
+		assert.deepStrictEqual({ saves, exists: disk.has(uri) }, { saves: [], exists: false });
 	});
 });
