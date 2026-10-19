@@ -853,9 +853,17 @@ suite('TabbedModelPicker', () => {
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
+			popup.style.setProperty('--vscode-strokeThickness', '1px');
+			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
+			popup.style.setProperty('--vscode-inputOption-activeBorder', 'rgb(40, 50, 60)');
 			const toggleState = () => {
 				const toggle = element(popup, '[aria-label="Compare Models"]');
-				return { trophy: !!toggle.querySelector('.codicon-trophy'), pressed: toggle.getAttribute('aria-pressed') };
+				const style = dom.getWindow(toggle).getComputedStyle(toggle);
+				return {
+					trophy: !!toggle.querySelector('.codicon-trophy'), pressed: toggle.getAttribute('aria-pressed'),
+					background: style.backgroundColor, border: style.borderColor,
+					width: toggle.offsetWidth, height: toggle.offsetHeight,
+				};
 			};
 			const initialToggle = toggleState();
 			const initialRows = listHeight();
@@ -874,9 +882,9 @@ suite('TabbedModelPicker', () => {
 				initialToggle, activeToggle, inactiveToggle: toggleState(),
 			}, {
 				rows: initialModels, height: initialRows,
-				initialToggle: { trophy: true, pressed: 'false' },
-				activeToggle: { trophy: true, pressed: 'true' },
-				inactiveToggle: { trophy: true, pressed: 'false' },
+				initialToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+				activeToggle: { trophy: true, pressed: 'true', background: 'rgb(10, 20, 30)', border: 'rgb(40, 50, 60)', width: 28, height: 28 },
+				inactiveToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
 			});
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '.model-picker-comparison-done').click();
