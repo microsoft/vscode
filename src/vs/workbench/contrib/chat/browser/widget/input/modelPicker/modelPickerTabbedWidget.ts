@@ -827,8 +827,8 @@ export class TabbedModelPicker extends Disposable {
 		ModelComparisonAvailableContext.bindTo(context).set(true);
 		ModelComparisonPickerFocusedContext.bindTo(context).set(true);
 		const hint = this._labelWithKeybinding(label, comparison.startCommandId, context);
-		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: hint }));
-		button.label = `$(${Codicon.add.id}) ${hint}`;
+		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, ariaLabel: hint }));
+		button.label = hint;
 		store.add(button.onDidClick(() => {
 			this._selectionVersion++;
 			comparison.start();

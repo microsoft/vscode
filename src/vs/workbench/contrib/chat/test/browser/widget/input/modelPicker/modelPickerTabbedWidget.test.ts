@@ -809,6 +809,7 @@ suite('TabbedModelPicker', () => {
 		picker.openWithFilter({ startComparison: true });
 		assert.deepStrictEqual({
 			label,
+			addIcon: popup.querySelector('.tabbed-action-list-footer .codicon-add') !== null,
 			toggleLabel,
 			step: state.get()?.title,
 			selections,
@@ -817,6 +818,7 @@ suite('TabbedModelPicker', () => {
 			toggle: popup.querySelector('[data-id="comparison"][aria-pressed="true"]') !== null,
 		}, {
 			label: `Send Query to Multiple Models (${shortcutLabel})`,
+			addIcon: false,
 			toggleLabel: `Compare Models (${shortcutLabel})`,
 			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
 		});
