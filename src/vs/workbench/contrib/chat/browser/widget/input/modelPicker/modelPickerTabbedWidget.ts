@@ -766,8 +766,13 @@ export class TabbedModelPicker extends Disposable {
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
+<<<<<<< HEAD
 				icon: Codicon.layers,
 				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
+=======
+				icon: Codicon.trophy,
+				tooltip: comparison.label,
+>>>>>>> bd48520ea99 ([cherry-pick] chat: use trophy icon for model comparison toggle (#342710))
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),

@@ -679,24 +679,75 @@ suite('TabbedModelPicker', () => {
 		const hides: boolean[] = [];
 		disposables.add(picker.onDidHide(event => hides.push(event.finishedComparison)));
 		const searchAction = element(popup, '[data-id="search"]');
+		popup.style.setProperty('--vscode-strokeThickness', '1px');
+		popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
+		popup.style.setProperty('--vscode-inputOption-activeBorder', 'rgb(40, 50, 60)');
+		const comparisonActionState = () => {
+			const action = element(popup, '[data-id="comparison"]');
+			const style = dom.getWindow(action).getComputedStyle(action);
+			return {
+				ariaLabel: action.getAttribute('aria-label'),
+				htmlTitle: action.getAttribute('title'),
+				pressed: action.getAttribute('aria-pressed'),
+				trophy: !!action.querySelector('.codicon-trophy'),
+				alignedWithSearch: action.classList.contains('align-end'),
+				background: style.backgroundColor,
+				border: style.borderColor,
+				width: action.offsetWidth,
+				height: action.offsetHeight,
+			};
+		};
 		assert.deepStrictEqual({
 			actions: [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar > .tabbed-action-list-tabbar-action')].map(action => action.dataset.id),
+<<<<<<< HEAD
 			comparison: popup.querySelector('[data-id="comparison"]')?.getAttribute('aria-pressed'),
 			footer: element(popup, '.tabbed-action-list-footer .monaco-button').getAttribute('aria-label'),
+=======
+			comparison: comparisonActionState(),
+>>>>>>> bd48520ea99 ([cherry-pick] chat: use trophy icon for model comparison toggle (#342710))
 			search: {
 				ariaLabel: searchAction.getAttribute('aria-label'),
 				htmlTitle: searchAction.getAttribute('title'),
 			},
 		}, {
 			actions: ['comparison', 'search'],
+<<<<<<< HEAD
 			comparison: 'false',
 			footer: 'Send Query to Multiple Models',
+=======
+			comparison: {
+				ariaLabel: 'Compare Models',
+				htmlTitle: null,
+				pressed: 'false',
+				trophy: true,
+				alignedWithSearch: true,
+				background: 'rgba(0, 0, 0, 0)',
+				border: 'rgba(0, 0, 0, 0)',
+				width: 28,
+				height: 28,
+			},
+>>>>>>> bd48520ea99 ([cherry-pick] chat: use trophy icon for model comparison toggle (#342710))
 			search: {
 				ariaLabel: 'Search Models',
 				htmlTitle: 'Search Models',
 			},
 		});
+<<<<<<< HEAD
 		element(popup, '.tabbed-action-list-footer .monaco-button').click();
+=======
+		comparisonAction.click();
+		assert.deepStrictEqual(comparisonActionState(), {
+			ariaLabel: 'Compare Models',
+			htmlTitle: null,
+			pressed: 'true',
+			trophy: true,
+			alignedWithSearch: true,
+			background: 'rgb(10, 20, 30)',
+			border: 'rgb(40, 50, 60)',
+			width: 28,
+			height: 28,
+		});
+>>>>>>> bd48520ea99 ([cherry-pick] chat: use trophy icon for model comparison toggle (#342710))
 		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-comparison-actions .monaco-button')].filter(button => button.style.display !== 'none');
 		/** Each footer button's label, with `(disabled)` when it is shown but cannot be used. */
 		const buttons = () => footerButtons().map(button => `${button.getAttribute('aria-label') ?? button.textContent?.trim()}${button.classList.contains('disabled') ? ' (disabled)' : ''}`);
