@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -25,6 +27,11 @@ import { IAgentHostService } from '../../../../platform/agentHost/common/agentSe
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
@@ -117,6 +124,11 @@ export class ModelPicker extends Disposable {
 		this._register(this._newChatModelPickerService.registerModelPicker({
 			getDomNode: () => this._container,
 			open: () => this._modelPicker.openModelPicker(),
+			openComparison: () => {
+				if (this._selectionModel.comparison?.available.get()) {
+					this._modelPicker.show(undefined, { startComparison: true });
+				}
+			},
 			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
 		}));
 
@@ -192,6 +204,28 @@ export class ModelPicker extends Disposable {
 }
 
 // -- Action --
+
+registerAction2(class extends Action2 {
+	constructor() {
+		const precondition = ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ModelComparisonAvailableContext);
+		super({
+			id: COMPARE_SESSION_MODELS_COMMAND_ID,
+			title: localize2('sessions.compareModels', "Compare Models"),
+			f1: true,
+			precondition,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyM,
+				when: ContextKeyExpr.and(precondition, ContextKeyExpr.or(ChatContextKeys.inputHasFocus, ChatContextKeys.inChatComposer, ModelComparisonPickerFocusedContext)),
+			},
+		});
+	}
+	override run(accessor: ServicesAccessor): void {
+		const sessions = accessor.get(ISessionsService);
+		const parts = accessor.get(ISessionsPartService);
+		(parts.getFocusedSessionView() ?? parts.getSessionView(sessions.activeSession.get()?.sessionId))?.openModelComparison();
+	}
+});
 
 registerAction2(class extends Action2 {
 	constructor() {

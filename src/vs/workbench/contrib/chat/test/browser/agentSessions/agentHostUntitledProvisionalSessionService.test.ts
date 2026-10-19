@@ -19,7 +19,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import type { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -36,6 +37,7 @@ import { MessageKind, StateComponents, TurnState, type AgentInfo, type Component
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import type { IChatModel, IChatModelInputState, IInputModel } from '../../../common/model/chatModel.js';
 import { AgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -261,6 +263,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let acquiredScopeRoots: string[][];
 	let configurationService: TestConfigurationService;
 	let legacyApprovalRestricted: boolean;
+	let chatInputStates: ResourceMap<IChatModelInputState>;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -294,8 +297,17 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(ILogService, new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}());
+		chatInputStates = new ResourceMap();
 		insta.stub(IChatService, new class extends MockChatService {
 			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
+			override getSession(sessionResource: URI): IChatModel | undefined {
+				const state = chatInputStates.get(sessionResource);
+				if (!state) {
+					return undefined;
+				}
+				const inputModel = new class extends mock<IInputModel>() { override readonly state = constObservable(state); }();
+				return new class extends mock<IChatModel>() { override readonly inputModel = inputModel; }();
+			}
 		}());
 		configurationService = new class extends TestConfigurationService {
 			override inspect<T>(key: string): IConfigurationValue<T> {
@@ -415,6 +427,45 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			reused: true,
 			createCount: 1,
 			config: { isolation: 'folder' },
+		});
+	});
+
+	test('a draft is created with the model selected in its chat input', async () => {
+		// The first send selects this model, and discards a warm launch made with another one.
+		const ui = untitledChatUri('selected-model');
+		chatInputStates.set(ui, {
+			inputText: '', attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
+			selectedModel: { identifier: 'agent-host-copilot:gpt-6.1-sol', metadata: {} as ILanguageModelChatMetadata },
+			modelConfiguration: { reasoningEffort: 'high' },
+		});
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+
+		assert.deepStrictEqual(agentHost.createCalls.map(call => call.model), [{ id: 'gpt-6.1-sol', config: { reasoningEffort: 'high' } }]);
+	});
+
+	test('a chip still showing a disposed draft does not recreate its backend', async () => {
+		// The chat view releases its old model before the widget shows the new
+		// one, so the old draft's chips reattach to it while it is being disposed.
+		const ui = untitledChatUri('replaced-draft');
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		const reattached: Promise<URI | undefined>[] = [];
+		cleanup.add(provisional.onDidChange(resource => {
+			if (resource.toString() === ui.toString() && !provisional.get(ui)) {
+				reattached.push(provisional.getOrCreate(ui, 'copilot', undefined));
+			}
+		}));
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await Promise.all(reattached);
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual({
+			created: agentHost.createCalls.map(call => call.session?.toString()),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			mapping: provisional.get(ui),
+		}, {
+			created: [backend?.toString()],
+			disposed: [backend?.toString()],
+			mapping: undefined,
 		});
 	});
 

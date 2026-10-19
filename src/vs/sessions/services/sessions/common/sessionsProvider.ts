@@ -44,6 +44,39 @@ export interface IChatMovedEvent {
 	readonly to: IChatMoveEnd;
 }
 
+/**
+ * A user invocation of one of a session's changeset operations
+ * (`ISessionChangeset.invokeOperation`). Fired once any confirmation the
+ * operation requires has been accepted and before the operation runs, so it
+ * reports the invocation, not its outcome.
+ */
+export interface ISessionChangesetOperationInvokedEvent {
+	readonly session: ISession;
+	/** `ISessionChangesetOperation.id` of the invoked operation. */
+	readonly operationId: string;
+	/** The operation-specific request metadata the operation was invoked with. */
+	readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Why a chat or session move was refused, in a message for the user (e.g. "Chats can't be moved into or out of an
+ * archived session."). Moves reject with it for refusals they can explain; anything else is an unexpected failure,
+ * whose message isn't meant for the user.
+ */
+export class SessionMoveRefusedError extends Error {
+	constructor(message: string) {
+		super(message);
+	}
+}
+
+/**
+ * Where {@link ISessionsProvider.moveChat} moves a chat: after `after` (a chat of the session `sessionId`, or first
+ * when `undefined`) in that session, which may be the chat's own session to reorder it, or into a new session.
+ */
+export type ISessionChatMoveDestination =
+	| { readonly kind: 'session'; readonly sessionId: string; readonly after: URI | undefined }
+	| { readonly kind: 'newSession' };
+
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
@@ -276,6 +309,32 @@ export interface ISessionsProvider {
 	readonly onDidMoveChat: Event<IChatMovedEvent>;
 
 	/**
+	 * Whether the chat can be the source of {@link moveChat}: the provider moves chats and the chat is structurally
+	 * movable (never a session's main chat). The destination is validated when moving. `false` for providers whose
+	 * chats never move.
+	 */
+	canMoveChat(sessionId: string, chatUri: URI): boolean;
+
+	/**
+	 * Moves the chat of session `sessionId` within its session, into another session of this provider, or into a new
+	 * session. Rejects with a {@link SessionMoveRefusedError} when the move is refused (always, for providers whose chats never
+	 * move); nothing changes then.
+	 */
+	moveChat(sessionId: string, chatUri: URI, destination: ISessionChatMoveDestination): Promise<void>;
+
+	/**
+	 * Whether the session can move under another session of this provider, its main chat becoming a chat of that
+	 * session (see {@link moveSessionUnder}). `false` for providers whose sessions never move.
+	 */
+	canMoveSessionUnder(sessionId: string): boolean;
+
+	/**
+	 * Moves the session under `destinationSessionId`, placing its chat after `after` (`undefined`: first); the session
+	 * ends. Rejects with a {@link SessionMoveRefusedError} when the move is refused (always, for providers whose sessions never move).
+	 */
+	moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void>;
+
+	/**
 	 * Optional. Redirects a resource that this provider supersedes to the one it
 	 * should actually be opened as, or `undefined` to leave it unchanged.
 	 *
@@ -302,6 +361,12 @@ export interface ISessionsProvider {
 	 * provider. Do not implement or consume this event in other providers.
 	 */
 	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+
+	/**
+	 * Optional. Fires when the user invokes a changeset operation of one of
+	 * this provider's sessions; see {@link ISessionChangesetOperationInvokedEvent}.
+	 */
+	readonly onDidInvokeChangesetOperation?: Event<ISessionChangesetOperationInvokedEvent>;
 
 	/**
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
@@ -463,10 +528,10 @@ export interface ISessionsProvider {
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
-	 * Get selectable models before creating a session.
+	 * Get selectable models before creating a session, with no workspace URI for a quick chat.
 	 * Providers apply the same availability, visibility, and identifier-resolution rules as {@link getModelsSnapshot}.
 	 */
-	getModelsSnapshotForCreation?(workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
+	getModelsSnapshotForCreation?(workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the

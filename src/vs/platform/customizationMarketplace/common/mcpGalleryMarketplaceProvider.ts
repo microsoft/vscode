@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { getMcpGalleryServerCardUrl } from '../../mcp/common/mcpGalleryService.js';
-import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
@@ -29,8 +29,8 @@ function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationSe
 	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
 }
 
-export function getCustomizationMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
-	return getAllMcpGalleryMarketplaceSourceInfos();
+export function getCustomizationMarketplaceSourceInfos(status: McpGalleryManifestStatus): readonly ICustomizationMarketplaceSourceInfo[] {
+	return status === McpGalleryManifestStatus.Available ? getAllMcpGalleryMarketplaceSourceInfos() : [];
 }
 
 export function getAllMcpGalleryMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {

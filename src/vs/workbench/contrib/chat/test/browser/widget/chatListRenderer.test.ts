@@ -13058,6 +13058,53 @@ suite('ChatListRenderer', () => {
 			}
 		}
 
+		for (const carousel of [true, false]) {
+			for (const selectedOption of ['save-sandbox-path', 'skip']) {
+				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					const resource = URI.file('/outside/new.ts').toString();
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'sandbox-write',
+						toolName: 'apply_patch',
+						displayName: 'Apply Patch',
+						confirmationTitle: 'Add to user sandbox settings and retry?',
+						invocationMessage: 'Allow read/write access to the folder.',
+						options: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+						],
+						edits: { items: [{ after: { uri: resource, content: { uri: resource } } }] },
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
+					const labels = buttons.map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
+					const button = buttons[selectedOption === 'skip' ? 1 : 0];
+					assert.ok(button);
+					button.click();
+
+					assert.deepStrictEqual({
+						labels,
+						hasFilePreview,
+						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
+					}, {
+						labels: ['Allow', 'Skip'],
+						hasFilePreview: true,
+						confirmed: {
+							type: ToolConfirmKind.UserAction,
+							selectedButton: selectedOption,
+							selectedButtonKind: selectedOption === 'skip' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+						},
+					});
+				});
+			}
+		}
+
 		for (const cdPrefix of ['', 'cd /workspace && ']) {
 			test(`restores edited shell approvals after switching sessions (${cdPrefix ? 'directory prefix' : 'no prefix'})`, async () => {
 				const context = createConfirmationRenderer();
@@ -13164,6 +13211,26 @@ suite('ChatListRenderer', () => {
 				},
 				primaryLabel: 'Deny Once',
 				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'deny-once', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'custom modified-file option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Add to user sandbox settings and retry?',
+						message: 'Allow read/write access to the folder.',
+						customOptions: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/outside/new.ts'), editKind: 'create' }],
+					},
+				},
+				primaryLabel: 'Allow',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'save-sandbox-path', selectedButtonKind: ConfirmationOptionKind.Approve },
 			},
 			{
 				name: 'modified-file option',
