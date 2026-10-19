@@ -28,7 +28,7 @@ suite('built-in skills', () => {
 
 		expect(contributions).toEqual([{
 			path: './assets/prompts/skills/create-canvas/SKILL.md',
-			when: 'config.chat.copilotExtensions.enabled && config.chat.canvases.enabled',
+			when: 'config.chat.agentHost.copilot.extensions.enabled && config.chat.canvases.enabled',
 			sessionTypes: ['copilotcli'],
 		}]);
 	});
