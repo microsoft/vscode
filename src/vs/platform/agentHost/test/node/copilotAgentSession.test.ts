@@ -13836,6 +13836,66 @@ Use the attached image as context.
 			});
 		});
 
+		test('keeps an identical steering message pending when the echo of one started at idle arrives', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const sendGates: DeferredPromise<string>[] = [];
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				const gate = new DeferredPromise<string>();
+				sendGates.push(gate);
+				return gate.p;
+			};
+			const message = { text: 'focus on tests', origin: { kind: MessageKind.User } };
+
+			const first = session.sendSteering({ id: 'steer-1', message });
+			await timeout(0);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const second = session.sendSteering({ id: 'steer-2', message });
+			await timeout(0);
+			mockSession.fire('user.message', { content: 'focus on tests', messageId: 'message-1', interactionId: 'interaction-1' } as SessionEventPayload<'user.message'>['data']);
+			const afterFirstEcho = startedTurns(signals);
+			sendGates[0].complete('message-1');
+			sendGates[1].complete('message-2');
+			await Promise.all([first, second]);
+			mockSession.fire('user.message', { content: 'focus on tests', messageId: 'message-2', interactionId: 'interaction-2' } as SessionEventPayload<'user.message'>['data']);
+
+			assert.deepStrictEqual({
+				afterFirstEcho,
+				afterSecondEcho: startedTurns(signals),
+				consumed: signals.flatMap(signal => signal.kind === 'steering_consumed' ? [signal.id] : []),
+			}, {
+				afterFirstEcho: [{ text: 'focus on tests', queuedMessageId: 'steer-1' }],
+				afterSecondEcho: [
+					{ text: 'focus on tests', queuedMessageId: 'steer-1' },
+					{ text: 'focus on tests', queuedMessageId: 'steer-2' },
+				],
+				consumed: [],
+			});
+		});
+
+		test('does not start steering that is being withdrawn when the SDK idles', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			const withdrawGate = new DeferredPromise<void>();
+			mockSession.withdrawMessageGate = withdrawGate.p;
+
+			const withdrawal = session.withdrawSteering('steer-1');
+			await timeout(0);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			withdrawGate.complete();
+			await withdrawal;
+
+			assert.deepStrictEqual({
+				startedTurns: startedTurns(signals),
+				active: session.hasActiveTurn,
+			}, {
+				startedTurns: [],
+				active: false,
+			});
+		});
+
 		test('routes subsequent SDK events into the steering turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
