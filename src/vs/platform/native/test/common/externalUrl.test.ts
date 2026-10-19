@@ -13,10 +13,8 @@ suite('toShellExternalUrl', () => {
 
 	test('rewrites the percent-encoded drive letter of Windows file URLs', () => {
 		// Browser-serialized file URLs (WHATWG URL) percent-encode the drive-letter colon.
-		// Note: `URI.parse` normalizes the drive letter to lowercase, which is
-		// case-insensitively identical on Windows.
 		assert.strictEqual(toShellExternalUrl('file:///c%3A/Users/x/test.html', true), 'file:///c:/Users/x/test.html');
-		assert.strictEqual(toShellExternalUrl('file:///D%3A/Git/repo/page.html', true), 'file:///d:/Git/repo/page.html');
+		assert.strictEqual(toShellExternalUrl('file:///D%3A/Git/repo/page.html', true), 'file:///D:/Git/repo/page.html');
 	});
 
 	test('leaves already-unencoded file URLs unchanged', () => {
@@ -33,12 +31,17 @@ suite('toShellExternalUrl', () => {
 		assert.strictEqual(toShellExternalUrl('file:///home/user/test.html', false), 'file:///home/user/test.html');
 	});
 
-	test('re-serializes the file path without encoding', () => {
-		assert.strictEqual(toShellExternalUrl('file:///c%3A/Users/a%20b/test.html', true), 'file:///c:/Users/a b/test.html');
+	test('re-encodes nothing else: other percent escapes stay untouched', () => {
+		// Only the drive-letter colon is rewritten; decoding anything else could
+		// change the target file (e.g. a raw '#' would become a URL fragment).
+		assert.strictEqual(toShellExternalUrl('file:///c%3A/Users/a%20b/test.html', true), 'file:///c:/Users/a%20b/test.html');
+		assert.strictEqual(toShellExternalUrl('file:///c%3A/Users/file%231.html', true), 'file:///c:/Users/file%231.html');
 	});
 
-	test('returns unparseable URLs unchanged', () => {
+	test('returns unparseable or differently-shaped URLs unchanged', () => {
 		assert.strictEqual(toShellExternalUrl('file:///%%%', true), 'file:///%%%');
+		// No drive letter: nothing to rewrite
+		assert.strictEqual(toShellExternalUrl('file:///home/user/test.html', true), 'file:///home/user/test.html');
 	});
 
 	test('defaults to the current platform', () => {
