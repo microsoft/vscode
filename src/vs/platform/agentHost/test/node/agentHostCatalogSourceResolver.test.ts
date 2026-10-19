@@ -16,11 +16,12 @@ import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemote
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, buildDefaultChatUri, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 
 const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
@@ -96,7 +97,7 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 		reportMalformedArtifacts: () => { },
 	});
 	return {
-		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks) => resolver.buildCatalogSyncRequest(
+		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks, authoritativeChats, chatCatalogRevision) => resolver.buildCatalogSyncRequest(
 			session,
 			state,
 			overrides,
@@ -108,12 +109,110 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 				},
 			},
 			fallbacks,
+			authoritativeChats,
+			chatCatalogRevision,
 		),
 	};
 }
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a session whose primary folder is a worktree a move recorded for it projects that worktree\'s repository; a stale entry is ignored, its own recorded worktree wins (Block 5)', async () => {
+		const session = URI.parse('ahp-session:/promoted');
+		const state = (workingDirectories: string[]): ICatalogSourceState => ({ ...sourceState(), project: undefined, workingDirectories });
+		const folders = JSON.stringify([{ workingDirectory: 'file:///repo.worktrees/shared', repositoryRoot: 'file:///repo', branch: 'agents/shared' }]);
+		const project = async (metadata: Readonly<Record<string, string>>, workingDirectories: string[]) =>
+			(await createResolver(metadata).buildCatalogSyncRequest(session, state(workingDirectories), {}, false)).data.project?.uri;
+		assert.deepStrictEqual({
+			promoted: await project({ [WORKTREE_FOLDERS_KEY]: folders }, ['file:///repo.worktrees/shared']),
+			stale: await project({ [WORKTREE_FOLDERS_KEY]: folders }, ['file:///elsewhere']),
+			none: await project({}, ['file:///repo.worktrees/shared']),
+			ownWins: await project({ [WORKTREE_FOLDERS_KEY]: folders, [WORKTREE_META_REPOSITORY_ROOT]: 'file:///own' }, ['file:///repo.worktrees/shared']),
+		}, {
+			promoted: 'file:///repo',
+			stale: undefined,
+			none: undefined,
+			ownWins: 'file:///own',
+		});
+	});
+
+	test('a native backing alias cannot mark its standard host owner as a backing', async () => {
+		const owner = URI.parse('ahp-session:/shared-codex-id');
+		const alias = URI.parse('codex:/shared-codex-id');
+		const resolver = createResolver({ [CHAT_BACKING_METADATA_KEY]: buildDefaultChatUri(owner) });
+		const ownerData = await resolver.buildCatalogSyncRequest(owner, sourceState(), {}, true);
+		const aliasData = await resolver.buildCatalogSyncRequest(alias, sourceState(), {}, true);
+		assert.deepStrictEqual({ ownerBacking: ownerData.data.isChatBacking, aliasBacking: aliasData.data.isChatBacking }, {
+			ownerBacking: false, aliasBacking: true,
+		});
+	});
+
+	test('projects authoritative chats without reading or writing legacy chat summaries', async () => {
+		const authoritativeChats = [{
+			uri: chat,
+			order: 0,
+			kind: 'default' as const,
+			summary: 'Central title',
+			titleSource: 'user' as const,
+			isRead: false,
+			changes: { additions: 0, deletions: 0, files: 0 },
+		}];
+		let requestedKeys: readonly string[] = [];
+		const resolver = new AgentHostCatalogSourceResolver({
+			isUnpersistedChatBacking: () => false,
+			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => { },
+		});
+		const overrides = {
+			[customChatTitleMetadataKey(chat)]: 'Stale title',
+			[customChatTitleSourceMetadataKey(chat)]: 'auto',
+			[customChatTitleMetadataKey('agenthost-chat:catalog-source/deleted')]: '',
+			[customChatTitleSourceMetadataKey('agenthost-chat:catalog-source/deleted')]: '',
+			[getChatChangesSummaryMetadataKey(chat)]: JSON.stringify({ files: 99 }),
+			[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: 'true',
+			[SESSION_CUSTOM_TITLE_KEY]: 'Session title',
+		};
+		const result = await resolver.buildCatalogSyncRequest(session, sourceState(), overrides, true, {
+			object: {
+				getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> => {
+					requestedKeys = Object.keys(keys);
+					return Object.fromEntries(requestedKeys.map(key => [key, undefined])) as { [K in keyof T]: string | undefined };
+				},
+			},
+		}, {}, authoritativeChats, 7);
+		assert.deepStrictEqual({
+			chatCatalogRevision: result.chatCatalogRevision,
+			chats: result.data.chats,
+			isRead: result.data.isRead,
+			legacyChatKeysRead: Object.keys(overrides).filter(key => key !== SESSION_CUSTOM_TITLE_KEY && requestedKeys.includes(key)),
+			legacyChatKeysWritten: Object.keys(overrides).filter(key => key !== SESSION_CUSTOM_TITLE_KEY && result.legacyMetadata[key] !== undefined),
+			sessionTitle: result.legacyMetadata[SESSION_CUSTOM_TITLE_KEY],
+		}, {
+			chatCatalogRevision: 7,
+			chats: authoritativeChats,
+			isRead: false,
+			legacyChatKeysRead: [],
+			legacyChatKeysWritten: [],
+			sessionTitle: 'Session title',
+		});
+	});
+
+	test('restores aggregate roots independently of the main chat and honors exclusive replacement', async () => {
+		const aggregate = ['file:///original', 'file:///replacement'];
+		const warm = await createResolver({}).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: aggregate }, {
+			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(aggregate),
+		}, false);
+		const cold = await createResolver(warm.legacyMetadata).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: ['file:///replacement'] }, {}, true);
+		const replacement = await createResolver(warm.legacyMetadata).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: ['file:///replacement'] }, {}, false);
+		const reopened = await createResolver(replacement.legacyMetadata).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: aggregate }, {}, true);
+		const legacy = await createResolver({}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+		assert.deepStrictEqual({
+			cold: cold.data.workingDirectories,
+			reopened: reopened.data.workingDirectories,
+			legacy: legacy.data.workingDirectories,
+		}, { cold: aggregate, reopened: ['file:///replacement'], legacy: ['file:///live'] });
+	});
 
 	test('restores artifacts for multiple chats from the shared session metadata key', async () => {
 		const peer = 'agenthost-chat:catalog-source/peer';
@@ -175,6 +274,68 @@ suite('AgentHostCatalogSourceResolver', () => {
 			archived: result.data.chats.map(chat => chat.archived),
 			input: readChatInputState(result.data, chat),
 		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], archived: [true, undefined], input: undefined });
+	});
+
+	test('uses persisted default chat read state only during persistence-first reconciliation', async () => {
+		const state: ICatalogSourceState = {
+			...sourceState(),
+			chats: [
+				{ ...sourceState().chats[0], isRead: true },
+				{ uri: `${chat}/peer`, kind: 'peer', isRead: false },
+			],
+		};
+		const resolver = createResolver({
+			[AH_META_IS_READ_DB_KEY]: 'true',
+			[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: '',
+		});
+
+		const persisted = await resolver.buildCatalogSyncRequest(session, state, {}, true);
+		const live = await resolver.buildCatalogSyncRequest(session, state, {}, false);
+
+		assert.deepStrictEqual({
+			persistedSession: persisted.data.isRead,
+			liveSession: live.data.isRead,
+			persisted: persisted.data.chats.map(entry => entry.isRead),
+			live: live.data.chats.map(entry => entry.isRead),
+		}, {
+			persistedSession: false,
+			liveSession: false,
+			persisted: [false, false],
+			live: [true, false],
+		});
+	});
+
+	test('excludes unread tool chats from session read reconciliation', async () => {
+		const state: ICatalogSourceState = {
+			...sourceState(),
+			status: SessionStatus.IsRead,
+			chats: [
+				{ ...sourceState().chats[0], isRead: true },
+				{
+					uri: `${chat}/tool`,
+					kind: 'peer',
+					isRead: false,
+					origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' },
+				},
+			],
+		};
+		const resolver = createResolver({
+			[AH_META_IS_READ_DB_KEY]: 'true',
+			[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: 'true',
+		});
+
+		const persisted = await resolver.buildCatalogSyncRequest(session, state, {}, true);
+		const live = await resolver.buildCatalogSyncRequest(session, state, {}, false);
+
+		assert.deepStrictEqual({
+			persistedSession: persisted.data.isRead,
+			liveSession: live.data.isRead,
+			chats: live.data.chats.map(entry => entry.isRead),
+		}, {
+			persistedSession: true,
+			liveSession: true,
+			chats: [true, false],
+		});
 	});
 
 	test('projects remote origins from live and persisted state without losing exact chat or depth', async () => {
@@ -395,6 +556,20 @@ suite('AgentHostCatalogSourceResolver', () => {
 
 		assert.strictEqual(result.data.chats[0].summary, 'Live chat');
 	});
+
+	for (const adopted of [false, true]) {
+		test(`projects legacy archive state until adoption rather than a partial host mirror (adopted: ${adopted})`, async () => {
+			const state = { ...sourceState(), status: SessionStatus.Idle | SessionStatus.IsArchived };
+			const result = await createResolver({
+				[AH_META_IS_ARCHIVED_DB_KEY]: '',
+				...(adopted ? { [AH_META_EHCLI_ADOPTED_DB_KEY]: 'true' } : {}),
+			}).buildCatalogSyncRequest(session, state, {}, true);
+			assert.deepStrictEqual({
+				archived: result.data.isArchived,
+				mirror: result.legacyMetadata[AH_META_IS_ARCHIVED_DB_KEY],
+			}, { archived: !adopted, mirror: adopted ? '' : 'true' });
+		});
+	}
 
 	test('projects chat change aggregates from live state or the persisted chat key', async () => {
 		const live = { additions: 1, deletions: 0, files: 1 };

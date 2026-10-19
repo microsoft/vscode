@@ -63,7 +63,8 @@ export interface IAgentSessionsModel {
 	 */
 	observeSession(resource: URI): IObservable<IAgentSession | undefined>;
 
-	resolve(provider: string | string[] | undefined): Promise<void>;
+	/** Resolves sessions, optionally observing errors that are otherwise logged and isolated. */
+	resolve(provider: string | string[] | undefined, onError?: (error: unknown) => void): Promise<void>;
 }
 
 interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'children' | 'iconPath' | 'isRead'> {
@@ -531,7 +532,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] { return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values())); }
 
-	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());
+	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<readonly unknown[]>>());
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
@@ -662,46 +663,54 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		return observable;
 	}
 
-	async resolve(provider: string | string[] | undefined): Promise<void> {
+	async resolve(provider: string | string[] | undefined, onError?: (error: unknown) => void): Promise<void> {
 		const providers = Array.isArray(provider)
 			? provider
 			: provider !== undefined
 				? [provider]
 				: this.chatSessionsService.getRegisteredChatSessionItemProviders();
 
-		await Promise.all(providers.map(provider => this.resolveProvider(provider, { refreshProvider: true })));
+		const results = await Promise.all(providers.map(provider => this.resolveProvider(provider, { refreshProvider: true })));
+		for (const errors of results) {
+			for (const error of errors) {
+				onError?.(error);
+			}
+		}
 	}
 
-	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<void> {
+	private resolveProvider(provider: string, options: { refreshProvider: boolean }): Promise<readonly unknown[]> {
 		if (this.chatEntitlementService.sentiment.hidden) {
-			return Promise.resolve(); // don't resolve if AI features are disabled
+			return Promise.resolve([]); // don't resolve if AI features are disabled
 		}
 
 		let resolver = this.resolvers.get(provider);
 		if (!resolver) {
-			resolver = new ThrottledDelayer<void>(500);
+			resolver = new ThrottledDelayer<readonly unknown[]>(500);
 			this.resolvers.set(provider, resolver);
 		}
 
 		return resolver.trigger(async token => {
 			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
-				return;
+				return [];
 			}
 
+			const errors: unknown[] = [];
 			try {
 				this._onWillResolve.fire(provider);
-				return await this.doResolveProvider(provider, options, token);
+				await this.doResolveProvider(provider, options, token, error => errors.push(error));
 			} catch (error) {
 				this.logger.logIfTrace(`Error resolving sessions for provider ${provider}: ${error instanceof Error ? error.stack : String(error)}`);
+				errors.push(error);
 			} finally {
 				this._onDidResolve.fire(provider);
 			}
+			return errors;
 		});
 	}
 
-	private async doResolveProvider(provider: string, options: { refreshProvider: boolean }, token: CancellationToken): Promise<void> {
+	private async doResolveProvider(provider: string, options: { refreshProvider: boolean }, token: CancellationToken, onError: (error: unknown) => void): Promise<void> {
 		if (options.refreshProvider) {
-			await this.chatSessionsService.refreshChatSessionItems([provider], token);
+			await this.chatSessionsService.refreshChatSessionItems([provider], token, onError);
 
 			// Clear the resolve-once guard for sessions belonging to this
 			// provider and re-trigger resolve for any that were previously
@@ -733,7 +742,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		// Phase 1: Fetch new items for this provider (async, may interleave with other providers)
 		const sessions = new ResourceMap<IInternalAgentSession>();
-		for await (const { chatSessionType, items: providerSessions } of this.chatSessionsService.getChatSessionItems([provider], token)) {
+		for await (const { chatSessionType, items: providerSessions } of this.chatSessionsService.getChatSessionItems([provider], token, onError)) {
 			if (token.isCancellationRequested) {
 				return;
 			}

@@ -44,7 +44,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -102,6 +102,7 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
+import { IModelPickerComparison } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -447,6 +448,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
 
+	getComparisonModels() {
+		return this._modelSelection.getComparisonModels();
+	}
+
+	resolveComparisonModel(modelIdentifier: string) {
+		return this._modelSelection.resolveComparisonModel(modelIdentifier);
+	}
+
 	get modelPicker(): INewSessionComposerPicker | undefined {
 		return this._newChatModelPickerService.activePicker;
 	}
@@ -582,7 +591,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService();
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	readonly pickerVisibility = this._register(new SessionInputPickerVisibility());
 	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;
@@ -633,6 +642,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			sendButtonLabel?: IObservable<string | undefined>;
+			modelPickerComparison?: IModelPickerComparison;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -675,7 +685,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {}));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
+			comparison: this.options.modelPickerComparison,
+			modelConfiguration: true,
+			fallbackModelConfiguration: this.languageModelsService,
+		}));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -779,9 +793,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					state: this._modelSelection.state,
 					openPicker: () => this._newChatModelPickerService.openModelPicker(),
 					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
-					// The model picker here has no scoped store and configures models globally,
-					// so a notification writes to the same place its "Thinking" rows do.
-					applyModelConfiguration: (modelIdentifier, values) => this.languageModelsService.setModelConfiguration(modelIdentifier, values),
+					applyModelConfiguration: (modelIdentifier, values) => this._applyModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
@@ -1444,18 +1456,24 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
 
 		if (this._sendButtonContainer) {
+			const sendButtonTitle = this.options.supportsBackground
+				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+				: localize('send', "Send");
 			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
-				title: this.options.supportsBackground
-					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-					: localize('send', "Send"),
+				supportIcons: !!this.options.sendButtonLabel,
+				title: sendButtonTitle,
+				hoverDelegate: this.options.sendButtonLabel ? this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', {
+					dynamicDelay: () => this.options.sendButtonLabel?.get() ? 0 : undefined,
+				}, {})) : undefined,
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
 			if (this.options.sendButtonLabel) {
 				this._register(autorun(reader => {
 					const label = this.options.sendButtonLabel?.read(reader);
-					sendButton.label = label ?? '';
+					NewChatInputWidget._setSendButtonLabel(sendButton, label);
+					sendButton.setTitle(label ? localize('comparisonTokenWarning', "This will use tokens for each session.") : sendButtonTitle);
 					sendButton.element.ariaLabel = label ?? localize('send', "Send");
 					this._sendButtonContainer?.classList.toggle('labeled', !!label);
 				}));
@@ -1502,6 +1520,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			},
 		}));
 		this._primaryPickerResponsiveLayout.layout();
+	}
+
+	private static _setSendButtonLabel(sendButton: Button, label: string | undefined): void {
+		if (label) {
+			sendButton.element.classList.remove(...ThemeIcon.asClassNameArray(Codicon.arrowUpCompact));
+			sendButton.label = `$(arrow-up-compact) ${label}`;
+		} else {
+			sendButton.label = '';
+			sendButton.element.classList.remove('monaco-text-button');
+			sendButton.icon = Codicon.arrowUpCompact;
+		}
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement, isVoiceSessionActive: IObservable<boolean>, pillActive: IObservable<boolean>, onDidChangeVisibility: (visible: boolean) => void): void {
@@ -2154,18 +2183,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	sendQuery(text: string): void {
+	async sendQuery(text: string): Promise<boolean> {
 		// A submit is already in flight (e.g. a rapid second transcript before the
 		// session is created); don't clobber the in-flight text or double-submit.
 		if (this._sending) {
-			return;
+			return false;
 		}
 		const model = this._editor?.getModel();
 		if (model) {
 			const combined = combineVoiceInput(model.getValue(), text);
 			model.setValue(combined);
-			this._send();
+			return this._send();
 		}
+		return false;
 	}
 
 	attach(uris: URI[]): void {
@@ -2209,6 +2239,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	selectVoiceModel(identifier: string): boolean {
 		return this._modelSelection.selectModel(identifier);
+	}
+
+	private _applyModelConfiguration(modelIdentifier: string, values: Record<string, unknown>): Promise<void> {
+		return (this._modelSelection.modelConfiguration ?? this.languageModelsService).setModelConfiguration(modelIdentifier, values);
 	}
 }
 

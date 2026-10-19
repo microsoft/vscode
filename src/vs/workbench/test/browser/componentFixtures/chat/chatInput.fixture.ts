@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
+import { ChatEditingSessionState, emptySessionEntryDiff, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../contrib/chat/common/languageModels.js';
@@ -61,6 +62,13 @@ function createMockEditingSession(files: { uri: string; added: number; removed: 
 		override readonly state = observableValue('state', ChatEditingSessionState.Idle);
 		override readonly entries = observableValue('entries', entries);
 		override readonly requestDisablement = observableValue<IChatRequestDisablement[]>('requestDisablement', []);
+		override getDiffsForFilesInSession() {
+			return constObservable(files.map(file => ({
+				...emptySessionEntryDiff(URI.parse(file.uri), URI.parse(file.uri)),
+				added: file.added,
+				removed: file.removed,
+			})));
+		}
 	}();
 }
 
@@ -166,7 +174,6 @@ const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { 
 const combinedPickerOptions: ChatInputFixtureOptions = {
 	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
 	combinedModePermissionsPicker: true,
-	tabbedModelPicker: true,
 	models: shortNameModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } })),
 };
 
@@ -272,6 +279,37 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	WithFileChanges: defineComponentFixture({
 		render: context => renderChatInput(context, { editingSession: createMockEditingSession([{ uri: 'file:///workspace/src/fibon.ts', added: 21, removed: 1 }]) })
 	}),
+	WithSessionWorkingSet: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([
+				{ uri: 'file:///workspace/src/fibonacci.ts', added: 21, removed: 1 },
+				{ uri: 'file:///workspace/src/fibonacci.test.ts', added: 123, removed: 12 },
+				{ uri: 'file:///workspace/README.md', added: 4, removed: 0 },
+			]),
+		})
+	}),
+	WithSessionWorkingSetNarrow: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			width: 320,
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession([
+				{ uri: 'file:///workspace/src/components/long-component-name.ts', added: 1234, removed: 321 },
+				{ uri: 'file:///workspace/src/components/long-component-name.test.ts', added: 35, removed: 2 },
+			]),
+		})
+	}),
+	WithSessionWorkingSetOverflow: defineComponentFixture({
+		render: context => renderChatInput(context, {
+			sessionWorkingSet: true,
+			editingSession: createMockEditingSession(Array.from({ length: 9 }, (_, index) => ({
+				uri: `file:///workspace/src/file${index + 1}.ts`,
+				added: index + 1,
+				removed: index,
+			}))),
+		})
+	}),
 	WithTodos: defineComponentFixture({
 		render: context => renderChatInput(context, { todos: sampleTodos })
 	}),
@@ -299,6 +337,42 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
 	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
 	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
+	VoiceDictationFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceControl: 'dictationIdle', focusVoiceControl: 'dictation' }),
+	}),
+	VoiceModeFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceControl: 'voiceIdle', focusVoiceControl: 'voice' }),
+	}),
+	VoiceInputModeDictationFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceInputMode: true, focusVoiceControl: 'dictation' }),
+	}),
+	VoiceInputModeVoiceFocused: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(context, { voiceInputMode: true, focusVoiceControl: 'voice' }),
+	}),
+	// The segmented voice pill at the chat view's minimum width: the pickers
+	// collapse into the overflow menu so the send button and the voice pill stay
+	// inside the input (#331228).
+	NarrowWithVoiceInputMode: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: async context => {
+			await renderChatInput(context, { voiceInputMode: true, width: 150 });
+			const inputContainer = context.container.querySelector<HTMLElement>('.chat-input-container');
+			const inputToolbar = context.container.querySelector<HTMLElement>('.chat-input-toolbar');
+			const submit = context.container.querySelector<HTMLElement>('.chat-execute-toolbar .chat-submit-button');
+			assert(!!inputContainer && !!inputToolbar && !!submit && submit.checkVisibility());
+			const submitOverflow = submit.getBoundingClientRect().right - inputContainer.getBoundingClientRect().right;
+			assert(submitOverflow <= 0, `The send button must not overflow the chat input, got ${submitOverflow}px of overflow.`);
+			const inputToolbarRight = inputToolbar.getBoundingClientRect().right;
+			for (const item of inputToolbar.querySelectorAll<HTMLElement>('.action-item')) {
+				assert(item.getBoundingClientRect().right <= inputToolbarRight + 1, 'Input toolbar actions must move into the overflow menu instead of being clipped.');
+			}
+			assert(!!inputToolbar.querySelector('.monaco-action-bar.has-overflow'), 'The collapsed pickers must stay reachable from the overflow menu.');
+		},
+	}),
 
 	// Where the pet lands, with and without a notice docked above the input (#332570).
 	WithPet: defineComponentFixture({ render: context => renderChatInput(context, { pet: true }) }),

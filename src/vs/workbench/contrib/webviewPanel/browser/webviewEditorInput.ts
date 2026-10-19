@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,7 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInputCapabilities, GroupIdentifier, IEditorPaneSelection, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
 
@@ -23,6 +25,12 @@ export interface WebviewInputInitInfo {
 }
 
 export class WebviewInput extends EditorInput {
+
+	public async applyOptions(_options: IEditorOptions, _token: CancellationToken): Promise<void> { }
+
+	public getSelection(): IEditorPaneSelection | undefined {
+		return undefined;
+	}
 
 	public static typeId = 'workbench.editors.webviewInput';
 

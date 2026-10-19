@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -14,9 +14,11 @@ import { buildCompareTurnsChangesetUri } from '../../../../common/changesetUri.j
 import type { ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildDefaultChatUri, ROOT_STATE_URI, type ChangesetState } from '../../../../common/state/sessionState.js';
+import { ROOT_STATE_URI, type ChangesetState } from '../../../../common/state/sessionState.js';
 import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 
 export function defineProviderCheckpointTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity') {
@@ -25,7 +27,7 @@ export function defineProviderCheckpointTests(context: IAgentHostE2ETestContext)
 	let sequence = 60_000;
 
 	async function createSession(prefix: string, prepare?: (workspace: string) => void): Promise<{ session: string; workspace: string; chat: string }> {
-		const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-provider-checkpoint-')));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-provider-checkpoint-'));
 		context.tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: workspace });
@@ -38,7 +40,7 @@ export function defineProviderCheckpointTests(context: IAgentHostE2ETestContext)
 		const session = await createRealSession(context.client, context.config, `checkpoint-${prefix}-${context.config.provider}`, context.createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, session, 'baseline', 'Reply exactly "ready". Do not use tools.', sequence);
 		sequence += 100;
-		return { session, workspace, chat: buildDefaultChatUri(session) };
+		return { session, workspace, chat: defaultChatChannel(session) };
 	}
 
 	async function edit(session: string, turn: string, script: string): Promise<void> {

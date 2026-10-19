@@ -23,6 +23,8 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('CodexProviderSwitchTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const snapshotTestStartTime = 1_000_000;
+
 	test('joins an accepted provider transition to its session, chat and turn', () => {
 		const telemetry = new TestTelemetryService();
 		const correlation = { agentSessionId: 'session', chatSessionId: 'chat', turnId: 'turn' };
@@ -48,8 +50,8 @@ suite('CodexProviderSwitchTelemetry', () => {
 	}
 
 	test('reports the accepted turn snapshot after its observation window', async () => {
-		const now = 1_000_000;
-		await runWithFakedTimers({ useFakeTimers: true, startTime: now }, async () => {
+		await runWithFakedTimers({ useFakeTimers: true, startTime: snapshotTestStartTime }, async () => {
+			const now = snapshotTestStartTime;
 			const telemetryService = new TestTelemetryService();
 			const snapshot = getCodexAccountTelemetryContext(
 				{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus', email: 'person@example.com' },
@@ -62,6 +64,7 @@ suite('CodexProviderSwitchTelemetry', () => {
 				data: {
 					fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: true,
 					chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40,
+					chatgptFiveHourQuotaState: 'missing',
 				},
 			}]);
 		});
@@ -74,7 +77,7 @@ suite('CodexProviderSwitchTelemetry', () => {
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			name: 'agentHost.codexProviderSwitch',
-			data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+			data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 		}]);
 	});
 

@@ -8,11 +8,11 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore, Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../../common/agentHostSessionWorkspace.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -34,6 +34,9 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -599,6 +602,36 @@ suite('SessionsTerminalContribution', () => {
 		});
 	}
 
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		test(`${mode} retains the session terminal when sibling chats share a cwd`, async () => {
+			contribution.dispose();
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }));
+			contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
+			const original = makeAgentSession({ repository: URI.file('/same'), providerType: AgentSessionProviders.Local });
+			const main = original.activeChat.get();
+			const peer = { ...main, resource: URI.parse('opaque:/peer') };
+			const session = { ...original, chats: constObservable([main, peer]) };
+			activeSessionObs.set(session, undefined);
+			await tick();
+			session.activeChat.set(peer, undefined);
+			await tick();
+			session.activeChat.set(main, undefined);
+			await tick();
+
+			assert.deepStrictEqual({
+				createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
+				activeInstanceId,
+				backgrounded: [...backgroundedInstances],
+				disposed: disposedInstances.map(instance => instance.instanceId),
+			}, {
+				createdCwds: [URI.file('/same').fsPath],
+				activeInstanceId: 1,
+				backgrounded: [],
+				disposed: [],
+			});
+		});
+	}
+
 	test('updates the terminal cwd when the active chat workspace changes', async () => {
 		const session = makeAgentSession({ repository: URI.file('/repo-a'), providerType: AgentSessionProviders.Local });
 		activeSessionObs.set(session, undefined);
@@ -644,6 +677,57 @@ suite('SessionsTerminalContribution', () => {
 
 		assert.strictEqual(createdTerminals.length, 1);
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+	});
+
+	test('uses the host working directory for a workspaceless remote session', async () => {
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-sandbox';
+			override readonly remoteAddress = 'sandbox';
+			override getWorkingDirectory(): string { return 'file:///root'; }
+		};
+		sessionProviders.set(provider.id, provider);
+		cwdExists = () => false;
+		const session = makeAgentSession({ providerId: provider.id, remoteConnectionStatus: { kind: 'connected' } });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			cwds: createdTerminals.map(terminal => terminal.cwd.toString()),
+			addresses: agentHostTerminalAddresses,
+			defaultCwd: defaultCwdCalls.at(-1)?.toString(),
+		}, {
+			cwds: ['file:///root'],
+			addresses: ['sandbox'],
+			defaultCwd: 'file:///root',
+		});
+	});
+
+	test('waits for a remote working directory rather than using the local home', async () => {
+		const workingDirectory = observableValue<string | undefined>('remoteWorkingDirectory', undefined);
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly id = 'agenthost-remote';
+			override readonly remoteAddress = 'remote';
+			override getWorkingDirectory(_sessionId: string, reader?: IReader): string | undefined { return workingDirectory.read(reader); }
+		};
+		sessionProviders.set(provider.id, provider);
+		const session = makeAgentSession({ providerId: provider.id, remoteConnectionStatus: { kind: 'connected' } });
+		activeSessionObs.set(session, undefined);
+		await tick();
+		const before = createdTerminals.map(terminal => terminal.cwd.toString());
+		workingDirectory.set('file:///home/remote-user', undefined);
+		await tick();
+
+		assert.deepStrictEqual({
+			before,
+			after: createdTerminals.map(terminal => terminal.cwd.toString()),
+			addresses: agentHostTerminalAddresses,
+			defaultCwd: defaultCwdCalls.at(-1)?.toString(),
+		}, {
+			before: [],
+			after: ['file:///home/remote-user'],
+			addresses: ['remote'],
+			defaultCwd: 'file:///home/remote-user',
+		});
 	});
 
 	test('creates separate terminals when different non-background sessions share the home directory', async () => {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { StringOrMarkdown } from '../../common/state/sessionState.js';
-import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
+import { buildServerToolGroups, getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 function text(value: StringOrMarkdown | undefined): string | undefined {
 	if (value === undefined) {
@@ -84,13 +84,13 @@ suite('serverToolGroups display', () => {
 			isolated: confirmation(true),
 		}, {
 			direct: {
-				title: 'Continue in app?',
-				message: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
 				hideInput: true,
 			},
 			isolated: {
-				title: 'Continue in app?',
-				message: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				hideInput: true,
 			},
 		});
@@ -130,5 +130,20 @@ suite('serverToolGroups display', () => {
 	test('unknown tools return undefined so callers fall back to their generic display', () => {
 		assert.strictEqual(getServerToolDisplay('bash', { command: 'ls' }), undefined);
 		assert.strictEqual(getServerToolDisplay('someClientTool', undefined), undefined);
+	});
+});
+
+suite('serverToolGroups deferral budget', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// A Copilot session sends every server tool with `deferLoading: false` on every
+	// model request. See AGENTS.md §9 before changing this baseline.
+	const definitions = buildServerToolGroups().flatMap(group => group.definitions);
+
+	test('the eager server tool set is the reviewed baseline', () => {
+		assert.deepStrictEqual(definitions.filter(def => def.deferLoading === false).map(def => def.name), [
+			'add_artifact_or_reference',
+		]);
 	});
 });

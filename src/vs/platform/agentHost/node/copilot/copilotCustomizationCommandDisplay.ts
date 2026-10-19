@@ -6,6 +6,7 @@
 import { appendEscapedMarkdownCodeBlockFence, appendEscapedMarkdownInlineCode, escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import type { CopilotSession } from '@github/copilot-sdk';
 import { localize } from '../../../../nls.js';
+import { SYNCED_CUSTOMIZATION_DISPLAY_NAME } from '../../common/agentHostFileSystemService.js';
 import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 type CopilotPluginsApi = CopilotSession['rpc']['plugins'];
@@ -14,7 +15,30 @@ export type ICopilotPluginCommandApi = Pick<CopilotPluginsApi, 'list' | 'install
 	readonly marketplaces: Pick<CopilotPluginsApi['marketplaces'], 'add' | 'remove' | 'list' | 'browse' | 'refresh'>;
 };
 
-export function getCopilotCustomizationCommandHandler(command: RuntimeSlashCommandInfo, plugins?: ICopilotPluginCommandApi): ICopilotSlashCommandHandler | undefined {
+export async function installCopilotPlugin(plugins: ICopilotPluginCommandApi, source: string) {
+	const result = await plugins.install({ source });
+	await plugins.reload();
+	return result;
+}
+
+export async function uninstallCopilotPlugin(plugins: ICopilotPluginCommandApi, name: string, directSourceId?: string): Promise<void> {
+	await plugins.uninstall({ name, directSourceId });
+	await plugins.reload();
+}
+
+export async function removeCopilotPluginMarketplace(plugins: ICopilotPluginCommandApi, name: string, force?: boolean) {
+	const result = await plugins.marketplaces.remove({ name, force });
+	if (force && result.removed) {
+		await plugins.reload();
+	}
+	return result;
+}
+
+export function getCopilotCustomizationCommandHandler(
+	command: RuntimeSlashCommandInfo,
+	plugins?: ICopilotPluginCommandApi,
+	getInstalledPlugins?: () => Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins']>,
+): ICopilotSlashCommandHandler | undefined {
 	if (command.kind !== 'builtin' || !['mcp', 'plugin', 'skills'].includes(command.name)) {
 		return undefined;
 	}
@@ -22,12 +46,12 @@ export function getCopilotCustomizationCommandHandler(command: RuntimeSlashComma
 		invoke: command.name === 'plugin' && plugins ? input => invokeCopilotPluginCommand(input, plugins) : undefined,
 		getProgressMessage: command.name === 'plugin' && plugins ? getCopilotPluginProgressMessage : undefined,
 		showProgressImmediately: command.name === 'plugin' && plugins ? input => splitCommand(input).command === 'install' : undefined,
-		getOutput: (input, result) => {
+		getOutput: async (input, result) => {
 			switch (command.name) {
 				case 'mcp':
 					return formatCopilotMcpOutput(input, result);
 				case 'plugin':
-					return formatCopilotPluginOutput(input, result);
+					return formatCopilotPluginOutput(input, result, getInstalledPlugins ? await getInstalledPlugins() : undefined);
 				case 'skills':
 					return formatCopilotSkillsOutput(input, result);
 			}
@@ -79,8 +103,7 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 			if (!rest) {
 				return pluginUsage(localize('copilotPlugin.installUsage', "Usage: /plugin install <source>"));
 			}
-			const result = await plugins.install({ source: rest });
-			await plugins.reload();
+			const result = await installCopilotPlugin(plugins, rest);
 			const details = [
 				localize('copilotPlugin.installed', "Installed plugin {0}.", pluginDisplayName(result.plugin.name, result.plugin.marketplace)),
 				result.plugin.version ? localize('copilotPlugin.installedVersion', "Version: {0}", result.plugin.version) : undefined,
@@ -98,8 +121,7 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 			if (!rest) {
 				return pluginUsage(localize('copilotPlugin.uninstallUsage', "Usage: /plugin uninstall <plugin>"));
 			}
-			await plugins.uninstall({ name: rest });
-			await plugins.reload();
+			await uninstallCopilotPlugin(plugins, rest);
 			return pluginResult(localize('copilotPlugin.uninstalled', "Uninstalled plugin {0}.", rest));
 		case 'update': {
 			if (!rest) {
@@ -118,10 +140,18 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 				return pluginUsage(localize('copilotPlugin.enablementUsage', "Usage: /plugin {0} <plugin>", command));
 			}
 			const plugin = await findPlugin(rest, plugins);
+			if (!plugin) {
+				if (command === 'disable') {
+					return pluginUsage(localize('copilotPlugin.notFound', "Plugin {0} is not installed.", rest));
+				}
+				await plugins.enable({ names: [rest] });
+				await plugins.reload();
+				return pluginResult(localize('copilotPlugin.enabled', "Enabled plugin {0}.", rest));
+			}
 			if (typeof plugin === 'string') {
 				return pluginUsage(plugin);
 			}
-			if (!plugin.marketplace) {
+			if (plugin.directSourceId !== undefined) {
 				return pluginUsage(localize('copilotPlugin.directEnablementUnsupported', "Plugin {0} is installed directly and cannot be enabled or disabled. Uninstall it instead.", rest));
 			}
 			const enabled = command === 'enable';
@@ -131,9 +161,9 @@ export async function invokeCopilotPluginCommand(input: string, plugins: ICopilo
 					: localize('copilotPlugin.alreadyDisabled', "Plugin {0} is already disabled.", rest));
 			}
 			if (command === 'enable') {
-				await plugins.enable({ names: [rest] });
+				await plugins.enable({ names: [plugin.name] });
 			} else {
-				await plugins.disable({ names: [rest] });
+				await plugins.disable({ names: [plugin.name] });
 			}
 			await plugins.reload();
 			return pluginResult(command === 'enable'
@@ -164,16 +194,13 @@ async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICo
 			if (!name || args.some(arg => arg !== '--force' && arg !== name)) {
 				return pluginUsage(localize('copilotPlugin.marketplaceRemoveUsage', "Usage: /plugin marketplace remove <name> [--force]"));
 			}
-			const result = await plugins.marketplaces.remove({ name, force });
+			const result = await removeCopilotPluginMarketplace(plugins, name, force);
 			if (!result.removed) {
 				return pluginResult([
 					localize('copilotPlugin.marketplaceNotRemoved', "Marketplace {0} was not removed because it has installed plugins.", name),
 					...(result.dependentPlugins ?? []).map(plugin => `- ${plugin}`),
 					localize('copilotPlugin.marketplaceRemoveForce', "Run /plugin marketplace remove {0} --force to uninstall them and remove the marketplace.", name),
 				].join('\n'), false);
-			}
-			if (force) {
-				await plugins.reload();
 			}
 			return pluginResult(localize('copilotPlugin.marketplaceRemoved', "Removed plugin marketplace {0}.", name));
 		}
@@ -197,10 +224,13 @@ async function invokeCopilotPluginMarketplaceCommand(input: string, plugins: ICo
 			if (!result.plugins.length) {
 				return pluginResult(localize('copilotPlugin.marketplaceEmpty', "Marketplace {0} contains no plugins.", rest), false);
 			}
-			return pluginResult([
-				localize('copilotPlugin.marketplacePlugins', "Plugins in {0}:", rest),
-				...result.plugins.map(plugin => `- ${plugin.name}:${plugin.description ? ` ${plugin.description}` : ''}`),
-			].join('\n'), false);
+			const heading = localize('copilotPlugin.marketplacePlugins', "Plugins in {0}", rest);
+			const lines = [`# ${escapeCustomizationMarkdownText(heading)}`, ''];
+			for (const plugin of result.plugins) {
+				const description = plugin.description ? ` — ${escapeCustomizationMarkdownText(plugin.description)}` : '';
+				lines.push(`- ${appendEscapedMarkdownInlineCode(plugin.name)}${description}`);
+			}
+			return { kind: 'text', text: lines.join('\n'), markdown: true };
 		}
 		case 'update':
 		case 'refresh': {
@@ -236,10 +266,10 @@ function splitCommand(input: string): { command: string; rest: string } {
 	};
 }
 
-async function findPlugin(target: string, plugins: ICopilotPluginCommandApi): Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'][number] | string> {
+async function findPlugin(target: string, plugins: ICopilotPluginCommandApi): Promise<Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'][number] | string | undefined> {
 	const matches = (await plugins.list()).plugins.filter(plugin => pluginDisplayName(plugin.name, plugin.marketplace) === target || plugin.name === target);
 	if (!matches.length) {
-		return localize('copilotPlugin.notFound', "Plugin {0} is not installed.", target);
+		return undefined;
 	}
 	if (matches.length > 1) {
 		return localize('copilotPlugin.ambiguous', "Multiple plugins are named {0}. Use the full plugin@marketplace name.", target);
@@ -497,25 +527,26 @@ function formatCopilotMcpServer(line: string, details: readonly string[]): strin
 	];
 }
 
-function formatCopilotPluginOutput(input: string, result: CopilotSlashCommandResult): CopilotSlashCommandOutput | undefined {
+function formatCopilotPluginOutput(
+	input: string,
+	result: CopilotSlashCommandResult,
+	installedPlugins?: Awaited<ReturnType<ICopilotPluginCommandApi['list']>>['plugins'],
+): CopilotSlashCommandOutput | undefined {
 	const subcommand = input.trim().toLowerCase();
 	if (!isPlainTextResult(result)) {
 		return undefined;
 	}
 
 	const lines = result.text.trimEnd().split(/\r?\n/);
-	const namedDescriptionList = formatNamedDescriptionList(lines);
-	if (namedDescriptionList) {
-		return namedDescriptionList;
-	}
 	if (!['', 'list', 'ls'].includes(subcommand)) {
 		return undefined;
 	}
-	if (lines.length < 3 || lines[0] !== 'Installed Plugins:' || lines[1] !== '') {
+	if (lines[0] !== 'Installed Plugins:' || (lines[1] !== undefined && lines[1] !== '')) {
 		return undefined;
 	}
 
 	const output = [`# ${localize('copilotPlugins.installed', "Installed plugins")}`, ''];
+	const listedPluginNames = new Set<string>();
 	for (const line of lines.slice(2)) {
 		const match = /^  • (?<plugin>.+?)(?<disabled> \(disabled\))?$/.exec(line);
 		if (!match?.groups?.plugin) {
@@ -527,28 +558,28 @@ function formatCopilotPluginOutput(input: string, result: CopilotSlashCommandRes
 		if (versionMatch) {
 			plugin = plugin.slice(0, versionMatch.index);
 		}
-		const disabled = match.groups.disabled
+		if (plugin === SYNCED_CUSTOMIZATION_DISPLAY_NAME) {
+			continue;
+		}
+		const installedPluginMatches = installedPlugins?.filter(installedPlugin => pluginDisplayName(installedPlugin.name, installedPlugin.marketplace) === plugin || installedPlugin.name === plugin);
+		const installedPlugin = installedPluginMatches?.length === 1 ? installedPluginMatches[0] : undefined;
+		if (installedPlugin) {
+			plugin = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
+		}
+		listedPluginNames.add(plugin);
+		const disabled = match.groups.disabled || installedPlugin?.enabled === false
 			? ` (${localize('copilotPlugins.disabled', "disabled")})`
 			: '';
 		output.push(`- ${appendEscapedMarkdownInlineCode(plugin)}${version ? ` — v${escapeCustomizationMarkdownText(version)}` : ''}${disabled}`);
 	}
-	return { kind: 'text', text: output.join('\n'), markdown: true };
-}
-
-function formatNamedDescriptionList(lines: readonly string[]): CopilotSlashCommandOutput | undefined {
-	const title = /^(?<title>.+):$/.exec(lines[0])?.groups?.title;
-	if (!title || lines.length < 2) {
-		return undefined;
-	}
-
-	const output = [`# ${escapeCustomizationMarkdownText(title)}`, ''];
-	for (const line of lines.slice(1)) {
-		const item = /^- (?<name>[^:]+):(?<description>.*)$/.exec(line)?.groups;
-		if (!item?.name) {
-			return undefined;
+	for (const installedPlugin of installedPlugins ?? []) {
+		const qualifiedName = pluginDisplayName(installedPlugin.name, installedPlugin.marketplace);
+		if (installedPlugin.enabled || installedPlugin.installed === false || installedPlugin.name === SYNCED_CUSTOMIZATION_DISPLAY_NAME
+			|| listedPluginNames.has(qualifiedName)) {
+			continue;
 		}
-		const description = item.description.trim();
-		output.push(`- ${appendEscapedMarkdownInlineCode(item.name.trim())}${description ? ` — ${escapeCustomizationMarkdownText(description)}` : ''}`);
+		const version = installedPlugin.version ? ` — v${escapeCustomizationMarkdownText(installedPlugin.version)}` : '';
+		output.push(`- ${appendEscapedMarkdownInlineCode(qualifiedName)}${version} (${localize('copilotPlugins.disabled', "disabled")})`);
 	}
 	return { kind: 'text', text: output.join('\n'), markdown: true };
 }

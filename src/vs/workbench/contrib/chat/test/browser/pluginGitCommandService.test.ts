@@ -4,514 +4,581 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { dirname } from '../../../../../base/common/resources.js';
+import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { AccountClient } from '../../../../../platform/github/common/account/accountClient.js';
+import { AnonymousClient } from '../../../../../platform/github/common/anonymous/anonymousClient.js';
+import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../platform/github/common/client/request.js';
+import { GitTreeEntry, GitTreeEntryMode } from '../../../../../platform/github/common/content/content.js';
+import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IRequestContext, IRequestOptions } from '../../../../../base/parts/request/common/request.js';
-import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { BrowserPluginGitCommandService } from '../../browser/pluginGitCommandService.js';
 import { parseGitHubCloneUrl } from '../../browser/githubRepoFetcher.js';
 
 suite('BrowserPluginGitCommandService', () => {
-
 	const disposables = new DisposableStore();
+	const sha1 = '1'.repeat(40);
+	const sha2 = '2'.repeat(40);
+	const targetDir = URI.from({ scheme: Schemas.inMemory, path: '/cache/github.com/octocat/hello' });
 	let fileService: FileService;
-	let requestStub: StubRequestService;
+	let github: StubGitHubService;
+	let authentication: StubAuthenticationService;
 	let storage: InMemoryStorageService;
 	let service: BrowserPluginGitCommandService;
 
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
-		requestStub = new StubRequestService();
+		github = new StubGitHubService(disposables);
+		authentication = new StubAuthenticationService();
 		storage = disposables.add(new InMemoryStorageService());
-		service = new BrowserPluginGitCommandService(
-			fileService,
-			new NullLogService(),
-			requestStub as unknown as IRequestService,
-			storage,
-			stubAuthenticationService(),
-		);
+		service = new BrowserPluginGitCommandService(fileService, new NullLogService(), github, storage, authentication);
 	});
 
-	teardown(() => disposables.clear());
+	teardown(() => {
+		try {
+			assert.ok(github.leases.every(lease => lease.disposed), 'Every operation must release its API client');
+		} finally {
+			disposables.clear();
+		}
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const targetDir = URI.from({ scheme: Schemas.inMemory, path: '/cache/github.com/octocat/hello' });
-
-	// ---- parseGitHubCloneUrl -----------------------------------------------
+	async function clone(files: Record<string, string> = { 'a.txt': 'old' }): Promise<void> {
+		queueResolve(github, sha1);
+		queueRepoFetch(github, sha1, files);
+		await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+	}
 
 	suite('parseGitHubCloneUrl', () => {
-		test('parses canonical github HTTPS clone URL', () => {
-			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World.git'), { owner: 'octocat', repo: 'Hello-World' });
+		test('parses GitHub HTTPS URLs with optional suffix and trailing slash', () => {
+			assert.deepStrictEqual([
+				'https://github.com/octocat/Hello-World.git',
+				'https://github.com/octocat/Hello-World/',
+				'https://github.com/octocat/Hello-World.git/',
+				'https://www.github.com/octocat/Hello-World',
+			].map(parseGitHubCloneUrl), Array(4).fill({ owner: 'octocat', name: 'Hello-World' }));
 		});
 
-		test('strips trailing slash and missing .git suffix', () => {
-			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World/'), { owner: 'octocat', repo: 'Hello-World' });
-			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World'), { owner: 'octocat', repo: 'Hello-World' });
-			// Order of trim + .git strip matters: trailing slash first, then .git
-			assert.deepStrictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World.git/'), { owner: 'octocat', repo: 'Hello-World' });
-		});
-
-		test('rejects URLs with extra path segments', () => {
-			assert.strictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World/issues/42'), undefined);
-			assert.strictEqual(parseGitHubCloneUrl('https://github.com/octocat/Hello-World/tree/main'), undefined);
-		});
-
-		test('rejects non-HTTPS, non-GitHub, and malformed URLs', () => {
-			assert.strictEqual(parseGitHubCloneUrl('git@github.com:octocat/repo.git'), undefined);
-			assert.strictEqual(parseGitHubCloneUrl('https://gitlab.com/octocat/repo.git'), undefined);
-			assert.strictEqual(parseGitHubCloneUrl('https://github.com/octocat'), undefined);
-			assert.strictEqual(parseGitHubCloneUrl('not-a-url'), undefined);
+		test('rejects unsupported hosts, protocols and extra path segments', () => {
+			assert.deepStrictEqual([
+				'https://github.com/octocat/Hello-World/issues/42',
+				'https://github.com/octocat/Hello-World/tree/main',
+				'git@github.com:octocat/repo.git',
+				'https://gitlab.com/octocat/repo.git',
+				'https://github.com/octocat',
+				'not-a-url',
+			].map(parseGitHubCloneUrl), Array(6).fill(undefined));
 		});
 	});
-
-	// ---- cloneRepository ----------------------------------------------------
 
 	suite('cloneRepository', () => {
+		test('named Git tree modes match the API wire representation', () => {
+			assert.deepStrictEqual([
+				GitTreeEntryMode.File, GitTreeEntryMode.ExecutableFile, GitTreeEntryMode.Directory,
+				GitTreeEntryMode.SymbolicLink, GitTreeEntryMode.Submodule,
+			], ['100644', '100755', '040000', '120000', '160000']);
+		});
+
 		test('rejects non-GitHub clone URLs with an actionable message', async () => {
-			await assert.rejects(
-				() => service.cloneRepository('https://gitlab.com/foo/bar.git', targetDir),
-				/can only be installed from GitHub HTTPS URLs/,
-			);
+			await assert.rejects(service.cloneRepository('https://gitlab.com/foo/bar.git', targetDir), /can only be installed from GitHub HTTPS URLs/);
+			assert.strictEqual(github.leases.length, 0);
 		});
 
-		test('downloads tree + blobs and persists SHA metadata', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'deadbeef' }));
-			queueRepoFetch(requestStub, 'deadbeef', {
-				'README.md': 'hello\n',
-				'src/index.js': 'console.log(1);',
-			});
-
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			const readme = await fileService.readFile(URI.joinPath(targetDir, 'README.md'));
-			assert.strictEqual(readme.value.toString(), 'hello\n');
-			const index = await fileService.readFile(URI.joinPath(targetDir, 'src/index.js'));
-			assert.strictEqual(index.value.toString(), 'console.log(1);');
-
-			// revParse should now answer from the persisted metadata.
-			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), 'deadbeef');
-		});
-
-		test('surfaces a sign-in message on 401 when auth is unavailable', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, plainResponse(401));
-
-			await assert.rejects(
-				() => service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main'),
-				/Sign in to GitHub/,
-			);
-		});
-
-		test('surfaces a GitHubRateLimitError on 403 with X-RateLimit-Remaining: 0', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403, VSBuffer.fromString('rate limit'), {
-				'x-ratelimit-remaining': '0',
-				'retry-after': '60',
-			}));
-
-			let captured: unknown;
-			try {
-				await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-				assert.fail('expected rejection');
-			} catch (err) {
-				captured = err;
-			}
-			assert.ok(captured instanceof Error && captured.name === 'GitHubRateLimitError', `expected GitHubRateLimitError, got ${(captured as Error)?.name}`);
-		});
-
-		test('requests GitHub auth and retries when GitHub returns 403', async () => {
-			const state = { createSessionCalls: 0 };
-			service = new BrowserPluginGitCommandService(
-				fileService,
-				new NullLogService(),
-				requestStub as unknown as IRequestService,
-				storage,
-				stubAuthenticationService({ createdAccessToken: 'repo-token', state }),
-			);
-
-			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403));
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', { 'private.txt': 'secret' });
-
-			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
-
-			const file = await fileService.readFile(URI.joinPath(targetDir, 'private.txt'));
-			assert.strictEqual(file.value.toString(), 'secret');
-			assert.strictEqual(state.createSessionCalls, 1);
-		});
-
-		test('uses an existing signed-in GitHub session before falling back to anonymous requests', async () => {
-			service = new BrowserPluginGitCommandService(
-				fileService,
-				new NullLogService(),
-				requestStub as unknown as IRequestService,
-				storage,
-				stubAuthenticationService({ sessions: [createAuthenticationSession('signed-in-token')] }),
-			);
-
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', { 'auth.txt': 'authed' });
-
-			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
-
-			assert.strictEqual(requestStub.requests[0].headers?.Authorization, 'Bearer signed-in-token');
-			assert.strictEqual(requestStub.requests[1].headers?.Authorization, 'Bearer signed-in-token');
-			assert.strictEqual(requestStub.requests[2].headers?.Authorization, 'Bearer signed-in-token');
-		});
-
-		test('falls back to anonymous when the signed-in GitHub session is rejected', async () => {
-			const state = { createSessionCalls: 0 };
-			service = new BrowserPluginGitCommandService(
-				fileService,
-				new NullLogService(),
-				requestStub as unknown as IRequestService,
-				storage,
-				stubAuthenticationService({ sessions: [createAuthenticationSession('sso-blocked-token')], state }),
-			);
-
-			requestStub.queue('GET', /\/commits\/main$/, plainResponse(403));
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', { 'public.txt': 'public' });
-
-			await service.cloneRepository('https://github.com/octocat/Public.git', targetDir, 'main');
-
-			const file = await fileService.readFile(URI.joinPath(targetDir, 'public.txt'));
-			assert.strictEqual(file.value.toString(), 'public');
-			assert.strictEqual(requestStub.requests[0].headers?.Authorization, 'Bearer sso-blocked-token');
-			assert.strictEqual(requestStub.requests[1].headers?.Authorization, undefined);
-			assert.strictEqual(requestStub.requests[2].headers?.Authorization, undefined);
-			assert.strictEqual(state.createSessionCalls, 0);
-		});
-
-		test('failed extraction leaves the previous targetDir intact', async () => {
-			// First install: succeeds.
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', { 'keep.txt': 'preserved' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			// Second install: tree fetch returns 500 -> aborts before touching the staged dir.
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
-			requestStub.queue('GET', /\/git\/trees\/sha2/, plainResponse(500, VSBuffer.fromString('boom')));
-
-			await assert.rejects(() => service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'));
-
-			// Original tree still readable; cache still reports old SHA.
-			const keep = await fileService.readFile(URI.joinPath(targetDir, 'keep.txt'));
-			assert.strictEqual(keep.value.toString(), 'preserved');
-			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), 'sha1');
-		});
-
-		test('skips symlink and submodule entries', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/git\/trees\/sha1/, jsonResponse(200, {
-				sha: 'sha1',
-				truncated: false,
-				tree: [
-					{ path: 'README.md', mode: '100644', type: 'blob', sha: 'b-readme', size: 3 },
-					{ path: 'link.txt', mode: '120000', type: 'blob', sha: 'b-link', size: 8 },
-					{ path: 'subrepo', mode: '160000', type: 'commit', sha: 'b-sub' },
+		test('uses typed ref, tree and blob requests and persists SHA metadata', async () => {
+			await clone({ 'README.md': 'hello\n', 'src/index.js': 'console.log(1);' });
+			assert.deepStrictEqual({
+				readme: (await fileService.readFile(URI.joinPath(targetDir, 'README.md'))).value.toString(),
+				source: (await fileService.readFile(URI.joinPath(targetDir, 'src/index.js'))).value.toString(),
+				sha: await service.revParse(targetDir, 'HEAD'),
+				requests: github.requests.map(({ request }) => ({ path: request.path, accept: request.accept, caller: request.options?.caller, priority: request.options?.priority, noCache: request.options?.noCache })),
+			}, {
+				readme: 'hello\n', source: 'console.log(1);', sha: sha1,
+				requests: [
+					{ path: '/repos/octocat/Hello-World/commits/main', accept: 'application/vnd.github.sha', caller: 'pluginGit.resolveSha', priority: undefined, noCache: undefined },
+					{ path: `/repos/octocat/Hello-World/git/trees/${sha1}?recursive=1`, accept: 'application/vnd.github+json', caller: 'pluginGit.tree', priority: undefined, noCache: true },
+					{ path: '/repos/octocat/Hello-World/git/blobs/b0', accept: 'application/vnd.github+json', caller: 'pluginGit.blob', priority: undefined, noCache: true },
+					{ path: '/repos/octocat/Hello-World/git/blobs/b1', accept: 'application/vnd.github+json', caller: 'pluginGit.blob', priority: undefined, noCache: true },
 				],
-			}));
-			requestStub.queue('GET', /\/git\/blobs\/b-readme$/, jsonResponse(200, { content: encodeBase64(new TextEncoder().encode('hi\n')), encoding: 'base64' }));
-
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			assert.strictEqual((await fileService.readFile(URI.joinPath(targetDir, 'README.md'))).value.toString(), 'hi\n');
-			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, 'link.txt')), false);
-			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, 'subrepo')), false);
+			});
 		});
-	});
 
-	// ---- pull ---------------------------------------------------------------
+		test('resolves HEAD when no ref was supplied', async () => {
+			queueResolve(github, sha1, 'HEAD');
+			queueRepoFetch(github, sha1, { 'a.txt': 'a' });
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir);
+			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), sha1);
+		});
+
+		test('surfaces a sign-in message when no repository session can be created', async () => {
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main'), /Sign in to GitHub/);
+			assert.strictEqual(authentication.createSessionCalls, 1);
+		});
+
+		for (const kind of ['rateLimit', 'network', 'server', 'notFound'] as const) {
+			test(`${kind} failures do not trigger anonymous fallback or sign-in`, async () => {
+				authentication.sessions = [session('existing', ['repo'])];
+				const error = new GitHubRequestError('Request failed', kind, kind === 'rateLimit' ? 403 : undefined);
+				github.queue(/\/commits\/main$/, error);
+				await assert.rejects(service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'), candidate => candidate === error);
+				assert.deepStrictEqual({ grants: github.leases.map(lease => lease.authorization?.sessionId), prompts: authentication.createSessionCalls }, {
+					grants: ['existing'], prompts: 0,
+				});
+			});
+		}
+
+		test('requests repository access only after an anonymous authorization failure', async () => {
+			authentication.createdSession = session('created', ['repo']);
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Forbidden', 'authorization', 403));
+			queueResolve(github, sha1);
+			queueRepoFetch(github, sha1, { 'private.txt': 'secret' });
+			await service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main');
+			assert.deepStrictEqual({
+				grants: github.leases.map(lease => lease.authorization), prompts: authentication.createSessionCalls,
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'private.txt'))).value.toString(),
+			}, {
+				grants: [undefined, { providerId: 'github', sessionId: 'created', accountId: 'octocat', scopes: ['repo'] }],
+				prompts: 1, content: 'secret',
+			});
+		});
+
+		test('prefers an existing repository session and forwards its exact grant without tokens', async () => {
+			authentication.sessions = [session('profile', ['read:user']), session('repository', ['repo', 'read:user'])];
+			await clone();
+			assert.deepStrictEqual({
+				grants: github.leases.map(lease => lease.authorization),
+				requestGrants: github.requests.map(request => request.authorization?.sessionId),
+				prompts: authentication.createSessionCalls,
+			}, {
+				grants: [{ providerId: 'github', sessionId: 'repository', accountId: 'octocat', scopes: ['repo', 'read:user'] }],
+				requestGrants: ['repository', 'repository', 'repository'], prompts: 0,
+			});
+		});
+
+		test('falls back to anonymous when the signed-in grant is rejected', async () => {
+			authentication.sessions = [session('sso-blocked', ['repo'])];
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Forbidden', 'authorization', 403));
+			await clone();
+			assert.deepStrictEqual({ grants: github.leases.map(lease => lease.authorization?.sessionId), prompts: authentication.createSessionCalls }, {
+				grants: ['sso-blocked', undefined], prompts: 0,
+			});
+		});
+
+		test('uses the newly requested grant after both existing and anonymous access fail', async () => {
+			authentication.sessions = [session('old')];
+			authentication.createdSession = session('new', ['repo']);
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Forbidden', 'authorization', 403));
+			await clone();
+			assert.deepStrictEqual({ grants: github.leases.map(lease => lease.authorization?.sessionId), prompts: authentication.createSessionCalls }, {
+				grants: ['old', undefined, 'new'], prompts: 1,
+			});
+		});
+
+		test('reports exhausted authentication attempts without another prompt', async () => {
+			authentication.createdSession = session('created', ['repo']);
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Forbidden', 'authorization', 403));
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main'), /GitHub authentication is required to install/);
+			assert.strictEqual(authentication.createSessionCalls, 1);
+		});
+
+		test('a malformed response is not treated as missing authentication', async () => {
+			github.queue(/\/commits\/main$/, { status: 200, data: 'not-a-sha' });
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'), { name: 'SchemaError' });
+			assert.strictEqual(authentication.createSessionCalls, 0);
+		});
+
+		test('pre-cancellation does not acquire a client or prompt', async () => {
+			const cancellation = disposables.add(new CancellationTokenSource());
+			cancellation.cancel();
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Private.git', targetDir, 'main', cancellation.token), { name: 'Canceled' });
+			assert.deepStrictEqual({ leases: github.leases.length, prompts: authentication.createSessionCalls }, { leases: 0, prompts: 0 });
+		});
+
+		test('failed extraction leaves the previous target and metadata intact', async () => {
+			await clone({ 'keep.txt': 'preserved' });
+			queueResolve(github, sha2);
+			github.queue(new RegExp(`/git/trees/${sha2}`), new GitHubRequestError('Failed tree', 'server', 500));
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'));
+			assert.deepStrictEqual({
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'keep.txt'))).value.toString(), sha: await service.revParse(targetDir, 'HEAD'),
+			}, { content: 'preserved', sha: sha1 });
+		});
+
+		test('skips symlinks and submodules while preserving binary blob contents', async () => {
+			queueResolve(github, sha1);
+			queueTree(github, sha1, [
+				{ path: 'binary.bin', mode: GitTreeEntryMode.File, type: 'blob', sha: 'binary' },
+				{ path: 'link', mode: GitTreeEntryMode.SymbolicLink, type: 'blob', sha: 'link' },
+				{ path: 'subrepo', mode: GitTreeEntryMode.Submodule, type: 'commit', sha: 'subrepo' },
+			]);
+			const binary = VSBuffer.wrap(new Uint8Array([0, 255, 128, 10]));
+			github.queue(/\/git\/blobs\/binary$/, jsonResponse({ ...blob('binary', binary), content: encodeBase64(binary).replace(/.{4}/g, '$&\n') }));
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+			assert.deepStrictEqual({
+				bytes: [...(await fileService.readFile(URI.joinPath(targetDir, 'binary.bin'))).value.buffer],
+				link: await fileService.exists(URI.joinPath(targetDir, 'link')),
+				submodule: await fileService.exists(URI.joinPath(targetDir, 'subrepo')),
+			}, { bytes: [0, 255, 128, 10], link: false, submodule: false });
+		});
+
+		test('keeps at most ten blob downloads active', async () => {
+			queueResolve(github, sha1);
+			const entries: GitTreeEntry[] = Array.from({ length: 12 }, (_, index) => ({ path: `${index}.txt`, mode: GitTreeEntryMode.File, type: 'blob', sha: `blob${index}` }));
+			queueTree(github, sha1, entries);
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			let active = 0;
+			let maximum = 0;
+			for (const entry of entries) {
+				github.queue(new RegExp(`/git/blobs/${entry.sha}$`), async () => {
+					maximum = Math.max(maximum, ++active);
+					if (active === 10) {
+						void started.complete();
+					}
+					await release.p;
+					active--;
+					return jsonResponse(blob(entry.sha, VSBuffer.fromString(entry.path)));
+				});
+			}
+			const pending = service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+			await started.p;
+			const initiallyStarted = github.requests.filter(value => value.request.path.includes('/git/blobs/')).length;
+			await release.complete();
+			await pending;
+			assert.deepStrictEqual({ maximum, initiallyStarted, active, files: (await fileService.resolve(targetDir)).children?.length }, {
+				maximum: 10, initiallyStarted: 10, active: 0, files: 12,
+			});
+		});
+
+		test('preserves the existing warning for truncated trees', async () => {
+			const warnings: string[] = [];
+			const log = new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			service = new BrowserPluginGitCommandService(fileService, log, github, storage, authentication);
+			queueResolve(github, sha1);
+			queueTree(github, sha1, [{ path: 'included.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'included' }], true);
+			github.queue(/\/git\/blobs\/included$/, jsonResponse(blob('included', VSBuffer.fromString('included'))));
+			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+			assert.deepStrictEqual({
+				warned: warnings.some(message => message.includes('is truncated')),
+				files: (await fileService.resolve(targetDir)).children?.map(child => child.name),
+			}, { warned: true, files: ['included.txt'] });
+		});
+
+		test('drains cancelled peer downloads before removing a failed staging directory', async () => {
+			await clone({ 'keep.txt': 'preserved' });
+			queueResolve(github, sha2);
+			queueTree(github, sha2, [
+				{ path: 'late.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'late' },
+				{ path: 'failed.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'failed' },
+			]);
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			github.queue(/\/git\/blobs\/late$/, async () => {
+				await started.complete();
+				await release.p;
+				return jsonResponse(blob('late', VSBuffer.fromString('late')));
+			});
+			const failure = new GitHubRequestError('Failed blob', 'server', 500);
+			github.queue(/\/git\/blobs\/failed$/, failure);
+			const pending = service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+			let settled = false;
+			const rejected = assert.rejects(pending, error => error === failure).then(() => { settled = true; });
+			await started.p;
+			await timeout(0);
+			const settledBeforePeer = settled;
+			const peerCancelled = github.requests.find(value => value.request.path.endsWith('/blobs/late'))?.signal.aborted;
+			await release.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				settledBeforePeer, peerCancelled, sha: await service.revParse(targetDir, 'HEAD'),
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'keep.txt'))).value.toString(),
+				directories: (await fileService.resolve(dirname(targetDir))).children?.map(child => child.name),
+			}, { settledBeforePeer: false, peerCancelled: true, sha: sha1, content: 'preserved', directories: ['hello'] });
+		});
+
+		test('grant invalidation during clone cancels without anonymous fallback or sign-in', async () => {
+			authentication.sessions = [session('existing', ['repo'])];
+			await clone();
+			queueResolve(github, sha2);
+			queueTree(github, sha2, [{ path: 'a.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'revoked' }]);
+			github.queue(/\/git\/blobs\/revoked$/, async signal => {
+				github.leases.at(-1)!.invalidate();
+				signal.throwIfAborted();
+				return jsonResponse(blob('revoked', VSBuffer.fromString('new')));
+			});
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
+			await assert.rejects(service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main'), { name: 'Canceled' });
+			assert.deepStrictEqual({
+				grants: github.leases.map(lease => lease.authorization?.sessionId),
+				prompts: authentication.createSessionCalls,
+				sha: await service.revParse(targetDir, 'HEAD'),
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'a.txt'))).value.toString(),
+				directories: (await fileService.resolve(dirname(targetDir))).children?.map(child => child.name),
+			}, { grants: ['existing', 'existing'], prompts: 0, sha: sha1, content: 'old', directories: ['hello'] });
+		});
+
+		for (const stop of ['cancel', 'invalidate'] as const) {
+			test(`${stop} during a blob read prevents publication and authentication retry`, async () => {
+				authentication.sessions = [session('existing', ['repo'])];
+				await clone();
+				const cancellation = disposables.add(new CancellationTokenSource());
+				queueResolve(github, sha2);
+				queueTree(github, sha2, [{ path: 'a.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'stopped' }]);
+				github.queue(/\/git\/blobs\/stopped$/, async () => {
+					if (stop === 'cancel') {
+						cancellation.cancel();
+					} else {
+						github.leases.at(-1)!.invalidate();
+					}
+					return jsonResponse(blob('stopped', VSBuffer.fromString('new')));
+				});
+				await assert.rejects(service.pull(targetDir, cancellation.token), { name: 'Canceled' });
+				assert.deepStrictEqual({
+					sha: await service.revParse(targetDir, 'HEAD'),
+					content: (await fileService.readFile(URI.joinPath(targetDir, 'a.txt'))).value.toString(),
+					prompts: authentication.createSessionCalls,
+					directories: (await fileService.resolve(dirname(targetDir))).children?.map(child => child.name),
+				}, { sha: sha1, content: 'old', prompts: 0, directories: ['hello'] });
+			});
+		}
+	});
 
 	suite('pull', () => {
-		test('returns false when upstream SHA is unchanged', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', { 'a.txt': 'a' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-
-			assert.strictEqual(await service.pull(targetDir), false);
+		test('returns false without fetching the tree when the SHA is unchanged', async () => {
+			await clone();
+			queueResolve(github, sha1);
+			assert.deepStrictEqual({ changed: await service.pull(targetDir), requests: github.requests.length }, { changed: false, requests: 4 });
 		});
 
-		test('re-downloads tree and returns true when SHA moves', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', { 'a.txt': 'old' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
-			queueRepoFetch(requestStub, 'sha2', { 'a.txt': 'new' });
-
-			assert.strictEqual(await service.pull(targetDir), true);
-			const a = await fileService.readFile(URI.joinPath(targetDir, 'a.txt'));
-			assert.strictEqual(a.value.toString(), 'new');
-			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), 'sha2');
+		test('updates changed files, removes stale files and persists the new SHA', async () => {
+			await clone({ 'keep.txt': 'old', 'removed.txt': 'obsolete' });
+			queueResolve(github, sha2);
+			queueRepoFetch(github, sha2, { 'keep.txt': 'new' });
+			assert.deepStrictEqual({
+				changed: await service.pull(targetDir),
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'keep.txt'))).value.toString(),
+				staleFileExists: await fileService.exists(URI.joinPath(targetDir, 'removed.txt')),
+				sha: await service.revParse(targetDir, 'HEAD'),
+			}, { changed: true, content: 'new', staleFileExists: false, sha: sha2 });
 		});
 
-		test('throws when called for a target with no cached metadata', async () => {
-			await assert.rejects(() => service.pull(targetDir), /no cached metadata/);
+		test('rejects missing cached metadata', async () => {
+			await assert.rejects(service.pull(targetDir), /no cached metadata/);
 		});
 
-		test('clears stale files from a prior extraction', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			queueRepoFetch(requestStub, 'sha1', {
-				'keep.txt': 'k1',
-				'removed.txt': 'will be deleted',
+		test('does not prompt or change credentials when an update is unauthorized', async () => {
+			await clone();
+			authentication.sessions = [session('update', ['repo'])];
+			github.queue(/\/commits\/main$/, new GitHubRequestError('Forbidden', 'authorization', 403));
+			await assert.rejects(service.pull(targetDir), { kind: 'authorization' });
+			assert.deepStrictEqual({ prompts: authentication.createSessionCalls, sha: await service.revParse(targetDir, 'HEAD'), leases: github.leases.length }, {
+				prompts: 0, sha: sha1, leases: 2,
 			});
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha2' }));
-			queueRepoFetch(requestStub, 'sha2', { 'keep.txt': 'k2' });
-			assert.strictEqual(await service.pull(targetDir), true);
-
-			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, 'removed.txt')), false);
-			const keep = await fileService.readFile(URI.joinPath(targetDir, 'keep.txt'));
-			assert.strictEqual(keep.value.toString(), 'k2');
 		});
 
-		test('rejects path-traversal entries in the tree', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/git\/trees\/sha1/, jsonResponse(200, {
-				sha: 'sha1',
-				truncated: false,
-				tree: [
-					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b-safe', size: 4 },
-					{ path: '../escaped.txt', mode: '100644', type: 'blob', sha: 'b-escape', size: 4 },
-				],
-			}));
-			requestStub.queue('GET', /\/git\/blobs\/b-safe$/, jsonResponse(200, { content: encodeBase64(new TextEncoder().encode('safe')), encoding: 'base64' }));
-
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			// safe entry written; escaped entry was rejected and never written
-			// to a sibling of `targetDir` (or anywhere outside it).
-			const safe = await fileService.readFile(URI.joinPath(targetDir, 'safe.txt'));
-			assert.strictEqual(safe.value.toString(), 'safe');
-			const escapedSibling = URI.from({ scheme: targetDir.scheme, path: '/cache/github.com/octocat/escaped.txt' });
-			assert.strictEqual(await fileService.exists(escapedSibling), false);
-		});
-
-		test('rejects backslash-traversal entries (Windows path separator)', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'sha1' }));
-			requestStub.queue('GET', /\/git\/trees\/sha1/, jsonResponse(200, {
-				sha: 'sha1',
-				truncated: false,
-				tree: [
-					{ path: 'safe.txt', mode: '100644', type: 'blob', sha: 'b-safe', size: 4 },
-					{ path: '..\\..\\escaped.txt', mode: '100644', type: 'blob', sha: 'b-escape', size: 4 },
-				],
-			}));
-			requestStub.queue('GET', /\/git\/blobs\/b-safe$/, jsonResponse(200, { content: encodeBase64(new TextEncoder().encode('safe')), encoding: 'base64' }));
-
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			const safe = await fileService.readFile(URI.joinPath(targetDir, 'safe.txt'));
-			assert.strictEqual(safe.value.toString(), 'safe');
-			// The malicious entry should not have been written under any
-			// reasonable interpretation of its path.
-			assert.strictEqual(await fileService.exists(URI.joinPath(targetDir, '..\\..\\escaped.txt')), false);
-		});
+		for (const unsafe of ['../escaped.txt', '..\\..\\escaped.txt', '/absolute.txt', 'nul\0.txt']) {
+			test(`skips an unsafe tree path (${JSON.stringify(unsafe)})`, async () => {
+				queueResolve(github, sha1);
+				queueTree(github, sha1, [
+					{ path: 'safe.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'safe' },
+					{ path: unsafe, mode: GitTreeEntryMode.File, type: 'blob', sha: 'unsafe' },
+				]);
+				github.queue(/\/git\/blobs\/safe$/, jsonResponse(blob('safe', VSBuffer.fromString('safe'))));
+				await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
+				assert.deepStrictEqual({
+					files: (await fileService.resolve(targetDir)).children?.map(child => child.name),
+					content: (await fileService.readFile(URI.joinPath(targetDir, 'safe.txt'))).value.toString(),
+					unsafeRequested: github.requests.some(value => value.request.path.endsWith('/unsafe')),
+				}, { files: ['safe.txt'], content: 'safe', unsafeRequested: false });
+			});
+		}
 	});
-
-	// ---- checkout -----------------------------------------------------------
 
 	suite('checkout', () => {
-		test('no-ops when the requested SHA matches the cached SHA', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'aabbccddeeff00112233445566778899aabbccdd' }));
-			queueRepoFetch(requestStub, 'aabbccddeeff00112233445566778899aabbccdd', { 'a.txt': 'a' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			// No additional queued responses — checkout to the same SHA must
-			// not issue any HTTP calls.
-			await service.checkout(targetDir, 'aabbccddeeff00112233445566778899aabbccdd', true);
+		test('cached exact SHAs need no requests for either checkout operation', async () => {
+			await clone();
+			await service.checkout(targetDir, sha1, true);
+			await service.checkoutCommit(targetDir, sha1);
+			assert.deepStrictEqual({ requests: github.requests.length, leases: github.leases.length, sha: await service.revParse(targetDir, 'HEAD') }, {
+				requests: 3, leases: 1, sha: sha1,
+			});
 		});
 
-		test('re-extracts when the SHA differs', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: '1111111111111111111111111111111111111111' }));
-			queueRepoFetch(requestStub, '1111111111111111111111111111111111111111', { 'a.txt': 'old' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			queueRepoFetch(requestStub, '2222222222222222222222222222222222222222', { 'a.txt': 'new' });
-
-			await service.checkout(targetDir, '2222222222222222222222222222222222222222', true);
-
-			const a = await fileService.readFile(URI.joinPath(targetDir, 'a.txt'));
-			assert.strictEqual(a.value.toString(), 'new');
-			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), '2222222222222222222222222222222222222222');
+		test('materializes a different full SHA without ref resolution', async () => {
+			await clone();
+			queueRepoFetch(github, sha2, { 'a.txt': 'new' });
+			await service.checkout(targetDir, sha2, true);
+			assert.deepStrictEqual({
+				content: (await fileService.readFile(URI.joinPath(targetDir, 'a.txt'))).value.toString(), sha: await service.revParse(targetDir, 'HEAD'),
+			}, { content: 'new', sha: sha2 });
 		});
 
-		test('checkoutCommit accepts a cached exact SHA without a request', async () => {
-			const commit = 'aabbccddeeff00112233445566778899aabbccdd';
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: commit }));
-			queueRepoFetch(requestStub, commit, { 'a.txt': 'a' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			await service.checkoutCommit(targetDir, commit.toUpperCase());
-
-			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), commit);
+		test('resolves branch names and remembers the selected ref for later pulls', async () => {
+			await clone();
+			queueResolve(github, sha2, 'feature/next');
+			queueRepoFetch(github, sha2, { 'a.txt': 'next' });
+			await service.checkout(targetDir, 'feature/next');
+			queueResolve(github, sha2, 'feature/next');
+			assert.deepStrictEqual({ changed: await service.pull(targetDir), sha: await service.revParse(targetDir, 'HEAD') }, { changed: false, sha: sha2 });
 		});
 
-		test('checkoutCommit rejects when a SHA resolves to another commit', async () => {
-			const cachedCommit = '1111111111111111111111111111111111111111';
-			const pinnedCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: cachedCommit }));
-			queueRepoFetch(requestStub, cachedCommit, { 'a.txt': 'a' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-			requestStub.queue('GET', new RegExp(`/commits/${pinnedCommit}$`), jsonResponse(200, { sha: cachedCommit }));
-
-			await assert.rejects(() => service.checkoutCommit(targetDir, pinnedCommit), /resolved to a different commit/);
-
-			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), cachedCommit);
+		test('checkoutCommit validates and materializes the exact requested commit', async () => {
+			await clone();
+			const pinned = 'a'.repeat(40);
+			queueResolve(github, pinned, pinned);
+			queueRepoFetch(github, pinned, { 'a.txt': 'pinned' });
+			await service.checkoutCommit(targetDir, pinned.toUpperCase());
+			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), pinned);
 		});
 
-		test('throws when called for a target with no cached metadata', async () => {
-			await assert.rejects(() => service.checkout(targetDir, 'abc'), /no cached metadata/);
+		test('checkoutCommit rejects a mismatching resolved SHA without changing the cached tree', async () => {
+			await clone();
+			queueResolve(github, sha1, sha2);
+			await assert.rejects(service.checkoutCommit(targetDir, sha2), /resolved to a different commit/);
+			assert.strictEqual(await service.revParse(targetDir, 'HEAD'), sha1);
+		});
+
+		test('rejects missing metadata and invalid pinned SHAs', async () => {
+			await assert.rejects(service.checkout(targetDir, 'main'), /no cached metadata/);
+			await assert.rejects(service.checkoutCommit(targetDir, 'short'), /not a full SHA-1/);
 		});
 	});
 
-	// ---- revParse -----------------------------------------------------------
-
-	suite('revParse', () => {
-		test('throws when asked for an unrelated full SHA', async () => {
-			requestStub.queue('GET', /\/commits\/main$/, jsonResponse(200, { sha: 'aabbccddeeff00112233445566778899aabbccdd' }));
-			queueRepoFetch(requestStub, 'aabbccddeeff00112233445566778899aabbccdd', { 'a.txt': 'a' });
-			await service.cloneRepository('https://github.com/octocat/Hello-World.git', targetDir, 'main');
-
-			// Querying the cached SHA still works
-			assert.strictEqual(await service.revParse(targetDir, 'aabbccddeeff00112233445566778899aabbccdd'), 'aabbccddeeff00112233445566778899aabbccdd');
-			// Querying an unrelated SHA must not silently lie
-			await assert.rejects(() => service.revParse(targetDir, '1111111111111111111111111111111111111111'), /only HEAD/);
-		});
+	test('persisted metadata supports a new service instance without network reads', async () => {
+		await clone();
+		const restored = new BrowserPluginGitCommandService(fileService, new NullLogService(), github, storage, authentication);
+		assert.strictEqual(await restored.revParse(targetDir, 'HEAD'), sha1);
+		await assert.rejects(restored.revParse(targetDir, sha2), /only HEAD/);
 	});
 
-	// ---- noop ops -----------------------------------------------------------
-
-	test('fetch / fetchRepository / revListCount are inert', async () => {
+	test('fetch, fetchRepository and revListCount are inert', async () => {
 		await service.fetch(targetDir);
 		await service.fetchRepository(targetDir);
-		assert.strictEqual(await service.revListCount(targetDir, 'HEAD', '@{u}'), 0);
+		assert.deepStrictEqual({ count: await service.revListCount(targetDir, 'HEAD', '@{u}'), requests: github.requests.length }, { count: 0, requests: 0 });
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Test helpers
-// ---------------------------------------------------------------------------
+type ResponseFactory = ApiResponse<string> | Error | ((signal: AbortSignal) => Promise<ApiResponse<string>>);
 
-interface QueuedResponse {
-	readonly methodMatcher: string;
-	readonly urlMatcher: RegExp;
-	readonly response: () => IRequestContext;
-}
+class StubGitHubService extends mock<IWorkbenchGitHubService>() {
+	private readonly responses: { path: RegExp; response: ResponseFactory }[] = [];
+	readonly requests: { request: Omit<ApiRequest, 'body'>; authorization: GitHubAuthorizationContext | undefined; signal: AbortSignal }[] = [];
+	readonly leases: { authorization: GitHubAuthorizationContext | undefined; invalidate: () => void; disposed: boolean }[] = [];
 
-class StubRequestService implements Partial<IRequestService> {
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _queue: QueuedResponse[] = [];
-	readonly requests: IRequestOptions[] = [];
-
-	queue(method: string, urlMatcher: RegExp, response: () => IRequestContext): void {
-		this._queue.push({ methodMatcher: method, urlMatcher, response });
+	constructor(private readonly store: DisposableStore) {
+		super();
 	}
 
-	async request(options: IRequestOptions, _token: CancellationToken): Promise<IRequestContext> {
-		this.requests.push(options);
-		const url = options.url ?? '';
-		const method = options.type ?? 'GET';
-		const idx = this._queue.findIndex(q => q.methodMatcher === method && q.urlMatcher.test(url));
-		if (idx === -1) {
-			throw new Error(`No queued response for ${method} ${url}`);
+	queue(path: RegExp, response: ResponseFactory): void {
+		this.responses.push({ path, response });
+	}
+
+	override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<AccountClient> {
+		signal.throwIfAborted();
+		const { provider, lifetime, invalidated } = this.providers(authorization);
+		return this.store.add(new AccountClient(authorization, { rest: provider, graphql: provider, onDidInvalidate: invalidated.event }, lifetime));
+	}
+
+	override async acquireAnonymousApiClient(signal: AbortSignal): Promise<AnonymousClient> {
+		signal.throwIfAborted();
+		const { provider, lifetime } = this.providers(undefined);
+		return this.store.add(new AnonymousClient(provider, undefined, lifetime));
+	}
+
+	private providers(authorization: GitHubAuthorizationContext | undefined) {
+		const lifetime = new DisposableStore();
+		const invalidated = lifetime.add(new Emitter<void>());
+		const controller = new AbortController();
+		const lease = {
+			authorization, disposed: false,
+			invalidate: () => {
+				controller.abort(new GitHubRequestError('GitHub client grant is no longer available', 'authentication'));
+				invalidated.fire();
+			},
+		};
+		this.leases.push(lease);
+		lifetime.add(toDisposable(() => { lease.disposed = true; controller.abort(); }));
+		const take = async (request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string>> => {
+			this.requests.push({ request, authorization, signal });
+			const index = this.responses.findIndex(value => value.path.test(request.path));
+			assert.notStrictEqual(index, -1, `Unexpected ${request.method} ${request.path}`);
+			const [{ response }] = this.responses.splice(index, 1);
+			if (response instanceof Error) {
+				throw response;
+			}
+			return typeof response === 'function' ? response(signal) : response;
+		};
+		const provider = new class extends BufferedApiRequestProvider {
+			protected override execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string>> {
+				return take(request, signal);
+			}
+		}(controller.signal);
+		return { provider, lifetime, invalidated };
+	}
+}
+
+class StubAuthenticationService extends mock<IAuthenticationService>() {
+	sessions: readonly AuthenticationSession[] = [];
+	createdSession: AuthenticationSession | undefined;
+	createSessionCalls = 0;
+
+	override async getSessions(): Promise<readonly AuthenticationSession[]> {
+		return this.sessions;
+	}
+
+	override async createSession(providerId: string, scopes: string[], options?: { activateImmediate?: boolean }): Promise<AuthenticationSession> {
+		this.createSessionCalls++;
+		assert.deepStrictEqual({ providerId, scopes, options }, { providerId: 'github', scopes: ['repo'], options: { activateImmediate: true } });
+		if (!this.createdSession) {
+			throw new Error('No GitHub session available');
 		}
-		const [{ response }] = this._queue.splice(idx, 1);
-		return response();
+		return this.createdSession;
 	}
 }
 
-function plainResponse(statusCode: number, body: VSBuffer = VSBuffer.alloc(0), headers: Record<string, string> = {}): () => IRequestContext {
-	return () => ({
-		res: { statusCode, headers },
-		stream: bufferToStream(body),
-	});
+function session(id: string, scopes: readonly string[] = []): AuthenticationSession {
+	return { id, accessToken: `unused-${id}`, account: { label: 'octocat', id: 'octocat' }, scopes };
 }
 
-function jsonResponse(statusCode: number, body: unknown): () => IRequestContext {
-	return plainResponse(statusCode, VSBuffer.fromString(JSON.stringify(body)));
+function queueResolve(github: StubGitHubService, sha: string, ref = 'main'): void {
+	github.queue(new RegExp(`/commits/${escapeRegExpCharacters(encodeURIComponent(ref))}$`), { status: 200, data: sha });
 }
 
-/**
- * Queue stub responses representing a recursive Git Trees fetch followed
- * by per-blob `git/blobs/{sha}` downloads for the given commit SHA and
- * file map. The order of `files` does not matter; the request stub picks
- * the first regex that matches each outgoing URL.
- */
-function queueRepoFetch(stub: StubRequestService, sha: string, files: Record<string, string>): void {
+function jsonResponse(value: unknown): ApiResponse<string> {
+	return { status: 200, data: JSON.stringify(value) };
+}
+
+function queueTree(github: StubGitHubService, sha: string, tree: readonly GitTreeEntry[], truncated = false): void {
+	github.queue(new RegExp(`/git/trees/${sha}\\?recursive=1$`), jsonResponse({ sha, url: `https://api.github.com/tree/${sha}`, tree, truncated }));
+}
+
+function blob(sha: string, value: VSBuffer) {
+	return { sha, node_id: `blob-${sha}`, size: value.byteLength, url: `https://api.github.com/blob/${sha}`, encoding: 'base64', content: encodeBase64(value) };
+}
+
+function queueRepoFetch(github: StubGitHubService, sha: string, files: Record<string, string>): void {
 	const entries = Object.entries(files);
-	const tree = entries.map(([path, content], i) => ({
-		path,
-		mode: '100644',
-		type: 'blob' as const,
-		sha: `b${i}`,
-		size: content.length,
-	}));
-	stub.queue('GET', new RegExp(`/git/trees/${escapeForRegExp(sha)}\\?recursive=1$`), jsonResponse(200, { sha, tree, truncated: false }));
-	entries.forEach(([, content], i) => {
-		stub.queue('GET', blobShaMatcher(tree[i].sha), jsonResponse(200, {
-			content: encodeBase64(new TextEncoder().encode(content)),
-			encoding: 'base64',
-		}));
-	});
-}
-
-function blobShaMatcher(blobSha: string): RegExp {
-	return new RegExp(`/git/blobs/${escapeForRegExp(blobSha)}$`);
-}
-
-function encodeBase64(bytes: Uint8Array): string {
-	let binary = '';
-	for (let i = 0; i < bytes.length; i++) {
-		binary += String.fromCharCode(bytes[i]);
+	queueTree(github, sha, entries.map(([path, text], index) => ({ path, mode: GitTreeEntryMode.File, type: 'blob', sha: `b${index}`, size: VSBuffer.fromString(text).byteLength })));
+	for (const [index, [, text]] of entries.entries()) {
+		github.queue(new RegExp(`/git/blobs/b${index}$`), jsonResponse(blob(`b${index}`, VSBuffer.fromString(text))));
 	}
-	return btoa(binary);
-}
-
-function escapeForRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-interface IStubAuthenticationServiceOptions {
-	readonly sessions?: readonly AuthenticationSession[];
-	readonly createdAccessToken?: string;
-	readonly state?: { createSessionCalls: number };
-}
-
-function stubAuthenticationService(options: IStubAuthenticationServiceOptions = {}): IAuthenticationService {
-	return {
-		getSessions: async () => options.sessions ?? [],
-		createSession: async () => {
-			if (options.state) {
-				options.state.createSessionCalls++;
-			}
-			if (!options.createdAccessToken) {
-				throw new Error('No GitHub session available');
-			}
-			return { accessToken: options.createdAccessToken };
-		},
-	} as unknown as IAuthenticationService;
-}
-
-function createAuthenticationSession(accessToken: string, scopes: readonly string[] = []): AuthenticationSession {
-	return {
-		id: accessToken,
-		accessToken,
-		account: { label: 'octocat', id: 'octocat' },
-		scopes,
-	};
 }

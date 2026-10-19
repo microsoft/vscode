@@ -86,6 +86,7 @@ suite('StandardChatInputPillSources', () => {
 			artifacts: { sections },
 			references: { sections },
 			customizations: { sections },
+			canvases: { sections },
 			browsers: { sections },
 			subagents: { sections },
 			backgroundShells: { sections },
@@ -97,6 +98,7 @@ suite('StandardChatInputPillSources', () => {
 			SessionChatPillKind.Issues,
 			SessionChatPillKind.Artifacts,
 			SessionChatPillKind.References,
+			SessionChatPillKind.Canvases,
 			SessionChatPillKind.Browsers,
 		];
 		const subset = store.add(instantiationService.createInstance(StandardChatInputPillSources, data, supportedKinds));
@@ -171,6 +173,24 @@ suite('StandardChatInputPillSources', () => {
 			labels: ['1 Background Shell'],
 			popup: 'listbox',
 			label: 'Show 1 background shell',
+		});
+	});
+
+	test('a single subagent still opens a picker', () => {
+		const pills = createPills({
+			subagents: { sections: constObservable([{ title: 'Active subagents', entries: [{ id: 'subagent', label: 'Research', open: () => { } }] }]) },
+		});
+		pills.visibility.toggle(SessionChatPillKind.Subagents);
+		const button = pills.inputPills.element.querySelector('.chat-pill-button');
+
+		assert.deepStrictEqual({
+			labels: pills.labels(),
+			popup: button?.getAttribute('aria-haspopup'),
+			label: button?.getAttribute('aria-label'),
+		}, {
+			labels: ['1 Subagent'],
+			popup: 'listbox',
+			label: 'Show 1 subagent',
 		});
 	});
 
@@ -525,7 +545,7 @@ suite('StandardChatInputPillSources', () => {
 		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
 			.filter(action => action instanceof SubmenuAction).map(action => action.label);
 		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
-		const toggles = ['Pull Requests', ...otherKinds, '', 'Background Shells'];
+		const toggles = ['Pull Requests', ...otherKinds];
 		const expectedMenus = [
 			['Pull Requests Options', '', ...toggles],
 			...otherKinds.map(label => [`Hide ${label}`, '', 'Pull Requests Options', '', ...toggles]),

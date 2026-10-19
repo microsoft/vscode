@@ -32,7 +32,7 @@ import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+import { AbstractToolConfirmationSubPart, buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge } from './toolRiskBadgeHelper.js';
 
 type ModifiedFileConfirmationEntry = IChatModifiedFilesConfirmationData['modifiedFiles'][number];
@@ -122,7 +122,11 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				title: this.getTitle(),
 				icon: tool?.icon && hasKey(tool.icon, { id: true }) ? tool.icon : Codicon.tools,
 				subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
-				buttons: this.createButtons(data.options),
+				buttons: state.confirmationMessages.customOptions?.length
+					? buildCustomOptionButtons(state.confirmationMessages.customOptions, option => () => {
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+					})
+					: this.createButtons(data.options),
 				message: this.createWidgetContentElement(state.confirmationMessages.message, data),
 				footerBanner: createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)?.domNode
 					?? this.createRiskBadgeDomNode(state.parameters),

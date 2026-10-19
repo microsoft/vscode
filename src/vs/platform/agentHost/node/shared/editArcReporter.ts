@@ -20,7 +20,7 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostEditTelemetryEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
-import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
+import { isSubagentSession } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTelemetryService, isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
@@ -30,8 +30,13 @@ type IAgentHostEditArcTelemetryEvent = IEditArcTelemetryEvent & IAgentHostEventT
 type IAgentHostEditArcTelemetryClassification = IEditArcTelemetryClassification & IAgentHostEventClassification;
 
 export interface IEditArcReporterLaunchParams {
+	readonly provider?: string;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	readonly sessionUri: string;
+	/** The session that owns the edit's chat. */
+	readonly ownerSessionUri: string;
+	/** Whether the edit was made by a subagent chat, as known by the provider that ran it. */
+	readonly isSubagent: boolean;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	readonly filePath: string;
@@ -316,8 +321,8 @@ class EditArcReporter extends Disposable {
 	}
 
 	async emit(timeDelayMs: number): Promise<void> {
-		const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
-		const provider = AgentSession.provider(sessionUri) ?? 'unknown';
+		const sessionUri = this._params.ownerSessionUri;
+		const provider = this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown';
 		const originalLineCounts = new EditArcTracker(this._params.beforeText, this._params.initialEdit).getLineCountInfo();
 		const currentLineCounts = this._tracker.getLineCountInfo();
 		const event: IAgentHostEditArcTelemetryEvent = {
@@ -334,7 +339,7 @@ class EditArcReporter extends Disposable {
 			uniqueEditId: this._uniqueEditId,
 			provider,
 			agentSessionId: AgentSession.id(sessionUri),
-			isSubagentSession: isSubagentChatUri(this._params.sessionUri) || isSubagentSession(sessionUri) ? 'true' : 'false',
+			isSubagentSession: this._params.isSubagent || isSubagentSession(sessionUri) ? 'true' : 'false',
 			didBranchChange: await this._initialBranch === await this._getCurrentBranchName() ? 0 : 1,
 			timeDelayMs,
 			originalCharCount: this._tracker.getOriginalCharacterCount(),

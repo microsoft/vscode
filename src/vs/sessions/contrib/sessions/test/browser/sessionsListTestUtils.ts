@@ -147,16 +147,17 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
+	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = resource.with({ fragment: 'main' });
 		override readonly updatedAt = constObservable(now);
 		override readonly status = status;
+		override readonly isRead = isRead;
 		override readonly description = constObservable(undefined);
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
 	}();
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
-	const isRead = observableValue(`read-${resourceId}`, options.isRead ?? true);
 	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
 	const isQuickChat = options.isQuickChat ?? false;
@@ -213,6 +214,7 @@ export interface IListHarness {
 	readonly addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
+	readonly sectionReorders: Array<{ readonly visibleOrder: readonly string[]; readonly draggedId: string; readonly targetId: string; readonly position: 'before' | 'after'; readonly promoteId: string | undefined }>;
 	createContainer(width?: number, height?: number): HTMLElement;
 }
 
@@ -247,6 +249,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const archivedComparisonIds: string[] = [];
 	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
 	const sortChanges: ISortChangeRecord[] = [];
+	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ICommandService, commandService);
@@ -310,6 +313,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override resolveOrder(ids: readonly string[]) { return [...ids]; }
 		override isPromoted() { return false; }
 		override retain(): void { }
+		override reorder(visibleOrder: readonly string[], draggedId: string, targetId: string, position: 'before' | 'after', promoteId?: string): void {
+			sectionReorders.push({ visibleOrder: [...visibleOrder], draggedId, targetId, position, promoteId });
+		}
 	});
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 		override readonly onDidChange = Event.None;
@@ -352,5 +358,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, sectionReorders, createContainer };
 }

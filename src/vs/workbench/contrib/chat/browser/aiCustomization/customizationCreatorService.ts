@@ -43,7 +43,7 @@ export class CustomizationCreatorService {
 
 	) { }
 
-	async createWithAI(type: PromptsType): Promise<void> {
+	async createWithAI(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const currentSessionResource = this.harnessService.activeSessionResource.get();
 
 
@@ -75,6 +75,7 @@ export class CustomizationCreatorService {
 			currentSessionResource,
 			type,
 			'local',
+			workspaceFolder,
 		);
 		if (targetDir === null) {
 			return; // User cancelled the picker
@@ -134,14 +135,15 @@ export class CustomizationLocationPicker {
 	) { }
 
 	/** Resolves a writable target URI, or `null` when the user cancels destination selection. */
-	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<URI | undefined | null> {
-		const folder = await this.resolveTargetFolderWithPicker(sessionResource, type, target);
+	public async resolveTargetDirectoryWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user', workspaceFolder?: URI): Promise<URI | undefined | null> {
+		const folder = await this.resolveTargetFolderWithPicker(sessionResource, type, target, workspaceFolder);
 		return folder ? folder.uri : folder;
 	}
 
 	/** Resolves a writable target folder, asking the user when more than one destination is available. */
-	public async resolveTargetFolderWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user'): Promise<ICustomizationSourceFolder | undefined | null> {
-		const matchingFolders = await this.resolveTargetFolders(sessionResource, type, target);
+	public async resolveTargetFolderWithPicker(sessionResource: URI, type: PromptsType, target?: 'local' | 'user', workspaceFolder?: URI): Promise<ICustomizationSourceFolder | undefined | null> {
+		const matchingFolders = (await this.resolveTargetFolders(sessionResource, type, target))
+			?.filter(folder => !workspaceFolder || folder.source !== 'local' || folder.workspaceGroupId === workspaceFolder.toString());
 		if (!matchingFolders?.length) {
 			return undefined;
 		}
@@ -150,7 +152,7 @@ export class CustomizationLocationPicker {
 		}
 		const items: (IQuickPickItem & { folder: ICustomizationSourceFolder })[] = matchingFolders.map(folder => ({
 			label: folder.label,
-			description: this.labelService.getUriLabel(folder.uri, { relative: true }),
+			description: this.labelService.getUriLabel(folder.uri, { relative: true, noPrefix: !!workspaceFolder && folder.source === 'local' }),
 			folder,
 		}));
 		const picked = await this.quickInputService.pick(items, {
