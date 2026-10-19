@@ -89,28 +89,38 @@ suite('Sessions - Chat View', () => {
 
 	teardown(() => sinon.restore());
 
-	test('a chat answered by another harness than its session\'s presents that harness and selects from its models', () => {
+	test('a chat answered by another harness than its session\'s presents that harness and selects from its models once resolved', () => {
 		const sessionResource = URI.parse('agent-host-copilotcli:/session');
 		const chat = (fragment: string, harness?: string) => ({ resource: sessionResource.with({ fragment }), ...(harness ? { harness } : {}) } as IChat);
 		const main = chat('', 'copilot');
 		const sameHarness = chat('same');
 		const otherHarness = chat('other', 'claude');
-		const session = { sessionId: 'session', providerId: 'test', harness: 'copilot', chats: constObservable([main, sameHarness, otherHarness]) } as unknown as ISession;
+		const session = { sessionId: 'session', providerId: 'test', harness: 'copilot', resource: sessionResource, chats: constObservable([main, sameHarness, otherHarness]) } as unknown as ISession;
 		const known = observableValue<boolean>('known', false);
+		let otherTarget: string | undefined = undefined;
+		const onDidChangeModels = disposables.add(new Emitter<void>());
+		const provider = new class extends mock<ISessionsProvider>() {
+			override readonly onDidChangeModels = onDidChangeModels.event;
+			override readonly onDidChangeSessionTypes = VSCodeEvent.None;
+			override getModelsSnapshot(_sessionId: string, _desired?: string, chatResource?: URI) {
+				return { models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: chatResource?.fragment === 'other' ? otherTarget : 'agent-host-copilotcli' };
+			}
+			override getHarnessPresentation(harness: string, reader?: IReader) {
+				return known.read(reader) && harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined;
+			}
+		}();
 		const providers = new class extends mock<ISessionsProvidersService>() {
 			override getProvider<T extends ISessionsProvider>(): T | undefined {
-				return new class extends mock<ISessionsProvider>() {
-					override getModelsSnapshot(_sessionId: string, _desired?: string, chatResource?: URI) {
-						return { models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: chatResource?.fragment === 'other' ? 'agent-host-claude' : 'agent-host-copilotcli' };
-					}
-					override getHarnessPresentation(harness: string, reader?: IReader) {
-						return known.read(reader) && harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined;
-					}
-				}() as unknown as T;
+				return provider as unknown as T;
 			}
 		}();
 		const respondents: unknown[] = [];
 		disposables.add(autorun(reader => respondents.push(getChatRespondent(session, otherHarness.resource, providers, reader))));
+		// Not resolved apart from the session's own target yet, then resolved, then the harness presentation loads.
+		otherTarget = 'agent-host-copilotcli';
+		onDidChangeModels.fire();
+		otherTarget = 'agent-host-claude';
+		onDidChangeModels.fire();
 		known.set(true, undefined);
 
 		assert.deepStrictEqual({
@@ -121,6 +131,8 @@ suite('Sessions - Chat View', () => {
 			main: undefined,
 			sameHarness: undefined,
 			otherHarness: [
+				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: undefined },
+				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: undefined },
 				{ label: 'Other Harness', icon: Codicon.agent, modelSessionType: 'agent-host-claude' },
 				{ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' },
 			],

@@ -73,7 +73,7 @@ import { ClickAnimation } from '../../../../../base/browser/ui/animations/animat
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { focusChatModelFeedbackSurveyAction } from '../actions/chatModelFeedbackSurveyActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatResponseIdentity, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getCompactCodicon } from '../chatIcons.js';
 import { stripSystemNotificationWrapper } from '../chatRequestText.js';
 import { ChatModelFeedbackSurveyWidget } from '../feedbackSurvey/chatModelFeedbackSurveyWidget.js';
@@ -996,6 +996,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	set pendingDragController(controller: ChatPendingDragController) {
 		this._pendingDragController = controller;
+	}
+
+	/** Who responses are presented as coming from, when not the responding agent. */
+	get responseIdentity(): IChatResponseIdentity | undefined {
+		return this.rendererOptions.responseIdentity;
 	}
 
 	public updateOptions(options: IChatListItemRendererOptions): void {

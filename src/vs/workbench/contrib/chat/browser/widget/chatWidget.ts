@@ -489,6 +489,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Coding agent locking state
 	private _respondent: { readonly resource: URI; readonly respondent: IChatRespondent } | undefined;
+	private _appliedInputPlaceholder = false;
 	private _lockedAgent?: {
 		id: string;
 		name: string;
@@ -3029,11 +3030,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		logChangesToStateModel(model.inputModel, `ChatWidget.setModel new ${model.sessionResource.toString()}, old ${this.viewModel?.sessionResource.toString()}`, model.inputModel.state.get(), currentInputModel, this.logService);
-		if (this._respondent && !isEqual(this._respondent.resource, model.sessionResource)) {
-			// A respondent belongs to the chat it was set for; the host sets one again for the next chat.
+		// A respondent belongs to the chat it was set for: one set ahead for the incoming chat applies,
+		// any other is dropped (the host sets one again for the next chat).
+		const respondent = this._respondent && isEqual(this._respondent.resource, model.sessionResource) ? this._respondent.respondent : undefined;
+		if (!respondent && this._respondent) {
 			this._respondent = undefined;
-			this.listWidget.updateRendererOptions({ responseIdentity: undefined });
+			this.inputPart.setModelSessionTypeOverride(undefined);
 		}
+		this.listWidget.updateRendererOptions({ responseIdentity: respondent ? { label: respondent.label, icon: respondent.icon } : undefined });
 
 		if (this.viewModel?.editing) {
 			this.finishedEditing();
@@ -3225,18 +3229,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * type serves, or restores that agent's presentation. The input placeholder, response identity
 	 * and selectable models follow the respondent; requests still go to the session type's agent.
 	 */
-	setRespondent(respondent: IChatRespondent | undefined): void {
-		const resource = this.viewModel?.sessionResource;
+	setRespondent(respondent: IChatRespondent | undefined, resource: URI | undefined = this.viewModel?.sessionResource): void {
 		const next = respondent && resource ? { resource, respondent } : undefined;
 		const previous = this._respondent;
-		if (isEqual(previous?.resource, next?.resource) && previous?.respondent.label === next?.respondent.label
+		if (!!previous === !!next && isEqual(previous?.resource, next?.resource) && previous?.respondent.label === next?.respondent.label
 			&& previous?.respondent.modelSessionType === next?.respondent.modelSessionType && previous?.respondent.icon.id === next?.respondent.icon.id) {
 			return;
 		}
 		this._respondent = next;
-		this.inputPart.setModelSessionTypeOverride(next?.respondent.modelSessionType);
-		this.listWidget.updateRendererOptions({ responseIdentity: next ? { label: next.respondent.label, icon: next.respondent.icon } : undefined });
-		if (previous && !next) {
+		// Set ahead of binding (`resource` not yet bound), the pool applies from the chat's first model validation.
+		this.inputPart.setModelSessionTypeOverride(next ? { sessionType: next.respondent.modelSessionType } : undefined, next?.resource ?? previous?.resource);
+		const bound = this.viewModel?.sessionResource;
+		if (!isEqual(next?.resource, bound) && !isEqual(previous?.resource, bound)) {
+			return;
+		}
+		const boundRespondent = next && isEqual(next.resource, bound) ? next.respondent : undefined;
+		this.listWidget.updateRendererOptions({ responseIdentity: boundRespondent ? { label: boundRespondent.label, icon: boundRespondent.icon } : undefined });
+		if (previous && !boundRespondent) {
 			this.viewModel?.resetInputPlaceholder();
 		}
 		this._applyInputPlaceholder();
@@ -3257,8 +3266,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (placeholder) {
 			this.viewModel.setInputPlaceholder(placeholder);
 			this.inputEditor.updateOptions({ placeholder });
+			this._appliedInputPlaceholder = true;
 		} else if (this.viewModel.inputPlaceholder) {
 			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			this._appliedInputPlaceholder = true;
+		} else if (this._appliedInputPlaceholder) {
+			// Clear only a placeholder this widget set, so a widget that never had one stays untouched.
+			this.inputEditor.updateOptions({ placeholder: undefined });
+			this._appliedInputPlaceholder = false;
 		}
 	}
 

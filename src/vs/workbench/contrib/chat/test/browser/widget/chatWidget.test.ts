@@ -141,7 +141,7 @@ suite('ChatWidget', () => {
 		}, { whileHidden: 0, whenVisible: 1, privateData: false });
 	});
 
-	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
+	function createRespondentWidget(lockedAgent: boolean) {
 		const resource = URI.parse('agent-host-copilotcli:/session#peer');
 		let placeholder: string | undefined;
 		const viewModel = upcastPartial<ChatViewModel>({
@@ -152,32 +152,63 @@ suite('ChatWidget', () => {
 		});
 		const editorPlaceholders: (string | undefined)[] = [];
 		const rendererOptions: (IChatListItemRendererOptions['responseIdentity'])[] = [];
-		const modelSessionTypes: (string | undefined)[] = [];
+		const modelPools: ({ pool: string | undefined; resource: string | undefined } | undefined)[] = [];
 		const inputPart = upcastPartial<ChatInputPart>({
 			inputEditor: upcastPartial<CodeEditorWidget>({ updateOptions: (options: { placeholder?: string }) => { editorPlaceholders.push(options.placeholder); } }),
-			setModelSessionTypeOverride: (sessionType: string | undefined) => { modelSessionTypes.push(sessionType); },
+			setModelSessionTypeOverride: (override: { readonly sessionType: string | undefined } | undefined, target?: URI) => { modelPools.push(override && { pool: override.sessionType, resource: target?.fragment }); },
 		});
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_viewModel: viewModel,
-			_lockedAgent: { id: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', prefix: '@copilot ' },
+			...(lockedAgent ? { _lockedAgent: { id: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', prefix: '@copilot ' } } : {}),
+			_appliedInputPlaceholder: false,
 			inputPartDisposable: { value: inputPart },
 			configurationService: new TestConfigurationService(),
 			chatSessionsService: upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => undefined }),
 			listWidget: { updateRendererOptions: (options: IChatListItemRendererOptions) => { rendererOptions.push(options.responseIdentity); } },
 			rerenderListIfConnected: () => { },
 		});
+		return { widget, resource, get placeholder() { return placeholder; }, editorPlaceholders, rendererOptions, modelPools };
+	}
 
-		widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
-		const answeredByClaude = placeholder;
-		widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
-		widget.setRespondent(undefined);
+	test('presents a chat answered by another agent with that agent, and restores its session type\'s presentation', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		const answeredByClaude = harness.placeholder;
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' });
+		harness.widget.setRespondent(undefined);
 
-		assert.deepStrictEqual({ answeredByClaude, restored: placeholder, editorPlaceholders, rendererOptions, modelSessionTypes }, {
+		assert.deepStrictEqual({ answeredByClaude, restored: harness.placeholder, editorPlaceholders: harness.editorPlaceholders, rendererOptions: harness.rendererOptions, modelPools: harness.modelPools }, {
 			answeredByClaude: 'Chat with Claude',
 			restored: 'Chat with Copilot',
 			editorPlaceholders: ['Chat with Claude', 'Chat with Copilot'],
 			rendererOptions: [{ label: 'Claude', icon: Codicon.claude }, undefined],
-			modelSessionTypes: ['agent-host-claude', undefined],
+			modelPools: [{ pool: 'agent-host-claude', resource: 'peer' }, undefined],
+		});
+	});
+
+	test('clears its own placeholder when a respondent chat gives way to a plain chat, and never touches one it did not set', () => {
+		const untouched = createRespondentWidget(false);
+		untouched.widget.setRespondent(undefined);
+		const harness = createRespondentWidget(false);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: undefined });
+		harness.widget.setRespondent(undefined);
+
+		assert.deepStrictEqual({ untouched: untouched.editorPlaceholders, editorPlaceholders: harness.editorPlaceholders, placeholder: harness.placeholder, modelPools: harness.modelPools }, {
+			untouched: [],
+			editorPlaceholders: ['Chat with Claude', undefined],
+			placeholder: undefined,
+			modelPools: [{ pool: undefined, resource: 'peer' }, undefined],
+		});
+	});
+
+	test('a respondent set ahead for an incoming chat leaves the bound chat\'s presentation alone', () => {
+		const harness = createRespondentWidget(true);
+		harness.widget.setRespondent({ label: 'Claude', icon: Codicon.claude, modelSessionType: 'agent-host-claude' }, harness.resource.with({ fragment: 'incoming' }));
+
+		assert.deepStrictEqual({ editorPlaceholders: harness.editorPlaceholders, rendererOptions: harness.rendererOptions, modelPools: harness.modelPools }, {
+			editorPlaceholders: [],
+			rendererOptions: [],
+			modelPools: [{ pool: 'agent-host-claude', resource: 'incoming' }],
 		});
 	});
 

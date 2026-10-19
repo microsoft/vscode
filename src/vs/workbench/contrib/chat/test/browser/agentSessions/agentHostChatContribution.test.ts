@@ -14981,6 +14981,14 @@ suite('AgentHostChatContribution', () => {
 				};
 			}
 
+			test('every agent\'s session type owns its model pool, so a chat answered by it never falls back to another\'s models', async () => {
+				const { instantiationService, subscription, chatSessionContributions } = createRegistrationServices();
+				disposables.add(instantiationService.createInstance(AgentHostContribution));
+				subscription.handleSnapshot(rootState, 0);
+				await timeout(0);
+				assert.deepStrictEqual(chatSessionContributions.map(contribution => [contribution.type, contribution.requiresCustomModels]), [['agent-host-copilot', true], ['agent-host-claude', true]]);
+			});
+
 			for (const kind of ['Error', 'undefined'] as const) {
 				test(`configuration changes preserve executable registrations with an ${kind} root snapshot`, async () => {
 					const { instantiationService, agentHostService, subscription, makeRootUnavailable, changePreference, chatSessionContributions, contentProviders, modelProviders } = createRegistrationServices();

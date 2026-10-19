@@ -261,8 +261,8 @@ export interface IChatResponseIdentity {
 
 /** An agent answering a chat in place of the one its session type serves. */
 export interface IChatRespondent extends IChatResponseIdentity {
-	/** The session type whose models the chat selects from. */
-	readonly modelSessionType: string;
+	/** The session type whose models the chat selects from; `undefined` while not known, when none are offered. */
+	readonly modelSessionType: string | undefined;
 }
 
 export interface IChatListItemRendererOptions {

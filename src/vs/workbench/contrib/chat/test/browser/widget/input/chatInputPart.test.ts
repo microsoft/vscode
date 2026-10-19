@@ -112,20 +112,31 @@ suite('ChatInputPart', () => {
 
 		const withClaude = createModelPoolInput([copilot, claude]);
 		const sessionDefault = read(withClaude.inputPart);
-		withClaude.inputPart.setModelSessionTypeOverride('agent-host-claude');
+		withClaude.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
 		const overridden = read(withClaude.inputPart);
 		withClaude.inputPart.setModelSessionTypeOverride(undefined);
 		const restored = read(withClaude.inputPart);
 
 		const emptyVendor = createModelPoolInput([copilot]);
-		emptyVendor.inputPart.setModelSessionTypeOverride('agent-host-claude');
+		emptyVendor.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const unresolved = createModelPoolInput([copilot, claude]);
+		unresolved.inputPart.setModelSessionTypeOverride({ sessionType: undefined });
+		const whileUnresolved = read(unresolved.inputPart);
+		unresolved.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' });
+		const onceResolved = read(unresolved.inputPart);
+		const otherChat = createModelPoolInput([copilot, claude]);
+		otherChat.inputPart.setModelSessionTypeOverride({ sessionType: 'agent-host-claude' }, URI.parse('agent-host-copilotcli:/session#incoming'));
 
-		assert.deepStrictEqual({ sessionDefault, overridden, restored, revalidations: withClaude.revalidations, emptyVendor: read(emptyVendor.inputPart) }, {
+		assert.deepStrictEqual({ sessionDefault, overridden, restored, revalidations: withClaude.revalidations, emptyVendor: read(emptyVendor.inputPart), whileUnresolved, onceResolved, otherChat: { ...read(otherChat.inputPart), revalidations: otherChat.revalidations } }, {
 			sessionDefault: { target: 'agent-host-copilotcli', models: [copilot.identifier] },
 			overridden: { target: 'agent-host-claude', models: [claude.identifier] },
 			restored: { target: 'agent-host-copilotcli', models: [copilot.identifier] },
 			revalidations: ['agent-host-claude', 'agent-host-copilotcli'],
 			emptyVendor: { target: 'agent-host-claude', models: [] },
+			whileUnresolved: { target: 'agent-host-copilotcli', models: [] },
+			onceResolved: { target: 'agent-host-claude', models: [claude.identifier] },
+			// Set ahead for a chat that is not bound yet: the bound chat is not revalidated against it.
+			otherChat: { target: 'agent-host-copilotcli', models: [copilot.identifier], revalidations: [] },
 		});
 	});
 
