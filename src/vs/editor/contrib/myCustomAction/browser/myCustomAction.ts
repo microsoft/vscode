@@ -27,7 +27,7 @@ class MyCustomEditorAction extends EditorAction2 {
 	}
 
 	// 2. メニューがクリックされた時の実際の処理
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
 		const model = editor.getModel();
 		if (!model) { return; }
 
@@ -51,28 +51,27 @@ class MyCustomEditorAction extends EditorAction2 {
 				authority: parentDirUri.authority,
 				path: resources.joinPath(parentDirUri, newFileName).path
 			});
-			/*
-						const MAX_ATTEMPTS = 5;
-						let counter = 1;
-						while (counter <= MAX_ATTEMPTS) {
-							const isExist = fileService.exists(newFileUri);
-							if (!isExist) {
-								break;
-							}
-			
-							newFileName = `${base}_copy_${counter}${ext}`;
-							newFileUri = URI.from({
-								scheme: 'file',
-								authority: parentDirUri.authority,
-								path: resources.joinPath(parentDirUri, newFileName).path
-							});
-							counter++;
-						}
-			
-						if (counter > MAX_ATTEMPTS) {
-							throw new Error('作成可能なファイル名の空き制限（100回）を超過しました。');
-						}
-			*/
+
+			const MAX_ATTEMPTS = 100;
+			let counter = 1;
+			while (counter <= MAX_ATTEMPTS) {
+				const isExist = await fileService.exists(newFileUri);
+				if (!isExist) {
+					break;
+				}
+
+				newFileName = `${base}_copy_${counter}${ext}`;
+				newFileUri = URI.from({
+					scheme: 'file',
+					authority: parentDirUri.authority,
+					path: resources.joinPath(parentDirUri, newFileName).path
+				});
+				counter++;
+			}
+
+			if (counter > MAX_ATTEMPTS) {
+				throw new Error('作成可能なファイル名の空き制限（100回）を超過しました。');
+			}
 
 			try {
 				const buffer = VSBuffer.fromString(selectedText);
