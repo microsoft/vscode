@@ -754,6 +754,8 @@ The contract for provider-internal work that has no host call of its own (a plug
 
 Membership changes re-enter the same seam: a `session/chatAdded` envelope fans every current active client into the new exact chat. Client removal is likewise fanned out as `removeActiveClient(chat, context, clientId)`.
 
+Copilot reserves the names of host tools registered for the current launch before registering client tools with the SDK. A host tool omitted from that session does not hide a same-name client tool. Among clients contributing the same name to a chat, its message sender takes precedence, followed by client insertion order. Changing the selected definition refreshes the SDK at the next send or resume boundary. Calls are routed only to clients whose live definition matches the applied snapshot; an identical reconnect can take over, but a newly connected or updated client cannot execute an incompatible contract mid-turn.
+
 ### 8d. Prompt-cache metadata
 
 `IAgentHostPromptCache` (`node/agentHostPromptCache.ts`) exposes exactly `read(session)` / `write(session, state)` over the `vscode.promptCache` `_meta` slot. `write` re-reads the persisted value first (several live provider sessions can share one session URI), skips a no-op write, merges rather than replaces `_meta`, and returns the effective state.

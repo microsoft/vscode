@@ -86,7 +86,7 @@ import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
-import { ActiveClientToolSet } from '../activeClientState.js';
+import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
@@ -96,7 +96,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { NonPtyShellTerminalStreams, parseSpilledShellCompletion, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
 import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
-import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
@@ -1671,7 +1671,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Whether a client's host-published membership includes this chat. */
 	private readonly _clientReachesChat: (clientId: string, chat: URI) => boolean;
 	/** Tool names that are client-provided, derived from snapshot. */
-	private readonly _clientToolNames: ReadonlySet<string>;
+	private _clientToolNames: ReadonlySet<string>;
 	/** Tool-search decision supplied by the launcher that built this SDK session. */
 	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
@@ -1955,7 +1955,9 @@ export class CopilotAgentSession extends Disposable {
 		));
 		this._appliedAdditionalDirectories = [...(this._launchPlan.additionalDirectories ?? [])];
 		// Routing keeps the unfiltered set — the runtime is the enforcement point.
-		this._clientToolNames = clientToolNamesFromSnapshot(this._appliedSnapshot);
+		const serverToolNames = new Set(this._getServerToolDefinitions().map(tool => tool.name));
+		this._clientToolNames = new Set([...clientToolNamesFromSnapshot(this._appliedSnapshot)]
+			.filter(name => !serverToolNames.has(name)));
 		// Share the agent's live ActiveClientToolSet when provided so client
 		// contributions (and owner identity) are observed at stamp time.
 		// Standalone / test construction uses a fresh empty registry, which
@@ -2865,7 +2867,9 @@ export class CopilotAgentSession extends Disposable {
 	/** Resolves the owning client for a chat-scoped tool call, honoring host-published chat membership. */
 	private _resolveClientToolOwner(toolName: string): string | undefined {
 		const chat = this._chatChannelUri;
-		const provides = (clientId: string) => this._activeClientToolSet.get(clientId).some(tool => tool.name === toolName);
+		const applied = this._appliedSnapshot.tools.find(tool => tool.name === toolName);
+		const provides = (clientId: string) => !!applied && this._activeClientToolSet.get(clientId)
+			.some(tool => tool.name === toolName && structuralToolsEqual([applied], [tool]));
 		const preferred = this._currentTurn.value?.senderClientId;
 		if (preferred && this._clientReachesChat(preferred, chat) && provides(preferred)) {
 			return preferred;
@@ -3420,9 +3424,12 @@ export class CopilotAgentSession extends Disposable {
 	 * `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createClientSdkTools(toolSearchActive: boolean): Tool<any>[] {
+	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[] {
 		this._toolSearchActive = toolSearchActive;
-		const tools = this._appliedSnapshot.tools;
+		if (hostToolNames) {
+			this._clientToolNames = new Set([...this._clientToolNames].filter(name => !hostToolNames.has(name)));
+		}
+		const tools = this._appliedSnapshot.tools.filter(tool => this._clientToolNames.has(tool.name));
 		if (tools.length === 0) {
 			return [];
 		}
@@ -3700,6 +3707,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _getServerToolDefinitions(): readonly IAgentServerToolDefinition[] {
+		return (this._serverToolHost?.getDefinitionsForSession(this.launchOwner.toString()) ?? [])
+			.filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions);
+	}
+
 	/**
 	 * Builds SDK tool handlers for the agent host's server tools. Each handler
 	 * executes the tool against this session's state via the
@@ -3708,18 +3720,16 @@ export class CopilotAgentSession extends Disposable {
 	 * construction).
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createServerSdkTools(): Tool<any>[] {
+	private _createServerSdkTools(toolSearchActive = this._isToolSearchActive()): Tool<any>[] {
 		const host = this._serverToolHost;
 		if (!host) {
 			return [];
 		}
-		// Server tools are registered with the SDK at launch: the launch owner's.
-		const sessionUri = this.launchOwner.toString();
-		return host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
+		return this._getServerToolDefinitions().map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading !== false && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
+			defer: def.deferLoading !== false && toolSearchActive ? 'auto' as const : 'never' as const,
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
@@ -4390,8 +4400,8 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('unsandboxedConfirmation');
 				return measureAgentProviderOperation(recorder, 'unsandboxedConfirmation', () => this._requestUnsandboxedCommandConfirmation(request));
 			}, false, 'unsandboxed-command-confirmation'),
-			createClientSdkTools: toolSearchActive => this._createClientSdkTools(toolSearchActive),
-			createServerSdkTools: () => this._createServerSdkTools(),
+			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
+			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
@@ -6669,7 +6679,7 @@ export class CopilotAgentSession extends Disposable {
 
 			const serverToolHost = this._serverToolHost;
 			const serverToolName = request.kind === 'custom-tool' && typeof request.toolName === 'string'
-				&& serverToolHost?.toolNames.includes(request.toolName)
+				&& this._getServerToolDefinitions().some(tool => tool.name === request.toolName)
 				? request.toolName
 				: undefined;
 			if (serverToolHost && serverToolName) {
@@ -8318,7 +8328,7 @@ export class CopilotAgentSession extends Disposable {
 			// ourselves and drop the active-tool entry so the SDK's own
 			// tool.execution_complete for this id is suppressed.
 			if (isClientTool && !contributor && !isToolSearch) {
-				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
+				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client matching its advertised definition; failing it immediately.`);
 				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 				this._toolApprovalRecords.delete(e.data.toolCallId);
 				this._activeToolCalls.delete(e.data.toolCallId);
@@ -8340,13 +8350,13 @@ export class CopilotAgentSession extends Disposable {
 					result: {
 						success: false,
 						pastTenseMessage: `${displayName} failed`,
-						error: { message: `No client was connected to run ${displayName}` },
+						error: { message: `No client with the advertised tool definition was connected to run ${displayName}` },
 					},
 				}, parentToolCallId);
 				this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
-					textResultForLlm: `No client was connected to run ${displayName}.`,
+					textResultForLlm: `No client with the advertised tool definition was connected to run ${displayName}.`,
 					resultType: 'failure',
-					error: 'No client connected',
+					error: 'No matching client connected',
 				});
 				return;
 			}
