@@ -3287,7 +3287,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
 		}
 
-		const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
+		const sessionMove = this.resolveSessionMoveTarget(data, targetElement);
 		this.delegate.setMoveDropFeedback(!!sessionMove);
 		if (sessionMove) {
 			this.delegate.setDropTargetHeader(undefined);
@@ -3352,7 +3352,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 				return;
 			}
 
-			const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
+			const sessionMove = this.resolveSessionMoveTarget(data, targetElement);
 			if (sessionMove) {
 				this.delegate.moveSessionUnder(sessionMove.session, sessionMove.target);
 				return;
@@ -3417,15 +3417,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	/**
-	 * The session a single dragged session moves under when dropped on that session's row: anywhere on it, or only on
-	 * its middle half when the row is pinned or grouped, whose edges keep reordering, pinning and grouping sessions.
+	 * The session a single dragged session moves under when dropped anywhere on that session's row, like into a folder
+	 * in the Explorer, also when the row is pinned or grouped. Where it can't move under it, the row keeps reordering,
+	 * pinning and grouping sessions.
 	 */
-	private resolveSessionMoveTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly target: ISession } | undefined {
+	private resolveSessionMoveTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined): { readonly session: ISession; readonly target: ISession } | undefined {
 		if (!targetElement || !isSessionItem(targetElement)) {
-			return undefined;
-		}
-		const keepsEdges = this.delegate.isSessionPinned(targetElement) || this.delegate.getGroupIdOfSession(targetElement) !== undefined;
-		if (keepsEdges && !isCenterSector(targetSector)) {
 			return undefined;
 		}
 		const dragged = this.draggedSessions(data);
@@ -3649,11 +3646,6 @@ function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 
  */
 function intoSessionDropReaction(): ITreeDragOverReaction {
 	return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
-}
-
-/** Whether the pointer is over the middle half of a row, rather than near the boundary between two rows. */
-function isCenterSector(sector: ListViewTargetSector | undefined): boolean {
-	return sector === ListViewTargetSector.CENTER_TOP || sector === ListViewTargetSector.CENTER_BOTTOM;
 }
 
 //#endregion

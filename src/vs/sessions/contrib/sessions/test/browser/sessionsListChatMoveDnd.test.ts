@@ -18,6 +18,7 @@ import { canMoveIntoSession, getChatMoveAppendAnchor, getChatReorder, getSession
 import { createListHarness, createTestSession, ITestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -366,18 +367,28 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	}
 
-	/** A session of `title` whose own row is its main chat `<title> main` and whose nested rows are `ids`. */
+	let createdAt = Date.now();
+
+	/**
+	 * A session of `title` whose own row is its main chat `<title> main` and whose nested rows are `ids`. Each is created
+	 * before the previous one, so the list shows them in the order they are made.
+	 */
 	function listSession(title: string, ids: readonly string[]): ISession {
 		const test = createTestSession(title);
 		test.capabilities.set({ supportsMultipleChats: true }, undefined);
 		const main = listChat(`${title} main`);
-		return { ...test.session, chats: constObservable([main, ...ids.map(listChat)]), mainChat: constObservable(main) };
+		return { ...test.session, createdAt: new Date(createdAt--), chats: constObservable([main, ...ids.map(listChat)]), mainChat: constObservable(main) };
 	}
 
 	/** Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[] }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[] }) {
 		const moves: string[] = [];
-		const harness = createListHarness(disposables, sessions, { pinnedSessionIds: new Set(options?.pinned) });
+		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
+		const harness = createListHarness(disposables, sessions, {
+			pinnedSessionIds: new Set(options?.pinned),
+			groups: options?.grouped ? [group] : [],
+			memberships: new Map(options?.grouped?.map(sessionId => [sessionId, group.id])),
+		});
 		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true, [ChatMoveSettingId.ConfirmDragAndDrop]: false });
 		harness.instantiationService.stub(IConfigurationService, configurationService);
 		harness.instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
@@ -453,7 +464,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 				rowOf(label).querySelector<HTMLElement>('.session-section')!.click();
 			}
 		};
-		return { moves, setExpanded, expandSection, dragOver, sortChanges: harness.sortChanges, rowOf };
+		return { moves, setExpanded, expandSection, dragOver, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
@@ -499,7 +510,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('hovering a collapsed session expands it after a moment, so the drop can go between its nested rows', async () => {
+	test('hovering a collapsed session expands it after a moment, so the drop can go between its nested rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const target = listSession('Target', ['t1', 't2']);
 		const source = listSession('Source', ['s1']);
 		const list = render([target, source]);
@@ -511,9 +522,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		await timeout(600);
 		const after = list.rowOf('Target').getAttribute('aria-expanded');
 		drag.end();
+		// The list's own timers (e.g. relative times) would keep the virtual clock running.
+		list.dispose();
 
 		assert.deepStrictEqual({ before, after }, { before: 'false', after: 'true' });
-	});
+	}));
 
 	test('a nested session dropped on empty space or a header moves into a new session', async () => {
 		const own = listSession('Own', ['a', 'b']);
@@ -535,35 +548,43 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('a session dropped anywhere on a normal session row nests in it; on a pinned row its edges keep reordering', async () => {
-		const normal = render([listSession('Target', []), createTestSession('Single').session]);
-		const normalEdge = normal.dragOver('Single', 'Target', 0.1);
-		const normalFeedback = normalEdge.feedback;
-		await normalEdge.drop();
+	test('a session dropped anywhere on a session row nests in it, also on pinned and grouped rows', async () => {
+		const results: Record<string, unknown> = {};
+		for (const kind of ['normal', 'pinned', 'grouped'] as const) {
+			const target = listSession('Target', []);
+			const single = createTestSession('Single').session;
+			const ids = [target.sessionId, single.sessionId];
+			const list = render([target, single], { pinned: kind === 'pinned' ? ids : undefined, grouped: kind === 'grouped' ? ids : undefined });
+			if (kind !== 'normal') {
+				list.expandSection(kind === 'pinned' ? 'Pinned' : 'Move Demo');
+			}
+			const feedback: string[] = [];
+			for (const fraction of [0.1, 0.5, 0.9]) {
+				const drag = list.dragOver('Single', 'Target', fraction);
+				feedback.push(`${drag.feedback.moveDrag ? 'move' : 'main'} ${drag.feedback.rows.join(', ')}`);
+				await drag.drop();
+			}
+			results[kind] = { feedback, moves: list.moves, reordered: list.sortChanges.length };
+		}
+		const nests = { feedback: ['move Target: drop-target', 'move Target: drop-target', 'move Target: drop-target'], moves: ['session Single -> Target', 'session Single -> Target', 'session Single -> Target'], reordered: 0 };
+		assert.deepStrictEqual(results, { normal: nests, pinned: nests, grouped: nests });
+	});
 
+	test('a session that can\'t nest keeps main\'s reordering on a pinned row', async () => {
 		const target = listSession('Target', []);
-		const single = createTestSession('Single').session;
-		const pinned = render([target, single], { pinned: [target.sessionId, single.sessionId] });
-		pinned.expandSection('Pinned');
-		const pinnedEdge = pinned.dragOver('Single', 'Target', 0.1);
-		const pinnedEdgeFeedback = pinnedEdge.feedback;
-		await pinnedEdge.drop();
-		const pinnedMiddle = pinned.dragOver('Single', 'Target', 0.5);
-		const pinnedMiddleFeedback = pinnedMiddle.feedback;
-		await pinnedMiddle.drop();
+		// Several chats: it can't move under another session.
+		const multi = listSession('Multi', ['m1']);
+		const list = render([target, multi], { pinned: [target.sessionId, multi.sessionId] });
+		list.expandSection('Pinned');
 
-		assert.deepStrictEqual({
-			normal: { feedback: normalFeedback, moves: normal.moves },
-			pinned: { edge: pinnedEdgeFeedback, middle: pinnedMiddleFeedback, moves: pinned.moves, reordered: pinned.sortChanges.length },
-		}, {
-			normal: { feedback: { moveDrag: true, list: false, rows: ['Target: drop-target'] }, moves: ['session Single -> Target'] },
-			pinned: {
-				// Main's reorder, with main's feedback.
-				edge: { moveDrag: false, list: false, rows: ['Target: drop-target-before'] },
-				middle: { moveDrag: true, list: false, rows: ['Target: drop-target'] },
-				moves: ['session Single -> Target'],
-				reordered: 1,
-			},
+		const drag = list.dragOver('Multi', 'Target', 0.1);
+		const feedback = drag.feedback;
+		await drag.drop();
+
+		assert.deepStrictEqual({ feedback, moves: list.moves, reordered: list.sortChanges.length }, {
+			feedback: { moveDrag: false, list: false, rows: ['Target: drop-target-before'] },
+			moves: [],
+			reordered: 1,
 		});
 	});
 });

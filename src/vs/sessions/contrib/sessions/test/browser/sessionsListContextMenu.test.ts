@@ -84,6 +84,7 @@ suite('Sessions list context menus', () => {
 		const contextMenuService = new TestContextMenuService();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		let menuDisposed = false;
+		let menuContextKeyService: IContextKeyService | undefined;
 		const isComparison = typeof menuActionsOrComparison === 'boolean' ? menuActionsOrComparison : false;
 		const menuActions = typeof menuActionsOrComparison === 'boolean' ? [] : menuActionsOrComparison;
 		const comparisons: readonly ISessionComparison[] = isComparison ? [{
@@ -110,7 +111,8 @@ suite('Sessions list context menus', () => {
 		harness.instantiationService.stub(IContextKeyService, contextKeyService);
 		harness.instantiationService.stub(IContextMenuService, contextMenuService);
 		harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-			override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
+			override createMenu(id: MenuId, contextKeyServiceOfMenu: IContextKeyService): IMenu {
+				menuContextKeyService = contextKeyServiceOfMenu;
 				const disposable = toDisposable(() => menuDisposed = true);
 				const extensionAction = new MenuItemAction({
 					id: 'extension.action',
@@ -153,7 +155,7 @@ suite('Sessions list context menus', () => {
 			focusNewSessionInput: () => newSessionFocusCount++,
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed, newSessionFocusCount: () => newSessionFocusCount };
+		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed, menuContextKeyService: () => menuContextKeyService, newSessionFocusCount: () => newSessionFocusCount };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -617,6 +619,35 @@ suite('Sessions list context menus', () => {
 				readSessions: ['Visible', 'Filtered'],
 			});
 		}
+	});
+
+	test('a nested session\'s context menu knows whether the chat can move, for Promote to Session', () => {
+		const chat = (title: string) => upcastPartial<IChat>({
+			resource: URI.parse(`test-chat:/${title}`),
+			workspace: constObservable(undefined),
+			title: constObservable(title),
+			updatedAt: constObservable(new Date()),
+			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
+			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const [main, movable, fixed] = [chat('Main'), chat('Movable'), chat('Fixed')];
+		const session: ISession = { ...createSession('Session').session, chats: constObservable([main, movable, fixed]), mainChat: constObservable(main) };
+		const list = createList(false, false, SessionsGrouping.Date, [session], [{ id: 'test.action', run: () => { } }]);
+		list.managementService.canMoveChat = (_session, candidate) => candidate === movable;
+		const canMove = (title: string) => {
+			const row = [...list.container.querySelectorAll<HTMLElement>('.session-chat-item')].find(item => item.querySelector('.session-chat-title')?.textContent === title)!;
+			dispatchContextMenu(row);
+			list.contextMenuService.delegate?.onHide?.(false);
+			return list.menuContextKeyService()?.getContextKeyValue('sessionChatItem.canMove');
+		};
+
+		assert.deepStrictEqual({ movable: canMove('Movable'), fixed: canMove('Fixed') }, { movable: true, fixed: false });
 	});
 
 	test('Promote to Session moves a nested session into a new session, confirming it and explaining a refusal', async () => {
