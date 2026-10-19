@@ -66,7 +66,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -6230,6 +6230,50 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				await disposeAgent(restored.agent);
+			}
+		});
+
+		test('live registration refreshes a cached isolated canvas inventory after an early registry event without dropping open canvases', async () => {
+			const directory = URI.file(process.cwd());
+			const sdkId = 'canvas-sdk';
+			const { agent, launches } = setup(undefined, [sdkSession(sdkId, directory.fsPath)], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			const session = AgentSession.uri('copilotcli', 'scoped-canvas-registration');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			let cached: readonly IAgentCanvasInfo[] = [];
+			let earlyInventory: readonly string[] = [];
+			const refreshes: Promise<void>[] = [];
+			const memberships: (readonly { resource: string }[] | undefined)[] = [];
+			const listener = disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
+					memberships.push(signal.action.canvases);
+					refreshes.push(agent.listSessionCanvases(session, chat, context).then(canvases => { cached = canvases; }));
+				}
+			}));
+			const beforeRegistration = stub(CopilotAgentSession.prototype, 'revalidateTelemetryBeforeRegistration').callsFake(async () => {
+				const runtime = launches[0].runtime;
+				runtime.canvases.push({ canvasId: 'preview', extensionId: 'project:preview', displayName: 'Preview', description: 'Preview generated content.' });
+				const envelope = { timestamp: '2026-01-01T00:00:00Z', parentId: null, ephemeral: true as const };
+				runtime.emit({ ...envelope, id: 'canvas-open', type: 'session.canvas.opened', data: { instanceId: 'preview-instance', canvasId: 'preview', extensionId: 'project:preview', title: 'Preview', url: 'https://example.test/preview' } });
+				runtime.emit({ ...envelope, id: 'canvas-registry', type: 'session.canvas.registry_changed', data: { canvases: [] } });
+				await Promise.all(refreshes);
+				earlyInventory = cached.map(canvas => canvas.canvasId);
+			});
+			disposables.add(toDisposable(() => beforeRegistration.restore()));
+			try {
+				await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sdkId }));
+				await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+				await Promise.all(refreshes);
+				assert.deepStrictEqual({
+					earlyInventory,
+					cached: cached.map(canvas => canvas.canvasId),
+					notifications: memberships.length,
+					preservesMembership: memberships.every(membership => membership?.length === 1 && membership[0].resource === memberships[0]?.[0].resource),
+				}, { earlyInventory: [], cached: ['preview'], notifications: 3, preservesMembership: true });
+			} finally {
+				listener.dispose();
+				await disposeAgent(agent);
 			}
 		});
 

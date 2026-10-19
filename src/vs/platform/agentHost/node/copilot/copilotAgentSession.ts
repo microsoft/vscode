@@ -3947,6 +3947,13 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/** Refreshes inventory observers after registration without changing projected canvas membership. */
+	publishCanvases(): void {
+		if (this._wrapper.canvasRuntimeEnabled && this._canvasPhase === 'live') {
+			this._publishCanvases();
+		}
+	}
+
 	async listCanvases(): Promise<readonly IAgentCanvasInfo[]> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
