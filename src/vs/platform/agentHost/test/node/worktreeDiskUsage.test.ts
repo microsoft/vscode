@@ -20,7 +20,7 @@ suite('HostWorktreeDiskUsage', () => {
 	let root: string;
 
 	setup(async () => {
-		root = await mkdtemp(join(tmpdir(), 'worktree-disk-usage-'));
+		root = URI.file(await mkdtemp(join(tmpdir(), 'worktree-disk-usage-'))).fsPath;
 	});
 
 	teardown(async () => {

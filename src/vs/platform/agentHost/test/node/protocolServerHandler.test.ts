@@ -2005,7 +2005,7 @@ suite('ProtocolServerHandler', () => {
 		let allocatedBytes: number;
 
 		setup(async () => {
-			root = await mkdtemp(join(process.cwd(), '.build', 'worktree-measurement-'));
+			root = URI.file(await mkdtemp(join(process.cwd(), '.build', 'worktree-measurement-'))).fsPath;
 			await mkdir(join(root, 'node_modules'));
 			await writeFile(join(root, 'node_modules', 'package.json'), '1234567890');
 			allocatedBytes = Number((await lstat(join(root, 'node_modules', 'package.json'), { bigint: true })).blocks * 512n);
