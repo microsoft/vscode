@@ -612,6 +612,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override async applyCustomizationInstallation(_provider: string, operationId: string) {
 					applied.push(operationId);
 					installed = true;
+					return { kind: 'receipt' as const, installationId: 'installation' };
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {
@@ -707,16 +708,35 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async applyCustomizationInstallation(_provider: string, operationId: string) {
 					applied.push(operationId);
-					plugins.set([new class extends mock<IAgentPlugin>() {
-						override readonly uri = URI.file('/plugins/demo');
-						override readonly label = 'Demo Plugin';
-						override readonly copilotCliInstallation = {
-							name: 'demo-plugin',
-							marketplace: '',
-							directSourceId: 'demo-plugin-source',
-							source: { kind: 'github' as const, repository: 'github/demo-plugin', sha: '0123456789abcdef' },
-						};
-					}()], undefined);
+					plugins.set([
+						new class extends mock<IAgentPlugin>() {
+							override readonly uri = URI.file('/plugins/unrelated');
+							override readonly label = 'Unrelated Plugin';
+							override readonly copilotCliInstallation = {
+								name: 'unrelated-plugin',
+								marketplace: '',
+								directSourceId: 'unrelated-plugin-source',
+								source: { kind: 'github' as const, repository: 'github/unrelated-plugin', sha: 'fedcba9876543210' },
+							};
+						}(),
+						new class extends mock<IAgentPlugin>() {
+							override readonly uri = URI.file('/plugins/demo');
+							override readonly label = 'Demo Plugin';
+							override readonly copilotCliInstallation = {
+								name: 'demo-plugin',
+								marketplace: '',
+								directSourceId: 'demo-plugin-source',
+								source: { kind: 'github' as const, repository: 'github/demo-plugin', sha: '0123456789abcdef' },
+							};
+						}(),
+					], undefined);
+					return {
+						kind: 'plugin' as const,
+						name: 'demo-plugin',
+						repository: 'github/demo-plugin',
+						ref: '0123456789abcdef',
+						path: '',
+					};
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {
@@ -782,6 +802,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				detail: 'Plugins can supply agents, skills, hooks, and MCP servers. Only install resources from sources you trust.\n\nSource: github/demo-plugin@0123456789abcdef\nDestination: ~/.copilot/installed-plugins/_direct/github--demo-plugin\nFiles: 2\nSize: 256 bytes\n\nThe plugin will be installed disabled.\nDeclared MCP servers: 1',
 			}],
 			inventory: [{
+				installationId: 'plugin:direct:unrelated-plugin-source',
+				identifier: 'unrelated-plugin-source',
+				installation: { kind: 'plugin', repository: 'github/unrelated-plugin', ref: 'fedcba9876543210', path: '' },
+				target: { kind: 'plugin', uri: URI.file('/plugins/unrelated'), name: 'unrelated-plugin' },
+			}, {
 				installationId: 'plugin:direct:demo-plugin-source',
 				identifier: 'demo-plugin',
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection' },
@@ -818,6 +843,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async applyCustomizationInstallation() {
 					calls.push('apply');
+					return { kind: 'receipt' as const, installationId: 'installation' };
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {

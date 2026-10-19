@@ -22,6 +22,7 @@ import { IPlatformCustomizationMarketplaceService } from '../../../../../../plat
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -33,6 +34,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -401,6 +403,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IMcpGalleryManifestService, mcpGalleryManifestService);
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IChatEntitlementService, entitlementService);
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly onDidChangeDefaultAccount = Event.None;
+		}());
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = Event.None;
+		}());
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override get sources() { return sources.map(source => ({ ...source })); }
 		}());
@@ -643,6 +651,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				resourceKind: 'plugin',
 				selectionId: 'azure-devops',
 				repository: 'microsoft/azure-devops-copilot-plugin',
+				path: '.github/plugin/plugin.json',
 			},
 		});
 		const installedResource = resource({
@@ -1196,6 +1205,20 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 		await assert.rejects(fixture.service.install(candidate), /Pinned SDK plugin installation is unavailable/);
 		assert.strictEqual(installs, 0);
+	});
+
+	test('requires agent plugins to be enabled for provider catalog plugins', async () => {
+		const fixture = await createFixture({ enabled: true });
+		await fixture.configurationService.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
+		const candidate = resource({
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection' },
+		});
+
+		assert.deepStrictEqual(fixture.service.getInstallState(candidate), {
+			kind: 'unavailable',
+			message: 'Enable agent plugins to install this resource.',
+		});
 	});
 
 
