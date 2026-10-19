@@ -61,6 +61,7 @@ import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOri
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomizationMarketplaceProvider.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -1227,7 +1228,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					return true;
 				}
 				const marketplace = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, marketplaceInstallations)?.resource;
-				return marketplace?.sourceId === this.selectedSourceId;
+				const pluginMarketplaceReference = item.pluginDetail?.plugin.fromMarketplace?.marketplaceReference;
+				const sourceId = marketplace?.sourceId ?? (pluginMarketplaceReference ? getPluginCustomizationMarketplaceSourceId(pluginMarketplaceReference) : undefined);
+				return sourceId === this.selectedSourceId;
 			})
 			.filter(item => !text || [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)].some(value => value && normalizedName(value).includes(text)))
 			.sort((a, b) => a.name.localeCompare(b.name));
