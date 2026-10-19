@@ -1456,7 +1456,7 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, readinessMs: 3000, preparationMs: 2000, connectionMs: 1000, credentialRequests: 1, firstFailurePhase: 'credentials', credentialFailures: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, readinessMs: 3000, preparationMs: 2000, connectionMs: 1000, credentialRequests: 1, firstFailurePhase: 'credentials', firstFailureCategory: 'unknown', credentialFailures: 1 } },
 				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
@@ -1491,7 +1491,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, readinessMs: 1700, preparationMs: 1700, credentialRequests: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', credentialFailures: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, readinessMs: 1700, preparationMs: 1700, credentialRequests: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', firstFailureCategory: 'unknown', credentialFailures: 1 } },
 			]);
 		}));
 

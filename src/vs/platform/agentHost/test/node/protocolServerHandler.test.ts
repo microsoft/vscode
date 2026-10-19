@@ -71,7 +71,7 @@ import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageR
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import type { IAgentHostClientConnectionEvent } from '../../node/agentHostTelemetryReporter.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext, type IAgentHostSessionSubscribeTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { iterateOtlpLogRecords, OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { MessagePortProtocolServer } from '../../node/messagePortProtocolServer.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -252,6 +252,7 @@ class MockAgentService implements IAgentService {
 	dispatchBarrier: DeferredPromise<void> | undefined;
 	readonly subscribeBarriers = new Map<string, DeferredPromise<void>>();
 	readonly subscribeCalls: { resource: string; clientId: string }[] = [];
+	readonly subscribeTelemetryContexts: (IAgentHostSessionSubscribeTelemetryContext | undefined)[] = [];
 	readonly unsubscribeCalls: { resource: string; clientId: string }[] = [];
 	afterListSessionsSnapshot: (() => void) | undefined;
 	readonly automationRunRequests: RunAutomationParams[] = [];
@@ -357,8 +358,9 @@ class MockAgentService implements IAgentService {
 		this.afterListSessionsSnapshot?.();
 		return result;
 	}
-	async subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, _credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot> {
 		this.subscribeCalls.push({ resource: resource.toString(), clientId });
+		this.subscribeTelemetryContexts.push(telemetryContext);
 		await (this.subscribeBarriers.get(resource.toString())?.p ?? this.subscribeBarrier?.p);
 		if (isActive && !isActive()) {
 			throw new Error(`Subscription cancelled: ${resource.toString()}`);
@@ -932,6 +934,30 @@ suite('ProtocolServerHandler', () => {
 		});
 		transport.simulateClose();
 		transport.dispose();
+	});
+
+	test('forwards authoritative Mission Control client attribution to subscription telemetry', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl));
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: [PROTOCOL_VERSION], clientId: 'mc-subscriber', clientInfo: agentsWindowAgentHostClientInfo,
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+		}));
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await response;
+		const local = connectClient('local-subscriber', undefined, editorWindowAgentHostClientInfo);
+		const localResponse = waitForResponse(local, 2);
+		local.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		await localResponse;
+		assert.deepStrictEqual(agentService.subscribeTelemetryContexts.map(context => context && ({
+			clientId: context.clientId, clientType: context.clientType, connectionKind: context.connectionKind,
+			hostLaunchKind: context.hostLaunchKind, isReconnect: context.isReconnect,
+		})), [{
+			clientId: 'mc-subscriber', clientType: AgentHostClientType.AgentsWindow, connectionKind: AgentHostClientConnectionKind.MissionControl,
+			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, isReconnect: false,
+		}, undefined]);
 	});
 
 	test('uses the launch telemetry level when a legacy client omits telemetry metadata', () => {

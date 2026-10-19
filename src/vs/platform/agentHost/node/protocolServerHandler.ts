@@ -1150,7 +1150,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!isAhpAutomationCatalogChannel(channel)) {
 			return this._agentService.subscribe(URI.parse(channel), clientId,
 				() => (isAhpRootChannel(channel) || client.transport.relayAuthentication?.authenticated !== false) && (isActive?.() ?? true),
-				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+				this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined,
+				client.telemetryContext.connectionKind === AgentHostClientConnectionKind.MissionControl
+					? { ...client.telemetryContext, clientId, isReconnect: client.isReconnect }
+					: undefined);
 		}
 		if (isActive && !isActive()) {
 			throw new Error(`Subscription cancelled: ${channel}`);

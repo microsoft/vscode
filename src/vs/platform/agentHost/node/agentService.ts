@@ -134,7 +134,7 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContext.js';
-import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentHostSessionSubscribeTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentMergeController, type IAgentMergeControllerOptions } from './agentMergeController.js';
 import { AgentHostChatMovability, chatSubtree } from './agentHostChatMovability.js';
@@ -9186,7 +9186,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._terminalManager.disposeTerminal(terminal.toString());
 	}
 
-	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource): Promise<IStateSnapshot> {
+	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot> {
 		if (resource.scheme === AHP_CANVAS_SCHEME) {
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resource.toString()}`);
@@ -9374,7 +9374,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return snapshot;
 		};
 		try {
-			return await this._sessionOpenTelemetry.withSubscription(resource, subscribe);
+			return await this._sessionOpenTelemetry.withSubscription(resource, subscribe, telemetryContext, () => !this._store.isDisposed && (isActive?.() ?? true));
 		} catch (error) {
 			const subscriptionIsActive = isActive?.() ?? true;
 			if (subscriptionIsActive) {
