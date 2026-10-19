@@ -113,7 +113,7 @@ import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse, type
 import { getCodexAccountTelemetryContext } from './codexAccountTelemetry.js';
 import type { IAgentProviderTurnTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
-import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, CODEX_PERMISSIONS_PRESET_LABELS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
 import type { Personality } from './protocol/generated/Personality.js';
@@ -389,11 +389,7 @@ const codexSessionConfigSchema = createSchema({
 		title: localize('codex.sessionConfig.permissionsPreset', "Approvals"),
 		description: localize('codex.sessionConfig.permissionsPresetDescription', "How much Codex can do on its own before asking for approval."),
 		enum: [...CODEX_PERMISSIONS_PRESETS],
-		enumLabels: [
-			localize('codex.sessionConfig.permissionsPreset.default', "Default Permissions"),
-			localize('codex.sessionConfig.permissionsPreset.autoReview', "Auto-Review"),
-			localize('codex.sessionConfig.permissionsPreset.fullAccess', "Full Access"),
-		],
+		enumLabels: CODEX_PERMISSIONS_PRESETS.map(preset => CODEX_PERMISSIONS_PRESET_LABELS[preset]),
 		enumDescriptions: [
 			localize('codex.sessionConfig.permissionsPreset.defaultDescription', "Codex can read and edit workspace files and run routine local commands under the platform sandbox. It asks before using the internet or requesting broader access."),
 			localize('codex.sessionConfig.permissionsPreset.autoReviewDescription', "Same sandboxed access as Default, but approval requests are routed through the auto-reviewer instead of prompting you."),

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../nls.js';
+
 /**
  * Well-known session-config keys advertised by the agent-host Codex provider
  * in its `resolveSessionConfig` schema.
@@ -47,6 +49,12 @@ export type CodexPermissionsPreset = 'default' | 'auto-review' | 'full-access';
 
 /** Ordered preset list advertised in the Codex session-config schema. */
 export const CODEX_PERMISSIONS_PRESETS: readonly CodexPermissionsPreset[] = ['default', 'auto-review', 'full-access'];
+
+export const CODEX_PERMISSIONS_PRESET_LABELS: Readonly<Record<CodexPermissionsPreset, string>> = {
+	default: localize('codex.sessionConfig.permissionsPreset.default', "Default Permissions"),
+	'auto-review': localize('codex.sessionConfig.permissionsPreset.autoReview', "Auto-Review"),
+	'full-access': localize('codex.sessionConfig.permissionsPreset.fullAccess', "Full Access"),
+};
 
 /** Default preset applied to new Codex sessions. */
 export const CODEX_DEFAULT_PERMISSIONS_PRESET: CodexPermissionsPreset = 'default';

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/codexApprovalsPicker.css';
+import { CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESET_LABELS, narrowCodexPermissionsPreset } from '../common/codexSessionConfigKeys.js';
 import { IActionListOptions } from '../../actionWidget/browser/actionList.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { localize } from '../../../nls.js';
@@ -22,31 +23,25 @@ export function getCodexApprovalsPickerListOptions(): IActionListOptions {
 	};
 }
 
-function getCodexPermissionsLabel(value: unknown): string {
-	switch (value) {
-		case 'full-access': return localize('codexApprovals.fullAccess', "Full Access");
-		case 'auto-review': return localize('codexApprovals.autoReview', "Auto-Review");
-		default: return localize('codexApprovals.default', "Default Permissions");
-	}
-}
-
 /** Offers to restart a turn with new permissions, returning the continuation message only on Apply Now. */
 export async function showCodexPermissionsChangeNotice(dialogService: IDialogService, previousValue: unknown, selectedValue: string): Promise<string | undefined> {
-	if (previousValue === selectedValue || (previousValue !== 'full-access' && selectedValue !== 'full-access')) {
+	const previousPreset = narrowCodexPermissionsPreset(previousValue) ?? CODEX_DEFAULT_PERMISSIONS_PRESET;
+	const selectedPreset = narrowCodexPermissionsPreset(selectedValue);
+	if (!selectedPreset || previousPreset === selectedPreset || (previousPreset !== 'full-access' && selectedPreset !== 'full-access')) {
 		return;
 	}
-	const selectedLabel = getCodexPermissionsLabel(selectedValue);
+	const selectedLabel = CODEX_PERMISSIONS_PRESET_LABELS[selectedPreset];
 	const { result } = await dialogService.prompt({
 		type: 'question',
-		message: selectedValue === 'full-access'
+		message: selectedPreset === 'full-access'
 			? localize('codexApprovals.enableFullAccess.title', "Enable Full Access Now?")
 			: localize('codexApprovals.disableFullAccess.title', "Disable Full Access Now?"),
-		detail: selectedValue === 'full-access'
+		detail: selectedPreset === 'full-access'
 			? localize('codexApprovals.enableFullAccess.detail', "Applying now will stop the current turn and send a new message to continue with Full Access.\n\nClose this dialog to apply the change with your next message after the current turn finishes.")
 			: localize('codexApprovals.disableFullAccess.detail', "Applying now will stop the current turn and send a new message to disable Full Access and continue with {0}.\n\nClose this dialog to apply the change with your next message after the current turn finishes.", selectedLabel),
 		buttons: [{
 			label: localize('codexApprovals.applyNow', "Apply Now"),
-			run: () => localize('codexApprovals.continue', "Continue (I changed permissions from {0} to {1})", getCodexPermissionsLabel(previousValue), selectedLabel),
+			run: () => localize('codexApprovals.continue', "Continue (I changed permissions from {0} to {1})", CODEX_PERMISSIONS_PRESET_LABELS[previousPreset], selectedLabel),
 		}],
 		custom: true,
 	});
