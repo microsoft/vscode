@@ -2011,6 +2011,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Curated Browse sections did not render.',
 		);
 	}
+	if (options.clearDiscoveryQuery) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.customization-discovery-section.featured') !== null,
+			'Featured Browse items did not render before searching.',
+		);
+	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
