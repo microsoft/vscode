@@ -1980,7 +1980,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, isInputBlocked, inputModel };
+		return { model, viewModel, isInputBlocked, inputModel, hasActiveRequest, requestInProgress, requestNeedsInput };
 	}
 
 	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app') {
@@ -2085,6 +2085,38 @@ suite('ChatWidget - acceptInput submission', () => {
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
 		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
+	}
+
+	for (const waitingForApproval of [false, true]) {
+		test(`cancelCurrentRequest waits before a preserved-input continuation when waitingForApproval=${waitingForApproval}`, async () => {
+			const fixture = createSubmissionWidget();
+			fixture.original.hasActiveRequest.set(true, undefined);
+			fixture.original.requestInProgress.set(!waitingForApproval, undefined);
+			fixture.original.requestNeedsInput.set(waitingForApproval ? { title: 'Approval', detail: 'Allow this command?' } : undefined, undefined);
+			const cancellation = new DeferredPromise<void>();
+			const operations: string[] = [];
+			fixture.chatService.cancelCurrentRequestForSession.callsFake(async () => {
+				operations.push('cancel');
+				await cancellation.p;
+				fixture.original.hasActiveRequest.set(false, undefined);
+				fixture.original.requestInProgress.set(false, undefined);
+				fixture.original.requestNeedsInput.set(undefined, undefined);
+				operations.push('cancelled');
+			});
+			fixture.chatService.sendRequest.callsFake(async () => {
+				operations.push('send');
+				return fixture.sent;
+			});
+			const message = 'Continue (I changed permissions from Default Permissions to Full Access)';
+			const sending = fixture.widget.acceptInput(message, { preserveInput: true, cancelCurrentRequest: true });
+			await timeout(0);
+			const beforeCancellation = operations.slice();
+			await cancellation.complete();
+			await sending;
+			assert.deepStrictEqual({ beforeCancellation, operations, message: fixture.chatService.sendRequest.lastCall.args[1], queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue }, {
+				beforeCancellation: ['cancel'], operations: ['cancel', 'cancelled', 'send'], message, queue: undefined,
+			});
+		});
 	}
 
 	function createSessionBindingFixture() {

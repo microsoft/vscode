@@ -856,6 +856,8 @@ export interface IMissionControlOptions {
 	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
+	/** Explicit host-owner opt-in to use local Copilot credentials for same-owner relay clients. */
+	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
 }

@@ -26,7 +26,7 @@ if errorlevel 1 (
 
     echo Ensuring Ubuntu runs with WSL2
     REM Converting a distribution that already runs on WSL2 fails, so only convert it when needed.
-    powershell -NoProfile -Command "if ((wsl -l -v) -replace [char]0, '' -match '^[*]?\s*Ubuntu\s+\S+\s+2\s*$') { exit 0 } else { exit 1 }"
+    pwsh -NoProfile -Command "Import-Module '%SCRIPT_DIR%..\..\..\build\azure-pipelines\common\wsl.psm1'; $result = Invoke-WslExe -ArgumentList '--list', '--verbose'; if ($result.ExitCode -eq 0 -and $result.Output -match '(?m)^[*]?\s*Ubuntu\s+\S+\s+2\s*$') { exit 0 } else { exit 1 }"
     if errorlevel 1 (
         call :run_wsl --set-version Ubuntu 2
         if errorlevel 1 (

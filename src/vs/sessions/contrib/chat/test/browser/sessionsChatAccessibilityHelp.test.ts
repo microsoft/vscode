@@ -62,7 +62,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
 			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
 			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true });
+			markRead: content.includes('as read<keybinding:agentSession.markRead>'),
+			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
+			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -140,7 +143,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
 				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
 				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
 			};

@@ -5,9 +5,9 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { computePullRequestIcon, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
+import { computePullRequestIcon, getPullRequestDisplayState, type ChatPullRequestState, type IPullRequestIconStatus } from '../../../../workbench/common/chatPullRequest.js';
 
-export { computePullRequestIcon, type IPullRequestIconStatus };
+export { computePullRequestIcon, getPullRequestDisplayState, type IPullRequestIconStatus };
 export { computeAggregateIssueIcon, computeIssueIcon } from '../../../../workbench/common/chatIssue.js';
 
 export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';

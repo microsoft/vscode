@@ -59,9 +59,13 @@ there is no update service metadata to compare against.
 
 ### Timeouts
 
-The UI tests open a Markdown preview and wait up to one minute for its webview to render. This catches webview resource loading failures (for example 401 responses for remote authorities with uppercase letters such as `wsl+Ubuntu`), and any webview resource response with an error status fails the test. Browsers that refuse to register the webview service worker (such as Chromium on Debian 12) cannot load any webview, so the check is skipped there with a pipeline warning.
+Synchronous `wsl` commands issued by the tests, and the Ubuntu import, startup, conversion and listing commands in the Windows setup script, have a five-minute timeout. The setup wrapper normalizes nonzero exit codes (including `-1`) to `1` so batch error checks detect them. Setup emits a pipeline warning when Ubuntu cannot run. On x64, setup first installs the pinned WSL release, including its WSL2 kernel.
 
-Extension installation makes at most three attempts, each allowing 30 seconds to click Install, 30 seconds for installation to start, and one minute to wait for completion, with a five-second delay between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup, the Markdown preview check and cleanup within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so increasing these waits can cause a retry to start before the previous attempt has cleaned up.
+Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
+30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
+between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup
+within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so
+increasing these waits can cause a retry to start before the previous attempt has cleaned up.
 
 ## Scripts
 
