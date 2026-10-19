@@ -38,7 +38,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -84,6 +84,7 @@ import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChan
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
 import {
 	buildOtlpLogsChannelUri,
 	extractLevelFromOtlpLogsUri,
@@ -1022,6 +1023,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						...transport.relayHandshakeMeta,
 					} : {
 						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true),
+						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.rotateSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
@@ -3253,8 +3255,65 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * otherwise.
 	 */
 	private readonly _debugLogCollectionOwners = new Map<string, string>();
+	private readonly _worktreeMeasurements = new Map<IConnectedClient, Map<string, CancellationTokenSource>>();
+
+	private async _handleWorktreeDiskUsageRequest(client: IConnectedClient, params: unknown): Promise<{ sizeBytes?: number }> {
+		const validated = measureWorktreeDiskUsageParamsValidator.validate(params);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message);
+		}
+		const { uri, requestId } = validated.content;
+		let root: URI;
+		try {
+			root = URI.parse(uri, true);
+		} catch {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'uri must be a file URI');
+		}
+		if (root.scheme !== Schemas.file || !uri.startsWith(`${Schemas.file}:/`) || root.query || root.fragment || !isAbsolute(root.fsPath)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'uri must be an absolute file URI');
+		}
+		let measurements = this._worktreeMeasurements.get(client);
+		if (!measurements) {
+			measurements = new Map();
+			this._worktreeMeasurements.set(client, measurements);
+		}
+		if (measurements.has(requestId)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'requestId is already in use');
+		}
+		const disposables = new DisposableStore();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		measurements.set(requestId, cancellation);
+		const cancelOnDisconnect = client.disposables.add(toDisposable(() => cancellation.cancel()));
+		disposables.add(disposableTimeout(() => cancellation.cancel(), 10_000));
+		try {
+			const sizeBytes = await raceCancellationError(
+				this._agentService.measureWorktreeDiskUsage(root, cancellation.token),
+				cancellation.token,
+			);
+			return { sizeBytes };
+		} finally {
+			client.disposables.delete(cancelOnDisconnect);
+			disposables.dispose();
+			measurements.delete(requestId);
+			if (measurements.size === 0) {
+				this._worktreeMeasurements.delete(client);
+			}
+		}
+	}
 
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if ((method === MeasureWorktreeDiskUsageExtensionMethod || method === CancelWorktreeDiskUsageExtensionMethod)
+			&& !this._config.relayRoots && !this._config.relayRootMeta && client.transport.relayClientId === undefined && !client.transport.relayPassive) {
+			if (method === MeasureWorktreeDiskUsageExtensionMethod) {
+				return this._handleWorktreeDiskUsageRequest(client, params);
+			}
+			const validated = cancelWorktreeDiskUsageParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			this._worktreeMeasurements.get(client)?.get(validated.content.requestId)?.cancel();
+			return Promise.resolve();
+		}
 		if (client.transport.relayClientId !== undefined) {
 			const request = this._config.extension?.requests.get(method);
 			if (request?.requiresChannel) {
