@@ -23,8 +23,10 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
@@ -81,7 +83,7 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(states, [false, true, false, false]);
 	});
 
-	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' })) {
+	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -104,21 +106,24 @@ suite('ChatInputPart', () => {
 		const sessionsChanged = store.add(new Emitter<void>());
 		const model: { sessionResource: URI; editingSession?: IChatEditingSession } = { sessionResource };
 		const legacyCollapsed = observableValue('legacyCollapsed', true);
+		const keptChanges = new Lazy(() => store.add(instantiationService.createInstance(ChatSessionWorkingSetKeptChanges)));
 		let inputFocusCalls = 0;
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			options: { renderWorkingSet: true, isSessionsWindow, menus: { telemetrySource: 'test' } },
 			configurationService,
+			environmentService: upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: inAgentsWindow }),
 			instantiationService,
 			contextKeyService,
 			editorService: instantiationService.get(IEditorService),
 			inputUri: URI.parse('vscode-chat-input:/test'),
 			chatEditingSessionWidgetContainer: container,
 			_widget: { viewModel: { get sessionResource() { return model.sessionResource; }, model } },
-			_sessionFileChanges: observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>('providerChanges', undefined),
+			_sessionFileChanges: observableValue('providerChanges', undefined),
 			_sessionWorkingSetView: store.add(new MutableDisposable()),
 			_sessionWorkingSetDiffs: observableValue<readonly IEditSessionEntryDiff[]>('sessionDiffs', []),
 			_workingSetCollapsed: legacyCollapsed,
 			_sessionWorkingSetCollapsed: observableValue('sessionCollapsed', false),
+			_sessionWorkingSetKeptChanges: keptChanges,
 			_workingSetLinesAddedSpan: new Lazy(() => dom.$('.working-set-lines-added')),
 			_workingSetLinesRemovedSpan: new Lazy(() => dom.$('.working-set-lines-removed')),
 			_chatEditsListPool: store.add(instantiationService.createInstance(CollapsibleListPool, Event.None, MenuId.ChatEditingWidgetModifiedFilesToolbar, undefined)),
@@ -138,6 +143,8 @@ suite('ChatInputPart', () => {
 			legacyCollapsed,
 			opened,
 			get inputFocusCalls() { return inputFocusCalls; },
+			/** Whether the input created the store of kept changes, which only the session working set uses. */
+			get keptChangesCreated() { return keptChanges.hasValue; },
 			setSessionChanges(changes: readonly IChatSessionFileChange2[]) {
 				sessionChanges = changes;
 				sessionsChanged.fire();
@@ -186,8 +193,21 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
+	test('reports whether the session working set offers Undo', async () => {
+		const offered = [];
+		for (const undo of [undefined, constObservable({ enabled: constObservable(true), undo: async () => false })]) {
+			const { inputPart, setEnabled } = createWorkingSetInput();
+			store.add(inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))]), undo));
+			await setEnabled(true);
+			inputPart.renderChatEditingSessionState(null);
+			offered.push({ workingSet: inputPart.hasSessionWorkingSet, undo: inputPart.hasSessionWorkingSetUndo });
+		}
+		assert.deepStrictEqual(offered, [{ workingSet: true, undo: false }, { workingSet: true, undo: true }]);
+	});
+
 	test('leaves Local controls, pending files, and live-editor opening unchanged when enabled', async () => {
-		const { inputPart, container, sessionResource, opened, setEnabled } = createWorkingSetInput(false, LocalChatSessionUri.forSession('local'));
+		const harness = createWorkingSetInput(false, LocalChatSessionUri.forSession('local'));
+		const { inputPart, container, sessionResource, opened, setEnabled } = harness;
 		const resource = URI.file('/repo/pending.ts');
 		const revealed: boolean[] = [];
 		const pending = new class extends mock<IModifiedFileEntry>() {
@@ -231,22 +251,31 @@ suite('ChatInputPart', () => {
 			filesOpened: opened.map(input => isResourceEditorInput(input) ? input.resource.toString() : undefined),
 			diffsOpened: opened.filter(isResourceDiffEditorInput).length,
 			revealed,
+			keptChangesCreated: harness.keptChangesCreated,
 		}, {
 			states: Array.from({ length: 3 }, () => ({ newWorkingSet: false, files: ['pending.ts'], keep: true, undo: true })),
 			sameList: true,
 			filesOpened: [resource.toString()],
 			diffsOpened: 0,
 			revealed: [true],
+			keptChangesCreated: false,
 		});
 	});
 
-	test('does not enable the editor working set in the Agents window', async () => {
-		const { inputPart, container, setEnabled } = createWorkingSetInput(true);
-		store.add(inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))])));
-		await setEnabled(true);
-		inputPart.renderChatEditingSessionState(null);
-		assert.deepStrictEqual({ visible: container.style.display !== 'none', workingSet: !!container.querySelector('.chat-session-working-set') }, { visible: false, workingSet: false });
-	});
+	for (const [host, isSessionsWindow] of [['its chat', true], ['a chat editor', false]] as const) {
+		test(`does not enable the editor working set in the Agents window (${host})`, async () => {
+			const harness = createWorkingSetInput(isSessionsWindow, undefined, true);
+			store.add(harness.inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))])));
+			await harness.setEnabled(true);
+			harness.inputPart.renderChatEditingSessionState(null);
+			assert.deepStrictEqual({
+				supported: harness.inputPart.supportsSessionWorkingSet,
+				visible: harness.container.style.display !== 'none',
+				workingSet: !!harness.container.querySelector('.chat-session-working-set'),
+				keptChangesCreated: harness.keptChangesCreated,
+			}, { supported: false, visible: false, workingSet: false, keptChangesCreated: false });
+		});
+	}
 
 	test('leaves metadata-backed providers on their existing working-set presentation', async () => {
 		const { inputPart, container, sessionResource, setEnabled, setSessionChanges } = createWorkingSetInput(false, URI.parse('copilot-cloud-agent:/session'));
@@ -346,6 +375,35 @@ suite('ChatInputPart', () => {
 		changes.set(undefined, undefined);
 		states.push(inputPart.hasSessionWorkingSet);
 		assert.deepStrictEqual({ states, rows: container.querySelectorAll('.monaco-list-row').length }, { states: [true, false], rows: 0 });
+	});
+
+	test('hides files kept in the current session until they change again, and offers the registered Undo', async () => {
+		const { inputPart, container, model, sessionResource, setEnabled } = createWorkingSetInput();
+		const first = emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts'));
+		const second = emptySessionEntryDiff(URI.file('/before/second.ts'), URI.file('/second.ts'));
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('diffs', [first, second]);
+		store.add(inputPart.registerSessionFileChanges(diffs, constObservable({ enabled: constObservable(true), undo: async () => true })));
+		await setEnabled(true);
+		inputPart.renderChatEditingSessionState(null);
+		const readRows = () => [...container.querySelectorAll('.monaco-list-row')].map(row => ({
+			file: row.getAttribute('aria-label')?.split(',')[0],
+			actions: [...row.querySelectorAll('.action-label')].map(action => action.getAttribute('aria-label')),
+		}));
+		const states = [readRows()];
+		container.querySelector<HTMLElement>('.monaco-list-row .action-label[aria-label="Keep"]')!.click();
+		states.push(readRows());
+		model.sessionResource = URI.from({ scheme: sessionResource.scheme, path: '/other-session' });
+		inputPart.renderChatEditingSessionState(null);
+		states.push(readRows());
+		model.sessionResource = sessionResource;
+		inputPart.renderChatEditingSessionState(null);
+		states.push(readRows());
+		diffs.set([{ ...first, added: 2 }, second], undefined);
+		states.push(readRows());
+
+		const both = [{ file: '/first.ts', actions: ['Keep', 'Undo'] }, { file: '/second.ts', actions: ['Keep', 'Undo'] }];
+		const secondOnly = [{ file: '/second.ts', actions: ['Keep', 'Undo'] }];
+		assert.deepStrictEqual(states, [both, secondOnly, both, secondOnly, both]);
 	});
 
 	for (const isSessionsWindow of [false, true]) {

@@ -125,8 +125,8 @@ const ALLOWLIST: readonly IAllowance[] = [
 	{ file: 'copilot/copilotAgent.ts', key: 'AH_META_IS_DONE_DB_KEY', count: 1, removedBy: 'permanent', reason: 'resume reads the session\'s legacy archived state through _openMetadata: the store, never importing' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_CUSTOMIZATION_DIRECTORY', count: 3, removedBy: 'permanent', reason: 'working-directory and stored-metadata reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_SHARED_CUSTOMIZATION_DIRECTORIES', count: 1, removedBy: 'permanent', reason: 'working-directory snapshot read through _openMetadata (rollback, and older builds still read the value): the store for a session, a peer backing\'s own db' },
-	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_URI', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
-	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_DISPLAY_NAME', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_URI', count: 3, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
+	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_DISPLAY_NAME', count: 3, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	{ file: 'copilot/copilotAgent.ts', key: '_META_PROJECT_RESOLVED', count: 2, removedBy: 'permanent', reason: 'reads through _openMetadata: the store for a session, a peer backing\'s own db' },
 	// Legacy-catalog (v1) membership: the peer store is its writer, with its own revision tracking, as on main (group 5).
 	{ file: 'agentHostPeerChatStore.ts', key: 'PEER_CHATS_METADATA_KEY', count: 4, removedBy: 'permanent', reason: 'peerChats read and written by its owner, the peer store: as on main for legacy catalogs; the older-build copy of normalized ones, read back before it is overwritten (group 5)' },
