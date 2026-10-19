@@ -49,7 +49,7 @@ export interface IMissionControlEnvironmentHost {
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
-	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string) => IDisposable;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string, useLocalCredentials?: boolean) => IDisposable;
 	readonly updateProjects?: () => Promise<void>;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
@@ -298,6 +298,7 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			if (this._options.credential !== options.credential || this._recoveryStopped
 				|| this._options.defaultDirectory !== options.defaultDirectory
+				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
 				|| remoteControlPolicyOverrideChanged) {
 				this._generation++;
 				this._handler.clear();
@@ -737,7 +738,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);
 		let relayReady = false;
-		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory, options.useLocalCredentials === true), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._recoveryStopped) {
 				if (relayReady) {
 					emitConnectionDiagnostic(this._host.onDiagnostic, { operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed() });
