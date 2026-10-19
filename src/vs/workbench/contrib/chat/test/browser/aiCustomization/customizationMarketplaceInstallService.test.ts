@@ -1115,7 +1115,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}, {
 				state: 'installed',
 				installs: [plugin.plugin],
-				sourceNames: ['Configured Plugin Marketplaces', plugin.plugin.marketplaceReference.displayLabel, 'GitHub Feed', 'Copilot Connectors'],
+				sourceNames: ['GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', plugin.plugin.marketplaceReference.displayLabel],
 			});
 		});
 

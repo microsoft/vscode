@@ -174,20 +174,18 @@ suite('CloudSandboxCredentialRefresher', () => {
 		assert.deepStrictEqual(
 			{ calls: result.calls, stops: result.stops },
 			{
-				calls: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
-				stops: [{ reason: 'consecutiveFailures', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
+				calls: 4,
+				stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 4, statusCode: 500 }],
 			},
 		);
 	}));
 
 	test('a success between failures resets the cap, so a flaky connection survives', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		// Fail nine times, recover on the tenth, then fail forever. The recovery must reset the
-		// counter, so the stop lands a further ten failures later rather than on the tenth overall.
 		let call = 0;
 		const result = await runRefresher(
 			() => {
 				call++;
-				if (call === MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES) {
+				if (call === 3) {
 					return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
 				}
 				return Promise.reject(new CloudSandboxRequestError(503, 'unavailable'));
@@ -198,11 +196,28 @@ suite('CloudSandboxCredentialRefresher', () => {
 		assert.deepStrictEqual(
 			{ calls: result.calls, stops: result.stops },
 			{
-				calls: 2 * MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
-				stops: [{ reason: 'consecutiveFailures', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
+				calls: 7,
+				stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 4, statusCode: 503 }],
 			},
 		);
 	}));
+
+	for (const [status, code, expectedCalls, reason] of [
+		[403, 'rate_limit_exceeded', 4, 'consecutiveFailures'],
+		[500, 'internal_error', 3, 'consecutiveFailures'],
+		[501, 'not_implemented', 1, 'permanentError'],
+		[409, 'environment_compute_terminal', 1, 'permanentError'],
+		[409, 'environment_compute_missing', 1, 'permanentError'],
+		[409, 'environment_unreachable', 1, 'permanentError'],
+		[403, 'forbidden', 1, 'permanentError'],
+	] as const) {
+		test(`bounds recovery for ${code} without confusing rate limits with access denials`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+			const result = await runRefresher(() => Promise.reject(new CloudSandboxRequestError(status, code, 5, { code })), 20);
+			assert.deepStrictEqual({ calls: result.calls, stops: result.stops }, {
+				calls: expectedCalls, stops: [{ reason, consecutiveFailures: reason === 'permanentError' ? 0 : expectedCalls, statusCode: status }],
+			});
+		}));
+	}
 
 	test('waking answers to on-demand /reconnect requests are bounded', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const result = await runRefresher(() => ({ kind: 'waking', waking: { retryAfterSeconds: 5 } }), MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
@@ -585,6 +600,13 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 					return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
 				});
 				await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+				if (response === 'rate limited' && retryAfterSeconds > 120) {
+					await timeout(retryAfterSeconds * 1000);
+					await assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped/);
+					refresher.dispose();
+					assert.strictEqual(credentials.callCount, 1);
+					return;
+				}
 				await timeout(retryAfterSeconds * 1000 - 1);
 				const recovery = refresher.ensureUnexpiredCredentials();
 				const callsBeforeDeadline = credentials.callCount;
@@ -641,7 +663,7 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 			tokenExpiringIn(0, START_TIME),
 			() => { throw new CloudSandboxRequestError(503, 'unavailable'); },
 		);
-		for (let attempt = 0; attempt < MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES; attempt++) {
+		for (let attempt = 0; attempt < 4; attempt++) {
 			await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
 		}
 		await timeout(12 * 60 * 60_000);
@@ -649,8 +671,8 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		refresher.dispose();
 
 		assert.deepStrictEqual({ calls: credentials.callCount, stops: telemetry.stops }, {
-			calls: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
-			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
+			calls: 4,
+			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 4, statusCode: 503 }],
 		});
 	}));
 

@@ -21,12 +21,12 @@ import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/con
 import { IChatWidgetHistoryService } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { buildHostLocalEventsPath, dedupeMigratedCopilotCliSessions, getCopilotCliSessionRawId } from '../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -70,6 +70,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
+	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent> = this._onDidInvokeChangesetOperation.event;
 	private readonly _explicitlyMarkedUnreadMainChats = new ResourceMap<number | undefined>();
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
@@ -107,7 +109,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetHistoryService private readonly chatWidgetHistoryService: IChatWidgetHistoryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IPathService private readonly pathService: IPathService,
+		@ICopilotHomeService private readonly copilotHomeService: ICopilotHomeService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -170,6 +172,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
+			}
+			if (provider.onDidInvokeChangesetOperation) {
+				disposables.add(provider.onDidInvokeChangesetOperation(e => this._onDidInvokeChangesetOperation.fire(e)));
 			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
@@ -722,7 +727,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return created;
 	}
 
-	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat> {
+	async forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
 		const provider = this._getProvider(session);
 		if (!provider) {
 			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
@@ -730,7 +735,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!session.capabilities.get().supportsMultipleChats) {
 			throw new Error(`Session '${session.sessionId}' does not support forking into a chat`);
 		}
-		return provider.forkChat(session.sessionId, sourceChat, turnId);
+		return provider.forkChat(session.sessionId, sourceChat, turnId, options);
 	}
 
 	async createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
@@ -788,11 +793,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const targets = referencedResources.length
 			? referencedResources
 			: (getCopilotCliSessionRawId(session.resource) ? [session.resource] : []);
-		const userHome = this.pathService.userHome({ preferLocal: true });
+		const copilotHome = this.copilotHomeService.home;
 		const getConnection = (authority: string) => this.remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority);
 		const eventPaths = Array.from(new Set(
 			targets
-				.map(resource => buildHostLocalEventsPath(resource, userHome, getConnection))
+				.map(resource => buildHostLocalEventsPath(resource, copilotHome, getConnection))
 				.filter((path): path is string => !!path)
 		));
 		if (eventPaths.length === 0) {

@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -56,6 +58,7 @@ import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHos
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -81,7 +84,7 @@ import { createLegacyChatMetadataPersistence, createTestSessionStateStore, seedS
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import '../../node/localCommands/localChatCommands.contribution.js';
-import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, createTestChatOwnershipService, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 let calls: string[] = [];
@@ -980,7 +983,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService))));
+	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
+	services.set(IAgentHostAuthenticationService, authenticationService);
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 	const chatRows = sessionStateStore.chatRows;
 	const localTurns = new AgentHostLocalTurns(chatRows, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
@@ -1036,6 +1041,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	});
 	const sessionDataService = createSessionDataService(new TestSessionDatabase());
 	const services = new ServiceCollection(
+		[IAgentHostAuthenticationService, disposables.add(new AgentHostAuthenticationService(logService))],
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
@@ -1092,14 +1098,18 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 	services.set(IAgentHostLocalCommands, localCommands);
 	const admitted: { channel: string; message: Message; clientId: string | undefined; hostLaunchKind: AgentHostLaunchKind }[] = [];
+	const admittedCredentials: (IAgentHostCredentialSource | undefined)[] = [];
 	disposables.add(service.registerHost({
 		hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
-		sendTurnMessage: options => admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind }),
+		sendTurnMessage: options => {
+			admitted.push({ channel: options.turnChannel, message: options.message, clientId: options.senderClientId, hostLaunchKind: options.clientContext.hostLaunchKind });
+			admittedCredentials.push(options.credentials);
+		},
 	}));
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
+	return { service, stateManager, session, chat, agent: mockAgent, pendingMessages, pendingMessageSenders, admitted, admittedCredentials, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1337,7 +1347,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd({ session, channel: firstPeer, turnId: 'first', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: secondPeer, turnId: 'second', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: buildDefaultChatUri(session), turnId: 'default', reason: { kind: 'success' } });
-		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' } } });
+		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' }, recoverable: true } });
 
 		assert.deepStrictEqual({
 			chatReadChanges,
@@ -1676,6 +1686,30 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain retains the queuing connection source and resolves its latest token only when work is runnable', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const resource = 'https://api.github.com';
+		const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+		await source.authenticate({ resource, token: 'queued-original' }, [resource]);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const action = queuedMessage('scoped', 'scoped queued work');
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action, 'scoped-client'), credentials: source });
+		await source.authenticate({ resource, token: 'queued-rotated' }, [resource]);
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'success' } });
+		assert.deepStrictEqual({
+			sameConnection: queue.admittedCredentials[0] === source,
+			credential: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+			actor: queue.admitted[0]?.clientId,
+		}, { sameConnection: true, credential: 'queued-rotated', actor: 'scoped-client' });
+	});
+
 	test('queue drain keeps per-message senders across removal and ignores duplicate handoff', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {
@@ -1751,6 +1785,39 @@ suite('AgentHostChatContributions', () => {
 			senders: queue.pendingMessageSenders,
 			pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
 		}, { delivered: ['a', 'b'], senders: ['client-a', 'client-b'], pending: ['b'] });
+	});
+
+	test('queue drain withdraws steering the user removes mid-turn, but not steering the agent consumed', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const withdrawn: string[] = [];
+		queue.agent.withdrawSteeringMessage = (_chat, id) => { withdrawn.push(id); };
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		for (const id of ['removed-by-user', 'consumed-by-agent']) {
+			const steer: IAppliedClientAction['action'] = {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering, id, message: { text: id, origin: { kind: MessageKind.User } },
+			};
+			queue.stateManager.dispatchServerAction(queue.chat, steer);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steer));
+		}
+		const userRemoval: IAppliedClientAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'removed-by-user' };
+		queue.stateManager.dispatchServerAction(queue.chat, userRemoval);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, userRemoval));
+		const agentCleanup: IDispatchedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'consumed-by-agent' };
+		queue.stateManager.dispatchServerAction(queue.chat, agentCleanup);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, agentCleanup));
+
+		assert.deepStrictEqual({
+			handedToAgent: queue.pendingMessages.map(message => message?.id),
+			withdrawn,
+		}, {
+			handedToAgent: ['removed-by-user', 'consumed-by-agent'],
+			withdrawn: ['removed-by-user'],
+		});
 	});
 
 	test('queue drain holds independent steering until a turn starts', () => {
@@ -2136,7 +2203,7 @@ suite('AgentHostChatContributions', () => {
 			{ kind: 'cancelled' },
 			{ kind: 'error', error, resumable: false },
 			{ kind: 'error', error, resumable: true },
-			{ kind: 'rejected', error },
+			{ kind: 'rejected', error, recoverable: true },
 			{ kind: 'localCommand' },
 		] satisfies ITurnEnd['reason'][]) {
 			contributions.service.turnEnd({ ...turnEnd('root-refresh', reason), channel: `agent-host-session://${reason.kind}-${reason.kind === 'error' ? reason.resumable : false}` });
@@ -2336,6 +2403,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('rejected', {
 			kind: 'rejected',
 			error: { errorType: 'noAgent', message: 'No agent found for session' },
+			recoverable: true,
 		}));
 		const rejectedReadChanges = [...readChanges];
 		contributions.service.turnEnd(turnEnd('error', {
@@ -2359,6 +2427,7 @@ suite('AgentHostChatContributions', () => {
 		contributions.service.turnEnd(turnEnd('rejected', {
 			kind: 'rejected',
 			error: { errorType: 'noAgent', message: 'No agent found for session' },
+			recoverable: true,
 		}));
 
 		assert.deepStrictEqual({
@@ -2599,7 +2668,7 @@ suite('AgentHostChatContributions', () => {
 		titles.service.turnEnd({ ...turn, reason: { kind: 'cancelled' } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'localCommand' } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'error', error: { errorType: 'test', message: 'Failed' }, resumable: false } });
-		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' } } });
+		titles.service.turnEnd({ ...turn, reason: { kind: 'rejected', error: { errorType: 'test', message: 'Rejected' }, recoverable: true } });
 		titles.service.turnEnd({ ...turn, reason: { kind: 'success' } });
 		assert.deepStrictEqual(titles.titleController.refinedTitles, [false, false, false, true].map(successful => ({
 			channel: titles.session, chatChannel: titles.defaultChat, successful,
@@ -3955,7 +4024,7 @@ suite('AgentHostChatContributions', () => {
 
 	test('hydrates authoritative normalized titles and clears from a full catalog instead of accepting stale cached titles', async () => {
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
-		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(new TestSessionDatabase())));
+		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(new TestSessionDatabase())), noOlderBuildCopyParticipant);
 		const contributions = createSessionTitleContributions(disposables, persistence);
 		await database.registerRuntimeSession(contributions.session, { provider: 'test', startTime: 1, source: 'explicit' }, { checkTombstone: true });
 		const peers = Array.from({ length: 100 }, (_, index) => ({

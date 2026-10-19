@@ -9,6 +9,7 @@ import type { StopWatch } from '../../../base/common/stopwatch.js';
 import type { URI } from '../../../base/common/uri.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
 import type { IAgent, IAgentChatUsageSignal } from './agent.js';
+import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { ActionOrigin, StateAction } from './state/sessionActions.js';
 import type { ChatConfigState, ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
@@ -26,7 +27,13 @@ export type TurnEndReason =
 	| { readonly kind: 'success' }
 	| { readonly kind: 'cancelled' }
 	| { readonly kind: 'error'; readonly error: ErrorInfo; readonly resumable: boolean }
-	| { readonly kind: 'rejected'; readonly error: ErrorInfo }
+	/**
+	 * `recoverable` reports whether the submitter still holds the message, as an
+	 * ordinary client does in its composer draft. Only an unrecoverable
+	 * rejection needs to outlive the session in state, because nothing else
+	 * retains what the user asked for.
+	 */
+	| { readonly kind: 'rejected'; readonly error: ErrorInfo; readonly recoverable: boolean }
 	| { readonly kind: 'localCommand' };
 
 /** A terminal turn outcome offered to contributions after a turn ended. */
@@ -84,6 +91,7 @@ export interface IOutgoingTurnContributionResult {
 
 /** A turn request that has entered host state and is asking to proceed to a provider. */
 export interface IIncomingRequest {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly session: ProtocolURI;
 	/** The chat the turn targets. */
 	readonly chat: ProtocolURI;
@@ -144,6 +152,7 @@ export interface IRestoredChat {
 
 /** A client action after it has been reduced into host state. */
 export interface IAppliedClientAction {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly channel: ProtocolURI;
 	readonly session: ProtocolURI;
 	readonly action: StateAction;
@@ -160,6 +169,7 @@ export interface IAppliedClientAction {
  * observing both would see the same client action twice.
  */
 export interface IDispatchedAction {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly channel: ProtocolURI;
 	/** The owning session URI, or the channel itself when it is not a chat channel. */
 	readonly session: ProtocolURI;
@@ -171,11 +181,13 @@ export interface IDispatchedAction {
 }
 
 export interface IQueuedMessageSender {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
 
 export interface ISendTurnMessageOptions {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly agent: IAgent;
 	readonly sessionChannel: ProtocolURI;
 	readonly turnChannel: ProtocolURI;

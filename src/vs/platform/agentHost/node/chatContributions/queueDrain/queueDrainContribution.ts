@@ -77,7 +77,11 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			this._context.memento(PendingSender, observed.channel, action.id).set({
 				clientId: observed.clientId,
 				clientContext: observed.clientContext,
+				...(observed.credentials ? { credentials: observed.credentials } : {}),
 			}, undefined);
+		}
+		if (action.type === ActionType.ChatPendingMessageRemoved && action.kind === PendingMessageKind.Steering) {
+			this._withdrawSubmittedSteering(observed.channel, action.id);
 		}
 		if (this._handlePendingMessageAction(observed.channel, action)) {
 			this._tryConsumeNextQueuedMessage(observed.channel);
@@ -89,6 +93,18 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const action = dispatched.action;
+		if (dispatched.credentials && action.type === ActionType.ChatPendingMessageSet) {
+			const clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown);
+			const host = this._getHost();
+			const sender = {
+				clientId: undefined,
+				clientContext: host ? { ...clientContext, hostLaunchKind: host.hostLaunchKind } : clientContext,
+				credentials: dispatched.credentials,
+			};
+			if (this._isAcceptedQueuedMessage(dispatched.channel, action) || this._isAcceptedSteeringMessage(dispatched.channel, action)) {
+				this._context.memento(PendingSender, dispatched.channel, action.id).set(sender, undefined);
+			}
+		}
 		if (!this._handlePendingMessageAction(dispatched.channel, action)) {
 			const state = this._stateManager.getChatState(dispatched.channel);
 			if (state?.activeTurn) {
@@ -143,6 +159,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		const state = this._stateManager.getChatState(channel);
 		return action.kind === PendingMessageKind.Steering && !!state
 			&& getPendingSteeringMessages(state).some(message => message.id === action.id);
+	}
+
+	/** A client removed steering that was already handed to the provider, which would otherwise still deliver it. */
+	private _withdrawSubmittedSteering(channel: ProtocolURI, id: string): void {
+		if (!this._context.memento(SubmittedSteering, channel).get().has(id)) {
+			return;
+		}
+		const session = this._chatOwnership.getChatOwner(channel);
+		const provider = session !== undefined ? this._providerService.getProviderForSession(session) : undefined;
+		provider?.withdrawSteeringMessage?.(URI.parse(channel), id);
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {
@@ -236,6 +262,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			clientId: sender.clientId,
 			clientContext: sender.clientContext,
 			turnStopWatch,
+			...(sender.credentials ? { credentials: sender.credentials } : {}),
 		});
 		if (!started) {
 			return;
@@ -250,6 +277,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			senderClientId: sender.clientId,
 			clientContext: sender.clientContext,
 			turnStopWatch,
+			...(sender.credentials ? { credentials: sender.credentials } : {}),
 		});
 	}
 

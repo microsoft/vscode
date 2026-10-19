@@ -21,6 +21,7 @@ import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } 
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 
 const session = URI.parse('agenthost:catalog-source');
 const chat = 'agenthost-chat:catalog-source/default';
@@ -116,6 +117,25 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a session whose primary folder is a worktree a move recorded for it projects that worktree\'s repository; a stale entry is ignored, its own recorded worktree wins (Block 5)', async () => {
+		const session = URI.parse('ahp-session:/promoted');
+		const state = (workingDirectories: string[]): ICatalogSourceState => ({ ...sourceState(), project: undefined, workingDirectories });
+		const folders = JSON.stringify([{ workingDirectory: 'file:///repo.worktrees/shared', repositoryRoot: 'file:///repo', branch: 'agents/shared' }]);
+		const project = async (metadata: Readonly<Record<string, string>>, workingDirectories: string[]) =>
+			(await createResolver(metadata).buildCatalogSyncRequest(session, state(workingDirectories), {}, false)).data.project?.uri;
+		assert.deepStrictEqual({
+			promoted: await project({ [WORKTREE_FOLDERS_KEY]: folders }, ['file:///repo.worktrees/shared']),
+			stale: await project({ [WORKTREE_FOLDERS_KEY]: folders }, ['file:///elsewhere']),
+			none: await project({}, ['file:///repo.worktrees/shared']),
+			ownWins: await project({ [WORKTREE_FOLDERS_KEY]: folders, [WORKTREE_META_REPOSITORY_ROOT]: 'file:///own' }, ['file:///repo.worktrees/shared']),
+		}, {
+			promoted: 'file:///repo',
+			stale: undefined,
+			none: undefined,
+			ownWins: 'file:///own',
+		});
+	});
 
 	test('a native backing alias cannot mark its standard host owner as a backing', async () => {
 		const owner = URI.parse('ahp-session:/shared-codex-id');
@@ -536,6 +556,20 @@ suite('AgentHostCatalogSourceResolver', () => {
 
 		assert.strictEqual(result.data.chats[0].summary, 'Live chat');
 	});
+
+	for (const adopted of [false, true]) {
+		test(`projects legacy archive state until adoption rather than a partial host mirror (adopted: ${adopted})`, async () => {
+			const state = { ...sourceState(), status: SessionStatus.Idle | SessionStatus.IsArchived };
+			const result = await createResolver({
+				[AH_META_IS_ARCHIVED_DB_KEY]: '',
+				...(adopted ? { [AH_META_EHCLI_ADOPTED_DB_KEY]: 'true' } : {}),
+			}).buildCatalogSyncRequest(session, state, {}, true);
+			assert.deepStrictEqual({
+				archived: result.data.isArchived,
+				mirror: result.legacyMetadata[AH_META_IS_ARCHIVED_DB_KEY],
+			}, { archived: !adopted, mirror: adopted ? '' : 'true' });
+		});
+	}
 
 	test('projects chat change aggregates from live state or the persisted chat key', async () => {
 		const live = { additions: 1, deletions: 0, files: 1 };

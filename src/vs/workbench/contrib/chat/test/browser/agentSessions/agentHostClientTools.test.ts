@@ -58,7 +58,7 @@ import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -922,7 +922,7 @@ suite('AgentHostClientTools', () => {
 				override readonly extUri = extUriBiasedIgnorePathCase;
 			});
 			instantiationService.stub(IProductService, { quality: 'insider' });
-			instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
+			instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Free }));
 			instantiationService.stub(IChatAgentService, {
 				registerDynamicAgent: () => toDisposable(() => { }),
 			});
@@ -934,6 +934,8 @@ suite('AgentHostClientTools', () => {
 				registerChatSessionContribution: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatWidgetService, {
+				onDidChangeFocusedSession: Event.None,
+				onDidChangeWidgetVisibility: Event.None,
 				getWidgetBySessionResource: () => undefined,
 			});
 			instantiationService.stub(IChatInputNotificationService, {

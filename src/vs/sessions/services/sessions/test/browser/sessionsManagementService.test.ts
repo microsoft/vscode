@@ -40,11 +40,13 @@ import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -278,6 +280,7 @@ function createSessionsManagementService(
 		override moveHistory(): void { }
 	});
 	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
 	instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ connections: [] }));
 	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 	if (workspaceTrustRequestService) {
@@ -1245,6 +1248,138 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('explicitly reopening a retained inactive session reaches only its mounted group', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const { view, part, chatViews } = harness([first, second]);
+			await view.openSessionsInGrid([first, second]);
+			view.setActive(view.visibleSessions.get().find(session => session?.sessionId === second.sessionId));
+			const retained = part.getSessionView(first.sessionId);
+			const reopened: { selected: string | undefined; requested: string }[] = [];
+			for (const leaf of chatViews) {
+				Object.assign(leaf, {
+					reopenChat: async (resource: URI) => {
+						reopened.push({ selected: leaf.chat?.resource.toString(), requested: resource.toString() });
+					},
+				});
+			}
+
+			await view.openSession(first.resource);
+
+			assert.deepStrictEqual({ sameView: part.getSessionView(first.sessionId) === retained, reopened }, {
+				sameView: true, reopened: [{ selected: first.mainChat.get().resource.toString(), requested: first.mainChat.get().resource.toString() }],
+			});
+		});
+
+		test('explicitly reopening a pinned side chat reaches only its mounted group', async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///session/main'), status: constObservable(SessionStatus.Completed) };
+			const side = { ...stubChat, resource: URI.parse('test:///session/side'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource } };
+			const session = stubSession({
+				sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				mainChat: constObservable(main), chats: constObservable([main, side]), capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const { view, part, chatViews } = harness([session]);
+			await view.openChat(session, side.resource);
+			const mounted = part.getSessionView(session.sessionId);
+			assert.ok(mounted);
+			mounted.toggleActiveChatPin();
+			await view.openChat(session, main.resource);
+			const pinned = chatViews.find(leaf => leaf.chat?.resource.toString() === side.resource.toString());
+			assert.ok(pinned);
+			const reopened: { selected: string | undefined; requested: string }[] = [];
+			for (const leaf of chatViews) {
+				Object.assign(leaf, {
+					reopenChat: async (resource: URI) => {
+						reopened.push({ selected: leaf.chat?.resource.toString(), requested: resource.toString() });
+					},
+				});
+			}
+
+			await view.openChat(session, side.resource);
+			await view.openChat(session, side.resource);
+
+			assert.deepStrictEqual({ disposed: pinned.disposed, groups: mounted.shownChatCount.get(), reopened }, {
+				disposed: false, groups: 2,
+				reopened: [
+					{ selected: side.resource.toString(), requested: side.resource.toString() },
+					{ selected: side.resource.toString(), requested: side.resource.toString() },
+				],
+			});
+		});
+
+		for (const open of ['openSession', 'openChat'] as const) {
+			test(`${open} stops awaiting a retained chat retry after newer navigation`, async () => {
+				const [first, second] = ['first', 'second'].map(created);
+				const { view, part, chatViews } = harness([first, second]);
+				await view.openSessionsInGrid([first, second]);
+				const retained = part.getSessionView(first.sessionId);
+				const leaf = chatViews.find(chat => chat.chat?.resource.toString() === first.mainChat.get().resource.toString());
+				assert.ok(leaf);
+				const retryStarted = new DeferredPromise<void>();
+				const releaseRetry = new DeferredPromise<void>();
+				const retryFinished = new DeferredPromise<void>();
+				Object.assign(leaf, {
+					reopenChat: async () => {
+						retryStarted.complete();
+						await releaseRetry.p;
+						leaf.input.value = 'history restored';
+						retryFinished.complete();
+					},
+				});
+				let openingSettled = false;
+				const opening = (open === 'openSession'
+					? view.openSession(first.resource)
+					: view.openChat(first, first.mainChat.get().resource)
+				).then(() => { openingSettled = true; });
+				await retryStarted.p;
+
+				await view.openSession(second.resource);
+				const afterNavigation = {
+					openingSettled,
+					retryFinished: retryFinished.isSettled,
+					sameView: part.getSessionView(first.sessionId) === retained,
+					disposed: leaf.disposed,
+					visible: view.visibleSessions.get().map(session => session?.sessionId),
+					active: view.activeSession.get()?.sessionId,
+				};
+				releaseRetry.complete();
+				await Promise.all([opening, retryFinished.p]);
+
+				assert.deepStrictEqual({ afterNavigation, input: leaf.input.value, active: view.activeSession.get()?.sessionId }, {
+					afterNavigation: { openingSettled: true, retryFinished: false, sameView: true, disposed: false, visible: ['first', 'second'], active: 'second' },
+					input: 'history restored', active: 'second',
+				});
+			});
+		}
+
+		test('navigation cancellation still waits for provider preparation', async () => {
+			const [first, second] = ['first', 'second'].map(created);
+			const preparationStarted = new DeferredPromise<void>();
+			const preparation = new DeferredPromise<void>();
+			let prepareFirst = false;
+			const { view } = harness([first, second], {
+				prepare: async session => {
+					if (prepareFirst && session === first) {
+						preparationStarted.complete();
+						await preparation.p;
+					}
+				},
+			});
+			await view.openSessionsInGrid([first, second]);
+			prepareFirst = true;
+			let openingSettled = false;
+			const opening = view.openSession(first.resource).then(() => { openingSettled = true; });
+			await preparationStarted.p;
+
+			await view.openSession(second.resource);
+			const afterNavigation = { openingSettled, active: view.activeSession.get()?.sessionId };
+			preparation.complete();
+			await opening;
+
+			assert.deepStrictEqual({ afterNavigation, openingSettled, active: view.activeSession.get()?.sessionId }, {
+				afterNavigation: { openingSettled: false, active: 'second' }, openingSettled: true, active: 'second',
+			});
+		});
+
 		test('balanced subset changes preserve caller order and retained widgets', async () => {
 			const [a, b, c] = ['a', 'b', 'c'].map(created);
 			const { view, part, chatViews } = harness([a, b, c]);
@@ -1720,6 +1855,25 @@ suite('SessionsManagementService', () => {
 				listed: [session],
 				sameSession: true,
 			});
+		});
+
+		test('forwards changeset operation invocations while their provider is registered', () => {
+			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
+			const onDidInvokeChangesetOperation = disposables.add(new Emitter<ISessionChangesetOperationInvokedEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidInvokeChangesetOperation = onDidInvokeChangesetOperation.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			const invocations: ISessionChangesetOperationInvokedEvent[] = [];
+			disposables.add(service.onDidInvokeChangesetOperation(e => invocations.push(e)));
+			const registration = disposables.add(providersService.registerProvider(provider));
+
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'commit' });
+			registration.dispose();
+			onDidInvokeChangesetOperation.fire({ session, operationId: 'sync' });
+
+			assert.deepStrictEqual(invocations, [{ session, operationId: 'commit' }]);
 		});
 
 		test('seeds cached sessions before subscribing to reentrant provider changes', () => {
@@ -3303,6 +3457,7 @@ suite('SessionsManagementService', () => {
 					const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
 					sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
 						openChatToSide: resource => view.openChat(target, resource),
+						reopenChat: async () => { },
 					}));
 					const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
 
@@ -3358,6 +3513,7 @@ suite('SessionsManagementService', () => {
 			const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
 			sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
 				openChatToSide: resource => view.openChat(target, resource),
+				reopenChat: async () => { },
 			}));
 			const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
 
@@ -4262,6 +4418,40 @@ suite('SessionsManagementService', () => {
 			preparations: [{ sessionId: 'remote', reason: 'restore' }],
 		});
 	});
+
+	for (const sideChat of [false, true]) {
+		test(`explicitly reopening the active ${sideChat ? 'side chat' : 'session'} reaches its mounted chat view`, async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///session/main'), status: constObservable(SessionStatus.Completed) };
+			const side = { ...stubChat, resource: URI.parse('test:///session/side'), status: constObservable(SessionStatus.Completed), origin: { kind: ChatOriginKind.SideChat, parentChat: main.resource } };
+			const session = stubSession({
+				sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				mainChat: constObservable(main), chats: constObservable([main, side]),
+			});
+			const { view, sessionsPartService } = createSessionsManagementService(session, disposables);
+			await view.openSession(session.resource);
+			if (sideChat) {
+				await view.openChat(session, side.resource);
+			}
+			const activeSession = view.activeSession.get();
+			const reopened: { resource: string; selected: string | undefined }[] = [];
+			sessionsPartService.sessionViews.set(session.sessionId, upcastPartial<SessionView>({
+				reopenChat: async resource => {
+					reopened.push({ resource: resource.toString(), selected: view.activeSession.get()?.activeChat.get().resource.toString() });
+				},
+			}));
+
+			if (sideChat) {
+				await view.openChat(session, side.resource);
+			} else {
+				await view.openSession(session.resource);
+			}
+
+			const resource = (sideChat ? side : main).resource.toString();
+			assert.deepStrictEqual({ sameActiveSession: view.activeSession.get() === activeSession, reopened }, {
+				sameActiveSession: true, reopened: [{ resource, selected: resource }],
+			});
+		});
+	}
 
 	test('openSession activates before awaiting provider preparation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
@@ -7157,28 +7347,33 @@ suite('SessionsManagementService', () => {
 
 	suite('forkChatInSession', () => {
 
-		test('asks the provider to fork the chat when the session supports multiple chats', async () => {
+		test('asks the provider to fork the chat with options when the session supports multiple chats', async () => {
 			const sourceChat = URI.parse('test:///source');
 			const forkedChat: IChat = { ...stubChat, resource: URI.parse('test:///forked') };
 			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true }) });
-			let forkChatArgs: readonly [string, URI, string] | undefined;
+			let forkChatArgs: readonly [string, URI, string, IForkChatOptions | undefined] | undefined;
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
-				override async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
-					forkChatArgs = [sessionId, sourceChat, turnId];
+				override async forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
+					forkChatArgs = [sessionId, sourceChat, turnId, options];
 					return forkedChat;
 				}
 			};
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
-			const result = await service.forkChatInSession(session, sourceChat, 'turn-1');
+			const result = await service.forkChatInSession(session, sourceChat, 'turn-1', { title: 'Named fork' });
 
 			assert.deepStrictEqual({
 				result: result.resource.toString(),
-				args: forkChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+				args: forkChatArgs && [
+					forkChatArgs[0],
+					forkChatArgs[1].toString(),
+					forkChatArgs[2],
+					forkChatArgs[3],
+				],
 			}, {
 				result: forkedChat.resource.toString(),
-				args: ['fork', sourceChat.toString(), 'turn-1'],
+				args: ['fork', sourceChat.toString(), 'turn-1', { title: 'Named fork' }],
 			});
 		});
 
@@ -7196,6 +7391,7 @@ suite('SessionsManagementService', () => {
 
 			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support forking into a chat/);
 		});
+
 	});
 
 	suite('createSideChatInSession', () => {

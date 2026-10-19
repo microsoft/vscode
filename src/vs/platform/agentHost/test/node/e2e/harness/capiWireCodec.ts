@@ -402,10 +402,10 @@ export function summarizeResponsesRequest(requestBody: string): IReadableAnthrop
 	if (typeof parsed.model !== 'string') {
 		return undefined;
 	}
-	const hasSystemMessage = Array.isArray(parsed.input) && parsed.input.some(item => item?.type === 'message' && item.role === 'system');
+	const hasInstructionMessage = Array.isArray(parsed.input) && parsed.input.some(item => item?.type === 'message' && (item.role === 'system' || item.role === 'developer'));
 	return {
 		model: parsed.model,
-		system: parsed.instructions !== undefined || hasSystemMessage ? SYSTEM_PLACEHOLDER : '',
+		system: parsed.instructions !== undefined || hasInstructionMessage ? SYSTEM_PLACEHOLDER : '',
 		messages: responsesInputToMessages(parsed.input),
 	};
 }

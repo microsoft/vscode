@@ -5,6 +5,8 @@
 
 // Protocol client for communicating with an agent host process.
 
+import { supportsSandboxCertificateInstallation, supportsSandboxCertificateRemoval, supportsSandboxCertificateRotation } from '../common/meta/agentSandboxCertificate.js';
+import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod } from '../common/sandboxCertificateProtocol.js';
 import { DeferredPromise, disposableTimeout, IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -22,7 +24,9 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
+import { AgentPolicyError, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
 import { AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod } from '../common/agentHostExtensionProtocol.js';
@@ -41,7 +45,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
@@ -57,13 +61,14 @@ import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ip
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
-import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { AgentHostDynamicAutoTiersEnabledSettingId, AgentHostFusionEnabledSettingId, CopilotCliConfigKey } from '../common/copilotCliConfig.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { observableValue, type IObservable } from '../../../base/common/observable.js';
+import { derived, observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -289,6 +294,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * a fresh snapshot. `undefined` before the handshake completes.
 	 */
 	private readonly _initializeResult = observableValue<IAgentHostExtensionInitializeResult | undefined>('agentHostInitializeResult', undefined);
+	readonly sandboxCertificateInstallationSupported = derived(this, reader => supportsSandboxCertificateInstallation(this._initializeResult.read(reader)));
+	readonly sandboxCertificateRotationSupported = derived(this, reader => supportsSandboxCertificateRotation(this._initializeResult.read(reader)));
+	readonly sandboxCertificateRemovalSupported = derived(this, reader => supportsSandboxCertificateRemoval(this._initializeResult.read(reader)));
 	private readonly _devContainerService = this._register(new DevContainerAgentHostProtocolClient((method, params) => this._sendExtensionRequest(method, params)));
 
 	get devContainerService(): IDevContainerAgentHostMainService | undefined {
@@ -425,6 +433,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
 	private _isSuspended = false;
 	private _firstSessionRequestPending = false;
+	private _firstSessionOpenPending = false;
+	private _connectionOperation: 'connect' | 'recover' = 'connect';
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
@@ -480,6 +490,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		@IWorkspaceTrustEnablementService private readonly _workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._resourceIdentity = identity;
@@ -522,6 +533,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
 
+		this._register(this._defaultAccountService.onDidChangePolicyData(() => {
+			if (this._state.kind === AgentHostClientState.Connected) {
+				this._updateFusion();
+				this._updateDynamicAutoTiers();
+			}
+		}));
+
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (this._state.kind !== AgentHostClientState.Connected || this._isWebPubSubRelay()) {
 				return;
@@ -531,6 +549,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const mirrored: string[] = [];
 			// Mirrored values exclude workspace, folder, and memory layers, so changes from those layers cannot affect them.
 			if (e.source !== ConfigurationTarget.WORKSPACE && e.source !== ConfigurationTarget.WORKSPACE_FOLDER && e.source !== ConfigurationTarget.MEMORY) {
+				if (e.affectsConfiguration(AgentHostFusionEnabledSettingId)) {
+					this._updateFusion();
+				}
+				if (e.affectsConfiguration(AgentHostDynamicAutoTiersEnabledSettingId)) {
+					this._updateDynamicAutoTiers();
+				}
 				for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
 					if (!e.affectsConfiguration(entry.settingId)) {
 						continue;
@@ -624,9 +648,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			reconnect.nextAttemptAt = undefined;
 		}
+		if (this._state.kind === AgentHostClientState.Connected && next.kind === AgentHostClientState.Reconnecting) {
+			this._connectionOperation = 'recover';
+		}
 		this._state = next;
 		if (next.kind === AgentHostClientState.Connected) {
 			this._firstSessionRequestPending = true;
+			this._firstSessionOpenPending = true;
 		}
 		if (next.kind === AgentHostClientState.Reconnecting) {
 			this._armReconnectDeadline(next.reconnect);
@@ -1355,6 +1383,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
+		this._updateFusion();
+		this._updateDynamicAutoTiers();
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
 		this._updateTerminalAutoApproveRules();
@@ -1364,6 +1394,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
 		}
+	}
+
+	private _updateFusion(): void {
+		const enabled = this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+			&& getGlobalConfigurationValue<boolean>(this._configurationService, AgentHostFusionEnabledSettingId) === true;
+		// Older hosts still consume the pre-rename Ensemble key.
+		this._dispatchRootConfig({ [CopilotCliConfigKey.Fusion]: enabled, ensemble: enabled });
+	}
+
+	/** Gated like Fusion: server-driven tiers can offer HydraFusion, a preview feature. */
+	private _updateDynamicAutoTiers(): void {
+		const enabled = this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+			&& getGlobalConfigurationValue<boolean>(this._configurationService, AgentHostDynamicAutoTiersEnabledSettingId) === true;
+		this._dispatchRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: enabled });
 	}
 
 	private _updateAutoApprovePolicyRestriction(): void {
@@ -1581,6 +1625,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * response.
 	 */
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
+		if (this._firstSessionOpenPending && this._state.kind === AgentHostClientState.Connected
+			&& this._subscriptionManager.getActiveSubscriptions().some(subscription => subscription.kind === StateComponents.Session && subscription.resource.toString() === resource.toString())) {
+			this._firstSessionOpenPending = false;
+			const connectionOperation = this._connectionOperation;
+			const attemptId = this._diagnosticAttemptId;
+			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind: 'subscribeSession' }), 'protocol.sessionOpen', () => this._subscribe(resource));
+		}
+		return this._subscribe(resource);
+	}
+
+	private async _subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[RemoteAgentHostProtocol] subscribe start: ${resource.toString()}`);
 		const result = await this._sendRequest('subscribe', { channel: resource.toString() });
 		if (!result.snapshot) {
@@ -1666,6 +1721,27 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		const result = await this._sendExtensionRequest(StopBackgroundWorkExtensionMethod, { chat: chat.toString(), id });
 		return result.stopped;
+	}
+
+	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!supportsSandboxCertificateInstallation(this.initializeResult.get())) {
+			throw new Error('This agent host does not support sandbox certificate installation.');
+		}
+		await this._sendExtensionRequest(InstallSandboxCertificateExtensionMethod, { chat, scopeId });
+	}
+
+	async rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this.sandboxCertificateRotationSupported.get()) {
+			throw new Error('This agent host does not support sandbox certificate rotation.');
+		}
+		await this._sendExtensionRequest(RotateSandboxCertificateExtensionMethod, { chat, scopeId });
+	}
+
+	async removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		if (!this.sandboxCertificateRemovalSupported.get()) {
+			throw new Error('This agent host does not support sandbox certificate removal.');
+		}
+		await this._sendExtensionRequest(RemoveSandboxCertificateExtensionMethod, { chat, scopeId });
 	}
 
 	refreshSubscription(resource: URI): Promise<void> {
@@ -2008,9 +2084,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+		const initialMessage = options?.initialMessage && {
+			...options.initialMessage,
+			...(options.initialMessage.model === undefined && options.model !== undefined ? { model: options.model } : {}),
+			...(options.initialMessage.agent === undefined && options.agent !== undefined ? { agent: options.agent } : {}),
+		};
 		await this._sendRequest('createChat', {
 			channel: session.toString(),
 			chat: chat.toString(),
+			...(options?.title !== undefined ? { title: options.title } : {}),
+			...(initialMessage ? { initialMessage } : {}),
 			...(options?.workingDirectories !== undefined && !options.fork
 				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
 				: {}),
@@ -2284,7 +2367,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					if (this._shouldLogFailedRequest(pending, msg.error)) {
 						this._logService.warn(`[RemoteAgentHostProtocol] Request ${msg.id} failed:`, msg.error);
 					}
-					pending.deferred.error(this._toProtocolError(msg.error));
+					pending.deferred.error(this._toError(msg.error));
 				} else {
 					pending.deferred.complete(msg.result);
 				}
@@ -2741,7 +2824,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		if (this._firstSessionRequestPending && current.kind === AgentHostClientState.Connected && (method === 'createSession' || method === 'listSessions' || method === 'subscribe')) {
 			this._firstSessionRequestPending = false;
-			return this._traceConnection('protocol.firstSessionRequest', async () => {
+			const fields: { readonly channel?: unknown } | undefined = typeof params === 'object' && params !== null ? params : undefined;
+			const channel = typeof fields?.channel === 'string' ? fields.channel : undefined;
+			const subscriptionKind = method === 'subscribe' ? this._subscriptionManager.getActiveSubscriptions().find(subscription => subscription.resource.toString() === channel)?.kind : undefined;
+			const requestKind = method !== 'subscribe' ? method
+				: channel !== undefined && isAhpRootChannel(channel) ? 'subscribeRoot'
+					: subscriptionKind === StateComponents.Session ? 'subscribeSession'
+						: subscriptionKind === StateComponents.Chat || (channel !== undefined && isAhpChatChannel(channel)) ? 'subscribeChat' : 'subscribeOther';
+			const attemptId = this._diagnosticAttemptId;
+			const connectionOperation = this._connectionOperation;
+			return traceConnectionOperation(event => this._onDidConnectionDiagnostic.fire({ ...event, attemptId, connectionOperation, requestKind }), 'protocol.firstSessionRequest', async () => {
 				this._transport.send(request);
 				return result;
 			});
@@ -2776,7 +2868,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return true;
 	}
 
-	private _toProtocolError(error: JsonRpcErrorResponse['error']): ProtocolError {
+	private _toError(error: JsonRpcErrorResponse['error']): Error {
+		if (error.code === JSON_RPC_INTERNAL_ERROR && isPolicyResolutionErrorData(error.data)) {
+			return new AgentPolicyError(error.message);
+		}
 		return new ProtocolError(error.code, error.message, error.data);
 	}
 

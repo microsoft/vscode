@@ -40,6 +40,15 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
 
+	/** Cloud sandbox storage is managed by the sandbox lifecycle, not worktree cleanup. */
+	override async getSessionWorktreeDiskUsage(_sessionId: string, _token = CancellationToken.None): Promise<number | undefined> {
+		return undefined;
+	}
+
+	protected override _validateBeforeCreate(): void {
+		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
+	}
+
 	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
 		return adopted?.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER
@@ -47,8 +56,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			: adopted;
 	}
 
-	private _taskRenameHandler: { readonly sessionKey: string; readonly rename: (title: string) => Promise<void> } | undefined;
-	private _taskArchiveHandler: { readonly sessionKey: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
+	private readonly _taskRenameHandlers = new Map<string, (title: string) => Promise<void>>();
+	private readonly _taskArchiveHandlers = new Map<string, (archived: boolean) => Promise<void>>();
 	private readonly _archiveSequencer = new Sequencer();
 
 	/**
@@ -157,19 +166,26 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _resolveArchivedState(sessionKey: string, isArchived: boolean): boolean {
-		return this._taskArchiveHandler?.sessionKey === sessionKey
+		return this._taskArchiveHandlers.has(sessionKey)
 			? this._sessionCache.get(sessionKey)?.isArchived.get() ?? isArchived
 			: super._resolveArchivedState(sessionKey, isArchived);
 	}
 
 	/** Bind the discovered session's Mission Control archive operation. */
 	setTaskArchiveHandler(rawId: string, setArchived: (archived: boolean) => Promise<void>): void {
-		this._taskArchiveHandler = { sessionKey: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), setArchived };
+		this._taskArchiveHandlers.set(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), setArchived);
 	}
 
 	/** Bind the discovered session's Mission Control rename operation. */
 	setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
-		this._taskRenameHandler = { sessionKey: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename };
+		this._taskRenameHandlers.set(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename);
+	}
+
+	/** Stop routing task actions without removing a conversation still listed by the live host. */
+	removeTaskOwnership(rawId: string): void {
+		const key = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
+		this._taskRenameHandlers.delete(key);
+		this._taskArchiveHandlers.delete(key);
 	}
 
 	/** Preserve the initial title without letting a transient task metadata failure block the first turn. */
@@ -187,14 +203,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!session || !sessionKey) {
 			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
 		}
-		const handler = this._taskRenameHandler;
-		if (handler?.sessionKey !== sessionKey) {
+		const rename = this._taskRenameHandlers.get(sessionKey);
+		if (!rename) {
 			if (!this.connection && !this._provisionalSessions.has(sessionKey)) {
 				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
 			}
 		} else {
 			try {
-				await handler.rename(title);
+				await rename(title);
 			} catch (error) {
 				if (!initial || !(error instanceof CloudSandboxRequestError) || !isRetryableCloudSandboxError(error)) {
 					throw error;
@@ -231,18 +247,37 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!session || !sessionKey) {
 			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
 		}
-		const handler = this._taskArchiveHandler;
-		if (handler?.sessionKey !== sessionKey) {
+		const setArchived = this._taskArchiveHandlers.get(sessionKey);
+		if (!setArchived) {
 			if (!this.connection) {
 				throw new Error(localize('cloudSandbox.archiveUnavailable', "Connect to the environment to change this session's archive state."));
 			}
 			return isArchived ? super.archiveSession(sessionId) : super.unarchiveSession(sessionId);
 		}
-		await handler.setArchived(isArchived);
+		await setArchived(isArchived);
 		if (this._store.isDisposed || this._sessionCache.get(sessionKey) !== session) {
 			throw new CancellationError();
 		}
 		this.setSessionArchived(AgentSession.id(session.backendUri), isArchived);
+	}
+
+	override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean> {
+		if (this.connection && this.getBackendChatResource(chatResource)) {
+			return super.setChatReadState(sessionId, chatResource, isRead);
+		}
+		const sessionKey = this._sessionKeyFromChatId(sessionId);
+		const session = sessionKey ? this._sessionCache.get(sessionKey) : undefined;
+		const chat = session?.chats.get().find(chat => isEqual(chat.resource, chatResource));
+		if (!session || !chat || this._isAgentDisabledByPolicy(session.agentProvider)) {
+			return false;
+		}
+		if (chat.isRead.get() === isRead) {
+			return true;
+		}
+		session.setChatRead(chatResource, isRead);
+		// A connected environment may no longer host this recorded conversation.
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		return true;
 	}
 
 	setSessionArchived(rawId: string, archived: boolean): void {
@@ -311,6 +346,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const key = cached ? this._sessionKeyFromChatId(cached.sessionId) : undefined;
 		const session = key ? this._removeCachedSession(key) : undefined;
 		const taskKey = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
+		this.removeTaskOwnership(rawId);
 		this._withheldSessions.delete(taskKey);
 		this._provisionalSessions.delete(taskKey);
 		this._pendingSessionTitles.delete(taskKey);

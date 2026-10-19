@@ -422,7 +422,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('connected chat actions retain a compact trailing gutter across densities and directions', () => {
+	test('connected chat tabs retain balanced insets across densities and directions', () => {
 		const harness = createHarness(disposables);
 		const root = attachConnectedBar(harness);
 		const tab = harness.tabs[1];
@@ -439,13 +439,14 @@ suite('Sessions - ChatCompositeBar', () => {
 					const actionBounds = actions.getBoundingClientRect();
 					results.push({
 						theme, compact, direction,
+						leadingInset: direction === 'rtl' ? tabBounds.right - tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!.getBoundingClientRect().right : tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!.getBoundingClientRect().left - tabBounds.left,
 						trailingInset: direction === 'rtl' ? actionBounds.left - tabBounds.left : tabBounds.right - actionBounds.right,
 					});
 				}
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, trailingInset: 2 })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, leadingInset: 8, trailingInset: 2 })));
 	});
 
 	for (const connected of [false, true]) {

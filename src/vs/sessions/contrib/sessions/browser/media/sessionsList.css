@@ -822,6 +822,11 @@
 	each nested/side chat row (for that chat), so it is scoped to neither. */
 .session-approval-row {
 	display: none;
+	/* Reset the inherited list-row line-height (set to the full row height).
+		The label's code block renders as plain inline text until it is tokenized,
+		so a dynamic-height probe in that state would measure a line box as tall as
+		the previous row height and grow the row on every re-measure. */
+	line-height: 18px;
 	gap: 8px;
 	margin-top: 4px;
 	margin-left: -6px;

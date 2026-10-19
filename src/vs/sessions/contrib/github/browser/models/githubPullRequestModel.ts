@@ -10,6 +10,8 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableSet, IDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
+import { compareRequestPriority, RequestPriority } from '../../../../../platform/github/common/types.js';
 import { IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../common/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 import { GitHubApiClient } from '../githubApiClient.js';
@@ -54,6 +56,8 @@ export class GitHubPullRequestModel extends Disposable {
 	readonly mergeability: IObservable<IGitHubPullRequestMergeability | undefined> = this._mergeability;
 
 	private _refreshPromise: Promise<void> | undefined;
+	private _refreshPriority: RequestPriority = 'interactive';
+	private _refreshVersion = 0;
 
 	private readonly _pollScheduler: RunOnceScheduler;
 	private readonly _pollingDisposables = this._register(new DisposableSet());
@@ -77,19 +81,24 @@ export class GitHubPullRequestModel extends Disposable {
 				this._mergeability.set(undefined, tx);
 			});
 			if (shouldRefresh) {
-				void this.refresh();
+				void this.refresh({ priority: 'background' });
 			}
 		}));
 	}
 
 	/** Refreshes pull request metadata, reviews, and mergeability. */
-	refresh(): Promise<void> {
-		const pending = this._refreshPromise ??= this._refresh().finally(() => {
-			if (this._refreshPromise === pending) {
-				this._refreshPromise = undefined;
-			}
-		});
-		return pending;
+	refresh(options?: ApiRequestOptions): Promise<void> {
+		const priority = options?.priority ?? 'interactive';
+		if (!this._refreshPromise || compareRequestPriority(priority, this._refreshPriority) < 0) {
+			this._refreshPriority = priority;
+			const pending = this._refresh(options).finally(() => {
+				if (this._refreshPromise === pending) {
+					this._refreshPromise = undefined;
+				}
+			});
+			this._refreshPromise = pending;
+		}
+		return this._refreshPromise;
 	}
 
 	/**
@@ -129,22 +138,23 @@ export class GitHubPullRequestModel extends Disposable {
 
 	private async _poll(): Promise<void> {
 		this._logService.trace(`${TRACE_PREFIX} [PRModel] Poll cycle for ${this.owner}/${this.repo}#${this.prNumber}`);
-		await this.refresh();
+		await this.refresh({ priority: 'background' });
 		// Re-schedule for next poll cycle (RunOnceScheduler is one-shot)
 		if (!this._store.isDisposed && this._pollingDisposables.size > 0) {
 			this._pollScheduler.schedule();
 		}
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _refresh(options?: ApiRequestOptions): Promise<void> {
 		const generation = this._fetcher.client.generation;
+		const version = ++this._refreshVersion;
 		this._logService.trace(`${TRACE_PREFIX} [PRModel] Refreshing ${this.owner}/${this.repo}#${this.prNumber}`);
 		try {
 			const [pr, reviews] = await Promise.all([
-				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._token),
-				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._token),
+				this._fetcher.getPullRequest(this.owner, this.repo, this.prNumber, this._token, options),
+				this._fetcher.getReviews(this.owner, this.repo, this.prNumber, this._token, options),
 			]);
-			if (this._store.isDisposed || generation !== this._fetcher.client.generation) {
+			if (this._store.isDisposed || generation !== this._fetcher.client.generation || version !== this._refreshVersion) {
 				return;
 			}
 

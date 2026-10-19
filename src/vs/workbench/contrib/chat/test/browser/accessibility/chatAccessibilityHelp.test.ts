@@ -15,15 +15,37 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents the session working set while preserving existing editor guidance', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true);
+		assert.deepStrictEqual({
+			sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
+			disclosure: help.includes('Enter or Space to expand or collapse it'),
+			openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+			editorNavigation: help.includes('Navigate between edits in the editor'),
+			editorSignals: help.includes('accessibility.signals.editsKept'),
+		}, { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true });
+	});
+
+	test('does not describe the editor working set on other chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true, false, false, false, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true),
+		].map(help => help.includes('changes across the whole session instead of showing a Changes pill')), [false, false, false, false]);
+	});
+
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
 		test(`documents the sharing toggle and backend selection (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
-				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment'),
-				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				backend: help.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				setting: help.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
+				explicitOptIn: help.includes('Selecting a method does not enable sharing; changing it turns sharing off'),
 				keyboard: help.includes('Enter or Space to enable or disable sharing'),
 			}, {
 				backend: type !== 'inlineChat' && type !== 'quickChat',
+				setting: type !== 'inlineChat' && type !== 'quickChat',
 				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
 				keyboard: type !== 'inlineChat' && type !== 'quickChat',
 			});
@@ -43,6 +65,24 @@ suite('Chat Accessibility Help', () => {
 	test('documents the sandbox policy command and report link', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+	});
+
+	test('documents the optional sandbox certificate notice and keyboard dismissal', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			optional: help.includes('Installation is optional and chatting is not blocked.'),
+			priority: help.includes('Dependency warnings take priority over this notice.'),
+			dismissal: help.includes('Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window.'),
+			installation: help.includes('use Tab to reach the Install link and Enter to activate it.'),
+			manageCommand: help.includes('Sandbox: Manage Trusted CA for the last-focused chat.'),
+			keyboard: help.includes('Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel.'),
+			installCommand: help.includes('choose Install in Manage Trusted CA after dismissing the notice.'),
+			removeCommand: help.includes('Choose Remove in Manage Trusted CA to remove OS trust.'),
+			rotateCommand: help.includes('Choose Rotate in Manage Trusted CA to replace the installed sandbox CA and private key.'),
+			noHost: help.includes('a dialog says No agent host detected.'),
+			restart: help.includes('running tools may need to restart.'),
+			retention: help.includes('The stored certificate authority is kept.'),
+		}, { optional: true, priority: true, dismissal: true, installation: true, manageCommand: true, keyboard: true, installCommand: true, removeCommand: true, rotateCommand: true, noHost: true, restart: true, retention: true });
 	});
 
 	test('explains read-only model options separately from overridable defaults', () => {
@@ -94,7 +134,7 @@ suite('Chat Accessibility Help', () => {
 				&& help.includes('Enter on an installed model selects it and starts loading it right away, without asking') && help.includes('Cancel takes back a model change, keeping the loaded model') && !help.includes('asks before loading it'),
 			consent: help.includes('choosing Download, or Set Up for model files already on this device, agrees to exactly what the page shows') && !/winget|Homebrew|\bapt\b|Open Terminal|Update llama\.cpp/.test(help),
 			llamaCpp: help.includes('Downloading doesn\'t need llama.cpp, but loading a model does, and VS Code doesn\'t install it') && help.includes('with Get llama.cpp, which opens directions') && help.includes('chat.copilot.localModel.llamaServerPath') && help.includes('when this device has an NVIDIA GPU that can run one') && !/LLAMACPP_SERVER_PATH|Use This llama\.cpp/.test(help),
-			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.includes('Manage') && !help.includes('Make Active, Start'),
+			manage: help.includes('the Use in Auto switch') && help.includes('the first, the model\'s name, also gives the model\'s state') && help.includes('The first shows the state and what it does: Load for a model that isn\'t loaded') && help.includes('an in-progress indicator named with the state and the action that stops it, such as Loading, Cancel, or Downloading 41%, Pause') && help.includes('Then come Update, when an update is available, with its size, and Remove, which asks first') && !help.split('\n').some(line => line.startsWith('A model\'s detail page') && line.includes('Manage')) && !help.includes('Make Active, Start'),
 			thinking: help.includes('an Effort Level choice when the model supports it, which sets its effort level for this chat'),
 			context: help.includes('Changing the context size of a loaded model reloads it right away without asking, once its running responses finish'),
 			activeBadge: help.includes('an Active badge while it is loaded or loading'),
@@ -164,9 +204,11 @@ suite('Chat Accessibility Help', () => {
 			responsivePreview: help.includes('The thumbnail row follows the selected preview\'s size'),
 			noEmptyPreview: help.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: help.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			batchDownload: help.includes('download action beside the Image batch status to save all currently ready images as a ZIP archive'),
+			downloadSnapshot: help.includes('Only images ready when you start the download are included'),
 			details: help.includes('Expand the selected tool dropdown to inspect its prompt and output'),
 			approvals: help.includes('Approval and authentication requests remain visible even when another image is selected'),
-		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, details: true, approvals: true });
+		}, { keyboard: true, stableSelection: true, selectedBorder: true, confirmationFirst: true, preparation: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, batchDownload: true, downloadSnapshot: true, details: true, approvals: true });
 	});
 
 	test('documents generated image artifacts and conversation carousel navigation', () => {
@@ -556,20 +598,20 @@ suite('Chat Accessibility Help', () => {
 			agentView: true,
 			panelChat: false,
 		});
+	});
 
-		test('only documents customization migration entry points in panel chat', () => {
-			const keybindingService = new MockKeybindingService();
-			const expectedText = 'notice above the new-chat input';
+	test('only documents customization migration entry points in panel chat', () => {
+		const keybindingService = new MockKeybindingService();
+		const expectedText = 'notice above the new-chat input';
 
-			assert.deepStrictEqual({
-				panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
-				quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
-				agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
-			}, {
-				panelChat: true,
-				quickChat: false,
-				agentView: false,
-			});
+		assert.deepStrictEqual({
+			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes(expectedText),
+			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes(expectedText),
+			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes(expectedText),
+		}, {
+			panelChat: true,
+			quickChat: false,
+			agentView: false,
 		});
 	});
 
@@ -693,6 +735,56 @@ suite('Chat Accessibility Help', () => {
 			quickChat: false,
 			inlineChat: false,
 			sessionsWindow: false,
+		});
+	});
+
+	test('documents optional fork titles and ordinary initial-prompt errors on persistent chat surfaces', () => {
+		const keybindingService = new MockKeybindingService();
+		const getForkHelp = (type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', isSessionsWindow = false) => {
+			const help = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
+			return {
+				forkCapableAgentHostChat: help.includes('In an Agent Host chat that supports forking'),
+				sameSessionPeerChat: help.includes('type /fork to create a forked chat beside the current one'),
+				optionalTitle: help.includes('Add a title after /fork to name it'),
+				submitPromptInFork: help.includes('type /fork prompt followed by a prompt to also send that prompt in the new chat'),
+				templateDoesNotSubmit: help.includes('Selecting the /fork title or /fork prompt completion inserts the command without submitting it.'),
+				hintsAreNotInput: help.includes('The title and prompt hints shown after the command are suggestions and are not part of your input.'),
+				doesNotDescribeNewSession: !help.includes('new session') && !help.includes('fork an Agent Host session'),
+			};
+		};
+		const documented = {
+			forkCapableAgentHostChat: true,
+			sameSessionPeerChat: true,
+			optionalTitle: true,
+			submitPromptInFork: true,
+			templateDoesNotSubmit: true,
+			hintsAreNotInput: true,
+			doesNotDescribeNewSession: true,
+		};
+		const notDocumented = {
+			forkCapableAgentHostChat: false,
+			sameSessionPeerChat: false,
+			optionalTitle: false,
+			submitPromptInFork: false,
+			templateDoesNotSubmit: false,
+			hintsAreNotInput: false,
+			doesNotDescribeNewSession: true,
+		};
+
+		assert.deepStrictEqual({
+			panelChat: getForkHelp('panelChat'),
+			agentView: getForkHelp('agentView'),
+			editsView: getForkHelp('editsView'),
+			quickChat: getForkHelp('quickChat'),
+			inlineChat: getForkHelp('inlineChat'),
+			sessionsWindow: getForkHelp('agentView', true),
+		}, {
+			panelChat: { ...documented },
+			agentView: { ...documented },
+			editsView: { ...documented },
+			quickChat: { ...notDocumented },
+			inlineChat: { ...notDocumented },
+			sessionsWindow: { ...documented },
 		});
 	});
 });

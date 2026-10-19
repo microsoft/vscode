@@ -13,6 +13,7 @@ export class GistsClient implements IGistsClient {
 
 	async get(gistId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Gist> {
 		const response = await this._provider.request({
+			domain: 'gists',
 			method: 'GET',
 			path: `/gists/${pathSegment(gistId)}`,
 			expectedStatus: 200,
@@ -23,6 +24,7 @@ export class GistsClient implements IGistsClient {
 
 	async create(request: CreateGistRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<Gist> {
 		const response = await this._provider.request({
+			domain: 'gists',
 			method: 'POST',
 			path: '/gists',
 			body: request,

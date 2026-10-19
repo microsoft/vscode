@@ -33,7 +33,7 @@ import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/re
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
@@ -183,7 +183,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
+	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
@@ -220,11 +220,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+				backendPicker: content.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
-				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendPicker: !hidden && !aiDisabled,
+				previewSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
@@ -546,6 +548,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			responsiveImagePreview: content.includes('The thumbnail row follows the selected preview\'s size'),
 			noEmptyImagePreview: content.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: content.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			batchDownload: content.includes('download action beside the Image batch status to save all currently ready images as a ZIP archive'),
+			downloadSnapshot: content.includes('Only images ready when you start the download are included'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
 			carouselDownload: content.includes('Images Preview offers Download for the selected image'),
 			artifactDownload: content.includes('Image rows in Artifacts and References offer Download Image'),
@@ -567,6 +571,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			responsiveImagePreview: true,
 			noEmptyImagePreview: true,
 			countsBelowThumbnails: true,
+			batchDownload: true,
+			downloadSnapshot: true,
 			imageNavigation: true,
 			carouselDownload: true,
 			artifactDownload: true,

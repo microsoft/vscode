@@ -30,7 +30,7 @@ import { IAgentHostChangesetOperationService } from '../../common/agentHostChang
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -38,7 +38,7 @@ import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../..
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
@@ -72,7 +72,7 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 	/** Resolves once every summary write issued so far has reached the session database. */
 	async whenSummaryPersisted(): Promise<void> {
 		await this.whenSummaryCommitted();
-		await this._mirrorStore.whenIdle(undefined);
+		await this.stateStore.whenIdle(undefined);
 	}
 
 	/** Resolves once every summary write has committed centrally, before the session database mirror is flushed. */
@@ -80,7 +80,7 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 		await Promise.all([...this._pendingSummaryWrites]);
 	}
 
-	private readonly _mirrorStore: IAgentHostSessionStateStore;
+	readonly stateStore: IAgentHostSessionStateStore;
 
 	constructor(...args: WithoutLast<WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
 		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
@@ -89,7 +89,7 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 			...createLegacyChatMetadataPersistence(args[2]),
 		}, createTestChatOwnershipService(args[0]),
 			mirrorStore);
-		this._mirrorStore = mirrorStore;
+		this.stateStore = mirrorStore;
 		settleServices.add(this);
 	}
 }
@@ -2109,6 +2109,50 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('opens the databases, folders, and folder scope that Session Changes is computed from', () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const db = new TestSessionDatabase();
+		const peerDb = new TestSessionDatabase();
+		let peerDisposals = 0;
+		const { svc } = build({
+			workingDirectories: ['file:///repoA'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			db,
+			// Stored somewhere else than its URI, as a moved chat is: sources still name the chat.
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///repoB'], storage: 'copilot:/moved-in-storage', onDispose: () => { peerDisposals++; } },
+		});
+		const describe = (candidate: unknown) => candidate === db ? 'session' : candidate === peerDb ? 'peer' : 'other';
+		const open = (owner: string) => {
+			const tracked = svc.openTrackedSessionDatabases(owner);
+			tracked.dispose();
+			return {
+				sources: tracked.sources.map(source => ({ chat: source.chat, db: describe(source.db) })),
+				otherChatDatabases: tracked.otherChatDatabases.map(describe),
+				workingDirectories: tracked.workingDirectories,
+				folderScope: tracked.folderScope?.map(folder => folder.toString()),
+				peerDisposals,
+			};
+		};
+
+		assert.deepStrictEqual({ session: open(sessionStr), peer: open(peer) }, {
+			session: {
+				sources: [{ chat: buildDefaultChatUri(sessionStr), db: 'session' }, { chat: peer, db: 'peer' }],
+				otherChatDatabases: [],
+				workingDirectories: ['file:///repoA', 'file:///repoB'],
+				folderScope: ['file:///repoA', 'file:///repoB'],
+				peerDisposals: 1,
+			},
+			peer: {
+				sources: [{ chat: peer, db: 'peer' }],
+				otherChatDatabases: ['session'],
+				workingDirectories: ['file:///repoB'],
+				folderScope: ['file:///repoB'],
+				peerDisposals: 3,
+			},
+		});
+	});
+
 	test('partitions git vs non-git folders so git-folder edits are not double-counted by the DB', async () => {
 		const db = new TestSessionDatabase();
 		// The DB edit tracker is path-based (no folder column) so it records
@@ -2270,6 +2314,70 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	for (const isolation of ['folder', 'worktree'] as const) {
+		test(`${isolation} branch descriptions prefer the persisted base over stale Git state`, async () => {
+			const chat = buildDefaultChatUri(sessionStr);
+			const peer = buildChatUri(sessionStr, 'peer');
+			const branchUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
+			const diffBases: (string | undefined)[] = [];
+			const git = createNoopGitService();
+			git.computeSessionFileDiffs = async (_directory, options) => {
+				diffBases.push(options.baseBranch);
+				return [];
+			};
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///repo'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				isolation,
+				peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn' },
+			});
+			stateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, {
+				branchName: 'feature',
+				baseBranchName: 'stale-base',
+				upstreamBranchName: 'origin/feature',
+			}));
+			stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+			await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(sessionStr), {
+				[META_DIFF_BASE_BRANCH]: 'origin/release',
+			}, SessionStateMirrorFlush.Immediate);
+
+			svc.refreshChangesetCatalog(chat);
+			svc.refreshChangesetCatalog(peer);
+			svc.refreshBranchChangeset(chat);
+			await waitForChangesetReady(stateManager, branchUri);
+
+			assert.deepStrictEqual({
+				descriptions: [chat, peer].map(resource => stateManager.getChatState(resource)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description),
+				diffBases,
+			}, {
+				descriptions: ['feature → origin/release', 'feature → origin/release'],
+				diffBases: ['release'],
+			});
+		});
+	}
+
+	test('peer branch descriptions use the base of the changeset owner folder', async () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git: createNoopGitService(),
+			checkpoint: NULL_CHECKPOINT_SERVICE,
+			peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn', workingDirectories: ['file:///peer'] },
+		});
+		testGitStates.set(peer, { branchName: 'peer-feature', baseBranchName: 'stale-base' });
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+		await svc.stateStore.write(URI.parse(sessionStr), sessionStatePatch({
+			chats: [{ chat: peer, isDefault: false, fields: { workingDirectories: ['file:///peer'] } }],
+		}), SessionStateMirrorFlush.Immediate);
+		await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(sessionStr), { [META_DIFF_BASE_BRANCH]: 'origin/main' }, SessionStateMirrorFlush.Immediate);
+		await svc.stateStore.writeMetadata(URI.parse(sessionStr), URI.parse(peer), { [META_DIFF_BASE_BRANCH]: 'origin/peer-base' }, SessionStateMirrorFlush.Immediate);
+
+		svc.refreshChangesetCatalog(peer);
+
+		assert.strictEqual(stateManager.getChatState(peer)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description, 'peer-feature → origin/peer-base');
+	});
+
 	test('ready sessions publish session changes and chat catalogues using the chat Git state', () => {
 		const peerResource = buildChatUri(sessionStr, 'peer');
 		const { svc, stateManager } = build({
@@ -2312,7 +2420,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			branchDescription: withChatGit?.find(changeset => changeset.changeKind === 'branch')?.description,
 		}, {
 			sessionCatalogue: [{
-				label: 'Session Changes',
+				label: 'Session',
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(sessionStr),
 				changeKind: 'session',

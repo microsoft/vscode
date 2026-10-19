@@ -118,7 +118,7 @@ function createFusionModel(balanceUsesHydraFusion = true): ILanguageModelChatMet
 					tier: {
 						type: 'string', group: 'navigation', title: 'Effort Level',
 						enum: ['balance', 'intelligence'],
-						enumItemLabels: ['Lite', 'Balance'],
+						enumItemLabels: ['Standard', 'High'],
 						default: 'balance',
 					},
 				}
@@ -160,7 +160,7 @@ suite('TabbedModelPicker', () => {
 		localModels?: IModelPickerLocalModels;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
-		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
+		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px;';
 		disposables.add(toDisposable(() => container.remove()));
 		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
 		const anchor = dom.append(anchorContainer, dom.$('button'));
@@ -288,6 +288,257 @@ suite('TabbedModelPicker', () => {
 	function goBack(popup: HTMLElement): void {
 		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
+
+	test('inline Fusion tiers are taller selectable rows and save the runtime tier before closing', async () => {
+		for (const balanceUsesHydraFusion of [false, true]) {
+			const fusion = createFusionModel(balanceUsesHydraFusion);
+			const hydra = createHydraFusionModel();
+			const max = createHydraFusionMaxModel();
+			const result = createPicker({ models: [fusion, hydra, max, ...models] });
+			const modelHeight = element(result.popup, '.chat-model-picker-model').getBoundingClientRect().height;
+			await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+			result.picker.show(result.anchor, result.context);
+			const rows = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier'));
+			assert.deepStrictEqual(rows.map(row => {
+				const label = element(row, '.title');
+				const range = document.createRange();
+				range.selectNodeContents(label);
+				const textBounds = range.getBoundingClientRect();
+				const labelBounds = label.getBoundingClientRect();
+				return {
+					label: label.textContent,
+					detail: row.querySelector('.detail')?.textContent,
+					taller: row.getBoundingClientRect().height > modelHeight,
+					role: row.getAttribute('role'),
+					leadingCheck: element(row, '.codicon').getBoundingClientRect().right <= labelBounds.left,
+					unclippedLabel: textBounds.top >= labelBounds.top && textBounds.bottom <= labelBounds.bottom,
+				};
+			}), [
+				{ label: 'Standard', detail: 'Quick tasks, lighter compute', taller: true, role: 'menuitemradio', leadingCheck: true, unclippedLabel: true },
+				{ label: 'High', detail: 'Everyday work, balanced compute', taller: true, role: 'menuitemradio', leadingCheck: true, unclippedLabel: true },
+				{ label: 'Max', detail: 'Complex tasks, maximum compute', taller: true, role: 'menuitemradio', leadingCheck: true, unclippedLabel: true },
+			]);
+			rows[1].click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				selected: result.selections,
+				saved: result.values.get(fusion.identifier),
+				visible: result.picker.isVisible,
+			}, {
+				selected: [balanceUsesHydraFusion ? hydra.identifier : fusion.identifier],
+				saved: balanceUsesHydraFusion ? undefined : { tier: 'intelligence' },
+				visible: false,
+			});
+			result.picker.show(result.anchor, { ...result.context, selectedModelId: result.selections[0] });
+			const maxRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier')).find(row => row.querySelector('.title')?.textContent === 'Max')!;
+			maxRow.click();
+			await timeout(0);
+			assert.strictEqual(result.selections.at(-1), max.identifier);
+		}
+	});
+
+	function createProviderFusionModel(tier: { enum: string[]; enumItemLabels: string[]; enumDescriptions?: string[]; enumItemDisabled?: boolean[]; default?: string }, promotions?: ILanguageModelChatMetadata['autoModelTierPromotions']): ILanguageModelChatMetadataAndIdentifier {
+		const fusion = createFusionModel();
+		return {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				// While the service promotes Fusion's tiers, the provider publishes no discount of its own.
+				autoModelDiscountPercent: promotions ? undefined : fusion.metadata.autoModelDiscountPercent,
+				...(promotions && { autoModelTierPromotions: promotions }),
+				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', ...tier } } },
+			},
+		};
+	}
+
+	/**
+	 * The list is height-capped and virtualized, and it opens on the chat's model, so only rows near it are rendered.
+	 * Tests open on Fusion to read the list from its top, and use search to reach any other tier.
+	 */
+	function renderedFusionRow(popup: HTMLElement, label: string): HTMLElement | undefined {
+		return Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier')).find(row => row.querySelector('.title')?.textContent === label);
+	}
+
+	/** Searches the open picker, returning the Fusion tier rows found. */
+	function searchFusionRows(popup: HTMLElement, query: string): HTMLElement[] {
+		if (!popup.querySelector('input')) {
+			element(popup, '[data-id="search"]').click();
+		}
+		const filterInput = popup.querySelector<HTMLInputElement>('input')!;
+		filterInput.value = query;
+		filterInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		return Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier'));
+	}
+
+	test('inline Fusion with provider tiers lists each tier once with its description, reason, and promotion, and saves the tier on Fusion', async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const fusion = createProviderFusionModel({
+			enum: ['balance', 'hydrafusion', 'hydrafusion-max', 'frontier'],
+			enumItemLabels: ['Standard', 'High', 'Max', 'Frontier'],
+			enumDescriptions: ['', '', 'Requires Copilot Pro+.', 'Newest models first.'],
+			enumItemDisabled: [false, false, true, false],
+			default: 'balance',
+		}, [{ id: 'launch', message: 'Get 30% off Fusion High.', discountPercent: 30, tierIds: ['hydrafusion'], startsAt: new Date(Date.now() - day).toISOString() }]);
+		const result = createPicker({ models: [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: fusion.identifier });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		const describe = (row: HTMLElement | undefined) => row && ({
+			label: row.querySelector('.title')?.textContent,
+			detail: row.querySelector('.detail')?.textContent,
+			badge: row.querySelector('.action-item-badge')?.textContent || undefined,
+			disabled: row.classList.contains('option-disabled'),
+			ariaLabel: row.getAttribute('aria-label'),
+		});
+		const list = describe(renderedFusionRow(result.popup, 'Standard'));
+		const [high, max, frontier] = ['High', 'Max', 'Frontier'].map(query => searchFusionRows(result.popup, query).map(describe));
+		searchFusionRows(result.popup, 'High')[0].click();
+		await timeout(0);
+		assert.deepStrictEqual({ list, high, max, frontier, selections: result.selections, tier: result.values.get(fusion.identifier)?.tier }, {
+			list: { label: 'Standard', detail: 'Quick tasks, lighter compute', badge: undefined, disabled: false, ariaLabel: 'Standard, Quick tasks, lighter compute' },
+			high: [{ label: 'Fusion High', detail: 'Everyday work, balanced compute', badge: '30% discount', disabled: false, ariaLabel: 'Fusion High, 30% discount, Everyday work, balanced compute, Get 30% off Fusion High.' }],
+			max: [{ label: 'Fusion Max', detail: 'Requires Copilot Pro+.', badge: undefined, disabled: true, ariaLabel: 'Fusion Max, Requires Copilot Pro+.' }],
+			frontier: [{ label: 'Fusion Frontier', detail: 'Newest models first.', badge: undefined, disabled: false, ariaLabel: 'Fusion Frontier, Newest models first.' }],
+			selections: [fusion.identifier],
+			tier: 'hydrafusion',
+		});
+	});
+
+	test('inline Fusion with provider tiers shows a chat on a HydraFusion model on its tier without listing the model again', async () => {
+		const snapshot = async (maxDisabled: boolean, selected: ILanguageModelChatMetadataAndIdentifier) => {
+			const fusion = createProviderFusionModel({ enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], enumItemDisabled: [false, false, maxDisabled], default: 'balance' });
+			const result = createPicker({ models: [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: selected.identifier });
+			await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+			result.picker.show(result.anchor, result.context);
+			// The list reveals the chat's model.
+			const checked = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-fusion-tier')).find(row => row.getAttribute('aria-checked') === 'true');
+			const state = {
+				checked: checked?.querySelector('.title')?.textContent,
+				checkedDisabled: checked?.classList.contains('option-disabled'),
+				highRows: searchFusionRows(result.popup, 'High').length,
+				maxRows: searchFusionRows(result.popup, 'Max').length,
+			};
+			searchFusionRows(result.popup, state.checked ?? '')[0]?.click();
+			await timeout(0);
+			return { ...state, selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
+		};
+		assert.deepStrictEqual({
+			high: await snapshot(false, createHydraFusionModel()),
+			unavailableMax: await snapshot(true, createHydraFusionMaxModel()),
+		}, {
+			high: { checked: 'High', checkedDisabled: false, highRows: 1, maxRows: 1, selections: ['copilot/auto'], tier: 'hydrafusion' },
+			unavailableMax: { checked: 'Max', checkedDisabled: false, highRows: 1, maxRows: 1, selections: ['copilot/hydrafusion-max'], tier: undefined },
+		});
+	});
+
+	test('inline Fusion with provider tiers does not bring back a tier the provider hides', async () => {
+		const fusion = createProviderFusionModel({ enum: ['balance', 'hydrafusion'], enumItemLabels: ['Standard', 'High'], default: 'balance' });
+		const result = createPicker({ models: [...models, fusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		assert.deepStrictEqual({
+			tiers: searchFusionRows(result.popup, 'Fusion').map(row => row.querySelector('.title')?.textContent),
+			max: searchFusionRows(result.popup, 'Max').length,
+		}, { tiers: ['Fusion Standard', 'Fusion High'], max: 0 });
+	});
+
+	test('inline Fusion announces each tier of a managed schema as managed by the agent host', async () => {
+		const managed = createFusionModel();
+		const tier = managed.metadata.configurationSchema!.properties!.tier!;
+		const readOnly: ILanguageModelChatMetadataAndIdentifier = { ...managed, metadata: { ...managed.metadata, configurationSchema: { properties: { tier: { ...tier, readOnly: true } } } } };
+		const result = createPicker({ models: [readOnly, ...models] });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		assert.deepStrictEqual({
+			list: renderedFusionRow(result.popup, 'Standard')?.getAttribute('aria-label'),
+			high: searchFusionRows(result.popup, 'High').map(row => row.getAttribute('aria-label')),
+		}, {
+			list: 'Standard, 10% discount, Quick tasks, lighter compute, Managed by the agent host',
+			high: ['Fusion High, 10% discount, Everyday work, balanced compute, Managed by the agent host'],
+		});
+	});
+
+	test('inline Fusion with a managed tier can still be chosen from another model, without saving the tier', async () => {
+		const managed = createFusionModel();
+		const tier = managed.metadata.configurationSchema!.properties!.tier!;
+		const readOnly: ILanguageModelChatMetadataAndIdentifier = { ...managed, metadata: { ...managed.metadata, configurationSchema: { properties: { tier: { ...tier, readOnly: true } } } } };
+		const result = createPicker({ models: [readOnly, ...models], selectedModelId: models[0].identifier });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		const rows = searchFusionRows(result.popup, 'Fusion');
+		const disabled = rows.map(row => row.classList.contains('option-disabled'));
+		rows[0].click();
+		await timeout(0);
+		assert.deepStrictEqual({ disabled, selections: result.selections, saved: result.values.get(readOnly.identifier) }, {
+			disabled: [false, true],
+			selections: [readOnly.identifier],
+			saved: undefined,
+		});
+	});
+
+	test('a pending inline Fusion tier save does not override a comparison started since', async () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: true, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => {
+				const draft = state.get()!;
+				state.set({ ...draft, selectedModelIds: [...draft.selectedModelIds, id] }, undefined);
+			},
+			setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const pending = new DeferredPromise<void>();
+		const fusion = createFusionModel(false);
+		const result = createPicker({ models: [fusion, ...models], comparison, beforeSave: () => pending.p });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		searchFusionRows(result.popup, 'High')[0].click();
+		element(result.popup, '[aria-label="Compare Models"]').click();
+		searchFusionRows(result.popup, 'First');
+		element(result.popup, '.chat-model-picker-model').click();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ compared: state.get()?.selectedModelIds, selections: result.selections, visible: result.picker.isVisible, saved: result.values.get(fusion.identifier) }, {
+			compared: ['copilot/First'],
+			selections: [],
+			visible: true,
+			saved: { tier: 'intelligence' },
+		});
+	});
+
+	test('inline Fusion marks its default tier as the organization default and keeps search results sorted', async () => {
+		const fusion = createFusionModel(false);
+		const hasDefaultBadge = (row: HTMLElement | undefined) => !!row?.querySelector('.chat-model-picker-org-default-badge');
+		// With Fusion selected the list opens on its tiers; with another model selected, search reaches them.
+		const onFusion = createPicker({ models: [fusion, ...models], policyDefault: 'auto', selectedModelId: fusion.identifier });
+		await onFusion.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		onFusion.picker.show(onFusion.anchor, onFusion.context);
+		const list = { standard: hasDefaultBadge(renderedFusionRow(onFusion.popup, 'Standard')), high: hasDefaultBadge(renderedFusionRow(onFusion.popup, 'High')) };
+		const onOther = createPicker({ models: [fusion, ...models], policyDefault: 'auto', selectedModelId: models[0].identifier, pinnedModelIds: ['copilot/Fixed'] });
+		await onOther.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		onOther.picker.show(onOther.anchor, onOther.context);
+		const searchDefaults = searchFusionRows(onOther.popup, 'Fusion').filter(hasDefaultBadge).map(row => row.querySelector('.title')?.textContent);
+		searchFusionRows(onOther.popup, 'F');
+		const search = Array.from(onOther.popup.querySelectorAll<HTMLElement>('.monaco-list-row.action .title')).map(title => title.textContent);
+		assert.deepStrictEqual({ list, searchDefaults, search }, {
+			list: { standard: true, high: false },
+			searchDefaults: ['Fusion Standard'],
+			search: ['Fusion Standard', 'Fusion High', 'First', 'Fixed'],
+		});
+	});
+
+	test('the inline presentation setting does not turn Auto into Fusion', async () => {
+		const result = createPicker({ models: [createAutoModel(), ...models] });
+		await result.configurationService.setUserConfiguration(ChatConfiguration.FusionModelPickerInlineTiers, true);
+		result.picker.show(result.anchor, result.context);
+		assert.strictEqual(result.popup.querySelectorAll('.chat-model-picker-fusion-tier').length, 0);
+	});
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
 		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
@@ -1056,6 +1307,17 @@ suite('TabbedModelPicker', () => {
 		{ name: 'an unavailable managed default', policyDefault: 'Unavailable', expected: [] },
 		{ name: 'Auto as the managed default', models: [createAutoModel(), ...models], policyDefault: 'auto', expected: ['Auto'], selected: ['Auto'] },
 		{ name: 'Auto overriding the managed default', models: [createAutoModel(), ...models], policyDefault: 'First', expected: ['First'], selected: ['Auto'] },
+		...[
+			{ name: 'a host-only managed default', policyDefault: undefined, managedModel: true, expected: ['Second'] },
+			{ name: 'a host default overriding local policy', policyDefault: 'First', managedModel: true, expected: ['Second'] },
+			{ name: 'local policy when only host configuration is managed', policyDefault: 'First', managedModel: false, expected: ['First'] },
+		].map(scenario => ({
+			...scenario,
+			selected: ['First'],
+			models: models.map(candidate => candidate.metadata.name === 'Second'
+				? { ...candidate, metadata: { ...candidate.metadata, managedModelDefaults: { model: scenario.managedModel, keys: ['reasoningEffort'] } } }
+				: candidate),
+		})),
 		...[false, true].map(pinned => ({
 			name: `an older managed default ${pinned ? 'pinned' : 'in the shortlist'}`,
 			models: [model('example-5.5'), model('example-5.6')],
@@ -1286,7 +1548,7 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ hydraFusionDetails, autoOptions: autoTiers(result.popup) }, { hydraFusionDetails: false, autoOptions: ['Efficiency', 'Balance', 'Intelligence'] });
 	});
 
-	test('Fusion offers Lite, Balance, and Max, with Balance using HydraFusion only when routed there and available', async () => {
+	test('Fusion offers Standard, High, and Max, with High using HydraFusion only when routed there and available', async () => {
 		const max = createHydraFusionMaxModel();
 		const choose = async (option: string, balanceUsesHydraFusion: boolean, withHydraFusion = true) => {
 			const fusion = createFusionModel(balanceUsesHydraFusion);
@@ -1304,31 +1566,83 @@ suite('TabbedModelPicker', () => {
 			goBack(result.popup);
 			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(fusion.identifier)?.tier };
 		};
-		const fusionBalance = {
-			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: 'Models routed via Fusion Balance receive a 10% discount.',
-			description: undefined, ariaLabel: 'Balance', readout: 'Balance', selections: ['copilot/auto'], tier: 'intelligence',
+		const fusionHigh = {
+			rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: 'Models routed via Fusion High receive a 10% discount.',
+			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
-			balance: await choose('Balance', true),
+			high: await choose('High', true),
 			max: await choose('Max', true),
-			balanceNotRouted: await choose('Balance', false),
-			balanceWithoutHydraFusion: await choose('Balance', true, false),
+			highNotRouted: await choose('High', false),
+			highWithoutHydraFusion: await choose('High', true, false),
 		}, {
-			balance: {
-				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: undefined,
-				description: 'Balance picks a workflow per task, using one or more models. Learn more',
-				ariaLabel: 'Balance, Balance picks a workflow per task, using one or more models.',
-				readout: 'Balance', selections: ['copilot/hydrafusion'], tier: undefined,
+			high: {
+				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
+				description: 'High picks a workflow per task, using one or more models. Learn more',
+				ariaLabel: 'High, High picks a workflow per task, using one or more models.',
+				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
 			},
 			max: {
-				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Lite', 'Balance', 'Max'], discount: undefined,
+				rows: ['Fusion', '--', 'First', 'Fixed', 'Second'], tiers: ['Standard', 'High', 'Max'], discount: undefined,
 				description: 'Max uses multiple models on every task for the most thorough results. Learn more',
 				ariaLabel: 'Max, Max uses multiple models on every task for the most thorough results.',
 				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
 			},
-			balanceNotRouted: fusionBalance,
-			balanceWithoutHydraFusion: fusionBalance,
+			highNotRouted: fusionHigh,
+			highWithoutHydraFusion: fusionHigh,
 		});
+	});
+
+	test('Fusion with the provider\'s tiers offers Standard, High, and Max once, routing all three through Fusion with its promotion', async () => {
+		const fusion = createFusionModel();
+		const day = 24 * 60 * 60 * 1000;
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				autoModelTierPromotions: [{ id: 'launch', message: 'Get 30% off Fusion usage.', discountPercent: 30, tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'], startsAt: new Date(Date.now() - day).toISOString() }],
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Fusion');
+		const tiers = autoTiers(result.popup);
+		chooseOption(result.popup, 'Max');
+		await timeout(0);
+		const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
+		const promotion = result.popup.querySelector('.chat-model-card-tier-promotion')?.textContent;
+		goBack(result.popup);
+		assert.deepStrictEqual({ tiers, discount, promotion, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier }, {
+			tiers: ['Standard', 'High', 'Max'],
+			discount: 'Models routed via Fusion Max receive a 30% discount.',
+			promotion: 'Get 30% off Fusion usage.',
+			selections: ['copilot/auto'],
+			tier: 'hydrafusion-max',
+		});
+	});
+
+	test('Fusion does not offer HydraFusion Max beside provider tiers that hide it', () => {
+		const fusion = createFusionModel();
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion'], enumItemLabels: ['Standard', 'High'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Fusion');
+		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
 	test('rapid tier edits save in order and report the actual previous values', async () => {
@@ -2031,7 +2345,7 @@ suite('TabbedModelPicker', () => {
 		});
 		openDetails(result.popup, 'Fusion');
 		const disabled = Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radio"]'), option => option.getAttribute('aria-disabled') === 'true');
-		chooseOption(result.popup, 'Lite');
+		chooseOption(result.popup, 'Standard');
 		await timeout(0);
 		const saved = result.values.get(fusion.identifier);
 		chooseOption(result.popup, 'Max');

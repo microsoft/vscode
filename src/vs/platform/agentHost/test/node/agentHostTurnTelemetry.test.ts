@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -21,18 +22,18 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentPolicyError, AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
-import { platformSessionSchema, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostOverlapProviderPreparationConfigKey, platformSessionSchema, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType, type ChatAction, type ChatUsageAction } from '../../common/state/sessionActions.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, createErrorResponsePart, type Message, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -42,6 +43,7 @@ import { AgentHostChatContributions } from '../../node/agentHostChatContribution
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
 import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
@@ -100,6 +102,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
 	openTrackedTurnDatabase(): undefined { return undefined; }
+	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
@@ -280,9 +283,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			whenIdle: async () => { },
 		};
 		const worktreeIsolation = createNoopWorktreeIsolation();
+		const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
 		const sessionStateStore = createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService);
 		const worktreeCleanup = createTestWorktreeCleanupService(disposables, worktreeIsolation);
 		const services = new ServiceCollection(
+			[IAgentHostAuthenticationService, authenticationService],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
@@ -334,7 +339,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		services.set(IAgentHostProviderService, providerService);
 		const chatOwnership = createTestChatOwnershipService(stateManager);
 		services.set(IAgentHostChatOwnershipService, chatOwnership);
-		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService))));
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership, authenticationService, sessionStateStore)));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -2414,6 +2419,62 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			hasStack: true,
 		}]);
 		assert.deepStrictEqual(sentEvents().map(event => event.data?.turnId), ['turn-1']);
+	});
+
+	test('reports policy resolution errors separately and retains the unsent prompt for retry', async () => {
+		setupSession(false);
+		agent.changeModel = async () => { throw new AgentPolicyError('Policy unavailable. Try again.'); };
+		startTurn('turn-1', 'keep this prompt', 'model-a');
+		await timeout(10);
+
+		const failure = failedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			errorType: failure.errorType,
+			prompt: stateManager.getSessionState(defaultChatUri)?.turns[0]?.message.text,
+			sendCount: agent.sendMessageCalls.length,
+		}, { errorType: 'policyResolutionFailed', prompt: 'keep this prompt', sendCount: 0 });
+		agent.changeModel = async () => { };
+		startTurn('turn-2', 'keep this prompt', 'model-a');
+		await timeout(10);
+		assert.deepStrictEqual(agent.sendMessageCalls.map(call => call.prompt), ['keep this prompt']);
+	});
+
+	test('cancelling pending model selection does not report a policy or creation failure', async () => {
+		setupSession(false);
+		const started = new DeferredPromise<void>();
+		const selection = new DeferredPromise<void>();
+		agent.changeModel = () => { started.complete(); return selection.p; };
+		startTurn('turn-1', 'cancel this prompt', 'model-a');
+		await started.p;
+		applyClientAction({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 });
+		selection.error(new CancellationError());
+		await timeout(10);
+		assert.deepStrictEqual({
+			failures: failedEvents().length,
+			creationError: stateManager.getSessionState(sessionKey)?.creationError,
+			sends: agent.sendMessageCalls.length,
+			outcomes: completedEvents().map(event => (event.data as Record<string, unknown>).result),
+		}, { failures: 0, creationError: undefined, sends: 0, outcomes: ['cancelled'] });
+	});
+
+	test('Stop during agent selection without a model does not start turn preparation', async () => {
+		setupSession();
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostOverlapProviderPreparationConfigKey]: true } });
+		const started = new DeferredPromise<void>();
+		const selection = new DeferredPromise<void>();
+		let preparations = 0;
+		agent.changeAgent = () => { started.complete(); return selection.p; };
+		agent.chats.prepareTurn = async () => { preparations++; };
+		startTurn('turn-1', 'cancel this prompt');
+		await started.p;
+		applyClientAction({ type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1 });
+		selection.error(new CancellationError());
+		await timeout(10);
+		assert.deepStrictEqual({ preparations, sends: agent.sendMessageCalls.length }, { preparations: 0, sends: 0 });
+		agent.changeAgent = async () => { };
+		startTurn('turn-2', 'send this prompt');
+		await timeout(10);
+		assert.deepStrictEqual({ preparations, sends: agent.sendMessageCalls.length }, { preparations: 1, sends: 1 });
 	});
 
 	test('fails the turn when model selection rejects instead of sending with a stale model', async () => {
