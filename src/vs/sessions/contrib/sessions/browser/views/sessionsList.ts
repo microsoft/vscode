@@ -4822,7 +4822,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.map(item => `group:${item.group.id}`);
 
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)), this.groupExternalSessions);
-		const comparisonGroupsByWorkspaceLabel = new Map<string, ISessionGroupItem[]>();
+		const comparisonGroupsBySectionId = new Map<string, ISessionGroupItem[]>();
 		if (grouping === SessionsGrouping.Workspace) {
 			for (const groupItem of groupItemsById.values()) {
 				if (!groupItem.comparison) {
@@ -4837,13 +4837,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
 					?? this.labelService.getWorkspaceLabel(comparison.workspace)
 					: localize('chatsSection', "Chats");
-				let workspaceGroups = comparisonGroupsByWorkspaceLabel.get(workspaceLabel);
+				const sectionId = comparison.workspace ? `workspace:${workspaceLabel}` : QUICK_CHATS_SECTION_ID;
+				let workspaceGroups = comparisonGroupsBySectionId.get(sectionId);
 				if (!workspaceGroups) {
 					workspaceGroups = [];
-					comparisonGroupsByWorkspaceLabel.set(workspaceLabel, workspaceGroups);
+					comparisonGroupsBySectionId.set(sectionId, workspaceGroups);
 				}
 				workspaceGroups.push(groupItem);
-				const sectionId = comparison.workspace ? `workspace:${workspaceLabel}` : QUICK_CHATS_SECTION_ID;
 				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
 					workspaceSection = {
@@ -4888,7 +4888,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					section.sessions.some(s => s.updatedAt.get().getTime() >= now - FOUR_DAYS_MS);
 				const isOpenWindow = (section: ISessionSection) =>
 					!!this.openWindowSourceFolder && section.sessions.some(s => sessionMatchesFolder(s, this.openWindowSourceFolder!));
-				const meetsCriteria = (section: ISessionSection) => comparisonGroupsByWorkspaceLabel.has(section.label) || isRecent(section) || isOpenWindow(section);
+				const meetsCriteria = (section: ISessionSection) => comparisonGroupsBySectionId.has(section.id) || isRecent(section) || isOpenWindow(section);
 
 				let anyMeets = false;
 				for (const section of workspaceSections) {
@@ -5043,7 +5043,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const renderWorkspaceSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
-			const comparisonGroups = comparisonGroupsByWorkspaceLabel.get(section.label);
+			const comparisonGroups = comparisonGroupsBySectionId.get(section.id);
 			if (!comparisonGroups) {
 				return renderSection(section);
 			}
@@ -5118,7 +5118,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// order. Pinned stays first, Done last, and hidden ("+N more")
 			// workspaces are appended below the ordered block.
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
-			if (comparisonGroupsByWorkspaceLabel.size > 0) {
+			if (comparisonGroupsBySectionId.size > 0) {
 				const unknownWorkspaceLabel = localize('unknown', "Unknown");
 				workspaceSections.sort((a, b) => {
 					if (a.label === unknownWorkspaceLabel) {
