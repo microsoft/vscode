@@ -28,7 +28,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -3444,13 +3444,19 @@ class NewSession extends Disposable {
 	}
 	getConfigValues(): Record<string, unknown> | undefined { return this._config && filterSessionConfigValues(this._config.schema, this._config.values); }
 
+	/** Only pre-warming benefits from a folder draft, so other drafts keep the picked isolation. */
+	private _createsInPickedFolder(): boolean {
+		return !!this.workspaceUri && this._configurationService.getValue<boolean>(AgentHostPrewarmSessionsSettingId) === true;
+	}
+
 	private _getIsolationProperty() {
 		return this._config && getSessionWorkspaceProperties(this._config.schema).isolation;
 	}
 
 	/**
-	 * The config the backend draft is created with. Isolation stays local until
-	 * Send: the draft is created in the picked folder even when the user picked
+	 * The config the backend draft is created with. With session pre-warming
+	 * on, isolation stays local until Send: the draft is created in the picked
+	 * folder even when the user picked
 	 * (or inherited) a worktree, so the host can pre-warm it, and the first
 	 * request sends the picked isolation with the rest of the draft's config
 	 * (`AgentHostSessionHandler`). The host creates a picked worktree on that
@@ -3461,7 +3467,7 @@ class NewSession extends Disposable {
 	private _getEagerCreateConfigValues(): Record<string, unknown> | undefined {
 		const values = this.getConfigValues();
 		const config = this._config;
-		if (!values || !config) {
+		if (!values || !config || !this._createsInPickedFolder()) {
 			return values;
 		}
 		const workspace = getSessionWorkspaceProperties(config.schema);
@@ -3763,7 +3769,7 @@ class NewSession extends Disposable {
 				await this._activeClientScope.whenResolved();
 				// The folder isolation is written under the key the host's schema
 				// advertises, so wait for a schema when none is cached yet.
-				if (this.workspaceUri && !this._hasResolvedConfig && !this._getIsolationProperty()) {
+				if (this._createsInPickedFolder() && !this._hasResolvedConfig && !this._getIsolationProperty()) {
 					await this.waitForConfigResolution();
 				}
 				if (this.cancellationToken.isCancellationRequested || this._eagerCreateSuspended || !isAllowed()) {

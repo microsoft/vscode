@@ -27,7 +27,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
@@ -889,20 +889,6 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 			}
 		});
 	});
-}
-
-/**
- * Waits for a draft's eager `createSession`. A draft whose isolation schema is
- * not cached yet is created only after its first config resolution, because
- * it is created in the picked folder under the schema's isolation key.
- */
-async function waitForEagerCreate(agentHost: MockAgentHostService): Promise<URI> {
-	for (let attempt = 0; attempt < 100 && agentHost.createdSessionUris.length === 0; attempt++) {
-		await timeout(0);
-	}
-	const created = agentHost.createdSessionUris.at(-1);
-	assert.ok(created, 'draft was eagerly created');
-	return created;
 }
 
 function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
@@ -7400,7 +7386,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'feature');
-		const backendUri = await waitForEagerCreate(agentHost);
+		const backendUri = agentHost.createdSessionUris.at(-1)!;
 		agentHost.setSessionState(AgentSession.id(backendUri), provider.sessionTypes[0].id, {
 			provider: provider.sessionTypes[0].id,
 			title: '',
@@ -7538,7 +7524,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, () => !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'feature' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
-		const rawId = AgentSession.id(await waitForEagerCreate(agentHost));
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
 		agentHost.setSessionState(rawId, sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -7622,7 +7608,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, () => !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
-		const rawId = AgentSession.id(await waitForEagerCreate(agentHost));
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
 		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -7677,7 +7663,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await waitForSessionConfig(provider, session, () => !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
 		await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
 		await waitForSessionConfig(provider, session, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get());
-		const rawId = AgentSession.id(await waitForEagerCreate(agentHost));
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
 		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
 			provider: sessionTypeId,
 			title: '',
@@ -8095,20 +8081,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
 			sentConfig,
 		}, {
-			// The draft is created in the picked folder; the worktree is picked at Send.
-			createdWith: { isolation: 'folder', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			createdWith: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
 			sentConfig: { isolation: 'worktree', worktreeBranchPrefix: 'folder/', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
 		});
 	});
 
-	for (const sendIsolation of ['worktree', 'folder'] as const) {
-		test(`a worktree draft is created in the picked folder so it can pre-warm, and Send picks the isolation (send=${sendIsolation})`, async () => {
+	for (const [prewarm, sendIsolation] of [[true, 'worktree'], [true, 'folder'], [false, 'worktree']] as const) {
+		test(`a worktree draft is created in the picked folder only when sessions pre-warm, and Send picks the isolation (prewarm=${prewarm}, send=${sendIsolation})`, async () => {
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, prewarm);
 			agentHost.resolveSessionConfigResult = {
 				schema: createVSCodeSessionConfigSchema(),
 				values: { isolation: 'worktree', branch: 'origin/main' },
 			};
 			let sentConfig: Record<string, unknown> | undefined;
 			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService,
 				openSession: true,
 				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
 					sentConfig = options?.agentHostSessionConfig;
@@ -8118,7 +8106,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
 			await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
-			await waitForEagerCreate(agentHost);
 			if (sendIsolation === 'folder') {
 				agentHost.resolveSessionConfigResult = {
 					schema: createVSCodeSessionConfigSchema(),
@@ -8133,7 +8120,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				created: agentHost.createSessionConfigs.map(created => created.config),
 				sent: { isolation: sentConfig?.[SessionConfigKey.Isolation], branch: sentConfig?.[SessionConfigKey.Branch] },
 			}, {
-				created: [{ isolation: 'folder' }],
+				created: [prewarm ? { isolation: 'folder' } : { isolation: 'worktree', branch: 'origin/main' }],
 				sent: sendIsolation === 'worktree'
 					? { isolation: 'worktree', branch: 'origin/main' }
 					: { isolation: 'folder', branch: 'feature' },
