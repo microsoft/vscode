@@ -1524,12 +1524,27 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+		let bytes: Uint8Array | undefined;
+		try {
+			bytes = decodeBase64(attachment.data).buffer;
+		} catch {
+			bytes = undefined;
+		}
 		if (!attachment.contentType.startsWith('image/')) {
 			return {
 				kind: 'generic',
 				id: generateUuid(),
 				name: attachment.label,
-				value: decodeBase64(attachment.data).buffer,
+				value: bytes ?? attachment.data,
+				_meta: attachment._meta,
+			};
+		}
+		if (!bytes) {
+			return {
+				kind: 'generic',
+				id: generateUuid(),
+				name: attachment.label || 'image',
+				value: attachment.label || 'image',
 				_meta: attachment._meta,
 			};
 		}
@@ -1538,7 +1553,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			kind: 'image',
 			id: generateUuid(),
 			name: attachment.label || 'image',
-			value: decodeBase64(attachment.data).buffer,
+			value: bytes,
 			mimeType: attachment.contentType,
 			isURL: false,
 			_meta: attachment._meta,
