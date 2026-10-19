@@ -106,6 +106,7 @@ suite('SessionServerTools', () => {
 			isChatMoveEnabled: overrides?.isChatMoveEnabled ?? (() => true),
 			supportsChatMoves: overrides?.supportsChatMoves ?? (() => true),
 			checkChatMove: overrides?.checkChatMove ?? (async () => { }),
+			isKnownSessionLink: overrides?.isKnownSessionLink ?? (() => true),
 			applyChatMove: overrides?.applyChatMove ?? (async move => move.kind === 'session' ? move.destination : move.destination.kind === 'session' ? move.destination.session : URI.parse('copilot:/promoted')),
 			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => true),
 			scheduleChatMove: overrides?.scheduleChatMove ?? (() => { }),
@@ -3416,12 +3417,49 @@ suite('SessionServerTools', () => {
 			});
 		});
 
-		test('every call asks for confirmation, with a display for its operation that links what moves', () => {
-			const display = (args: unknown, result?: { text: string; success: boolean }) => {
-				const value = getServerToolDisplay(SessionServerToolName.MoveSession, args, result);
+		test('list_sessions and get_current_session mention move_session only while it is offered; their chats are listed either way', async () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			stateManager.createSession({
+				resource: source,
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+				defaultChat: buildDefaultChatUri(source),
+			});
+			let enabled = false;
+			const accessor = createAccessor({ isChatMoveEnabled: () => enabled, listSessions: async () => sessions });
+			const host = new AgentServerToolHost(stateManager, buildServerToolGroups(accessor, undefined, undefined, () => true));
+			const descriptions = () => Object.fromEntries(host.getDefinitionsForSession(source)
+				.filter(definition => definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession)
+				.map(definition => [definition.name, definition.description]));
+			const listed = async () => JSON.parse(await host.executeTool(buildDefaultChatUri(source), SessionServerToolName.ListSessions, { session: source })).sessions[0].chats?.length;
+			const base = Object.fromEntries(sessionServerToolDefinitions
+				.filter(definition => definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession)
+				.map(definition => [definition.name, definition.description]));
+			const off = { descriptions: descriptions(), chats: await listed() };
+			enabled = true;
+			const on = { descriptions: descriptions(), chats: await listed() };
+			assert.deepStrictEqual({ off, on, baseMentionsMove: Object.values(base).some(description => description?.includes('move_session')) }, {
+				off: { descriptions: base, chats: 3 },
+				on: {
+					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, `${description} \`move_session\` takes these links too.`])),
+					chats: 3,
+				},
+				baseMentionsMove: false,
+			});
+		});
+
+		test('every call asks for confirmation, with a display for its operation that links what moves when the host knows it', () => {
+			// The host's display links only what `isKnownSessionLink` confirms: here s1 and its nested session peer, and s2.
+			const known = (session: URI, chatId: string | undefined) => (session.toString() === source && (chatId === undefined || chatId === 'peer')) || (session.toString() === target && chatId === undefined);
+			const group = createMoveGroup({ isKnownSessionLink: known }).group;
+			const show = (value: ReturnType<NonNullable<IServerToolGroup['getDisplay']>>) => {
 				const message = value?.confirmationMessage;
 				return [value?.confirmationTitle, typeof message === 'string' ? message : message?.markdown, value?.invocationMessage, value?.pastTenseMessage, value?.hideConfirmationInput ?? false];
 			};
+			const display = (args: unknown, result?: { text: string; success: boolean }) => show(group.getDisplay!(SessionServerToolName.MoveSession, args, result));
 			const md = (label: string, target: string) => `[${label}](<${target}>)`;
 			assert.deepStrictEqual({
 				reorder: display({ session: link(source, 'peer'), into: link(source) }),
@@ -3430,9 +3468,12 @@ suite('SessionServerTools', () => {
 				session: display({ session: link(target), into: source }),
 				self: display({ into: target }, { text: scheduledResult(`moved into ${link(target)}`), success: true }),
 				selfPromote: display({ relationship: 'independent' }),
-				// Only a session link or URI is linked; a chat URI names no session.
+				// Only a known session or chat is linked; an unknown one, a chat URI or a non-link is named without a link.
+				unknown: display({ session: link(source, 'gone'), into: link('copilot:/unknown') }),
 				notALink: display({ session: buildChatUri(source, 'peer'), into: 'not a session' }),
-				unknown: display(undefined),
+				noArgs: display(undefined),
+				// Restored history has no host to check links against: it names sessions without links.
+				history: show(getServerToolDisplay(SessionServerToolName.MoveSession, { session: link(source, 'peer'), into: target })),
 			}, {
 				reorder: ['Reorder Nested Session?', `Move ${md('this nested session', link(source, 'peer'))} to a new position in its session?`, 'Reordering nested session', 'Reordered nested session', true],
 				move: ['Move Nested Session?', `Move ${md('this nested session', link(source, 'peer'))} into ${md('the destination session', link(target))}? It keeps its history and folders.`, 'Moving nested session', 'Moved nested session', true],
@@ -3440,8 +3481,24 @@ suite('SessionServerTools', () => {
 				session: ['Move Session?', `Move ${md('this session', link(target))} into ${md('the destination session', link(source))} as a nested session? It keeps its history and folders.`, 'Moving session', 'Moved session', true],
 				self: ['Move This Chat?', `Move this chat into ${md('the destination session', link(target))} when this turn ends? It keeps its history and folders.`, 'Scheduling a move of this chat', 'Scheduled move', true],
 				selfPromote: ['Move This Chat to Its Own Session?', 'Make this chat its own session when this turn ends? It keeps its history and folders.', 'Scheduling a move of this chat', 'Processed move of this chat', true],
+				unknown: ['Move Nested Session?', 'Move this nested session into the destination session? It keeps its history and folders.', 'Moving nested session', 'Moved nested session', true],
 				notALink: ['Move Session?', 'Move this session into the destination session as a nested session? It keeps its history and folders.', 'Moving session', 'Moved session', true],
-				unknown: ['Move Session?', 'Move this session?', 'Moving session', 'Processed session move', false],
+				noArgs: ['Move Session?', 'Move this session?', 'Moving session', 'Processed session move', false],
+				history: ['Move Nested Session?', 'Move this nested session into the destination session? It keeps its history and folders.', 'Moving nested session', 'Moved nested session', true],
+			});
+		});
+
+		test('the host builds the confirmation providers show with its state', () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const host = new AgentServerToolHost(stateManager, buildServerToolGroups(createAccessor({ isKnownSessionLink: () => false }), undefined, undefined, () => true));
+			const known = new AgentServerToolHost(stateManager, buildServerToolGroups(createAccessor(), undefined, undefined, () => true));
+			const args = { session: link(source, 'peer'), into: target };
+			assert.deepStrictEqual({
+				unknown: host.getConfirmationDisplay(SessionServerToolName.MoveSession, args),
+				known: known.getConfirmationDisplay(SessionServerToolName.MoveSession, args)?.confirmationMessage,
+			}, {
+				unknown: { confirmationTitle: 'Move Nested Session?', confirmationMessage: { markdown: 'Move this nested session into the destination session? It keeps its history and folders.' }, hideConfirmationInput: true },
+				known: { markdown: `Move [this nested session](<${link(source, 'peer')}>) into [the destination session](<${link(target)}>)? It keeps its history and folders.` },
 			});
 		});
 

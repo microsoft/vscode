@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/objects.js';
-import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost, IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
@@ -262,6 +262,15 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		return group?.requiresConfirmation?.(this._stateManager, this._executionContext(chatUri), name)
 			?? group?.canRequireConfirmation?.(name)
 			?? false;
+	}
+
+	getConfirmationDisplay(toolName: string, args: unknown): IServerToolConfirmationDisplay | undefined {
+		const display = this._groupByToolName.get(toolName)?.getDisplay?.(this._currentToolName(toolName), args);
+		return display && {
+			...(display.confirmationTitle !== undefined ? { confirmationTitle: display.confirmationTitle } : {}),
+			...(display.confirmationMessage !== undefined ? { confirmationMessage: display.confirmationMessage } : {}),
+			...(display.hideConfirmationInput !== undefined ? { hideConfirmationInput: display.hideConfirmationInput } : {}),
+		};
 	}
 
 	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {

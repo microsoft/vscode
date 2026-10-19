@@ -113,6 +113,9 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 
 const createSessionWithSharedWorkspaceDescription = 'Create delegated work and start it with an initial prompt, either in a new chat sharing the current session\'s workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.';
 
+/** Added to the descriptions of the tools whose results carry session and chat links while `move_session` is offered. */
+const moveSessionLinksSentence = ' `move_session` takes these links too.';
+
 const getCurrentSessionInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {},
@@ -189,7 +192,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.ListSessions,
 		title: 'List Sessions',
-		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and its own `openLink`, the link that names it in other session tools such as `move_session`. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
+		description: 'List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.',
 		inputSchema: listSessionsInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -197,7 +200,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetCurrentSession,
 		title: 'Get Current Session',
-		description: 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`. Use this to reference the current session or one of its nested sessions (for example before adding a chat to it or moving one).',
+		description: 'Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`. Use this to reference the current session or one of its nested sessions (for example before adding a chat to it).',
 		inputSchema: getCurrentSessionInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -354,6 +357,11 @@ export interface IAgentServiceSessionServerToolAccessor {
 	readonly checkChatMove: (move: ISessionServerToolMove) => Promise<void>;
 	/** Applies a move through the same host operations as AHP `moveChat` and `vscode/moveSession`; returns the session it is in now. */
 	readonly applyChatMove: (move: ISessionServerToolMove) => Promise<URI>;
+	/**
+	 * Whether the host knows `session` (loaded or listed), and with `chatId` a chat of it by that id among its recorded
+	 * chats. Synchronous, from the host's state, for display only.
+	 */
+	readonly isKnownSessionLink: (session: URI, chatId: string | undefined) => boolean;
 }
 
 /**
@@ -1960,6 +1968,10 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			return toolName !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'utility';
 		},
 		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
+			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
+			if ((definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) && accessor?.isChatMoveEnabled() === true) {
+				return { ...definition, description: `${definition.description}${moveSessionLinksSentence}` };
+			}
 			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
 				return { ...definition, deferLoading: false };
 			}

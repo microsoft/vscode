@@ -19,7 +19,7 @@ import type { Database } from '@vscode/sqlite3';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { DeferredPromise, disposableTimeout, raceTimeout, retry, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, retry, Sequencer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -36769,6 +36769,26 @@ suite('AgentService (node dispatcher)', () => {
 						kind: 'session',
 						check: 'none',
 						moved: target.toString(),
+						owner: target.toString(),
+					});
+				});
+
+				test('the move_session check and its move run in the move sequencer, after a move in progress, never beside it', async () => {
+					const { service, source, target, peer } = await setupMove();
+					const sequencer = (service as unknown as { readonly _chatMoveSequencer: Sequencer })._chatMoveSequencer;
+					const running = new DeferredPromise<void>();
+					const order: string[] = [];
+					const inProgress = sequencer.queue(async () => { await running.p; order.push('move in progress'); });
+					const accessor = moveToolAccessor(service);
+					const check = accessor.checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: 'end' } }).then(() => { order.push('check'); });
+					const apply = accessor.applyChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: 'end' } }).then(() => { order.push('move_session'); });
+					await timeout(10);
+					const whileRunning = [...order];
+					running.complete();
+					await Promise.all([inProgress, check, apply]);
+					assert.deepStrictEqual({ whileRunning, order, owner: getStateManager(service).getChatOwner(peer.toString()) }, {
+						whileRunning: [],
+						order: ['move in progress', 'check', 'move_session'],
 						owner: target.toString(),
 					});
 				});

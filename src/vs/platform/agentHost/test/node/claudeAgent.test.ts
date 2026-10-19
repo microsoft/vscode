@@ -7147,6 +7147,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
 		canRequireConfirmation(): boolean { return true; }
 		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
+		getConfirmationDisplay(): undefined { return undefined; }
 		executeTool(): string { return 'ok'; }
 	}
 
@@ -7302,6 +7303,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
 			canRequireConfirmation(toolName: string): boolean { return sessionToolRequiresConfirmation(toolName); }
 			requiresConfirmation(_chat: string, toolName: string): boolean { return sessionToolRequiresConfirmation(toolName); }
+			getConfirmationDisplay(): undefined { return undefined; }
 			executeTool(): string { return 'ok'; }
 		}();
 		const { ctx, canUseTool } = await materialize(undefined, host);
@@ -11444,6 +11446,7 @@ suite('ClaudeAgent — host seams', () => {
 			getDefinitionsForSession: () => [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: chatUri => {
 				executedChatUri = chatUri;
 				return 'done';
@@ -11483,6 +11486,7 @@ suite('ClaudeAgent — host seams', () => {
 			},
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: () => 'done',
 		});
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -11521,6 +11525,7 @@ suite('ClaudeAgent — host seams', () => {
 			},
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: () => 'done',
 		});
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

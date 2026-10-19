@@ -285,12 +285,15 @@ function getDisplayedOperation(args: unknown): { readonly operation: MoveSession
 	return { operation: session !== undefined && session === into ? 'reorder' : 'move', self };
 }
 
+/** Whether the host knows the session, and with a chat id the chat of it, that a link names (see `isKnownSessionLink`). */
+type KnownSessionLinkCheck = (session: URI, chatId: string | undefined) => boolean;
+
 /**
  * A Markdown link to the session or nested session a `move_session` argument names, labeled {@link label}. The link
- * is rebuilt from the parsed session and chat id, so only a well-formed `agent-host-session://` link is rendered;
- * anything else shows the label alone.
+ * is rebuilt from the parsed session and chat id, and only for one {@link isKnown} confirms; anything else shows the
+ * label alone.
  */
-function linkTo(label: string, input: unknown): string {
+function linkTo(label: string, input: unknown, isKnown: KnownSessionLinkCheck): string {
 	if (typeof input !== 'string') {
 		return label;
 	}
@@ -298,19 +301,20 @@ function linkTo(label: string, input: unknown): string {
 	try {
 		const session = parseOpenSessionLinkUri(input) ?? URI.parse(input, true);
 		// A chat URI names no session: it is shown as the label alone.
-		link = session.scheme && session.scheme !== AGENT_HOST_SESSION_LINK_SCHEME && !isAhpChatChannel(session.toString()) ? buildOpenSessionLinkUri(session, parseOpenSessionLinkChatId(input)) : undefined;
+		const chatId = parseOpenSessionLinkChatId(input);
+		link = session.scheme && session.scheme !== AGENT_HOST_SESSION_LINK_SCHEME && !isAhpChatChannel(session.toString()) && isKnown(session, chatId) ? buildOpenSessionLinkUri(session, chatId) : undefined;
 	} catch {
 		link = undefined;
 	}
 	return link ? `[${label}](<${link.replace(/[<>]/g, encodeURIComponent)}>)` : label;
 }
 
-function getMoveSessionDisplay(args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay {
+function getMoveSessionDisplay(args: unknown, result: IServerToolDisplayResult | undefined, isKnown: KnownSessionLinkCheck): IServerToolDisplay {
 	const { operation, self } = getDisplayedOperation(args);
 	const input = (args !== null && typeof args === 'object' ? args : {}) as IMoveSessionArgs;
 	const scheduled = result?.success === true && result.text?.startsWith(scheduledMoveResultPrefix) === true;
 	const scheduledPastTense = localize('toolComplete.moveSession.scheduled', "Scheduled move");
-	const into = linkTo(localize('toolConfirm.moveSession.destination', "the destination session"), input.into);
+	const into = linkTo(localize('toolConfirm.moveSession.destination', "the destination session"), input.into, isKnown);
 	if (self) {
 		const promote = operation === 'promote';
 		return {
@@ -326,7 +330,7 @@ function getMoveSessionDisplay(args: unknown, result?: IServerToolDisplayResult)
 			hideConfirmationInput: true,
 		};
 	}
-	const nested = linkTo(localize('toolConfirm.moveSession.nested', "this nested session"), input.session);
+	const nested = linkTo(localize('toolConfirm.moveSession.nested', "this nested session"), input.session, isKnown);
 	switch (operation) {
 		case 'reorder':
 			return {
@@ -361,7 +365,7 @@ function getMoveSessionDisplay(args: unknown, result?: IServerToolDisplayResult)
 				invocationMessage: localize('toolInvoke.moveSession.session', "Moving session"),
 				pastTenseMessage: localize('toolComplete.moveSession.session', "Moved session"),
 				confirmationTitle: localize('toolConfirm.moveSession.session.title', "Move Session?"),
-				confirmationMessage: { markdown: localize('toolConfirm.moveSession.session', "Move {0} into {1} as a nested session? It keeps its history and folders.", linkTo(localize('toolConfirm.moveSession.wholeSession', "this session"), input.session), into) },
+				confirmationMessage: { markdown: localize('toolConfirm.moveSession.session', "Move {0} into {1} as a nested session? It keeps its history and folders.", linkTo(localize('toolConfirm.moveSession.wholeSession', "this session"), input.session, isKnown), into) },
 				hideConfirmationInput: true,
 			};
 		default:
@@ -375,10 +379,13 @@ function getMoveSessionDisplay(args: unknown, result?: IServerToolDisplayResult)
 	}
 }
 
-/** How every provider displays `move_session`, also where no host runs it (restored history). */
+/**
+ * How `move_session` is displayed where no host runs it (restored history): with nothing to check links against, it
+ * names sessions without links.
+ */
 export const moveSessionToolDisplay: IServerToolDisplaySource = {
 	definitions: [moveSessionToolDefinition],
-	getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result),
+	getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result, () => false),
 };
 
 /**
@@ -388,7 +395,9 @@ export const moveSessionToolDisplay: IServerToolDisplaySource = {
 export function createSessionMoveToolGroup(accessor: ISessionServerToolAccessor, areAgentOrchestrationLimitsEnabled: () => boolean): IServerToolGroup {
 	let movedSessionCount = 0;
 	return {
-		...moveSessionToolDisplay,
+		definitions: moveSessionToolDisplay.definitions,
+		// Confirmations link only sessions and chats the host knows.
+		getDisplay: (_toolName, args, result) => getMoveSessionDisplay(args, result, (session, chatId) => accessor.isKnownSessionLink(session, chatId)),
 		isEnabled: toolName => toolName === SessionServerToolName.MoveSession && accessor.isChatMoveEnabled(),
 		isEnabledForSession: (_toolName, sessionUri) => accessor.supportsChatMoves(URI.parse(sessionUri)),
 		canRequireConfirmation: toolName => sessionToolRequiresConfirmation(toolName),

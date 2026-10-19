@@ -55,6 +55,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		supportsChatMoves: session => this.value.sessionServerToolAccessor.supportsChatMoves(session),
 		checkChatMove: move => this.value.sessionServerToolAccessor.checkChatMove(move),
 		applyChatMove: move => this.value.sessionServerToolAccessor.applyChatMove(move),
+		isKnownSessionLink: (session, chatId) => this.value.sessionServerToolAccessor.isKnownSessionLink(session, chatId),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
