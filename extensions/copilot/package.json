@@ -82,6 +82,7 @@
     "onLanguageModelChat:copilot",
     "onUri",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
+    "onCommand:github.copilot.survey.signalUsage",
     "onSpeech",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
