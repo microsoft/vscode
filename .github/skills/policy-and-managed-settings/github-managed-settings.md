@@ -1,12 +1,14 @@
 # GitHub Copilot Managed Settings
 
-This file documents the **managed-settings** modality: how an enterprise admin's Copilot configuration (delivered to VS Code via native MDM or the GitHub server) flows into VS Code's policy stack and locks a setting. It is a companion to `SKILL.md` — read that first for the general policy lifecycle (`policy:` field, export, artifacts).
+This file documents **workbench policy projection**: how supported enterprise-managed settings feed VS Code's policy stack. It is a companion to `SKILL.md` — read that first to select the policy destination.
 
-Managed settings layer **on top of** the existing policy framework. They do **not** introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
+This is not the execution contract for runtime-owned Agent Host controls. Follow [SDK/runtime managed settings](./sdk-runtime-policy.md) for those controls, including model startup defaults; do not assume every managed value locks a user-facing setting.
+
+Workbench-projected managed settings layer **on top of** the existing policy framework. They do **not** introduce a new `IPolicyService`; they feed `IPolicyData.managedSettings`, which the existing `policy.value(policyData)` callback already consumes via `AccountPolicyService`.
 
 ## The big idea: one canonical bag, three delivery channels (in VS Code)
 
-Every enterprise-managed Copilot setting resolves through a single normalized bag:
+The workbench managed-settings service exposes a single normalized bag:
 
 ```ts
 // src/vs/base/common/policy.ts
@@ -148,14 +150,14 @@ managedSettings: { [COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' } },
 
 ### Governance presence disables the third-party harnesses
 
-`IPolicyData.managedSettingsActive` is `true` when a channel contributes managed-settings governance. `AccountPolicyService.getPolicyData` derives it from effective managed settings and raw settings that normalization cannot represent, independently of which keys VS Code declares. Presence governs for existing settings. The Local-only `vscode.temporaryAllowLocalHarness` is excluded at every value: it controls Local, not other providers or presence-gated features. Channel resolution retains its value for precedence and diagnostics, but neither its normalized value nor its raw container contributes governance. Empty or Local-only server responses explicitly clear a previously cached raw-governance flag.
+`IPolicyData.managedSettingsActive` is `true` when a channel contributes managed-settings governance. `AccountPolicyService.getPolicyData` derives it from effective managed settings and raw settings that normalization cannot represent, independently of which keys VS Code declares. Presence governs for existing settings. The `vscode.temporaryAllowLocalHarness` control is excluded from this flag at every value; its explicit false value separately disables Local, Claude, and Codex without affecting unrelated presence-gated features. Channel resolution retains its value for precedence and diagnostics, but neither its normalized value nor its raw container contributes general governance. Empty server responses or responses containing only this control explicitly clear a previously cached raw-governance flag.
 
-The `Claude3PIntegration` and `Codex3PIntegration` policies both use `thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables chat preview features **or** when `managedSettingsActive` is `true`. Rationale: managed settings are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses, so leaving those harnesses available would hand a governed user an ungoverned path around every control the enterprise set. This mirrors the runtime-owned `sandbox.enabled` floor retiring the local harness (`IAgentHostEnablementService.managedSandboxEnforced`).
+The `Claude3PIntegration` and `Codex3PIntegration` policies both use `thirdPartyAgentEnabledValue`, which forces its setting to `false` when the account disables chat preview features, when `managedSettingsActive` is `true`, or when effective `vscode.temporaryAllowLocalHarness` is boolean `false`. Rationale: managed settings are composed and enforced by the Copilot runtime and never reach the Claude or Codex harnesses, so leaving those harnesses available would hand a governed user an ungoverned path around every control the enterprise set. Local eligibility is separate: managed `permissions.*` and `sandbox.*` do not change its harness-selection logic, while `vscode.temporaryAllowLocalHarness: false` explicitly prohibits Local.
 
 Invariants:
 
-- The policies consume the shared governance decision rather than inspecting values themselves, and deliberately declare **no** `managedSettings` keys. The Local-only exception is resolved centrally, not duplicated in each provider.
-- `AccountPolicyService.resolvePolicyValue` probes for this presence dependence (re-evaluating the callback with `managedSettingsActive: false`) so **Developer: Policy Diagnostics** attributes the value to the governing channel rather than to the account.
+- Both policies declare `vscode.temporaryAllowLocalHarness` as a boolean managed key and use the shared callback. True, absence, or malformed values do not independently disable either provider; other managed settings and preview-feature restrictions still apply.
+- `AccountPolicyService.resolvePolicyValue` probes declared keys and presence dependence so **Developer: Policy Diagnostics** attributes the value to the governing channel rather than to the account. Presence attribution also clears declared values so an independently sufficient harness denial does not mask general governance.
 - The `value` callback stays pure and deterministic — attribution evaluates it more than once.
 
 ### Normalization: the structured-key descriptor table

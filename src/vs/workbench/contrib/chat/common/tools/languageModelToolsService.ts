@@ -539,13 +539,27 @@ export class ToolSet implements IToolSet {
 	}
 
 	addToolSet(toolSet: IToolSet, tx?: ITransaction): IDisposable {
-		if (toolSet === this) {
+		if (toolSet === this || (toolSet instanceof ToolSet && toolSet._containsToolSet(this))) {
 			return Disposable.None;
 		}
 		this._toolSets.add(toolSet, tx);
 		return toDisposable(() => {
 			this._toolSets.delete(toolSet);
 		});
+	}
+
+	/** Whether `target` is nested anywhere below this tool set. */
+	private _containsToolSet(target: IToolSet, visited = new Set<IToolSet>()): boolean {
+		visited.add(this);
+		for (const child of this._toolSets) {
+			if (child === target) {
+				return true;
+			}
+			if (child instanceof ToolSet && !visited.has(child) && child._containsToolSet(target, visited)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getTools(r?: IReader): Iterable<IToolData> {

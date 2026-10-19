@@ -475,6 +475,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return (isEqualAuthority(getRemoteAuthority(uri), this._remoteAuthority.authority.authority)) && !!this._remoteAuthority.options?.isTrusted;
 	}
 
+	isAuthorityTrusted(scheme: string, authority: string): boolean {
+		return this.isTrustedByRemote(URI.from({ scheme, authority, path: '/' }));
+	}
+
 	private set isTrusted(value: boolean) {
 		this._isTrusted = value;
 

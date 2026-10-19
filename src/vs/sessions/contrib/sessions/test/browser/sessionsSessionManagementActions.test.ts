@@ -14,7 +14,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -30,7 +30,7 @@ import { IView } from '../../../../../workbench/common/views.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
@@ -57,6 +57,107 @@ function getKeybindingRule(commandId: string, keybinding: number, operatingSyste
 
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scopes read and unread shortcuts to the Sessions list on every platform', () => {
+		const sessionsList = {
+			[IsSessionsWindowContext.key]: true,
+			[FocusedViewContext.key]: SessionsViewId,
+			[RawWorkbenchListFocusContextKey.key]: true,
+		};
+		for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
+			for (const [commandId, keyCode] of [[MARK_SESSION_READ_COMMAND_ID, KeyCode.KeyI], [MARK_SESSION_UNREAD_COMMAND_ID, KeyCode.KeyU]] as const) {
+				const rule = getKeybindingRule(commandId, KeyMod.Shift | keyCode, operatingSystem);
+				assert.ok(rule?.when);
+				assert.deepStrictEqual({
+					weight: rule.weight1,
+					sessionsList: rule.when.evaluate(context(sessionsList)),
+					nestedSession: rule.when.evaluate(context({ ...sessionsList, [SessionsListFocusedChatItemContext.key]: true })),
+					input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
+					otherWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: false })),
+					otherView: rule.when.evaluate(context({ ...sessionsList, [FocusedViewContext.key]: 'otherView' })),
+					noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
+				}, {
+					weight: KeybindingWeight.SessionsContrib,
+					sessionsList: true,
+					nestedSession: true,
+					input: false,
+					otherWindow: false,
+					otherView: false,
+					noListFocus: false,
+				});
+			}
+		}
+	});
+
+	test('read and unread commands target list selection or explicit context, never an unrelated active session', async () => {
+		const first = createTestSession('First').session;
+		const second = createTestSession('Second').session;
+		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const harness = createActionHarness([first, second], active);
+		const noSelection = createActionHarness([], active);
+		const noListFocus = createActionHarness(undefined, active);
+		const calls: { commandId: string; sessionId: string }[] = [];
+		for (const target of [harness, noSelection, noListFocus]) {
+			target.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				markRead: async session => { calls.push({ commandId: MARK_SESSION_READ_COMMAND_ID, sessionId: session.sessionId }); },
+				markUnread: async session => { calls.push({ commandId: MARK_SESSION_UNREAD_COMMAND_ID, sessionId: session.sessionId }); },
+			}));
+		}
+
+		for (const commandId of [MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService);
+			await handler(harness.instantiationService, active);
+			await handler(harness.instantiationService, [second, first]);
+			await handler(noSelection.instantiationService);
+			await handler(noListFocus.instantiationService);
+		}
+
+		assert.deepStrictEqual(calls, [MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID].flatMap(commandId =>
+			[first, second, active, second, first].map(session => ({ commandId, sessionId: session.sessionId }))));
+	});
+
+	test('preserves legacy Agents window read commands as aliases of the shared commands', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const session = createTestSession('Target').session;
+		const calls: { commandId: string; args: readonly ISession[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }(), 'executeCommand', async (commandId: string, ...args: ISession[]) => {
+			calls.push({ commandId, args });
+		});
+		for (const commandId of ['sessionsViewPane.markRead', 'sessionsViewPane.markUnread']) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(instantiationService, session);
+		}
+		assert.deepStrictEqual(calls, [
+			{ commandId: 'agentSession.markRead', args: [session] },
+			{ commandId: 'agentSession.markUnread', args: [session] },
+		]);
+	});
+
+	test('read shortcuts target selected nested chats without changing their parent or the active session', async () => {
+		const parent = createTestSession('Parent').session;
+		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
+		const second = upcastPartial<IChat>({ resource: URI.parse('test:/second') });
+		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const selected = [{ session: parent, chat: peer }, { session: parent, chat: second }];
+		const harness = createActionHarness([], active, selected[0], undefined, false, { focusedChats: selected });
+		const calls: { sessionId: string; chat: string; read: boolean }[] = [];
+		harness.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			markChatRead: async (session, chat) => { calls.push({ sessionId: session.sessionId, chat: chat.resource.toString(), read: true }); },
+			markChatUnread: async (session, chat) => { calls.push({ sessionId: session.sessionId, chat: chat.resource.toString(), read: false }); },
+		}));
+
+		for (const commandId of [MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService);
+		}
+
+		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
+			[peer, second].map(chat => ({ sessionId: parent.sessionId, chat: chat.resource.toString(), read }))));
+	});
 
 	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {
 		const renameRule = getKeybindingRule(RENAME_SESSION_COMMAND_ID, KeyCode.F2);
@@ -167,7 +268,7 @@ suite('Sessions - Session management actions', () => {
 		focusedChat?: ISessionChatItem,
 		focusedGroupChat?: IChat,
 		renameFocusedTab = false,
-		options: { confettiEnabled?: boolean; reducedMotion?: boolean } = {},
+		options: { confettiEnabled?: boolean; reducedMotion?: boolean; focusedChats?: readonly ISessionChatItem[] } = {},
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
@@ -187,6 +288,7 @@ suite('Sessions - Session management actions', () => {
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
+			getFocusedChatItems: () => options.focusedChats ?? (focusedChat ? [focusedChat] : []),
 			beginRenameSession: session => {
 				inlineRenamedSessions.push(session);
 				return true;

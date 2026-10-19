@@ -44,6 +44,7 @@ import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.
 import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
@@ -53,6 +54,7 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
+import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../common/attachments/chatVariables.js';
@@ -67,8 +69,8 @@ import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.j
 import { IChatViewWelcomeContent } from '../../../browser/viewsWelcome/chatViewWelcomeController.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
-import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 
 suite('ChatWidget', () => {
@@ -119,6 +121,7 @@ suite('ChatWidget', () => {
 			_pendingFirstRenderSessionResource: resource,
 			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
 			logService,
+			chatOpenDiagnosticsService: store.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
 			renderWelcomeViewContentIfNeeded: () => { },
 			renderFollowups: () => { },
@@ -1726,8 +1729,6 @@ suite('ChatWidget', () => {
 	});
 
 	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
-		const configuration = new TestConfigurationService();
-		store.add(configuration.onDidChangeConfigurationEmitter);
 		let allowLocal = true;
 		const managedSettings = new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
@@ -1737,14 +1738,28 @@ suite('ChatWidget', () => {
 		let calls = 0;
 		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
 		fixture.visible.set(true, undefined);
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
 		await timeout(0);
 		const before = calls;
 		allowLocal = false;
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+		fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
 	});
+
+	for (const [key, value] of [['permissions.allow', '[]'], ['permissions.defaultMode', 'manual'], ['sandbox.enabled', true]] as const) {
+		test(`${key} does not automatically migrate displayed Local history`, async () => {
+			const managedSettings = new class extends NullManagedSettingsService {
+				override getManagedSettingValue(candidate: string) { return candidate === key ? value : undefined; }
+				override getManagedSettings() { return { [key]: value }; }
+			}();
+			const fixture = createAutomaticMigrationFixture();
+			fixture.visible.set(true, undefined);
+			fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ calls: fixture.automaticCalls, errors: fixture.errors }, { calls: [], errors: [] });
+		});
+	}
 
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
 		test(`does not automatically migrate ${scenario} chats`, async () => {
@@ -1977,7 +1992,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, isInputBlocked, inputModel };
+		return { model, viewModel, isInputBlocked, inputModel, hasActiveRequest, requestInProgress, requestNeedsInput };
 	}
 
 	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app') {
@@ -2077,12 +2092,166 @@ suite('ChatWidget - acceptInput submission', () => {
 			chatAccessibilityService: { value: { acceptRequest: () => { }, acceptResponse: () => { } } },
 			logService: { value: { debug: () => { } } },
 			telemetryService: { value: NullTelemetryService },
-			listWidget: { value: { setScrollLock: () => { } } },
+			listWidget: { value: { domNode: dom.$('div'), setScrollLock: () => { }, updateRendererOptions: () => { }, rerender: () => { } } },
 			updateChatViewVisibility: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
 		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
 	}
+
+	for (const waitingForApproval of [false, true]) {
+		test(`cancelCurrentRequest waits before a preserved-input continuation when waitingForApproval=${waitingForApproval}`, async () => {
+			const fixture = createSubmissionWidget();
+			fixture.original.hasActiveRequest.set(true, undefined);
+			fixture.original.requestInProgress.set(!waitingForApproval, undefined);
+			fixture.original.requestNeedsInput.set(waitingForApproval ? { title: 'Approval', detail: 'Allow this command?' } : undefined, undefined);
+			const cancellation = new DeferredPromise<void>();
+			const operations: string[] = [];
+			fixture.chatService.cancelCurrentRequestForSession.callsFake(async () => {
+				operations.push('cancel');
+				await cancellation.p;
+				fixture.original.hasActiveRequest.set(false, undefined);
+				fixture.original.requestInProgress.set(false, undefined);
+				fixture.original.requestNeedsInput.set(undefined, undefined);
+				operations.push('cancelled');
+			});
+			fixture.chatService.sendRequest.callsFake(async () => {
+				operations.push('send');
+				return fixture.sent;
+			});
+			const message = 'Continue (I changed permissions from Default Permissions to Full Access)';
+			const sending = fixture.widget.acceptInput(message, { preserveInput: true, cancelCurrentRequest: true });
+			await timeout(0);
+			const beforeCancellation = operations.slice();
+			await cancellation.complete();
+			await sending;
+			assert.deepStrictEqual({ beforeCancellation, operations, message: fixture.chatService.sendRequest.lastCall.args[1], queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue }, {
+				beforeCancellation: ['cancel'], operations: ['cancel', 'cancelled', 'send'], message, queue: undefined,
+			});
+		});
+	}
+
+	function createSessionBindingFixture() {
+		const fixture = createSubmissionWidget();
+		const availabilityChanged = store.add(new Emitter<void>());
+		const contributions = new Map<string, ResolvedChatSessionsExtensionPoint>();
+		fixture.chatSessionsService.onDidChangeAvailability.callsFake(listener => availabilityChanged.event(listener));
+		fixture.chatSessionsService.getChatSessionContribution.callsFake(sessionType => contributions.get(sessionType));
+		Object.defineProperties(fixture.widget, {
+			_lockedToCodingAgentContextKey: { value: ChatContextKeys.lockedToCodingAgent.bindTo(fixture.contextKeyService) },
+			_lockedCodingAgentIdContextKey: { value: ChatContextKeys.lockedCodingAgentId.bindTo(fixture.contextKeyService) },
+			_chatIsAgentHostSessionContextKey: { value: ChatContextKeys.chatIsAgentHostSession.bindTo(fixture.contextKeyService) },
+			_chatAgentHostProviderIdContextKey: { value: ChatContextKeys.chatAgentHostProviderId.bindTo(fixture.contextKeyService) },
+			_agentSupportsAttachmentsContextKey: { value: fixture.contextKeyService.createKey('test.agentSupportsAttachments', false) },
+			_chatSessionSupportsForkContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsFork', false) },
+			_chatSessionSupportsRenameContextKey: { value: fixture.contextKeyService.createKey('test.sessionSupportsRename', false) },
+			chatAgentService: { value: mockObject<IChatAgentService>()() },
+			_updateAgentHostWorkingDirectoryContextKeys: { value: () => { } },
+			_updateFolderPickerDecision: { value: () => { } },
+			renderWelcomeViewContentIfNeeded: { value: () => { } },
+		});
+		const registerContribution = (sessionType: string) => {
+			contributions.set(sessionType, {
+				type: sessionType, name: sessionType, displayName: 'Remote Agent', description: '', icon: undefined, agentHostProviderId: 'copilot',
+			});
+			availabilityChanged.fire();
+		};
+		const bindSession = (model: IChatModel) => {
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the private binding without exposing a test-only API.
+			return store.add(fixture.widget['bindSessionCapabilities'](model));
+		};
+		return { ...fixture, availabilityChanged, contributions, registerContribution, bindSession };
+	}
+
+	for (const pickerMatchesSession of [true, false]) {
+		test(`binds a history session to its late live contribution with ${pickerMatchesSession ? 'matching' : 'stale'} model selection`, async () => {
+			const fixture = createSessionBindingFixture();
+			const sessionType = getChatSessionType(fixture.original.model.sessionResource);
+			const selectedModel = `${sessionType}:${pickerMatchesSession ? 'auto' : 'other-model'}`;
+			const intendedModel: IIntendedModelSelection = {
+				modelId: `${sessionType}:auto`, reason: ModelSelectionReason.RestoredChoice, configuration: { reasoningEffort: 'high' },
+			};
+			Object.defineProperty(fixture.original.model.inputModel, 'intendedModel', { value: intendedModel });
+			Object.defineProperty(fixture.input, 'currentLanguageModel', { value: selectedModel });
+			fixture.input.getModelConfiguration.returns(intendedModel.configuration);
+			fixture.original.isInputBlocked.set(true, undefined);
+			fixture.bindSession(fixture.original.model);
+			const initialAgent = fixture.widget.lockedAgentId;
+
+			fixture.registerContribution(sessionType);
+			const boundBeforeLive = fixture.widget.lockedAgentId;
+			await fixture.widget.acceptInput('follow up', fixture.options);
+			const sendsBeforeLive = fixture.chatService.sendRequest.callCount;
+			fixture.original.isInputBlocked.set(false, undefined);
+			await fixture.widget.acceptInput('follow up', fixture.options);
+			const [resource, message, options] = fixture.chatService.sendRequest.firstCall.args;
+
+			assert.deepStrictEqual({
+				initialAgent, boundBeforeLive, sendsBeforeLive,
+				sameModel: fixture.widget.viewModel === fixture.original.viewModel,
+				sameSelection: fixture.original.model.inputModel.intendedModel === intendedModel,
+				resource: resource.toString(), message,
+				agent: options.agentIdSilent, model: options.userSelectedModelId, configuration: options.userSelectedModelConfiguration,
+			}, {
+				initialAgent: undefined, boundBeforeLive: sessionType, sendsBeforeLive: 0,
+				sameModel: true, sameSelection: true,
+				resource: fixture.original.model.sessionResource.toString(), message: 'follow up',
+				agent: sessionType, model: pickerMatchesSession ? selectedModel : undefined, configuration: pickerMatchesSession ? intendedModel.configuration : undefined,
+			});
+		});
+	}
+
+	test('binds an already available session contribution and retains its routing while unavailable', () => {
+		const fixture = createSessionBindingFixture();
+		const sessionType = getChatSessionType(fixture.original.model.sessionResource);
+		fixture.registerContribution(sessionType);
+		fixture.bindSession(fixture.original.model);
+		const initialAgent = fixture.widget.lockedAgentId;
+
+		fixture.contributions.delete(sessionType);
+		fixture.availabilityChanged.fire();
+		const disconnectedAgent = fixture.widget.lockedAgentId;
+		fixture.registerContribution(sessionType);
+
+		assert.deepStrictEqual({ initialAgent, disconnectedAgent, reconnectedAgent: fixture.widget.lockedAgentId }, {
+			initialAgent: sessionType, disconnectedAgent: sessionType, reconnectedAgent: sessionType,
+		});
+	});
+
+	test('disposes the old session binding before following another conversation', () => {
+		const fixture = createSessionBindingFixture();
+		const oldBinding = fixture.bindSession(fixture.original.model);
+		oldBinding.dispose();
+		const next = createSession(URI.parse('another-agent:/existing-b'));
+		Object.defineProperty(fixture.widget, '_viewModel', { value: next.viewModel });
+		const nextBinding = fixture.bindSession(next.model);
+		fixture.registerContribution(getChatSessionType(fixture.original.model.sessionResource));
+		const agentAfterOldRegistration = fixture.widget.lockedAgentId;
+		fixture.registerContribution(getChatSessionType(next.model.sessionResource));
+		const currentAgent = fixture.widget.lockedAgentId;
+		nextBinding.dispose();
+
+		assert.deepStrictEqual({ agentAfterOldRegistration, currentAgent, listening: fixture.availabilityChanged.hasListeners() }, {
+			agentAfterOldRegistration: undefined, currentAgent: 'another-agent', listening: false,
+		});
+	});
+
+	test('late contributions do not lock local conversations or replace an explicit agent', () => {
+		const local = createSessionBindingFixture();
+		const localSession = createSession(LocalChatSessionUri.getNewSessionUri());
+		Object.defineProperty(local.widget, '_viewModel', { value: localSession.viewModel });
+		local.bindSession(localSession.model);
+		local.registerContribution(getChatSessionType(localSession.model.sessionResource));
+
+		const explicit = createSessionBindingFixture();
+		explicit.widget.lockToCodingAgent('explicit', 'Explicit Agent', 'explicit');
+		explicit.bindSession(explicit.original.model);
+		explicit.registerContribution(getChatSessionType(explicit.original.model.sessionResource));
+
+		assert.deepStrictEqual({ local: local.widget.lockedAgentId, explicit: explicit.widget.lockedAgentId }, {
+			local: undefined, explicit: 'explicit',
+		});
+	});
 
 	function addParticipant(fixture: ReturnType<typeof createSubmissionWidget>, isCore = false) {
 		const participant = upcastPartial<IChatAgentData>({ id: 'test.participant', name: 'participant', modes: [ChatModeKind.Ask], isCore });

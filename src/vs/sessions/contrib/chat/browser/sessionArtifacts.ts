@@ -19,6 +19,8 @@ import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -28,7 +30,9 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { downloadFile } from '../../../../workbench/browser/download.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { getChatImageResourceComparisonKey, getGeneratedImageResources } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
@@ -75,6 +79,7 @@ export interface ISessionArtifactActions {
 	openExternal(link: URI): void;
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
+	downloadImage(uri: URI, name: string): Promise<void>;
 	copy(text: string): void;
 	/**
 	 * Deletes the session's record of an artifact or reference by its stable id.
@@ -398,6 +403,11 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 					label,
 					resource: uri,
 					toolbarActions: [toAction({
+						id: `sessions.artifacts.downloadImage.${artifact.id}`,
+						label: localize('sessionArtifacts.downloadImage', "Download Image"),
+						class: ThemeIcon.asClassName(Codicon.cloudDownload),
+						run: () => actions.downloadImage(uri, label),
+					}), toAction({
 						id: `sessions.artifacts.copyFilePath.${artifact.id}`,
 						label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 						class: ThemeIcon.asClassName(Codicon.copy),
@@ -534,6 +544,9 @@ export class SessionArtifacts extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatService chatService: IChatService,
 		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
+		@IFileService private readonly _fileService: IFileService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
@@ -689,6 +702,13 @@ export class SessionArtifacts extends Disposable {
 				}).catch(error => {
 					this._notificationService.error(localize('sessionArtifacts.openImageFailed', "Could not open image: {0}", toErrorMessage(error)));
 				});
+			},
+			downloadImage: async (uri, name) => {
+				try {
+					await downloadFile(uri, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
+				} catch (error) {
+					this._notificationService.error(localize('sessionArtifacts.downloadImageFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));
+				}
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
 			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {

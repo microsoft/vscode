@@ -86,7 +86,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
-import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -1113,6 +1113,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly useRealConnectorInstallService?: boolean;
 	readonly discoveryQuery?: string;
+	readonly directConnectorName?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
@@ -1962,9 +1963,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
-			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
-			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
-			'Discover must link each customization type from its description.',
+			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
+			&& descriptionLinks.join('\n') === 'Learn more',
+			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
@@ -2017,6 +2018,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover browse content must use the expected responsive width.',
 		);
 		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
+	}
+
+	if (options.directConnectorName) {
+		assert(await editor.showCopilotConnectorDetail(options.directConnectorName) === CopilotConnectorDetailOpenResult.Opened, `Connector ${options.directConnectorName} must open directly.`);
 	}
 
 	if (options.toggleMarketplaceVisibility) {
@@ -2242,9 +2247,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				assert(targetWindow.getComputedStyle(marketplacePrimaryAction).outlineStyle === 'none', 'Focused marketplace MCP rows must not retain an inner primary-action outline.');
 				marketplacePrimaryAction.blur();
 			}
-			for (const scrollbar of ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .scrollbar')) {
-				scrollbar.style.visibility = 'hidden';
-			}
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 	} else if (options.selectedSection === AICustomizationManagementSection.McpServers) {
@@ -2263,16 +2265,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		if (options.selectedSection === AICustomizationManagementSection.McpServers) {
-			await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
-			// Allow the 500ms hide delay and 800ms fade transition to complete.
-			await new Promise(resolve => setTimeout(resolve, 2400));
-			for (let attempt = 0; attempt < 20 && ctx.container.querySelector('.scrollbar.vertical.visible'); attempt++) {
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
-		} else {
-			await new Promise(resolve => setTimeout(resolve, 1400));
-		}
+		await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
 	}
 
 	if (options.migrationDashboard) {
@@ -2752,16 +2745,10 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		input.dispatchEvent(new InputEvent('input', { bubbles: true, data: searchQuery, inputType: 'insertText' }));
 	}
 
-	// Wait for the marketplace query to resolve, then wait for scrollbar fade transition
-	// (visible → invisible takes ~2s after programmatic scroll/list populate)
+	// Wait for the marketplace query to resolve
 	await new Promise(resolve => setTimeout(resolve, searchQuery ? 600 : 100));
 	// Blur the search input to prevent cursor blink instability in screenshots
 	(widget.element.querySelector('input') as HTMLElement)?.blur();
-	// Force-hide scrollbars to avoid fade-transition instability
-	for (const scrollbar of widget.element.querySelectorAll<HTMLElement>('.scrollbar')) {
-		scrollbar.style.visibility = 'hidden';
-	}
-	await new Promise(resolve => setTimeout(resolve, 200));
 }
 
 function renderPluginHomeMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -3919,6 +3906,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
+	DiscoverCopilotConnectorDetail: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Activating the WorkIQ recommendation opens Work IQ Mail directly in its in-product connector detail with Back, the connector identity and image, a Connect action, and its catalog metadata.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: fixtureCopilotConnectors.map(connector => connector.name === 'workiq-mail' ? { ...connector, connectionStatus: 'not_connected' } : connector),
+			marketplaceVisibilityEnabled: true,
+			directConnectorName: 'workiq-mail',
+		}),
+	}),
+
 	DiscoverPendingCopilotConnector: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['A pending Copilot Connector remains actionable with a Connect button so interrupted authorization can be retried.'],
@@ -4164,7 +4163,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Scrolled-to-bottom variants — verify last items are fully visible above footer
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 1500 },
 		expectedVisualDescriptions: ['The scrolled Prompts tree has no vertical indent guide beneath group chevrons, its sticky group header matches the panel background, and its final rows remain inside the panel above the bottom inset.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -4175,7 +4173,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 5000 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -4185,7 +4182,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,

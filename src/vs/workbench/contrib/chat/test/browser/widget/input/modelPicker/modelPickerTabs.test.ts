@@ -806,6 +806,28 @@ suite('Model picker destinations', () => {
 			description: 'Effort Level: Extra high, Context: 264K',
 			providerDefault: 'medium',
 		});
+
+	});
+
+	test('read-only option descriptions identify the managed value for screen readers', () => {
+		const model = createConfigurableModel();
+		const schema = model.metadata.configurationSchema!;
+		const access: IModelConfigurationAccess = {
+			...createConfigurationAccess(),
+			getModelConfigurationSchema: () => ({
+				properties: {
+					...schema.properties,
+					reasoningEffort: { ...schema.properties!.reasoningEffort, default: 'xhigh', readOnly: true },
+				},
+			}),
+		};
+		assert.deepStrictEqual({
+			summary: getModelConfigSummary(model, access),
+			description: getModelConfigDescription(model, access),
+		}, {
+			summary: 'Extra high · 264K',
+			description: 'Effort Level: Extra high, managed by the agent host, Context: 264K',
+		});
 	});
 
 	test('unknown settings and routing models never invent effective values', () => {

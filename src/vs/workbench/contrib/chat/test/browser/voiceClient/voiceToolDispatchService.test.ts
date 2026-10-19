@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -19,6 +20,7 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { AskQuestionsToolId } from '../../../common/tools/builtinTools/askQuestionsTool.js';
 import { derivePendingId, IVoiceToolCall } from '../../../common/voiceClient/voiceClientService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { VoiceLiveInputRouter } from '../../../common/voiceClient/voiceLiveInputRouter.js';
 
 suite('VoiceToolDispatchService - model selection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,12 +65,14 @@ suite('VoiceToolDispatchService - session actions', () => {
 		readonly chatModels?: readonly IChatModel[];
 		readonly selectModelResult?: IVoiceModelSelectionResult;
 		readonly switchSucceeds?: boolean;
+		readonly sessionInfo?: string;
 	}
 
 	function createActionHarness(options: IActionHarnessOptions = {}) {
 		const calls = {
 			switchedTo: [] as URI[],
 			targeted: [] as URI[],
+			preservedVoice: [] as boolean[],
 			selectedModels: [] as string[],
 		};
 		let currentResource = options.currentResource;
@@ -101,11 +105,13 @@ suite('VoiceToolDispatchService - session actions', () => {
 				currentResource = resource;
 				return true;
 			}
-			override setTargetSession(resource: URI): void {
+			override setTargetSession(resource: URI, preserveVoice?: boolean): void {
 				targetResource = resource;
 				calls.targeted.push(resource);
+				calls.preservedVoice.push(preserveVoice === true);
 			}
 			override getTargetSessionResource(): URI | undefined { return targetResource; }
+			override async getSessionInfo(): Promise<string | undefined> { return options.sessionInfo; }
 			override async selectModel(requestedModel: string): Promise<IVoiceModelSelectionResult> {
 				calls.selectedModels.push(requestedModel);
 				return options.selectModelResult ?? {
@@ -127,9 +133,17 @@ suite('VoiceToolDispatchService - session actions', () => {
 
 		const result = await dispatch(service, 'focus_session', { coding_session_id: resource.toString() });
 
-		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
-		assert.strictEqual(calls.switchedTo[0]?.toString(), resource.toString());
-		assert.strictEqual(calls.targeted[0]?.toString(), resource.toString());
+		assert.deepStrictEqual({
+			result,
+			switchedTo: calls.switchedTo.map(target => target.toString()),
+			targeted: calls.targeted.map(target => target.toString()),
+			preservedVoice: calls.preservedVoice,
+		}, {
+			result: { ok: true, session_id: resource.toString() },
+			switchedTo: [resource.toString()],
+			targeted: [resource.toString()],
+			preservedVoice: [true],
+		});
 	});
 
 	test('focuses a session by its human-readable label', async () => {
@@ -164,6 +178,36 @@ suite('VoiceToolDispatchService - session actions', () => {
 			{ ok: true, session_id: resource.toString() },
 		);
 		assert.deepStrictEqual(calls, [resource]);
+	});
+
+	test('uses the frontend session resolver when the shared session model does not contain the target', async () => {
+		const resource = URI.parse('agent-session://test/favorite');
+		const { service, calls } = createActionHarness();
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override async resolveSessionResource(sessionIdOrLabel: string): Promise<URI | undefined> {
+				return sessionIdOrLabel === 'Favorite chocolate' ? resource : undefined;
+			}
+			override async switchToSession(target: URI): Promise<boolean> {
+				calls.switchedTo.push(target);
+				return true;
+			}
+			override setTargetSession(target: URI): void {
+				calls.targeted.push(target);
+			}
+			override async getCurrentSessionResource(): Promise<URI | undefined> {
+				return undefined;
+			}
+		}());
+
+		assert.deepStrictEqual({
+			result: await dispatch(service, 'focus_session', { coding_session_id: 'Favorite chocolate' }),
+			switchedTo: calls.switchedTo.map(target => target.toString()),
+			targeted: calls.targeted.map(target => target.toString()),
+		}, {
+			result: { ok: true, session_id: resource.toString() },
+			switchedTo: [resource.toString()],
+			targeted: [resource.toString()],
+		});
 	});
 
 	test('sets a model on the current session without changing the voice target', async () => {
@@ -262,6 +306,18 @@ suite('VoiceToolDispatchService - session actions', () => {
 		assert.deepStrictEqual(result.counts, { working: 0, waiting_for_input: 0, idle: 1 });
 		assert.strictEqual(result.sessions[0].state, 'idle');
 	});
+
+	test('uses session information from the active frontend', async () => {
+		const sessionInfo = {
+			total_sessions: 2,
+			counts: { working: 1, waiting_for_input: 0, idle: 1 },
+			sessions: [{ id: 'agent-session://test/authoritative', label: 'Authoritative session' }],
+			truncated: false,
+		};
+		const { service } = createActionHarness({ sessionInfo: JSON.stringify(sessionInfo) });
+
+		assert.deepStrictEqual(await dispatch(service, 'get_session_info'), sessionInfo);
+	});
 });
 
 suite('VoiceToolDispatchService - respondToSession', () => {
@@ -270,11 +326,11 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 	const sessionResource = URI.parse('agent-session://test/one');
 	const requestId = 'req-1';
 
-	function serviceFor(part: object | readonly object[]): VoiceToolDispatchService {
+	function serviceFor(part: object | readonly object[], canceled = false, currentRequestId = requestId): VoiceToolDispatchService {
 		const parts = Array.isArray(part) ? part : [part];
 		const model = new class extends mock<IChatModel>() {
 			override getRequests() {
-				return [{ id: requestId, response: { response: { value: parts } } }] as unknown as ReturnType<IChatModel['getRequests']>;
+				return [{ id: currentRequestId, response: { isCanceled: canceled, response: { value: parts } } }] as unknown as ReturnType<IChatModel['getRequests']>;
 			}
 		};
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
@@ -345,6 +401,56 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.strictEqual(part.isUsed, true);
 		assert.deepStrictEqual(part.data, answers);
 		assert.deepStrictEqual(await part.completion.p, { answers });
+	});
+
+	test('a direct-provider ordinal reaches the exact carousel and completes its waiting agent', async () => {
+		const part = carousel();
+		const router = new VoiceLiveInputRouter();
+		router.updateContext({
+			display_locale: 'en-US',
+			sessions: [{
+				id: sessionResource.toString(), is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: {
+					type: 'questions', request_id: requestId, pending_id: derivePendingId(requestId, part), questions: [{
+						id: 'region', type: 'singleSelect', title: 'Region', allow_freeform: false,
+						options: [{ label: 'West US', value: 'westus' }, { label: 'East US', value: 'eastus' }],
+					}]
+				},
+			}],
+		});
+		const routed = router.resolve('direct-answer', 'second', router.captureTarget());
+		assert.ok(routed.toolCall);
+		const result = await serviceFor(part).respondToSession(routed.toolCall);
+		assert.deepStrictEqual({ result, data: part.data, used: part.isUsed, completion: await part.completion.p }, {
+			result: { ok: true }, data: { region: { selectedValue: 'eastus' } }, used: true,
+			completion: { answers: { region: { selectedValue: 'eastus' } } },
+		});
+	});
+
+	test('refuses voice responses for canceled requests or a prior request after the session advanced', async () => {
+		const canceled = carousel();
+		const prior = carousel();
+		const results = await Promise.all([
+			serviceFor(canceled, true).respondToSession(answerCall(canceled, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] })),
+			serviceFor(prior, false, 'new-request').respondToSession(answerCall(prior, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] })),
+		]);
+		assert.deepStrictEqual({ results, used: [!!canceled.isUsed, !!prior.isUsed] }, {
+			results: [{ ok: false, reason: 'stale_pending' }, { ok: false, reason: 'stale_pending' }], used: [false, false],
+		});
+	});
+
+	test('does not apply a response canceled while its session model was being resolved', async () => {
+		const part = carousel();
+		const cts = new CancellationTokenSource();
+		try {
+			const pending = serviceFor(part).respondToSession(answerCall(part, { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }] }), cts.token);
+			cts.cancel();
+			assert.deepStrictEqual({ result: await pending, used: !!part.isUsed, data: part.data }, {
+				result: { ok: false, reason: 'stale_pending' }, used: false, data: undefined,
+			});
+		} finally {
+			cts.dispose();
+		}
 	});
 
 	test('a value the form does not offer leaves it untouched', async () => {

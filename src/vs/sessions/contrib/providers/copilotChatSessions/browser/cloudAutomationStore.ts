@@ -55,6 +55,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader)
 			?? (this.enabled.read(reader) && !this.accountInitialized.read(reader) ? 'loading' : 'unavailable'));
 	readonly unavailableReason = this.refreshError;
+	readonly unavailableMessage = localize('cloudAutomations.unavailableMessage', "GitHub Cloud automations are unavailable.");
 	readonly canCreateAutomation = derived(this, reader =>
 		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	readonly automations = derived(this, reader => (this.store.read(reader)?.entries.read(reader) ?? []).map(entry => this.toAutomation(entry)));
@@ -211,10 +212,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			throw error;
 		}
 		this.assertCurrentStore(store);
-		await this.refreshHistory();
+		await this.refreshHistory(options);
 	}
 
-	private refreshHistory(): Promise<void> {
+	private refreshHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		if (this.historyRefresh) {
 			return this.historyRefresh;
 		}
@@ -224,7 +225,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.logService.trace('[CloudAutomations] History refresh started');
 		this.historyRefresh = (async () => {
 			try {
-				await store.refreshHistory();
+				await store.refreshHistory(options);
 				this.assertCurrentStore(store);
 				this.historyState.set('ready', undefined);
 				this.logService.trace('[CloudAutomations] History refresh completed', { runCount: store.history.get().length });
@@ -247,7 +248,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private refreshHistoryInBackground(): void {
-		void this.refreshHistory().catch(error => {
+		void this.refreshHistory({ background: true }).catch(error => {
 			if (!isCancellationError(error)) {
 				this.logService.warn('[CloudAutomations] History refresh failed', error);
 			}

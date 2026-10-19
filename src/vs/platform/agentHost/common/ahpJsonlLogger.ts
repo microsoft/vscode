@@ -7,8 +7,10 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { Sequencer } from '../../../base/common/async.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { LRUCache, ResourceMap } from '../../../base/common/map.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { isEqual, joinPath } from '../../../base/common/resources.js';
+import { IProductConfiguration } from '../../../base/common/product.js';
+import { isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -37,6 +39,16 @@ export interface IAhpJsonlLoggerOptions {
 	readonly maxFiles?: number;
 	readonly retention?: AhpJsonlLogRetention;
 	readonly maxPendingBytes?: number;
+	/** Cumulative budget shared by this process's loggers for logsHome, fixed by its first logger. */
+	readonly maxTotalSizeBytes?: number;
+	/** Checked before serializing each message so host capture can follow live configuration. */
+	readonly isEnabled?: () => boolean;
+}
+
+export const AgentHostAhpJsonlLoggingEnvVar = 'VSCODE_AGENT_HOST_AHP_JSONL_LOGGING';
+
+export function isAhpJsonlLoggingEnabled(quality: IProductConfiguration['quality'], override?: string): boolean {
+	return override === undefined ? quality === 'insider' : override === 'true';
 }
 
 const AHP_LOG_DIR = 'ahp';
@@ -45,6 +57,7 @@ const AHP_LOG_FILE_EXTENSION = '.jsonl';
 const DEFAULT_MAX_FILE_SIZE_BYTES = 75 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 5;
 const DEFAULT_MAX_PENDING_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_TOTAL_SIZE_BYTES = 500 * 1024 * 1024;
 // Cap the size of any single coalesced writeFile to avoid producing huge
 // concatenated VSBuffers (which would just create the GC pressure we're
 // trying to avoid). 1 MiB strikes a balance between amortizing IPC overhead
@@ -107,6 +120,10 @@ export class AhpJsonlLogRetention {
 
 export class AhpJsonlLogger extends Disposable {
 
+	// Process-lifetime accounting must outlive disposed connections and their rotated files.
+	private static readonly _budgets = new ResourceMap<{ remainingBytes: number; exhausted: boolean }>();
+	private readonly _budget: { remainingBytes: number; exhausted: boolean };
+	private readonly _logReadRequests = new LRUCache<string | number, boolean>(1024);
 	private readonly _directory: URI;
 	private readonly _baseName: string;
 	private readonly _maxFileSizeBytes: number;
@@ -128,6 +145,12 @@ export class AhpJsonlLogger extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		let budget = AhpJsonlLogger._budgets.get(this._options.logsHome);
+		if (!budget) {
+			budget = { remainingBytes: this._options.maxTotalSizeBytes ?? DEFAULT_MAX_TOTAL_SIZE_BYTES, exhausted: false };
+			AhpJsonlLogger._budgets.set(this._options.logsHome, budget);
+		}
+		this._budget = budget;
 		this._directory = joinPath(this._options.logsHome, AHP_LOG_DIR);
 		// Truncate connectionId to avoid filesystem filename length limits (e.g. 255 on ext4/APFS)
 		const safeConnectionId = sanitizeFilePart(this._options.connectionId).slice(0, 64);
@@ -143,6 +166,9 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	log(message: object, dir: AhpLogDirection, byteLength?: number): void {
+		if (this._budget.exhausted || this._options.isEnabled?.() === false || this._isLogInspection(message, dir)) {
+			return;
+		}
 		if (this._pendingBytes >= this._maxPendingBytes) {
 			this._droppedEntries[dir]++;
 			return;
@@ -170,7 +196,56 @@ export class AhpJsonlLogger extends Disposable {
 		this._enqueue(VSBuffer.fromString(line));
 	}
 
+	/** Avoids recording log contents or generating new log writes in response to watching those logs. */
+	private _isLogInspection(message: object, dir: AhpLogDirection): boolean {
+		if (!isRecord(message)) {
+			return false;
+		}
+		const id = message.id;
+		if (dir === 's2c' && message.method === undefined && (typeof id === 'number' || typeof id === 'string') && this._logReadRequests.delete(id)) {
+			return true;
+		}
+		const params = message.params;
+		if (!isRecord(params)) {
+			return false;
+		}
+		if (dir === 'c2s' && (message.method === 'resourceRead' || message.method === 'resourceResolve' || message.method === 'resourceList' || message.method === 'resourceRequest' || message.method === 'createResourceWatch')
+			&& this._isLogResource(params.uri)) {
+			if (typeof id === 'number' || typeof id === 'string') {
+				this._logReadRequests.set(id, true);
+			}
+			return true;
+		}
+		const action = params.action;
+		return message.method === 'action' && isRecord(action) && action.type === 'resourceWatch/changed'
+			&& isRecord(action.changes) && Array.isArray(action.changes.items) && action.changes.items.length > 0
+			&& action.changes.items.every(change => isRecord(change) && this._isLogResource(change.uri));
+	}
+
+	private _isLogResource(value: unknown): boolean {
+		if (URI.isUri(value)) {
+			return isEqualOrParent(value, this._directory);
+		}
+		if (typeof value !== 'string') {
+			return false;
+		}
+		try {
+			return isEqualOrParent(URI.parse(value, true), this._directory);
+		} catch {
+			return false;
+		}
+	}
+
 	private _enqueue(buffer: VSBuffer): void {
+		if (this._budget.exhausted) {
+			return;
+		}
+		if (buffer.byteLength > this._budget.remainingBytes) {
+			this._budget.exhausted = true;
+			this._logService.warn('[AHPLog] Transport logging stopped: shared process byte budget exhausted', this._options.logsHome.toString());
+			return;
+		}
+		this._budget.remainingBytes -= buffer.byteLength;
 		this._pending.push(buffer);
 		this._pendingBytes += buffer.byteLength;
 		this._scheduleDrain();
@@ -257,6 +332,9 @@ export class AhpJsonlLogger extends Disposable {
 	}
 
 	private _enqueueDroppedEntries(): void {
+		if (this._budget.exhausted) {
+			return;
+		}
 		for (const dir of ['c2s', 's2c'] as const) {
 			const droppedEntries = this._droppedEntries[dir];
 			if (droppedEntries === 0 || this._pendingBytes >= this._maxPendingBytes) {

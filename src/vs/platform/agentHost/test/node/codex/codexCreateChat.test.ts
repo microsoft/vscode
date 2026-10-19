@@ -16,7 +16,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { realTimeApi, runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -27,11 +27,11 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent, fixedChatOwnerRef } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
-import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -67,7 +67,7 @@ import { createTestAgentChatContext, TestChatOwnerRef } from '../agentChatContex
 
 /** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function hostChatContext(session: URI, chat: URI): IAgentChatContext {
-	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))), subagentChatUriFormat: 'shaped' as const };
+	return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString()))) };
 }
 
 const COPILOT_TEST_MODEL = toCodexModelSelectionId('vscode-proxy', 'gpt-test');
@@ -90,6 +90,9 @@ interface ITestWireRequest {
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly dynamicTools?: readonly { readonly name: string; readonly deferLoading?: boolean }[];
 		readonly approvalPolicy?: string;
+		readonly approvalsReviewer?: string;
+		readonly permissions?: string;
+		readonly turnId?: string;
 	};
 }
 
@@ -142,7 +145,9 @@ function createTestPeer(): ITestPeer {
 
 function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 	return new Promise((resolve, reject) => {
-		const timeout = setTimeout(() => {
+		// A real-time watchdog for the stream I/O, so that it does not fire
+		// prematurely when called within `runWithFakedTimers`.
+		const timeout = realTimeApi.setTimeout(() => {
 			cleanup();
 			reject(new Error('Timed out waiting for Codex request'));
 		}, 1_000);
@@ -155,7 +160,7 @@ function readNextRequest(stream: PassThrough): Promise<ITestWireRequest> {
 			}
 		};
 		const cleanup = () => {
-			clearTimeout(timeout);
+			realTimeApi.clearTimeout(timeout);
 			stream.off('data', onData);
 		};
 		stream.once('data', onData);
@@ -181,6 +186,7 @@ interface ICreateAgentOptions {
 	 */
 	readonly otelService?: Pick<IAgentHostOTelService, 'getSessionTraceContext' | 'releaseSessionTraceContext'>;
 	readonly logService?: ILogService;
+	readonly stateManager?: AgentHostStateManager;
 }
 
 /**
@@ -226,7 +232,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const logService = options.logService ?? new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const stateManager = options.stateManager ?? disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
@@ -626,7 +632,7 @@ suite('CodexAgent createChat', () => {
 		await entry.materializePromise;
 		setWorkspaceTrust(agent, [folder]);
 
-		const creating = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat, subagentChatUriFormat: 'shaped' as const }, {
+		const creating = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat }, {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -654,7 +660,7 @@ suite('CodexAgent createChat', () => {
 		const sourceSession = AgentSession.uri('codex', 'hook-trust-fork-source');
 		const sourceChat = URI.parse(buildDefaultChatUri(sourceSession));
 		const folder = URI.file('/repo/hook-trust-fork');
-		await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat, subagentChatUriFormat: 'shaped' as const }, {
+		await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat }, {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
@@ -666,7 +672,7 @@ suite('CodexAgent createChat', () => {
 
 		const targetSession = AgentSession.uri('codex', 'hook-trust-fork-target');
 		const targetChat = URI.parse(buildDefaultChatUri(targetSession));
-		const forking = createSessionBackedChat(agent, targetChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetChat, subagentChatUriFormat: 'shaped' as const }, {
+		const forking = createSessionBackedChat(agent, targetChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetChat }, {
 			fork: { source: sourceChat, turnId: 'source-turn', turnIndex: 0 },
 		});
 		const read = await readNextRequest(peer.outbound);
@@ -976,6 +982,8 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(event => receipts.push(event)));
 		const session = AgentSession.uri('codex', 'hook-trust-prewarm');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
@@ -993,6 +1001,7 @@ suite('CodexAgent createChat', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'trusted-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
+		const announcedBacking = receipts.at(-1)?.result?.backingSession?.toString();
 		peer.push({ id: turn.id, result: {} });
 		await sending;
 		assert.deepStrictEqual({
@@ -1000,11 +1009,13 @@ suite('CodexAgent createChat', () => {
 			prewarmTrust: prewarm.params.config?.['hooks.state'],
 			trust: start.params.config?.['hooks.state'],
 			thread: turn.params.threadId,
+			announcedBacking,
 		}, {
 			methods: ['thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'turn/start'],
 			prewarmTrust: undefined,
 			trust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			thread: 'trusted-thread',
+			announcedBacking: AgentSession.uri('codex', 'trusted-thread').toString(),
 		});
 	});
 
@@ -1061,6 +1072,8 @@ suite('CodexAgent createChat', () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
+		const receipts: IAgentMaterializeChatEvent[] = [];
+		disposables.add(agent.onDidMaterializeChat(event => receipts.push(event)));
 		const session = AgentSession.uri('codex', 'hook-trust-failed-replacement');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/hooks');
@@ -1088,6 +1101,7 @@ suite('CodexAgent createChat', () => {
 		const retryStart = await readNextRequest(peer.outbound);
 		peer.push({ id: retryStart.id, result: { thread: { id: 'retry-thread', cwd: folder.fsPath } } });
 		const turn = await readNextRequest(peer.outbound);
+		const announcedBacking = receipts.at(-1)?.result?.backingSession?.toString();
 		peer.push({ id: turn.id, result: {} });
 		await retrying;
 
@@ -1097,12 +1111,14 @@ suite('CodexAgent createChat', () => {
 			retryTrust: retryStart.params.config?.['hooks.state'],
 			pendingTrust: entry.pendingHookTrustState,
 			thread: turn.params.threadId,
+			announcedBacking,
 		}, {
 			methods: ['hooks/list', 'thread/start', 'hooks/list', 'thread/unsubscribe', 'thread/start', 'thread/start', 'turn/start'],
 			initialTrust: { [projectHook(folder.fsPath).key]: { trusted_hash: 'current-project-hash' } },
 			retryTrust: undefined,
 			pendingTrust: undefined,
 			thread: 'retry-thread',
+			announcedBacking: AgentSession.uri('codex', 'retry-thread').toString(),
 		});
 	});
 
@@ -1508,7 +1524,7 @@ suite('CodexAgent createChat', () => {
 			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'failed-eager'));
 			const folder = URI.file('/repo/failed-eager-backing');
-			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1519,7 +1535,7 @@ suite('CodexAgent createChat', () => {
 			const originalSync = agent['_syncClientCustomizations'].bind(agent);
 			agent['_syncClientCustomizations'] = async () => { throw new Error('eager client sync failed'); };
 			try {
-				const creating = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat, subagentChatUriFormat: 'shaped' as const }, {
+				const creating = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat }, {
 					workingDirectories: [folder],
 					model: { id: COPILOT_TEST_MODEL },
 					activeClient: { clientId: 'client-failed-eager', tools: [], customizations: [] },
@@ -1567,7 +1583,7 @@ suite('CodexAgent createChat', () => {
 			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'failed-eager-reconnect'));
 			const folder = URI.file('/repo/failed-eager-reconnect');
-			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1603,7 +1619,7 @@ suite('CodexAgent createChat', () => {
 				throw new Error('eager client sync failed after disconnect');
 			};
 			try {
-				const creating = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat, subagentChatUriFormat: 'shaped' as const }, {
+				const creating = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat }, {
 					workingDirectories: [folder],
 					model: { id: COPILOT_TEST_MODEL },
 					activeClient: { clientId: 'client-failed-eager-reconnect', tools: [], customizations: [] },
@@ -1643,7 +1659,7 @@ suite('CodexAgent createChat', () => {
 			const sourceSessionUri = AgentSession.uri('codex', 'session-source');
 			const sourceChat = URI.parse(buildDefaultChatUri(sourceSessionUri));
 			const folder = URI.file('/repo/source');
-			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSessionUri), resource: sourceChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSessionUri), resource: sourceChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1654,7 +1670,7 @@ suite('CodexAgent createChat', () => {
 
 			const forkSessionUri = AgentSession.uri('codex', 'session-fork-target');
 			const forkChat = URI.parse(buildDefaultChatUri(forkSessionUri));
-			const forking = createSessionBackedChat(agent, forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forkSessionUri), resource: forkChat, subagentChatUriFormat: 'shaped' as const }, {
+			const forking = createSessionBackedChat(agent, forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forkSessionUri), resource: forkChat }, {
 				fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 			});
 
@@ -1742,7 +1758,7 @@ suite('CodexAgent createChat', () => {
 			const sourceSession = AgentSession.uri('codex', 'paginated-fork-source');
 			const sourceChat = URI.parse(buildDefaultChatUri(sourceSession));
 			const folder = URI.file('/repo/paginated-fork');
-			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1752,7 +1768,7 @@ suite('CodexAgent createChat', () => {
 
 			const forkSession = AgentSession.uri('codex', 'paginated-fork-target');
 			const forkChat = URI.parse(buildDefaultChatUri(forkSession));
-			const forking = createSessionBackedChat(agent, forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forkSession), resource: forkChat, subagentChatUriFormat: 'shaped' as const }, {
+			const forking = createSessionBackedChat(agent, forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forkSession), resource: forkChat }, {
 				fork: { source: sourceChat, turnId: 'source-turn-1', turnIndex: 0 },
 			});
 			const read = await readNextRequest(peer.outbound);
@@ -1798,7 +1814,7 @@ suite('CodexAgent createChat', () => {
 			const targetSession = AgentSession.uri('codex', 'resume-before-fork-target');
 			const targetChat = URI.parse(buildDefaultChatUri(targetSession));
 			const folder = URI.file('/repo/resume-before-fork');
-			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1807,7 +1823,7 @@ suite('CodexAgent createChat', () => {
 			sourceEntry.needsResume = true;
 			agent['_sessionIdByThreadId'].set(sourceEntry.threadId, sourceEntry.sessionId);
 
-			const forking = createSessionBackedChat(agent, targetChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetChat, subagentChatUriFormat: 'shaped' as const }, {
+			const forking = createSessionBackedChat(agent, targetChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetChat }, {
 				fork: { source: sourceChat, turnId: 'source-turn', turnIndex: 0 },
 			});
 			const resume = await readNextRequest(peer.outbound);
@@ -1854,7 +1870,7 @@ suite('CodexAgent createChat', () => {
 			const targetSession = AgentSession.uri('codex', 'replace-after-read-target');
 			const targetChat = URI.parse(buildDefaultChatUri(targetSession));
 			const folder = URI.file('/repo/replace-after-read');
-			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sourceChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1863,7 +1879,7 @@ suite('CodexAgent createChat', () => {
 			sourceEntry.needsResume = false;
 			agent['_sessionIdByThreadId'].set(sourceEntry.threadId, sourceEntry.sessionId);
 
-			const forking = createSessionBackedChat(agent, targetChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetChat, subagentChatUriFormat: 'shaped' as const }, {
+			const forking = createSessionBackedChat(agent, targetChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetChat }, {
 				fork: { source: sourceChat, turnId: 'source-turn', turnIndex: 0 },
 			});
 			const read = await readNextRequest(firstPeer.outbound);
@@ -1928,7 +1944,7 @@ suite('CodexAgent createChat', () => {
 			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 			const additionalChat = URI.parse(buildChatUri(sessionUri, 'additional'));
 			const folder = URI.file('/repo/additional');
-			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -1936,7 +1952,7 @@ suite('CodexAgent createChat', () => {
 			peer.push({ id: sessionStart.id, result: { thread: { id: 'session-thread', cwd: folder.fsPath } } });
 			await agent['_sessions'].get('session-additional')!.materializePromise;
 
-			const creating = agent.chats.createChat(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat, subagentChatUriFormat: 'shaped' as const }, {
+			const creating = agent.chats.createChat(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 				config: {},
@@ -1955,14 +1971,14 @@ suite('CodexAgent createChat', () => {
 
 			// A repeated create for the same chat must hand the exact same
 			// backing back; a second thread/start here would orphan the first.
-			const recreated = await agent.chats.createChat(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat, subagentChatUriFormat: 'shaped' as const }, {
+			const recreated = await agent.chats.createChat(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
 			agent['_mcpInventory'].setState('session-thread', 'default-mcp', { kind: McpServerStatus.Ready });
 			agent['_mcpInventory'].setState('additional-thread', 'peer-mcp', { kind: McpServerStatus.Ready });
 			agent['_fetchSkillHookContainers'] = async () => [];
-			const peerCustomizations = await agent.getChatCustomizations(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat, subagentChatUriFormat: 'shaped' as const });
+			const peerCustomizations = await agent.getChatCustomizations(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat });
 
 			assert.deepStrictEqual({
 				started: { method: start.method, cwd: start.params.cwd },
@@ -2003,7 +2019,7 @@ suite('CodexAgent createChat', () => {
 			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 			const forkChat = URI.parse(buildChatUri(sessionUri, 'forked'));
 			const folder = URI.file('/repo/fork-chat');
-			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -2013,7 +2029,7 @@ suite('CodexAgent createChat', () => {
 
 			// There is no separate fork entry point: a fork is a create whose
 			// options name the source chat to branch from.
-			const forking = agent.chats.createChat(forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: forkChat, subagentChatUriFormat: 'shaped' as const }, {
+			const forking = agent.chats.createChat(forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: forkChat }, {
 				model: { id: COPILOT_TEST_MODEL },
 				workingDirectories: [folder],
 				fork: { source: sessionChat, turnId: 'turn-1' },
@@ -2056,13 +2072,13 @@ suite('CodexAgent createChat', () => {
 		const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 		const additionalChat = URI.parse(buildChatUri(sessionUri, 'import'));
 		const folder = URI.file('/repo/import-additional');
-		await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+		await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 			workingDirectories: [folder],
 			model: { id: COPILOT_TEST_MODEL },
 		});
 
 		await assert.rejects(
-			agent.chats.createChat(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat, subagentChatUriFormat: 'shaped' as const }, {
+			agent.chats.createChat(additionalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: additionalChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 				importConversation: { turns: [] },
@@ -2108,7 +2124,6 @@ suite('CodexAgent createChat', () => {
 				resource: chat,
 				hostInstructions: ['Rename with exact casing'],
 				reportCodexModelProvider: provider => dispatchedProviders.push(provider),
-				subagentChatUriFormat: 'shaped' as const,
 			});
 			const turn = await readNextRequest(peer.outbound);
 			assert.strictEqual(turn.method, 'turn/start');
@@ -2270,7 +2285,7 @@ suite('CodexAgent workspace conversion', () => {
 		const target = await addIsolationPeer(harness, 'isolating-peer');
 		entry.currentTurnId = 'busy-main';
 		const history = [...target.entry.codexTurnIdByHostTurnId];
-		const changing = agent.setChatWorkingDirectory(target.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: target.chat, subagentChatUriFormat: 'shaped' as const }, folder);
+		const changing = agent.setChatWorkingDirectory(target.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: target.chat }, folder);
 		const request = await readNextRequest(peer.outbound);
 		confirmIsolationUpdate(harness, request);
 		await changing;
@@ -2286,28 +2301,26 @@ suite('CodexAgent workspace conversion', () => {
 	});
 
 	for (const disconnect of [false, true]) {
-		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, async () => {
+		test(`chat isolation signals quarantine for ${disconnect ? 'disconnection' : 'timeout'} after an update request`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const harness = await createWorkspaceHarness();
 			const { agent, peer, session, chat, folder } = harness;
-			await runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, folder);
-				const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
-				const request = await readNextRequest(peer.outbound);
-				peer.push({ id: request.id, result: {} });
-				if (disconnect) {
-					const connection = agent['_connection'];
-					assert.ok(connection.kind === 'ready');
-					agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
-				}
-				await rejected;
-			});
-		});
+			const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
+			const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
+			const request = await readNextRequest(peer.outbound);
+			peer.push({ id: request.id, result: {} });
+			if (disconnect) {
+				const connection = agent['_connection'];
+				assert.ok(connection.kind === 'ready');
+				agent['_handleConnectionLost'](connection, agent['_connectionGeneration']);
+			}
+			await rejected;
+		}));
 	}
 
 	test('chat isolation rethrows a definitive Codex rejection instead of signaling quarantine', async () => {
 		const harness = await createWorkspaceHarness();
 		const { agent, peer, session, chat, folder, scratch, entry } = harness;
-		const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, folder);
+		const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
 		const rejected = assert.rejects(changing, error => !(error instanceof AgentWorkingDirectoryChangedError) && /update rejected/.test(String(error)));
 		const request = await readNextRequest(peer.outbound);
 		peer.push({ id: request.id, error: { code: -32602, message: 'update rejected' } });
@@ -2318,7 +2331,7 @@ suite('CodexAgent workspace conversion', () => {
 	test('chat isolation signals quarantine when the Codex process exits before answering the update', async () => {
 		const harness = await createWorkspaceHarness();
 		const { agent, peer, session, chat, folder } = harness;
-		const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const }, folder);
+		const changing = agent.setChatWorkingDirectory(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, folder);
 		const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
 		await readNextRequest(peer.outbound);
 		peer.exit();
@@ -2330,7 +2343,7 @@ suite('CodexAgent workspace conversion', () => {
 		const { agent, peer, session, folder, scratch, entry } = harness;
 		const target = await addIsolationPeer(harness, 'failing-metadata-peer');
 		harness.sessionStore.databaseFor(target.entry.sessionUri).setMetadata = async () => { throw new Error('metadata unavailable'); };
-		const changing = agent.setChatWorkingDirectory(target.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: target.chat, subagentChatUriFormat: 'shaped' as const }, folder);
+		const changing = agent.setChatWorkingDirectory(target.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: target.chat }, folder);
 		const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
 		confirmIsolationUpdate(harness, await readNextRequest(peer.outbound));
 		await rejected;
@@ -2596,19 +2609,17 @@ suite('CodexAgent workspace conversion', () => {
 		}
 	});
 
-	test('bounds a queued update that never publishes applied settings', async () => {
+	test('bounds a queued update that never publishes applied settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { agent, peer, session, chat, scratch, folder, entry } = await createWorkspaceHarness();
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const changing = agent.setWorkingDirectory(chat, session, folder);
-			const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
-			const request = await readNextRequest(peer.outbound);
-			peer.push({ id: request.id, result: {} });
-			await rejected;
-		});
+		const changing = agent.setWorkingDirectory(chat, session, folder);
+		const rejected = assert.rejects(changing, /Timed out waiting for Codex/);
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: {} });
+		await rejected;
 		assert.deepStrictEqual({ cwd: entry.workingDirectory?.fsPath, pending: agent['_workingDirectoryMutations'].has(entry), needsResume: entry.needsResume }, {
 			cwd: scratch.fsPath, pending: false, needsResume: true,
 		});
-	});
+	}));
 
 	for (const refreshFailure of [false, true]) {
 		test(`reports the applied cwd after ${refreshFailure ? 'a refresh failure' : 'Codex applies a different directory'}`, async () => {
@@ -2640,7 +2651,7 @@ suite('CodexAgent exact chat routing', () => {
 
 	/** The context the host passes for its session's own chat: stored in the session's database, whatever the chat URI looks like. */
 	function sessionBackedContext(session: URI): IAgentChatContext {
-		return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session, subagentChatUriFormat: 'shaped' as const };
+		return { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session };
 	}
 
 	test('routes the exact chat without retaining a session or peer classification', async () => {
@@ -2734,6 +2745,48 @@ suite('CodexAgent exact chat routing', () => {
 				requests: ['thread/start', 'turn/start'],
 				runtime: AgentSession.id(first),
 			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('a runtime started for its previous owner publishes no MCP state until its thread relaunches (Block 4, C6)', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const first = AgentSession.uri('codex', 'mcp-first');
+		const second = AgentSession.uri('codex', 'mcp-second');
+		const owner = disposables.add(new TestChatOwnerRef(first));
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const chat = URI.parse(buildDefaultChatUri(first));
+			const folder = URI.file('/repo/mcp-owner');
+			await createSessionBackedChat(agent, chat, createTestAgentChatContext(owner, first), { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, undefined, createTestAgentChatContext(owner, first));
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'mcp-thread', cwd: folder.fsPath } } });
+			const turn = await readNextRequest(peer.outbound);
+			peer.push({ id: turn.id, result: {} });
+			await sending;
+
+			const fired: string[] = [];
+			const internals = agent as unknown as {
+				_sessions: Map<string, unknown>;
+				_fire(session: URI, action: unknown): void;
+				_emitMcpCustomizationAction(session: unknown, action: unknown): void;
+			};
+			const fire = internals._fire.bind(agent);
+			internals._fire = (session, action) => {
+				fired.push(`${(action as { type: string }).type} ${session.toString()}`);
+				fire(session, action);
+			};
+			const runtime = internals._sessions.get(AgentSession.id(first));
+			const removed = (id: string) => ({ type: ActionType.SessionCustomizationRemoved, id });
+			internals._emitMcpCustomizationAction(runtime, removed('before-move'));
+			owner.set(second);
+			internals._emitMcpCustomizationAction(runtime, removed('after-move'));
+
+			assert.deepStrictEqual(fired, [`${ActionType.SessionCustomizationRemoved} ${first.toString()}`]);
 		} finally {
 			peer.dispose();
 		}
@@ -2846,12 +2899,12 @@ suite('CodexAgent exact chat routing', () => {
 		const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 		const unboundPeer = URI.parse(buildChatUri(sessionUri, 'never-bound'));
 
-		await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+		await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 			model: { id: COPILOT_TEST_MODEL },
 		});
 		assert.strictEqual(agent['_sessionIdByChatUri'].get(sessionChat.toString()), 'session-unbound-peer-dispose');
 
-		await agent.chats.disposeChat(unboundPeer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: unboundPeer, subagentChatUriFormat: 'shaped' as const });
+		await agent.chats.disposeChat(unboundPeer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: unboundPeer });
 
 		assert.deepStrictEqual({
 			hasRuntime: agent['_sessions'].has('session-unbound-peer-dispose'),
@@ -3192,7 +3245,7 @@ suite('CodexAgent exact chat routing', () => {
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-chat'));
 			const folder = URI.file('/repo/truncate');
 
-			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const }, {
+			await createSessionBackedChat(agent, sessionChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat }, {
 				workingDirectories: [folder],
 				model: { id: COPILOT_TEST_MODEL },
 			});
@@ -3201,7 +3254,7 @@ suite('CodexAgent exact chat routing', () => {
 			peer.push({ id: sessionStart.id, result: { thread: { id: 'session-thread', cwd: folder.fsPath } } });
 			await sessionEntry.materializePromise;
 
-			const creatingPeer = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat, subagentChatUriFormat: 'shaped' as const }, {
+			const creatingPeer = agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat }, {
 				model: { id: COPILOT_TEST_MODEL },
 				workingDirectories: [folder],
 				config: {},
@@ -3210,7 +3263,7 @@ suite('CodexAgent exact chat routing', () => {
 			peer.push({ id: peerStart.id, result: { thread: { id: 'peer-thread', cwd: folder.fsPath } } });
 			await creatingPeer;
 
-			const truncating = agent.truncateChat(peerChat, 'turn-2', { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat, subagentChatUriFormat: 'shaped' as const });
+			const truncating = agent.truncateChat(peerChat, 'turn-2', { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat });
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
@@ -3555,8 +3608,8 @@ suite('CodexAgent exact chat routing', () => {
 			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-chat'));
 			const folder = URI.file('/repo/exact-client');
-			const sessionContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const };
-			const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat, subagentChatUriFormat: 'shaped' as const };
+			const sessionContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat };
+			const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat };
 
 			await createSessionBackedChat(agent, sessionChat, sessionContext, {
 				workingDirectories: [folder],
@@ -3736,8 +3789,8 @@ suite('CodexAgent exact chat routing', () => {
 			const sessionChat = URI.parse(buildDefaultChatUri(sessionUri));
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-chat'));
 			const folder = URI.file('/repo/peer-tool');
-			const sessionContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat, subagentChatUriFormat: 'shaped' as const };
-			const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat, subagentChatUriFormat: 'shaped' as const };
+			const sessionContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionChat };
+			const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: peerChat };
 
 			await createSessionBackedChat(agent, sessionChat, sessionContext, {
 				workingDirectories: [folder],
@@ -4305,7 +4358,7 @@ suite('CodexAgent chat backing durability', () => {
 		const peer = URI.parse(buildChatUri(session, 'peer'));
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 
-		const missingPeer = await agent.materializeChat(peer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer, subagentChatUriFormat: 'shaped' as const }, undefined);
+		const missingPeer = await agent.materializeChat(peer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer }, undefined);
 		const corruptDefault = await agent.materializeChat(defaultChat, hostChatContext(session, defaultChat), '{');
 
 		assert.deepStrictEqual({
@@ -4713,6 +4766,7 @@ suite('CodexAgent chat backing durability', () => {
 				threadId: 'codex-thread',
 				turn: {
 					id: 'app-turn-1',
+					rootTurnId: null,
 					items: [],
 					itemsView: 'full',
 					status: 'inProgress',
@@ -4832,7 +4886,7 @@ suite('CodexAgent chat backing durability', () => {
 			workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL },
 		});
 		const restoredChat = URI.parse(buildChatUri(session, 'restored'));
-		await agent.materializeChat(restoredChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: restoredChat, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sessionId: 'restored-backing' }));
+		await agent.materializeChat(restoredChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: restoredChat }, JSON.stringify({ sessionId: 'restored-backing' }));
 		const restored = agent['_sessions'].get('restored-backing');
 		assert.deepStrictEqual({
 			createdDirectory: created.resolvedWorkingDirectory?.fsPath,
@@ -4912,7 +4966,7 @@ suite('CodexAgent chat backing durability', () => {
 			// not steal notification routing from the materialized host chat.
 			const externalSession = AgentSession.uri('codex', 'codex-thread');
 			const externalChat = URI.parse(buildDefaultChatUri(externalSession));
-			const discovering = second.getChatMetadata(externalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(externalSession), resource: externalChat, subagentChatUriFormat: 'shaped' as const });
+			const discovering = second.getChatMetadata(externalChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(externalSession), resource: externalChat });
 			const discoveryRead = await readNextRequest(secondPeer.outbound);
 			secondPeer.push({ id: discoveryRead.id, result: { thread: { id: 'codex-thread', cwd: folder.fsPath, modelProvider: 'vscode-proxy', turns: [] } } });
 			await discovering;
@@ -5162,13 +5216,13 @@ suite('CodexAgent chat backing durability', () => {
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 		const peerChat = URI.parse(buildChatUri(session, 'metadata-peer'));
 		await agent.materializeChat(defaultChat, hostChatContext(session, defaultChat), JSON.stringify({ sessionId: 'default-runtime', model: { id: 'gpt-test' } }));
-		await agent.materializeChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat, subagentChatUriFormat: 'shaped' as const }, JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }));
+		await agent.materializeChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat }, JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }));
 		agent['_sessions'].get('default-runtime')!.workingDirectory = URI.file('/repo/default');
 		agent['_sessions'].get('peer-runtime')!.workingDirectory = URI.file('/repo/peer');
 
 		const metadata = await agent.getChatMetadata(
 			peerChat,
-			{ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat, subagentChatUriFormat: 'shaped' as const },
+			{ sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peerChat },
 			JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }),
 		);
 
@@ -5195,7 +5249,7 @@ suite('CodexAgent chat backing durability', () => {
 
 			const forkSession = AgentSession.uri('codex', 'fork-target');
 			const forkChat = URI.parse(buildDefaultChatUri(forkSession));
-			const forking = createSessionBackedChat(agent, forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forkSession), resource: forkChat, subagentChatUriFormat: 'shaped' as const }, {
+			const forking = createSessionBackedChat(agent, forkChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(forkSession), resource: forkChat }, {
 				fork: { source: sourceChat, turnId: 'turn-1', turnIndex: 0 },
 			});
 			const read = await readNextRequest(peer.outbound);
@@ -5228,5 +5282,238 @@ suite('CodexAgent chat backing durability', () => {
 		} finally {
 			peer.dispose();
 		}
+	});
+});
+
+suite('CodexAgent live approvals', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function setup(preset: CodexPermissionsPreset = 'default', id = 'live-approvals', existing?: { agent: CodexAgent; peer: ITestPeer; stateManager: AgentHostStateManager }) {
+		const stateManager = existing?.stateManager ?? disposables.add(new AgentHostStateManager(new NullLogService()));
+		const agent = existing?.agent ?? await createAgent(disposables, { stateManager });
+		const peer = existing?.peer ?? disposables.add(createTestPeer());
+		if (!existing) {
+			connectPeer(agent, peer);
+			agent['_refreshMcpInventory'] = async () => { };
+			const connection = agent['_connection'];
+			assert.ok(connection.kind === 'ready');
+			peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+			peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+			peer.disposables.add(connection.client.onNotification('item/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleItemStarted'](session, params))));
+		}
+		const session = AgentSession.uri('codex', id);
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file(`/workspace/${id}`);
+		const threadId = `thread-${id}`;
+		const owner = disposables.add(new TestChatOwnerRef(session));
+		const context = { ...hostChatContext(session, chat), owner };
+		stateManager.createSession({ resource: session.toString(), provider: 'codex', title: id, status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat.toString() });
+		const config = { [CodexSessionConfigKey.PermissionsPreset]: preset };
+		stateManager.setSessionConfig(session.toString(), await agent.resolveChatConfig({ config }));
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL }, config });
+		let sequence = 0;
+		let appTurnId = '';
+		const select = (value: CodexPermissionsPreset) => stateManager.dispatchClientAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { [CodexSessionConfigKey.PermissionsPreset]: value } }, { clientId: 'test-client', clientSeq: ++sequence });
+		const notifyTurn = (status: 'inProgress' | 'completed') => peer.push({ method: status === 'inProgress' ? 'turn/started' : 'turn/completed', params: { threadId, turn: { id: appTurnId, items: [], itemsView: 'full', status, error: null, startedAt: 1, completedAt: status === 'completed' ? 2 : null, durationMs: null } } });
+		const start = async (suffix: string, { notify = true, agentMergeTurn = false }: { notify?: boolean; agentMergeTurn?: boolean } = {}) => {
+			appTurnId = `app-${suffix}`;
+			const sending = agent.chats.sendMessage(chat, 'Continue', [folder], undefined, `host-${suffix}`, undefined, undefined, { ...context, agentMergeTurn });
+			for (; ;) {
+				const request = await readNextRequest(peer.outbound);
+				peer.push({ id: request.id, result: request.method === 'thread/start' || request.method === 'thread/resume' ? { thread: { id: threadId, cwd: folder.fsPath } } : {} });
+				if (request.method === 'turn/start') {
+					await sending;
+					if (notify) {
+						notifyTurn('inProgress');
+					}
+					return request;
+				}
+			}
+		};
+		const steer = async () => {
+			const pending = readNextRequest(peer.outbound);
+			assert.ok(agent.setPendingMessages(chat, { id: 'steering-message', message: { text: 'Keep going', origin: { kind: MessageKind.User } } }, []));
+			const request = await pending;
+			peer.push({ id: request.id, result: { turnId: appTurnId } });
+			peer.push({ method: 'item/started', params: { threadId, turnId: appTurnId, item: { id: 'steering-message', type: 'userMessage', clientId: 'steering-message', content: [{ type: 'text', text: 'Keep going', text_elements: [] }] } } });
+			await timeout(0);
+		};
+		return { agent, peer, stateManager, chat, session, owner, threadId, start, select, notifyTurn, steer };
+	}
+
+	for (const [initial, selected, reviewer] of [['default', 'auto-review', 'auto_review'], ['auto-review', 'default', 'user']] as const) {
+		for (const agentMergeTurn of [false, true]) {
+			test(`changes ${initial} to ${selected} ${agentMergeTurn ? 'during Agent Merge with networking enabled' : 'on the active native turn'}`, async () => {
+				const harness = await setup(initial);
+				if (agentMergeTurn) {
+					const config = { [CodexSessionConfigKey.PermissionsPreset]: initial, [CodexSessionConfigKey.NetworkAccessEnabled]: true };
+					harness.stateManager.setSessionConfig(harness.session.toString(), await harness.agent.resolveChatConfig({ config }));
+				}
+				const turn = await harness.start('first', { agentMergeTurn });
+				const next = readNextRequest(harness.peer.outbound);
+				harness.select(selected);
+				const request = await next;
+				harness.peer.push({ id: request.id, result: { status: 'applied' } });
+				assert.deepStrictEqual({ permissions: turn.params.permissions, method: request.method, params: request.params }, {
+					permissions: 'vscode-workspace',
+					method: 'turn/settings/update',
+					params: { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: reviewer },
+				});
+			});
+		}
+	}
+
+	test('applies a selection made before the native turn-start notification', async () => {
+		const harness = await setup();
+		await harness.start('first', { notify: false });
+		harness.select('auto-review');
+		const next = readNextRequest(harness.peer.outbound);
+		harness.notifyTurn('inProgress');
+		const request = await next;
+		harness.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
+	});
+
+	test('serializes rapid changes without losing a switch back to the original reviewer', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const firstUpdate = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const first = await firstUpdate;
+		harness.select('default');
+		const secondUpdate = readNextRequest(harness.peer.outbound);
+		harness.peer.push({ id: first.id, result: { status: 'applied' } });
+		const second = await secondUpdate;
+		harness.peer.push({ id: second.id, result: { status: 'applied' } });
+		assert.deepStrictEqual([first.params, second.params], [
+			{ threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' },
+			{ threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'user' },
+		]);
+	});
+
+	test('keeps live reviewer updates on the same native turn after steering', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		await harness.steer();
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
+	});
+
+	for (const [initial, selected, approvalPolicy, fullAccess, approvalsReviewer] of [
+		['default', 'full-access', 'never', true, 'user'],
+		['full-access', 'auto-review', 'on-request', false, 'auto_review'],
+	] as const) {
+		test(`defers ${initial} to ${selected} until the next turn`, async () => {
+			const harness = await setup(initial);
+			await harness.start('first');
+			const duringTurn: string[] = [];
+			const record = (chunk: Buffer) => duringTurn.push(chunk.toString());
+			harness.peer.outbound.on('data', record);
+			harness.select(selected);
+			await timeout(0);
+			harness.peer.outbound.off('data', record);
+			harness.notifyTurn('completed');
+			const next = await harness.start('second');
+			assert.deepStrictEqual({ duringTurn, approvalPolicy: next.params.approvalPolicy, fullAccess: next.params.permissions === ':danger-full-access', approvalsReviewer: next.params.approvalsReviewer }, { duringTurn: [], approvalPolicy, fullAccess, approvalsReviewer });
+		});
+	}
+
+	test('does not send a queued update to a replacement turn', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.select('default');
+		harness.notifyTurn('completed');
+		const next = await harness.start('second');
+		const extra: string[] = [];
+		const record = (chunk: Buffer) => extra.push(chunk.toString());
+		harness.peer.outbound.on('data', record);
+		harness.peer.push({ id: request.id, result: { status: 'applied' } });
+		await timeout(0);
+		harness.peer.outbound.off('data', record);
+		assert.deepStrictEqual({ extra, nextReviewer: next.params.approvalsReviewer }, { extra: [], nextReviewer: 'user' });
+	});
+
+	test('does not retry a turn that is no longer available', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.peer.push({ id: request.id, result: { status: 'targetUnavailable' } });
+		await timeout(0);
+		harness.notifyTurn('completed');
+		const next = await harness.start('second');
+		assert.deepStrictEqual({ method: next.method, reviewer: next.params.approvalsReviewer }, { method: 'turn/start', reviewer: 'auto_review' });
+	});
+
+	for (const [initial, selected, allowed] of [['default', 'full-access', false], ['full-access', 'default', true]] as const) {
+		test(`keeps host tools on ${initial} permissions after steering and selecting ${selected}`, async () => {
+			const harness = await setup(initial);
+			const definitions = [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' as const } }];
+			let executions = 0;
+			harness.agent.setServerToolHost({
+				...createRecordingServerToolHost([]),
+				definitions,
+				toolNames: [PEER_TEST_TOOL_NAME],
+				getDefinitionsForSession: () => definitions,
+				requiresConfirmation: () => true,
+				executeTool: () => { executions++; return 'tool result'; },
+			});
+			await harness.start('first');
+			await harness.steer();
+			harness.select(selected);
+			const response = readNextMessage(harness.peer.outbound);
+			harness.peer.push({ id: 9000, method: 'item/tool/call', params: { threadId: harness.threadId, turnId: 'app-first', callId: 'unapproved-call', namespace: null, tool: PEER_TEST_TOOL_NAME, arguments: {} } });
+			const result = await response;
+			assert.deepStrictEqual({ executions, allowed: result.result?.success }, { executions: allowed ? 1 : 0, allowed });
+		});
+	}
+
+	test('reports a rejected live update without completing the turn', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const notifications: string[] = [];
+		disposables.add(harness.agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.SystemNotification) {
+				notifications.push(typeof signal.action.part.content === 'string' ? signal.action.part.content : signal.action.part.content.markdown);
+			}
+		}));
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.peer.push({ id: request.id, error: { code: -32602, message: 'Reviewer is not allowed' } });
+		await timeout(0);
+		assert.deepStrictEqual(notifications, ['Could not change approvals for the current turn. It will keep its previous permissions. Reviewer is not allowed']);
+	});
+
+	test('targets only the chat whose configuration changed on a shared connection', async () => {
+		const first = await setup();
+		await first.start('first');
+		const second = await setup('default', 'other-chat', first);
+		await second.start('second');
+		const pending = readNextRequest(first.peer.outbound);
+		first.select('auto-review');
+		const request = await pending;
+		first.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: first.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
+	});
+
+	test('reads permission changes from the current owner after moving a running session', async () => {
+		const moved = await setup();
+		await moved.start('first');
+		const target = await setup('default', 'target', moved);
+		moved.owner.set(target.session);
+		moved.stateManager.transferSession(moved.session.toString(), target.session.toString(), [moved.chat.toString()], undefined, true);
+		const pending = readNextRequest(moved.peer.outbound);
+		moved.select('auto-review');
+		const request = await pending;
+		moved.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: moved.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
 	});
 });

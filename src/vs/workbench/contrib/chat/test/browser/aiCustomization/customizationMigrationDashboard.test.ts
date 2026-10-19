@@ -129,13 +129,6 @@ suite('CustomizationMigrationDashboard', () => {
 			migrateWithAgent: () => actions.push('agent'),
 			migrateCategory: (id, storage) => actions.push(`migrate:${id}:${storage}`),
 		});
-
-		test('hides agent migration for unsupported harnesses', () => {
-			const { parent, dashboard } = createDashboard();
-			dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
-
-			assert.strictEqual(parent.querySelector('[aria-label="Start an agent-guided customization migration"]'), null);
-		});
 		dashboard.showOverview(overview());
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
@@ -198,6 +191,13 @@ suite('CustomizationMigrationDashboard', () => {
 			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
 			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
+	});
+
+	test('hides agent migration for unsupported harnesses', () => {
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
+
+		assert.strictEqual(parent.querySelector('[aria-label="Start an agent-guided customization migration"]'), null);
 	});
 
 	test('moves initial loading focus to the first migrate action when the overview loads', () => {

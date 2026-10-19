@@ -111,6 +111,21 @@ suite('SessionMcpDiscovery', () => {
 		assert.strictEqual(definition.defaultCwd, primary);
 	});
 
+	test('reads servers written with the legacy Copilot `local` type', async () => {
+		await write(primary, {
+			mcpServers: {
+				server: { type: 'local', command: 'npx', args: ['${MCP_DIR}'], tools: ['*'] },
+			}
+		});
+
+		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+		const definitions = await discovery.refresh();
+
+		assert.deepStrictEqual(definitions.map(definition => ({ name: definition.name, configuration: definition.configuration })), [
+			{ name: 'server', configuration: { type: McpServerType.LOCAL, command: 'npx', args: ['${MCP_DIR}'], env: undefined, envFile: undefined, cwd: undefined, dev: undefined } },
+		]);
+	});
+
 	test('ignores malformed files and refreshes after an exact file change', async () => {
 		await fileService.writeFile(URI.joinPath(primary, '.mcp.json'), VSBuffer.fromString('{ malformed'));
 		const discovery = store.add(new SessionMcpDiscovery([primary], fileService));

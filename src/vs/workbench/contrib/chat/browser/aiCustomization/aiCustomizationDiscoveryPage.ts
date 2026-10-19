@@ -61,6 +61,7 @@ import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOri
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
 import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { getPluginCustomizationMarketplaceSourceId } from './pluginCustomizationMarketplaceProvider.js';
 
 const $ = DOM.$;
 const searchDelay = 300;
@@ -686,7 +687,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		const searchRow = DOM.append(header, $('.customization-discovery-search-row'));
 		const searchContainer = DOM.append(searchRow, $('.customization-discovery-search'));
-		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search customizations");
+		const placeholder = localize('customizationDiscovery.searchPlaceholder', "Search MCP servers, plugins, skills and more...");
 		this.searchWidget = this._register(this.instantiationService.createInstance(
 			SuggestEnabledInput,
 			'aiCustomizationDiscovery.search',
@@ -952,34 +953,25 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private updateDescription(): void {
 		this.descriptionDisposables.clear();
-		const sections = [
-			AICustomizationManagementSection.Plugins,
-			AICustomizationManagementSection.McpServers,
-			AICustomizationManagementSection.Skills,
-			AICustomizationManagementSection.Instructions,
-			AICustomizationManagementSection.Agents,
-			AICustomizationManagementSection.Hooks,
-		] as const;
+		const docsUrl = 'https://aka.ms/vscode-customizations';
 		const description = localize({
 			key: 'customizationDiscovery.description',
 			comment: [
-				'Preserve the double square brackets: they mark the customization types that become links. Keep all six links in this order: Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+				'Preserve the double square brackets: they mark the Learn more link to the agent customization documentation.',
 			],
-		}, "Find new ways to extend your agent with [[Plugins]], [[MCP Servers]], [[Skills]], [[Instructions]], [[Agents]], and [[Hooks]].");
+		}, "Tailor your agent to your tools, your team, and your workflow. [[Learn more]]");
 		renderFormattedText(description, {
 			actionHandler: {
-				callback: (index, event) => {
+				callback: (_index, event) => {
 					event.preventDefault();
-					const section = sections[Number(index)];
-					if (section) {
-						this.callbacks.selectSection(section);
-					}
+					void this.openExternal(docsUrl);
 				},
 				disposables: this.descriptionDisposables,
 			},
 		}, this.titleDescription);
 		for (const link of this.titleDescription.children) {
-			link.setAttribute('href', '#');
+			link.setAttribute('href', docsUrl);
+			link.setAttribute('aria-label', localize('customizationDiscovery.learnMore', "Learn more about agent customizations"));
 		}
 	}
 
@@ -1219,8 +1211,20 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private getFilteredInstalledItems(): readonly IInstalledDiscoveryItem[] {
 		const text = normalizedName(this.query.text);
 		const items = [...this.installedItems, ...this.providerPlugins];
+		const marketplaceInstallations = this.installService.installations.get();
 		return items
 			.filter(item => this.matchesType(item.type))
+			.filter(item => {
+				if (!this.selectedSourceId) {
+					return true;
+				}
+				const marketplace = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, marketplaceInstallations)?.resource;
+				const pluginMarketplaceReference = item.pluginDetail?.kind === AgentPluginItemKind.Installed
+					? item.pluginDetail.plugin.fromMarketplace?.marketplaceReference
+					: undefined;
+				const sourceId = marketplace?.sourceId ?? (pluginMarketplaceReference ? getPluginCustomizationMarketplaceSourceId(pluginMarketplaceReference) : undefined);
+				return sourceId === this.selectedSourceId;
+			})
 			.filter(item => !text || [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)].some(value => value && normalizedName(value).includes(text)))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
@@ -1380,7 +1384,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private render(preserveResults = false): void {
-		this.sourceWarnings.update(this.catalogPage?.sourceErrors ?? [], this.loading);
+		this.sourceWarnings.update(
+			this.catalogPage?.sourceErrors ?? [],
+			this.loading,
+			this.loaded && !this.loading,
+			this.isCatalogEnabled() && !this.query.installed ? this.getCurrentQuerySources().map(source => source.id) : [],
+		);
 		const catalogPending = this.isCatalogPending();
 		const showProgress = this.visible && catalogPending && !this.isLoadingMore();
 		if (showProgress !== this.progressBarActive) {
@@ -1515,9 +1524,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.focus();
 				void this.loadCatalog(this.loadingMore);
 			}));
-		} else if (entries.length === 0 && this.sourceWarnings.hasWarnings) {
-			this.resultStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
-		} else if (entries.length === 0 && !this.sourceWarnings.hasErrors) {
+		} else if (entries.length === 0 && this.sourceWarnings.hasFailures) {
+			this.resultStatus.textContent = '';
+		} else if (entries.length === 0 && !this.sourceWarnings.hasInlinePrompts) {
 			this.resultStatus.textContent = this.filteredBackfillLimitReached
 				? localize('customizationDiscovery.moreResultsPossible', "More catalog results may match this search.")
 				: localize('customizationDiscovery.noResults', "No customizations match this search.");
@@ -1587,14 +1596,14 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			const retry = this.browseDisposables.add(new Button(this.browseStatus, { ...defaultButtonStyles, secondary: true, small: true }));
 			retry.label = localize('customizationDiscovery.retry', "Retry");
 			this.browseDisposables.add(retry.onDidClick(() => void this.loadCatalog(false)));
-		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasWarnings) {
-			this.browseStatus.textContent = localize('customizationDiscovery.sourcesUnavailable', "Available customizations could not be fully loaded. Retry an unavailable source.");
-		} else if (!this.catalogItems.length && this.loaded && !this.sourceWarnings.hasErrors) {
+		} else if (!this.catalogItems.length && this.loaded && this.sourceWarnings.hasFailures) {
+			this.browseStatus.textContent = '';
+		} else if (!this.catalogItems.length && this.loaded && !this.sourceWarnings.hasInlinePrompts) {
 			this.browseStatus.textContent = localize('customizationDiscovery.emptyCatalog', "No catalog customizations are available.");
 		} else {
 			this.browseStatus.textContent = this.installErrors.values().next().value ?? '';
 		}
-		if (!this.loading && this.sourceWarnings.hasErrors) {
+		if (!this.loading && this.sourceWarnings.hasInlinePrompts) {
 			this.announce(this.sourceWarnings.getAccessibilityContent());
 		}
 	}

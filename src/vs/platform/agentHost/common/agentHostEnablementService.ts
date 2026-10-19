@@ -32,8 +32,7 @@ export interface IAgentHostEnablementService {
 	/**
 	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
 	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
-	 * to display sandbox state. Together with any managed permission setting, this floor requires
-	 * Copilot Agent Host for new requests; existing Local history remains readable.
+	 * to display sandbox state, not to determine harness eligibility.
 	 * A user- or workspace-level sandbox opt-in does not set this.
 	 */
 	readonly managedSandboxEnforced: IObservable<boolean>;
@@ -48,7 +47,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[TemporaryDefaultToLocalHarnessSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.temporaryDefaultToLocalHarness', "Temporarily keeps Local available and disables automatic promotion to the Copilot harness, including routing required by managed sandbox and permission settings. Explicit and remembered harness choices are preserved. Local does not enforce runtime-only sandbox and permission settings."),
+			description: nls.localize('chat.temporaryDefaultToLocalHarness', "Temporarily keeps Local available and disables automatic promotion to the Copilot harness. Explicit and remembered harness choices are preserved. Local does not enforce runtime-only sandbox and permission settings."),
 			default: false,
 			included: false,
 			scope: ConfigurationScope.APPLICATION,
@@ -63,7 +62,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.temporaryDefaultToLocalHarness.policy',
-						value: nls.localize('chat.temporaryDefaultToLocalHarness.policy', "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings and managed sandbox and permission routing. Local does not enforce runtime-only sandbox and permission settings."),
+						value: nls.localize('chat.temporaryDefaultToLocalHarness.policy', "Temporarily keeps Local available and prevents automatic selection of the Copilot harness, overriding rollout settings. Local does not enforce runtime-only sandbox and permission settings."),
 					},
 				},
 			},

@@ -10,13 +10,14 @@ import { animateChatProgress } from '../../../../../workbench/contrib/chat/brows
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
-import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
+import { LabelFuzzyScore, RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, IObservable, IReader, ISettableObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -41,6 +42,7 @@ import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -56,10 +58,12 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
@@ -100,6 +104,10 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
+import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -150,6 +158,8 @@ type SessionContextKeyProvider = (session: ISession, reader: IReader | undefined
 export const SessionChatItemCanRenameContext = new RawContextKey<boolean>('sessionChatItem.canRename', false);
 export const SessionChatItemCanArchiveContext = new RawContextKey<boolean>('sessionChatItem.canArchive', false);
 export const SessionChatItemCanDeleteContext = new RawContextKey<boolean>('sessionChatItem.canDelete', false);
+/** Whether the chat item's chat can move out of its session, e.g. into a new session: its provider moves chats and the chat is movable. */
+export const SessionChatItemCanMoveContext = new RawContextKey<boolean>('sessionChatItem.canMove', false);
 export const SessionChatItemIsArchivedContext = new RawContextKey<boolean>('sessionChatItem.isArchived', false);
 export const SessionChatItemIsUntitledContext = new RawContextKey<boolean>('sessionChatItem.isUntitled', false);
 export const SessionsListFocusedChatItemContext = new RawContextKey<boolean>('sessionsList.focusedChatItem', false);
@@ -270,9 +280,15 @@ function hasArchivedListContent(session: ISession): boolean {
 	return session.isArchived.get() || getSessionListChats(session, undefined, true).some(chat => chat.isArchived.get());
 }
 
-function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+/** Whether the chat is the open chat of the active session. */
+function isOpenChat(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader | undefined): boolean {
 	const active = activeSession?.read(reader);
-	if (active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource)) {
+	return active?.sessionId === session.sessionId && isEqual(active.activeChat.read(reader).resource, chat.resource);
+}
+
+/** The open chat's live Branch Changes, else the session aggregate. Keep in sync with the session hover's main chat counts. */
+function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSession: IObservable<IActiveSession | undefined> | undefined, reader: IReader): { files: number; insertions: number; deletions: number } | undefined {
+	if (isOpenChat(session, chat, activeSession, reader)) {
 		const chatStats = readChatChangesStats(chat, reader, BRANCH_CHANGES_CHANGESET_ID);
 		if (chatStats !== undefined) {
 			return chatStats.insertions > 0 || chatStats.deletions > 0 ? chatStats : undefined;
@@ -398,6 +414,34 @@ function isSessionPlaceholder(item: SessionListItem): item is ISessionPlaceholde
 
 function isSessionItem(item: SessionListItem): item is ISession {
 	return !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
+}
+
+function getSessionKeyboardNavigationLabels(session: ISession): string[] {
+	const labels = [session.title.get()];
+	for (const folder of session.workspace.get()?.folders ?? []) {
+		for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
+			labels.push(`#${pullRequest.number}`);
+		}
+	}
+	for (const artifact of session.artifacts?.get() ?? []) {
+		const pullRequest = artifact.kind === SessionArtifactKind.PullRequest && artifact.isGitHub !== false && artifact.link
+			? parseGitHubPullRequestUrl(artifact.link.toString(true))
+			: undefined;
+		if (pullRequest) {
+			labels.push(`#${pullRequest.number}`);
+		}
+	}
+	return labels;
+}
+
+function getSessionTitleMatches(session: ISession, filterData: FuzzyScore | LabelFuzzyScore | undefined): IMatch[] | undefined {
+	if (!filterData) {
+		return undefined;
+	}
+	if (Array.isArray(filterData)) {
+		return createMatches(filterData);
+	}
+	return filterData.label === session.title.get() ? createMatches(filterData.score) : undefined;
 }
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
@@ -1283,7 +1327,7 @@ export interface ISessionCIFixModel {
 	fixCI(session: ISession): void;
 }
 
-class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
+class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore | LabelFuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-inset-row';
@@ -1455,12 +1499,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
-	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		const element = node.element;
 		if (!isSessionItem(element)) {
 			return;
 		}
-		this.renderSession(element, template, createMatches(node.filterData));
+		this.renderSession(element, template, getSessionTitleMatches(element, node.filterData));
 	}
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
@@ -1518,12 +1562,15 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// moved into the provider — see the note on the import above.
 		this.agentSessionsService.model.observeSession(element.resource);
 
+		// Set by the details row while it shows, and so observes, the open main chat's Branch Changes.
+		let rowObservesMainChatBranchChanges = false;
 		if (this.options.showHover) {
 			// Rich hover on the row: the same widget session pills use in chat output.
 			template.elementDisposables.add(this.hoverService.setupDelayedHover(template.container, () =>
 				withSessionsListHoverPresentation(createSessionSummaryHover(
 					element,
-					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact()),
+					// Observed Branch Changes are read from memory; reading unobserved ones would load the chat from its backend.
+					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
 					this.preferencesService,
 				)), { groupId: 'sessions-list' }));
 		}
@@ -1719,6 +1766,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const description = element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
 			const eligible = isExternalApplicationBadgeEligible(element, reader);
+			rowObservesMainChatBranchChanges = false;
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
@@ -1750,7 +1798,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				return;
 			}
 
-			const diffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1
+			const showsMainChatDiffStats = this.options.deriveStatusFromMainChat && (workspace?.folders.length ?? 0) > 1;
+			rowObservesMainChatBranchChanges = !!showsMainChatDiffStats && isOpenChat(element, element.mainChat.read(reader), this.options.activeSession, reader);
+			const diffStats = showsMainChatDiffStats
 				? getSessionListChatDiffStats(element, element.mainChat.read(reader), this.options.activeSession, reader)
 				: getSessionDiffStats(element, reader);
 			// When the session is InProgress or NeedsInput, hide workspace/diff details in this row
@@ -2037,7 +2087,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return target?.capabilities.get().supportsRename ? target : undefined;
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		if (isSessionItem(node.element) && this.renameState && isEqual(this.renameState.session.resource, node.element.resource) && !this.resolveRenameTarget(node.element)) {
 			this.editingSession.set(undefined, undefined);
 			this.renameState = undefined;
@@ -2221,8 +2271,8 @@ interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionSectionTemplate> {
 	static readonly TEMPLATE_ID = 'session-section';
 
-	private readonly templatesByElement = new WeakMap<ISessionSection, ISessionSectionTemplate>();
-	private readonly templatesById = new Map<string, ISessionSectionTemplate>();
+	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
+	private readonly renderedSections = new Map<ISessionSectionTemplate, ISessionSection>();
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
 	readonly automationStatus = derived(this, reader => {
 		const runs = this.automationService.runs.read(reader);
@@ -2378,8 +2428,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
-		this.templatesByElement.set(element, template);
-		this.templatesById.set(element.id, template);
+		this.renderedSections.set(template, element);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
 		template.container.classList.remove('session-section-new-session');
@@ -2501,15 +2550,19 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 	/** Updates the leading icon and chevron when the tree toggles a section without re-rendering it. */
 	updateCollapseState(element: ISessionSection, collapsed: boolean): void {
-		const template = this.templatesByElement.get(element);
-		if (template) {
-			this.updateChevron(template, true, collapsed);
+		for (const [template, renderedElement] of this.renderedSections) {
+			if (renderedElement === element) {
+				this.updateChevron(template, true, collapsed);
+			}
 		}
 	}
 
 	setDropTarget(sectionId: string, active: boolean): void {
-		const template = this.templatesById.get(sectionId);
-		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+		for (const [template, element] of this.renderedSections) {
+			if (element.id === sectionId) {
+				template.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+			}
+		}
 	}
 
 	private updateChevron(template: ISessionSectionTemplate, collapsible: boolean, collapsed: boolean): void {
@@ -2522,21 +2575,18 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
-		if (isSessionSection(node.element)) {
-			this.templatesByElement.delete(node.element);
-			this.templatesById.delete(node.element.id);
-		}
+		this.renderedSections.delete(template);
 	}
 
-	disposeShortcut(element: ISessionSection, template: ISessionSectionTemplate): void {
+	disposeShortcut(_element: ISessionSection, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
-		this.templatesByElement.delete(element);
-		this.templatesById.delete(element.id);
+		this.renderedSections.delete(template);
 	}
 
 	disposeTemplate(template: ISessionSectionTemplate): void {
+		this.renderedSections.delete(template);
 		template.disposables.dispose();
 	}
 }
@@ -2604,8 +2654,8 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 	readonly templateId = SessionGroupRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-section-row';
 
-	private readonly templatesByElement = new WeakMap<ISessionGroupItem, ISessionGroupTemplate>();
-	private readonly templatesById = new Map<string, ISessionGroupTemplate>();
+	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
+	private readonly renderedGroups = new Map<ISessionGroupTemplate, ISessionGroupItem>();
 
 	constructor(
 		private readonly delegate: ISessionGroupRendererDelegate,
@@ -2646,8 +2696,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 		template.elementDisposables.clear();
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
-		this.templatesByElement.set(element, template);
-		this.templatesById.set(element.group.id, template);
+		this.renderedGroups.set(template, element);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 
 		const isComparison = element.comparison !== undefined;
@@ -2736,15 +2785,19 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 
 	/** Forwarded from the owning list when the group's collapse state toggles. */
 	updateCollapseState(element: ISessionGroupItem, collapsed: boolean): void {
-		const template = this.templatesByElement.get(element);
-		if (template) {
-			this.updateChevron(template, true, collapsed);
+		for (const [template, renderedElement] of this.renderedGroups) {
+			if (renderedElement === element) {
+				this.updateChevron(template, true, collapsed);
+			}
 		}
 	}
 
 	setDropTarget(groupId: string, active: boolean): void {
-		const template = this.templatesById.get(groupId);
-		template?.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+		for (const [template, element] of this.renderedGroups) {
+			if (element.group.id === groupId) {
+				template.container.classList.toggle(SESSION_HEADER_DROP_TARGET_CLASS, active);
+			}
+		}
 	}
 
 	private updateChevron(template: ISessionGroupTemplate, collapsible: boolean, collapsed: boolean): void {
@@ -2757,15 +2810,13 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		}
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
-		if (isSessionGroupItem(node.element)) {
-			this.templatesByElement.delete(node.element);
-			this.templatesById.delete(node.element.group.id);
-		}
+	disposeElement(_node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionGroupTemplate): void {
+		this.renderedGroups.delete(template);
 		template.elementDisposables.clear();
 	}
 
 	disposeTemplate(template: ISessionGroupTemplate): void {
+		this.renderedGroups.delete(template);
 		template.disposables.dispose();
 	}
 }
@@ -3099,6 +3150,27 @@ interface ISessionsListDndDelegate {
 	setDropTargetHeader(header: ISessionDropTargetHeader | undefined): void;
 	/** Reorder a top-level header (group or workspace section) before/after another. */
 	reorderSection(draggedId: string, targetId: string, position: 'before' | 'after', isWorkspace: boolean): void;
+	/** The dragged chat row's chat, with its session, when moving chats by drag and drop is on and it can move. */
+	getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined;
+	/** Whether the session can move under another session, when moving chats by drag and drop is on. */
+	canMoveSessionUnder(session: ISession): boolean;
+	/** Move the chat of `session` as the drop says. */
+	moveChat(session: ISession, chat: IChat, drop: SessionsListChatDrop): void;
+	/** Move `session` under `target`, after its chat `after` (`undefined`: first). */
+	moveSessionUnder(session: ISession, target: ISession, after: IChat | undefined): void;
+	/** Whether the session is in a section the user orders by hand: Pinned or a custom group. */
+	isInManuallyOrderedSection(session: ISession): boolean;
+	/**
+	 * Whether the row is the last one its section shows (under a find filter, the last one that matches): its last
+	 * session's row, or that session's last chat row.
+	 */
+	isLastRowOfSection(element: ISession | ISessionChatItem): boolean;
+	/**
+	 * Shows the drop feedback for moving a chat or session rather than the list's other drags: `'move'` for a drop into
+	 * a session, a new session, or a placement between sessions; `'nested'` for an insertion line among a session's
+	 * nested rows, drawn at their indent; `'none'` for the list's other drags.
+	 */
+	setMoveDropFeedback(kind: 'none' | 'move' | 'nested'): void;
 }
 
 interface ISessionDropTargetHeader {
@@ -3128,6 +3200,8 @@ interface IDraggedHeader {
 class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
 
 	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+	/** The chat row this list is dragging and what it moves, resolved once when the drag starts. */
+	private _draggedChat: { readonly item: ISessionChatItem; readonly movable: { readonly session: ISession; readonly chat: IChat } | undefined } | undefined;
 
 	constructor(private readonly delegate: ISessionsListDndDelegate) {
 		super();
@@ -3182,6 +3256,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		const chatItem = elements.find(isSessionChatItem);
 		if (chatItem) {
 			fillSessionChatDragData(originalEvent, chatItem.session.sessionId, chatItem.chat.resource);
+			this._draggedChat = { item: chatItem, movable: this.delegate.getMovableDraggedChat(chatItem) };
 			return;
 		}
 		const sessions = this.toSessions(elements);
@@ -3202,16 +3277,47 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	onDragEnd(): void {
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+		this._draggedChat = undefined;
 		this.delegate.setDropTargetHeader(undefined);
+		this.delegate.setMoveDropFeedback('none');
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, listTargetSector: ListViewTargetSector | undefined, originalEvent?: DragEvent): boolean | ITreeDragOverReaction {
+		const targetSector = getRowSector(originalEvent, listTargetSector);
+		const draggedChat = this.draggedChat(data);
+		if (draggedChat) {
+			this.delegate.setDropTargetHeader(undefined);
+			const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
+			this.delegate.setMoveDropFeedback(!chatDrop ? 'none' : chatDrop.drop.kind === 'session' && chatDrop.drop.position !== 'over' ? 'nested' : 'move');
+			return chatDrop ? this.toChatDropReaction(chatDrop.drop) : false;
+		}
+
 		const draggedHeader = this.draggedHeader(data);
 		if (draggedHeader) {
 			this.delegate.setDropTargetHeader(undefined);
+			this.delegate.setMoveDropFeedback('none');
 			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
 		}
 
+		const sessionDrop = this.resolveSessionDrop(data, targetElement, targetSector);
+		if (sessionDrop?.drop.kind === 'nest') {
+			this.delegate.setDropTargetHeader(undefined);
+			const position = sessionDrop.drop.position;
+			this.delegate.setMoveDropFeedback(position === 'over' ? 'move' : 'nested');
+			return position === 'over'
+				? intoSessionDropReaction()
+				: { accept: true, effect: { type: ListDragOverEffectType.Move, position: position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before } };
+		}
+		const placement = sessionDrop?.drop.kind === 'place' ? sessionDrop.drop : undefined;
+		const reaction = placement
+			? this.onSessionDragOver(data, placement.session, placement.position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM)
+			: this.onSessionDragOver(data, targetElement, targetSector);
+		this.delegate.setMoveDropFeedback(placement && (typeof reaction === 'boolean' ? reaction : reaction.accept) ? 'move' : 'none');
+		return reaction;
+	}
+
+	/** The list's own handling of dragged sessions: pinning, grouping, ungrouping and reordering them. */
+	private onSessionDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
 		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
 		if (pinTarget) {
 			this.delegate.setDropTargetHeader(pinTarget.header);
@@ -3245,9 +3351,21 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		};
 	}
 
-	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
+	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, listTargetSector: ListViewTargetSector | undefined, originalEvent?: DragEvent): void {
+		const targetSector = getRowSector(originalEvent, listTargetSector);
 		this.delegate.setDropTargetHeader(undefined);
+		this.delegate.setMoveDropFeedback('none');
+		// Check the targets in the order `onDragOver` does, so the result matches the feedback.
 		try {
+			const draggedChat = this.draggedChat(data);
+			if (draggedChat) {
+				const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
+				if (chatDrop) {
+					this.delegate.moveChat(chatDrop.session, chatDrop.chat, chatDrop.drop);
+				}
+				return;
+			}
+
 			const draggedHeader = this.draggedHeader(data);
 			if (draggedHeader) {
 				if (targetElement) {
@@ -3259,32 +3377,109 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 				return;
 			}
 
-			const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
-			if (pinTarget) {
-				this.delegate.pinSessions(pinTarget.sessions, pinTarget.target, pinTarget.position);
+			const sessionDrop = this.resolveSessionDrop(data, targetElement, targetSector);
+			if (sessionDrop?.drop.kind === 'nest') {
+				this.delegate.moveSessionUnder(sessionDrop.session, sessionDrop.drop.session, sessionDrop.drop.after);
 				return;
 			}
-
-			const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
-			if (addToGroupTarget) {
-				this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
-				return;
+			const placement = sessionDrop?.drop.kind === 'place' ? sessionDrop.drop : undefined;
+			if (placement) {
+				this.dropSessions(data, placement.session, placement.position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM);
+			} else {
+				this.dropSessions(data, targetElement, targetSector);
 			}
-
-			const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
-			if (removeFromGroupTarget) {
-				this.delegate.removeSessionsFromGroup(removeFromGroupTarget.sessions, removeFromGroupTarget.target, removeFromGroupTarget.position);
-				return;
-			}
-
-			const target = this.resolveReorderTarget(data, targetElement);
-			if (!target) {
-				return;
-			}
-			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
 		} finally {
 			this.delegate.setDropTargetHeader(undefined);
 		}
+	}
+
+	/** Pins, groups, ungroups or reorders the dragged sessions, as {@link onSessionDragOver} shows. */
+	private dropSessions(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): void {
+		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
+		if (pinTarget) {
+			this.delegate.pinSessions(pinTarget.sessions, pinTarget.target, pinTarget.position);
+			return;
+		}
+
+		const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
+		if (addToGroupTarget) {
+			this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
+			return;
+		}
+
+		const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
+		if (removeFromGroupTarget) {
+			this.delegate.removeSessionsFromGroup(removeFromGroupTarget.sessions, removeFromGroupTarget.target, removeFromGroupTarget.position);
+			return;
+		}
+
+		const target = this.resolveReorderTarget(data, targetElement);
+		if (target) {
+			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
+		}
+	}
+
+	/**
+	 * Where a dragged chat moves when dropped here (see {@link getSessionsListChatDrop}), or `undefined` when it can't
+	 * move or would stay put.
+	 */
+	private resolveChatDrop(item: ISessionChatItem, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
+		const dragged = this._draggedChat?.item === item ? this._draggedChat.movable : this.delegate.getMovableDraggedChat(item);
+		if (!dragged) {
+			return undefined;
+		}
+		let target: ISessionsListChatDropTarget | undefined;
+		if (targetElement && isSessionChatItem(targetElement)) {
+			target = { session: targetElement.session, chat: targetElement.chat, position: sectorToPosition(targetSector) };
+		} else if (targetElement && isSessionItem(targetElement)) {
+			target = { session: targetElement, chat: undefined, position: 'before' };
+		}
+		const drop = getSessionsListChatDrop(dragged.session, dragged.chat, target);
+		return drop ? { ...dragged, drop } : undefined;
+	}
+
+	private toChatDropReaction(drop: SessionsListChatDrop): ITreeDragOverReaction {
+		if (drop.kind === 'newSession') {
+			// The whole list shows it receives the chat as a new session.
+			return { accept: true, feedback: [-1], effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
+		}
+		if (drop.position === 'over') {
+			return intoSessionDropReaction();
+		}
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: drop.position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before } };
+	}
+
+	/**
+	 * What a single dragged session that can move under another session does here (see
+	 * {@link getSessionsListSessionDrop}), or `undefined` when the list handles it as any dragged session.
+	 */
+	private resolveSessionDrop(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly drop: SessionsListSessionDrop } | undefined {
+		const dragged = this.draggedSessions(data);
+		if (dragged.length !== 1 || !targetElement || targetSector === undefined || !this.delegate.canMoveSessionUnder(dragged[0])) {
+			return undefined;
+		}
+		const chatItem = isSessionChatItem(targetElement) ? targetElement : undefined;
+		const session = chatItem ? chatItem.session : isSessionItem(targetElement) ? targetElement : undefined;
+		if (!session || (!chatItem && session.sessionId === dragged[0].sessionId)) {
+			return undefined;
+		}
+		const drop = getSessionsListSessionDrop(dragged[0], {
+			session,
+			chat: chatItem?.chat,
+			quarter: targetSector,
+			isManuallyOrdered: () => this.delegate.isInManuallyOrderedSection(session),
+			isLastInSection: () => this.delegate.isLastRowOfSection(chatItem ?? session),
+			canPlace: position => this.canDropSessions(data, session, position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM),
+		});
+		return drop ? { session: dragged[0], drop } : undefined;
+	}
+
+	/** Whether the list would pin, group, ungroup or reorder the dragged sessions here, without showing anything. */
+	private canDropSessions(data: IDragAndDropData, targetElement: SessionListItem, targetSector: ListViewTargetSector): boolean {
+		return !!this.resolvePinTarget(data, targetElement, targetSector)
+			|| !!this.resolveAddToGroupTarget(data, targetElement, targetSector)
+			|| !!this.resolveRemoveFromGroupTarget(data, targetElement, targetSector)
+			|| !!this.resolveReorderTarget(data, targetElement);
 	}
 
 	private onHeaderDragOver(draggedHeader: IDraggedHeader, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
@@ -3476,6 +3671,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		return undefined;
 	}
 
+	/** The chat row dragged within the list; a chat dragged from elsewhere (e.g. a chat tab) isn't one. */
+	private draggedChat(data: IDragAndDropData): ISessionChatItem | undefined {
+		const elements = data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : [];
+		return elements.length === 1 && isSessionChatItem(elements[0]) ? elements[0] : undefined;
+	}
+
 	private draggedSessions(data: IDragAndDropData): ISession[] {
 		return this.toSessions(data instanceof ElementsDragAndDropData ? data.elements as SessionListItem[] : []);
 	}
@@ -3487,6 +3688,38 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+/** The last of `nodes` the tree shows (a find filter can hide some) whose element is a `T`, scanning from the end. */
+function findLastVisible<T extends SessionListItem>(nodes: readonly ITreeNode<SessionListItem | null, FuzzyScore>[], is: (element: SessionListItem) => element is T): T | undefined {
+	for (let i = nodes.length - 1; i >= 0; i--) {
+		const element = nodes[i].element;
+		if (nodes[i].visible && element && is(element)) {
+			return element;
+		}
+	}
+	return undefined;
+}
+
+/**
+ * The quarter of the row under the pointer. The list computes it from `offsetY`, which is relative to the element under
+ * the pointer (e.g. a row's title or description), not to the row: a pointer low on a row's title reads as its top.
+ */
+function getRowSector(e: DragEvent | undefined, listSector: ListViewTargetSector | undefined): ListViewTargetSector | undefined {
+	const row = listSector !== undefined && e && DOM.isHTMLElement(e.target) ? e.target.closest<HTMLElement>('.monaco-list-row') : null;
+	const bounds = row?.getBoundingClientRect();
+	if (!e || !bounds?.height) {
+		return listSector;
+	}
+	return Math.min(Math.max(Math.floor((e.clientY - bounds.top) / bounds.height * 4), ListViewTargetSector.TOP), ListViewTargetSector.BOTTOM);
+}
+
+/**
+ * Dropping into a session, like into a folder in the Explorer: the session's row and its shown nested rows highlight,
+ * and a collapsed session expands after a moment so the drop can go between its nested rows.
+ */
+function intoSessionDropReaction(): ITreeDragOverReaction {
+	return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
 }
 
 //#endregion
@@ -3615,8 +3848,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private navigationSections: readonly ISessionSection[] = [];
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
+	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
 	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
+	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMoveForReveal}. */
+	private readonly pendingMoveReveal = this._register(new MutableDisposable<DisposableStore>());
+	private tryPendingMoveReveal: (() => void) | undefined;
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
 	/**
@@ -3747,6 +3984,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
@@ -4004,6 +4245,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 			: undefined;
 		if (this.navigationList) {
 			this._register(this.navigationList.onDidOpen(e => this.openNavigationSection(e.element, e.sideBySide)));
+			this._register(this.navigationList.onContextMenu(e => {
+				if (e.element?.id === AUTOMATIONS_SECTION_ID) {
+					this.showAutomationsContextMenu(e.anchor);
+				}
+			}));
 		}
 
 		this.tree = this._register(instantiationService.createInstance(
@@ -4051,6 +4297,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 					pinSessions: (sessions, target, position) => this.pinSessions(sessions, target, position),
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
+					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
+					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
+					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
+					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
+					isInManuallyOrderedSection: session => this.isSessionPinned(session) || this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined,
+					isLastRowOfSection: element => this.isLastRowOfSection(element),
+					setMoveDropFeedback: kind => {
+						this.listContainer.classList.toggle('move-drag', kind !== 'none');
+						this.listContainer.classList.toggle('move-drag-nested', kind === 'nested');
+					},
 				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
@@ -4126,7 +4382,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionChatItem(element)) {
 							return getChatTitle(element.chat);
 						}
-						return element.title.get();
+						return getSessionKeyboardNavigationLabels(element);
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
@@ -4431,6 +4687,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	refresh(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
+		this.sessionChatsUpdate.clear();
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
@@ -4439,7 +4696,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				session.application.read(reader);
 			}
 			if (initialized && this.visible) {
-				this.update();
+				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+					if (this.visible) {
+						this.update();
+					}
+				});
 			}
 			initialized = true;
 		});
@@ -4572,19 +4833,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 					continue;
 				}
 				const comparisonSessions = getComparisonSessions(comparison, this._sessionsManagementService);
-				const workspaceLabel = comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
-					?? this.labelService.getWorkspaceLabel(comparison.workspace);
+				const workspaceLabel = comparison.workspace
+					? comparisonSessions.map(sessionWorkspaceLabel).find(label => label !== localize('unknown', "Unknown"))
+					?? this.labelService.getWorkspaceLabel(comparison.workspace)
+					: localize('chatsSection', "Chats");
 				let workspaceGroups = comparisonGroupsByWorkspaceLabel.get(workspaceLabel);
 				if (!workspaceGroups) {
 					workspaceGroups = [];
 					comparisonGroupsByWorkspaceLabel.set(workspaceLabel, workspaceGroups);
 				}
 				workspaceGroups.push(groupItem);
-				let workspaceSection = sections.find(section => section.id === `workspace:${workspaceLabel}`);
+				const sectionId = comparison.workspace ? `workspace:${workspaceLabel}` : QUICK_CHATS_SECTION_ID;
+				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
 					workspaceSection = {
-						id: `workspace:${workspaceLabel}`,
-						collapseStateId: `workspace:${comparison.workspace.toString()}`,
+						id: sectionId,
+						collapseStateId: comparison.workspace ? `workspace:${comparison.workspace.toString()}` : QUICK_CHATS_SECTION_ID,
 						label: workspaceLabel,
 						sessions: [],
 					};
@@ -4821,7 +5085,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// the workspace/date groups) in both grouping modes.
 		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
 		if (quickChatsSection) {
-			children.push(renderSection(quickChatsSection));
+			children.push(grouping === SessionsGrouping.Workspace ? renderWorkspaceSection(quickChatsSection) : renderSection(quickChatsSection));
 		}
 
 		const renderGroupById = (id: string): void => {
@@ -4920,6 +5184,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.nestedSessionResources = nextNestedSessionResources;
 		this.syncCollapsedSessionIds();
 		this.reconcileChatRowHeights();
+		this.tryPendingMoveReveal?.();
 		this._onDidUpdate.fire();
 	}
 
@@ -5189,6 +5454,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.tree.getFocus().find((item): item is ISessionChatItem => !!item && isSessionChatItem(item));
 	}
 
+	getFocusedChatItems(): readonly ISessionChatItem[] {
+		const focused = this.getFocusedChatItem();
+		if (!focused) {
+			return [];
+		}
+		const selected = this.tree.getSelection().filter((item): item is ISessionChatItem => !!item && isSessionChatItem(item));
+		return selected.includes(focused) ? selected : [focused];
+	}
+
 	setVisible(visible: boolean): void {
 		if (this.visible === visible) {
 			return;
@@ -5314,6 +5588,149 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const targetLabel = sessionWorkspaceLabel(target);
 			return dragged.every(s => sessionWorkspaceLabel(s) === targetLabel);
 		}
+		return true;
+	}
+
+	/** Whether moving chats by drag and drop is on: the setting, and AI features enabled. */
+	private isChatMoveDndEnabled(): boolean {
+		return isChatMoveDndEnabled(this.configurationService, this.chatEntitlementService) && this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+	}
+
+	/** The chat of a dragged chat row, with its session, when chats can move by drag and drop and this one can move. */
+	private getMovableDraggedChat(item: ISessionChatItem): { readonly session: ISession; readonly chat: IChat } | undefined {
+		if (!this.isChatMoveDndEnabled()) {
+			return undefined;
+		}
+		// The row's objects may be stale: use the session's current ones.
+		const session = this._sessionsManagementService.getSessions().find(candidate => candidate.sessionId === item.session.sessionId);
+		const chat = session?.chats.get().find(candidate => candidate.resource.toString() === item.chat.resource.toString());
+		return session && chat && this._sessionsManagementService.canMoveChat(session, chat) ? { session, chat } : undefined;
+	}
+
+	/**
+	 * Whether `element` is the last row its section shows: its last session's row, or that session's last chat row. Rows
+	 * a find filter hides don't count.
+	 */
+	private isLastRowOfSection(element: ISession | ISessionChatItem): boolean {
+		const session = isSessionChatItem(element) ? element.session : element;
+		if (!this.tree.hasElement(session)) {
+			return false;
+		}
+		const lastSession = findLastVisible(this.tree.getNode(this.tree.getParentElement(session)).children, isSessionItem);
+		if (lastSession?.sessionId !== session.sessionId) {
+			return false;
+		}
+		const lastChat = this.tree.isCollapsed(session) ? undefined : findLastVisible(this.tree.getNode(session).children, isSessionChatItem);
+		return isSessionChatItem(element) ? lastChat?.chat.resource.toString() === element.chat.resource.toString() : !lastChat;
+	}
+
+	private moveChatByDrop(session: ISession, chat: IChat, drop: SessionsListChatDrop): void {
+		const destination = drop.kind === 'session' ? { kind: 'session' as const, session: drop.session, after: drop.after } : { kind: 'newSession' as const };
+		this.runMove({ kind: 'chat', session, chat, destination });
+	}
+
+	private moveSessionUnderByDrop(session: ISession, target: ISession, after: IChat | undefined): void {
+		this.runMove({ kind: 'session', session, destination: target, after });
+	}
+
+	private runMove(move: SessionsListMove): void {
+		const revealMoved = this.watchMoveForReveal(move);
+		runSessionsListMove(move, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService, this.logService).then(revealMoved, error => {
+			revealMoved(false);
+			onUnexpectedError(error);
+		});
+	}
+
+	/**
+	 * Reveals and selects where `move` puts what it moves once the list shows it: the moved chat's row, or the new
+	 * session's row for a chat moved into a new session. Call it before the move starts, as the provider reports where
+	 * the chat went while the move runs, then call the returned function with whether the move succeeded. Doesn't move
+	 * focus into the list. Gives up when the row doesn't show within a few updates of the list or a few seconds, and when
+	 * a later move is watched.
+	 */
+	watchMoveForReveal(move: SessionsListMove): (moved: boolean) => void {
+		const store = new DisposableStore();
+		this.pendingMoveReveal.value = store;
+		const extUri = this.uriIdentityService.extUri;
+		let target: { readonly sessionId: string; readonly chat: URI | undefined } | undefined;
+		if (move.kind === 'chat' && move.destination.kind === 'session' && move.destination.session.sessionId === move.session.sessionId) {
+			// A reorder keeps the chat in its session.
+			target = { sessionId: move.session.sessionId, chat: move.chat.resource };
+		} else {
+			const movedChat = move.kind === 'chat' ? move.chat.resource : move.session.mainChat.get().resource;
+			const toNewSession = move.kind === 'chat' && move.destination.kind === 'newSession';
+			store.add(this._sessionsManagementService.onDidMoveChat(({ from, to }) => {
+				if (from.session.sessionId === move.session.sessionId && extUri.isEqual(from.chat, movedChat)) {
+					target = { sessionId: to.session.sessionId, chat: toNewSession ? undefined : to.chat };
+					tryReveal();
+				}
+			}));
+		}
+		let succeeded = false;
+		let updates = 0;
+		const tryReveal = () => {
+			if (!succeeded || !target || store.isDisposed) {
+				return;
+			}
+			if (this.revealMoved(target.sessionId, target.chat) || ++updates > 5) {
+				this.pendingMoveReveal.clear();
+			}
+		};
+		this.tryPendingMoveReveal = tryReveal;
+		store.add(toDisposable(() => {
+			if (this.tryPendingMoveReveal === tryReveal) {
+				this.tryPendingMoveReveal = undefined;
+			}
+		}));
+		return moved => {
+			if (store.isDisposed) {
+				return;
+			}
+			if (!moved) {
+				this.pendingMoveReveal.clear();
+				return;
+			}
+			succeeded = true;
+			store.add(disposableTimeout(() => this.pendingMoveReveal.clear(), 3000));
+			tryReveal();
+		};
+	}
+
+	/**
+	 * Reveals and selects the row of the session `sessionId`, or of its chat `chat`; whether the list shows it. A find
+	 * filter that hides the row is cleared, keeping focus where it was.
+	 */
+	private revealMoved(sessionId: string, chat: URI | undefined): boolean {
+		const session = this.sessions.find(candidate => candidate.sessionId === sessionId);
+		if (!session || !this.tree.hasElement(session)) {
+			return false;
+		}
+		let element: SessionListItem = session;
+		if (chat && !this.uriIdentityService.extUri.isEqual(session.mainChat.get().resource, chat)) {
+			const chatItem = this.tree.getNode(session).children.map(node => node.element)
+				.find((candidate): candidate is ISessionChatItem => !!candidate && isSessionChatItem(candidate) && this.uriIdentityService.extUri.isEqual(candidate.chat.resource, chat));
+			if (!chatItem) {
+				return false;
+			}
+			element = chatItem;
+		}
+		if (!this.tree.getNode(element).visible) {
+			if (!this.hasFindPattern) {
+				return false;
+			}
+			const activeElement = DOM.getActiveElement();
+			const hadFocus = DOM.isAncestorOfActiveElement(this.listContainer);
+			this.tree.closeFind();
+			if (!hadFocus && DOM.isHTMLElement(activeElement)) {
+				activeElement.focus();
+			}
+			if (!this.tree.hasElement(element) || !this.tree.getNode(element).visible) {
+				return false;
+			}
+		}
+		this.tree.reveal(element, 0.5);
+		this.tree.setFocus([element]);
+		this.tree.setSelection([element]);
 		return true;
 	}
 
@@ -5667,6 +6084,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
+	private showAutomationsContextMenu(anchor: ITreeContextMenuEvent<SessionListItem>['anchor']): void {
+		this.contextMenuService.showContextMenu({
+			menuId: Menus.AutomationsContext,
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => anchor,
+		});
+	}
+
 	private getMultiSelectedSessions(session: ISession): ISession[] {
 		const selection = this.tree.getSelection().filter((s): s is ISession => !!s && isSessionItem(s));
 		return selection.includes(session) ? [session, ...selection.filter(s => s !== session)] : [session];
@@ -5684,6 +6109,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		if (isSessionSection(element)) {
+			if (element.id === AUTOMATIONS_SECTION_ID) {
+				this.showAutomationsContextMenu(e.anchor);
+				return;
+			}
 			if (isShortcutSection(element.id)) {
 				return;
 			}
@@ -5786,6 +6215,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsArchivedContext.key, element.chat.isArchived.get()],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
+			[SessionChatItemCanMoveContext.key, this._sessionsManagementService.canMoveChat(element.session, element.chat)],
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
 		const menu = this.menuService.createMenu(Menus.SessionChatItemContext, contextKeyService);

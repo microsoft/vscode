@@ -198,7 +198,7 @@ $pid = $info.pid
 
 ## Drive the UI with @playwright/cli
 
-Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
+Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, inspect a screenshot, snapshot, interact, then re-snapshot after meaningful UI changes.
 
 If you are unsure about Playwright CLI syntax, run `npx @playwright/cli --help` or `npx @playwright/cli <command> --help` instead of guessing option names.
 
@@ -227,6 +227,12 @@ npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
 If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
+
+### Inspect the launched window before proceeding
+
+After every launch or relaunch, once the intended window has rendered, take a screenshot and open it with an image-viewing tool. Visually check that the expected surface, text, icons, and layout are intact **before interacting with the app or asking the user to sign in**. Saving a screenshot without inspecting it, reading a DOM/accessibility snapshot, or reaching the CDP endpoint does not satisfy this check.
+
+If the screenshot shows missing icons, blank content, or visibly broken layout, stop the scenario and investigate the observed problem before proceeding. After repair, relaunch and inspect again; do not wait for the user to point out the broken UI.
 
 ### Focusing the chat input
 

@@ -844,7 +844,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISessionGroupItem): Promise<void> {
-		if (!context || context.comparison?.launching || !context.sessions || context.sessions.length === 0) {
+		if (!context || context.comparison?.launching) {
 			return;
 		}
 
@@ -854,11 +854,21 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		const groupsService = accessor.get(ISessionGroupsService);
 		const viewsService = accessor.get(IViewsService);
 		const comparisonService = accessor.get(ISessionComparisonService);
+		const comparison = context.comparison ? comparisonService.getComparison(context.comparison.id) : undefined;
+		const sessions = comparison
+			? comparison.participants.flatMap(participant => {
+				const session = participant.sessionResource ? sessionsManagementService.getSession(participant.sessionResource) : undefined;
+				return session && !session.isArchived.get() ? [session] : [];
+			})
+			: context.sessions;
+		if (sessions.length === 0) {
+			return;
+		}
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: getArchiveGroupConfirmationMessage(context, this.wording),
+				message: getArchiveGroupConfirmationMessage({ ...context, sessions }, this.wording),
 				detail: this.wording === ChatSessionArchiveActionWording.MarkAsDone
 					? localize('markGroupSessionsDone.detail', "You can restore sessions later if needed from the sessions view.")
 					: localize('archiveGroupSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
@@ -877,7 +887,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, viewsService, comparisonService);
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, viewsService, comparisonService);
 	}
 }
 
@@ -1419,11 +1429,40 @@ registerAction2(class DeleteSessionAction extends Action2 {
 	}
 });
 
+CommandsRegistry.registerCommandAlias('sessionsViewPane.markRead', MARK_SESSION_READ_COMMAND_ID);
+CommandsRegistry.registerCommandAlias('sessionsViewPane.markUnread', MARK_SESSION_UNREAD_COMMAND_ID);
+
+async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | undefined, isRead: boolean): Promise<void> {
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	if (!context) {
+		const chats = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedChatItems() ?? [];
+		if (chats.length > 0) {
+			for (const { session, chat } of chats) {
+				if (isEqual(chat.resource, session.mainChat.get().resource)) {
+					await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
+				} else {
+					await (isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat));
+				}
+			}
+			return;
+		}
+	}
+	const sessions = context ? (Array.isArray(context) ? context : [context]) : getFocusedSessionListTargets(accessor) ?? [];
+	for (const session of sessions) {
+		await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
+	}
+}
+
 registerAction2(class MarkSessionReadAction extends Action2 {
 	constructor() {
 		super({
 			id: MARK_SESSION_READ_COMMAND_ID,
 			title: localize2('markRead', "Mark as Read"),
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+				primary: KeyMod.Shift | KeyCode.KeyI,
+			},
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
@@ -1443,15 +1482,8 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-		if (!context) {
-			return;
-		}
-		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		for (const session of sessions) {
-			sessionsManagementService.markRead(session);
-		}
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		return markSessionListTargetsRead(accessor, context, true);
 	}
 });
 
@@ -1460,6 +1492,11 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 		super({
 			id: MARK_SESSION_UNREAD_COMMAND_ID,
 			title: localize2('markUnread', "Mark as Unread"),
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+				primary: KeyMod.Shift | KeyCode.KeyU,
+			},
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
@@ -1479,15 +1516,8 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-		if (!context) {
-			return;
-		}
-		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		for (const session of sessions) {
-			sessionsManagementService.markUnread(session);
-		}
+	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		return markSessionListTargetsRead(accessor, context, false);
 	}
 });
 

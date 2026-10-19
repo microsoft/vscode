@@ -8,7 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue, runOnChange } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { localize } from '../../../nls.js';
@@ -28,6 +28,7 @@ import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmpt
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from './gridGap.js';
 
@@ -63,6 +64,8 @@ export interface IChatGroupContext {
 
 	/** Whether this group's tab row replaces the session header and shows its actions. */
 	readonly showSessionActions: IObservable<boolean>;
+	/** Whether this chat group occupies a separate pane within the session. */
+	readonly showParentContext: IObservable<boolean>;
 
 	/** Make this the active chat group for group-scoped header actions. */
 	activate(): void;
@@ -94,6 +97,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private static readonly MINIMUM_HEIGHT = 200;
 
 	readonly element: HTMLElement = $('.chat-group-view');
+
+	get tabsElement(): HTMLElement { return this._compositeBar.element; }
 
 	private _insets = NO_GRID_EDGE_INSETS;
 
@@ -142,6 +147,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	/** Whether this group is the active (focused) group within the session. */
 	private _groupActive = false;
+	private readonly _sessionActivityBar: ChatViewSessionActivityBar;
 	/** Whether this group's session is the active session in the sessions part. */
 	private _sessionActive = true;
 	/** Whether this group's session is currently visible in the sessions part. */
@@ -203,6 +209,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contentContainer = append(this._surface, $('.chat-group-view-content'));
 		this._remoteHostUnavailableEmptyState = this._register(this._instantiationService.createInstance(RemoteHostUnavailableEmptyState));
 		append(this._contentContainer, this._remoteHostUnavailableEmptyState.domNode);
+
+		this._sessionActivityBar = this._register(this._scopedInstantiationService.createInstance(ChatViewSessionActivityBar, this.element));
+		this._updateSessionActivityBarActive();
+		this._register(runOnChange(this._sessionActivityBar.reservedWidth, () => this._layoutChildren()));
 
 		this._register(this._chatHeader.onDidChangeVisibility(() => this._layoutChildren()));
 		this._register(this._chatHeader.onDidChangeHeight(() => this._layoutChildren()));
@@ -292,6 +302,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			mainChatResource: context.mainChatResource,
 			visible: context.tabsVisible,
 			showSessionActions: context.showSessionActions,
+			showParentContext: context.showParentContext,
 			openChat: resource => context.openChat(resource),
 			onTabDragStart: resource => context.onTabDragStart(resource),
 			onTabDragEnd: () => context.onTabDragEnd(),
@@ -446,6 +457,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._groupActive = active;
 		this.element.classList.toggle('active-group', active);
 		this._currentView.value?.setActive(this._sessionActive && active);
+		this._updateSessionActivityBarActive();
+	}
+
+	/** Only the active group of the active, visible session shows the session activity bar. */
+	private _updateSessionActivityBarActive(): void {
+		this._sessionActivityBar.setActive(this._groupActive && this._sessionActive && this._sessionVisible);
 	}
 
 	get groupActive(): boolean {
@@ -459,6 +476,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionActive = active;
 		this._currentView.value?.setActive(active && this._groupActive);
+		this._updateSessionActivityBarActive();
 	}
 
 	/** Whether this group's session is currently visible in the sessions part. */
@@ -468,6 +486,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		}
 		this._sessionVisible = visible;
 		this._currentView.value?.setVisible(visible);
+		this._updateSessionActivityBarActive();
 		if (visible) {
 			this._layoutChildren();
 		}
@@ -475,6 +494,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	submitInput(): Promise<boolean> {
 		return this._currentView.value?.submitInput() ?? Promise.resolve(false);
+	}
+
+	reopenChat(resource: URI): Promise<void> {
+		return this._currentView.value?.reopenChat(resource) ?? Promise.resolve();
 	}
 
 	selectWorkspace(folderUri: URI, options?: ISelectWorkspaceOptions): WorkspaceSelectionResult {
@@ -542,9 +565,11 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;
 		const barHeight = headerHeight + tabsHeight + bannerHeight;
+		const contentInset = this._sessionActivityBar.reservedWidth.get();
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
+		this._sessionActivityBar.layout(barHeight, height - barHeight);
+		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentInset);
 	}
 
 	/** Sets the index this group serializes as, so the grid deserializer can map nodes back to groups. */
