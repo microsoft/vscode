@@ -780,7 +780,9 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 }
 
 function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
-	return options.title !== undefined || options.model !== undefined;
+	// AHP carries the first message's model/agent selection and client identity.
+	// The management channel cannot preserve that admission path.
+	return options.model !== undefined && options.initialMessage === undefined;
 }
 
 /**

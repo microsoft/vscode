@@ -2444,7 +2444,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.WelcomePageSignInEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.welcomePage.signIn.enabled', "Controls whether the Welcome page shows a GitHub sign-in button instead of the Agents window button when signed out."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},

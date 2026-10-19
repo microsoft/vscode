@@ -746,13 +746,14 @@ suite('AgentHostSessionTitleController', () => {
 		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Stale legacy title' });
 	});
 
-	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}']) {
+	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}', '{"title":"Add dark mode","turnIndex":0,"sourceTitle":null}', '{"title":"Add dark mode","turnIndex":0,"initialPrompt":{}}']) {
 		test(`ignores invalid persisted deferred title seed ${JSON.stringify(rawSeed)}`, async () => {
 			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
 			controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 			await db.setMetadata('deferredTitleSeed', rawSeed);
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
+				readSessionValues: readDatabaseValues(db),
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
@@ -765,6 +766,31 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	}
 
+	test('restores deferred fork title context when optional seed fields are valid strings', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		await db.setMetadata('deferredTitleSeed', JSON.stringify({
+			title: 'Add dark mode',
+			turnIndex: 0,
+			sourceTitle: 'Source title',
+			initialPrompt: 'Continue with the requested change',
+		}));
+		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(db),
+			readSessionValues: readDatabaseValues(db),
+			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
+		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
+
+		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Continue with the requested change', [textPart('Done')])]);
+		restored.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'restored deferred fork should refine');
+
+		const prompt = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.ok(prompt.includes('Source title'));
+		assert.ok(prompt.includes('Continue with the requested change'));
+	});
+
 	for (const source of [AGENT_HOST_TITLE_SOURCE_USER, AGENT_HOST_TITLE_SOURCE_AGENT]) {
 		test(`restored deferred seed never overrides ${source} rename provenance`, async () => {
 			const { controller, stateManager, session, db, copilotApiService } = setupDeferred();
@@ -772,6 +798,7 @@ suite('AgentHostSessionTitleController', () => {
 			await db.setMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, source);
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
+				readSessionValues: readDatabaseValues(db),
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
@@ -802,6 +829,7 @@ suite('AgentHostSessionTitleController', () => {
 			const callsBeforeRestore = copilotApiService.utilityCalls.length;
 			const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 				sessionDataService: createSessionDataService(db),
+				readSessionValues: readDatabaseValues(db),
 				utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
 			}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 			await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
@@ -1898,6 +1926,65 @@ suite('AgentHostSessionTitleController', () => {
 			title: 'Manual title',
 			persistedTitle: undefined,
 		});
+	});
+
+	test('fork utility title includes the source title and initial request exactly once', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Forked: Source title' });
+		controller.generateForkedTitle(session.toString(), undefined, [inherited], 'Forked: Source title', 'Source title', 'Implement the follow-up request');
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'fork title generation should start');
+
+		const prompt = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			hasSourceTitle: prompt.includes('Source title'),
+			hasInitialRequest: prompt.includes('Implement the follow-up request'),
+		}, {
+			calls: 1,
+			hasSourceTitle: true,
+			hasInitialRequest: true,
+		});
+	});
+
+	test('prompt-aware fork naming does not overwrite a target renamed before generation starts', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session, db } = setup(copilotApiService);
+		const chat = buildChatUri(session.toString(), 'renamed-fork');
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+		stateManager.addChat(session.toString(), chat, creationTimeChatStorageResource(session.toString(), chat, buildDefaultChatUri(session.toString())), { title: 'Manual title', turns: [inherited] });
+		controller.markTitleRenamed(session.toString(), chat, 'Manual title');
+
+		controller.generateForkedTitle(session.toString(), chat, [inherited], 'Forked: Source title', 'Source title', 'Continue the work');
+
+		assert.deepStrictEqual({
+			utilityCalls: copilotApiService.utilityCalls.length,
+			title: stateManager.getChatState(chat)?.title,
+			autoSource: await db.getMetadata(customChatTitleSourceMetadataKey(chat)),
+		}, {
+			utilityCalls: 0,
+			title: 'Manual title',
+			autoSource: undefined,
+		});
+	});
+
+	test('prompt-aware fork context preserves new request intent within the title context budget', async () => {
+		const copilotApiService = new TestCopilotApiService();
+		const { controller, stateManager, session } = setup(copilotApiService);
+		const inherited = firstTurn('Original request', [textPart('Original answer')]);
+		const sourceTitle = `source-start-${'s'.repeat(30_000)}-source-end`;
+		const initialPrompt = `prompt-start-${'p'.repeat(30_000)}-prompt-end`;
+
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Forked: Source title' });
+		controller.generateForkedTitle(session.toString(), undefined, [inherited], 'Forked: Source title', sourceTitle, initialPrompt);
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'prompt-aware title generation should start');
+
+		const prompt = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content ?? '';
+		assert.ok(prompt.includes('prompt-start-'));
+		assert.ok(prompt.includes('-prompt-end'));
+		assert.ok(prompt.length <= 20_000 + 'Please write a brief title for the following conversation:\n\n'.length);
 	});
 
 	test('generateExternalSessionTitle titles a surfaced external session from its first prompt', async () => {
