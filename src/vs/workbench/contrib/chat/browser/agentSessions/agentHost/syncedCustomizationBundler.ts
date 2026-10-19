@@ -21,19 +21,18 @@ import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type Cl
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
+import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { IgnoreFile } from '../../../../../../workbench/services/search/common/ignoreFile.js';
 
 // Re-export so existing consumers don't need to change their import source.
 export { SYNCED_CUSTOMIZATION_SCHEME };
 
-const DISPLAY_NAME = 'VS Code Synced Data';
 const FILE_OPERATION_CONCURRENCY = 10;
 const SKILL_DIRECTORY_IGNORE = new IgnoreFile('.git\nnode_modules\n', '/', undefined, true);
 const bundleSequencer = new SequencerByKey<string>();
 
 const MANIFEST_CONTENT = JSON.stringify({
-	name: DISPLAY_NAME,
+	name: SYNCED_CUSTOMIZATION_DISPLAY_NAME,
 	description: 'Customization data synced from VS Code',
 }, null, '\t');
 
@@ -412,7 +411,7 @@ export class SyncedCustomizationBundler extends Disposable {
 				type: CustomizationType.Plugin,
 				id: customizationId(rootUriString),
 				uri: rootUriString,
-				name: this._standalone ? STANDALONE_DISPLAY_NAME : DISPLAY_NAME,
+				name: this._standalone ? STANDALONE_DISPLAY_NAME : SYNCED_CUSTOMIZATION_DISPLAY_NAME,
 				nonce,
 				...(meta ? { _meta: meta } : {}),
 				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {

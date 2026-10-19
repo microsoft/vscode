@@ -12,11 +12,12 @@ import { URI } from '../../../../base/common/uri.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -27,16 +28,49 @@ export interface ISessionChangeEvent {
 	readonly changed: readonly ISession[];
 }
 
+/** One end of a chat move: the session and the chat's resource in it. */
+export interface IChatMoveEnd {
+	readonly session: ISession;
+	readonly chat: URI;
+}
+
+/**
+ * A chat moved from one session to another of the same provider, or became the
+ * main chat of a new session. Its resource changes with its session; its
+ * conversation, including a running turn, does not.
+ */
+export interface IChatMovedEvent {
+	readonly from: IChatMoveEnd;
+	readonly to: IChatMoveEnd;
+}
+
+/**
+ * A user invocation of one of a session's changeset operations
+ * (`ISessionChangeset.invokeOperation`). Fired once any confirmation the
+ * operation requires has been accepted and before the operation runs, so it
+ * reports the invocation, not its outcome.
+ */
+export interface ISessionChangesetOperationInvokedEvent {
+	readonly session: ISession;
+	/** `ISessionChangesetOperation.id` of the invoked operation. */
+	readonly operationId: string;
+	/** The operation-specific request metadata the operation was invoked with. */
+	readonly metadata?: Record<string, unknown>;
+}
+
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
-/** Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts. */
+/**
+ * Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts.
+ * Reads and writes name the chat they are for: a host may let each chat set some properties for itself.
+ */
 export interface ISessionConfigProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	trackSessionConfigOperation?(sessionId: string, operation: Promise<void>): void;
 }
 
@@ -77,6 +111,13 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+}
+
+/** Options for forking a chat within a session. */
+export interface IForkChatOptions {
+	/** Optional captured prompt and context for a host-owned fork-and-send operation. */
+	readonly initialMessage?: IChatSessionInitialMessage;
+	readonly title?: string;
 }
 
 /** Provider options applied when creating a new session draft. */
@@ -170,6 +211,8 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableReason?: IObservable<string | undefined>;
 	/** Optional category for grouped unavailability messages. */
 	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
+	/** A complete sentence describing this provider's unavailability, used instead of naming the provider. */
+	readonly unavailableMessage?: string;
 }
 
 /**
@@ -185,11 +228,8 @@ export interface IDeleteChatOptions {
 }
 
 /**
- * A sessions provider encapsulates a compute environment.
- * It owns workspace discovery, session creation, session listing, and picker contributions.
- *
- * One provider can serve multiple session types. Multiple provider instances can
- * serve the same session type (e.g., one per remote agent host).
+ * A logical sessions provider owns creation targets and may use internal, connection-bound backends for existing sessions.
+ * Both implement this contract; only logical providers advertise workspace and session creation choices.
  */
 export interface ISessionsProvider {
 	readonly sessionConfig?: ISessionConfigProvider;
@@ -244,6 +284,12 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
 
 	/**
+	 * Fires when a chat moved between this provider's sessions, after both
+	 * sessions reflect it. Providers whose chats never move return `Event.None`.
+	 */
+	readonly onDidMoveChat: Event<IChatMovedEvent>;
+
+	/**
 	 * Optional. Redirects a resource that this provider supersedes to the one it
 	 * should actually be opened as, or `undefined` to leave it unchanged.
 	 *
@@ -270,6 +316,12 @@ export interface ISessionsProvider {
 	 * provider. Do not implement or consume this event in other providers.
 	 */
 	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+
+	/**
+	 * Optional. Fires when the user invokes a changeset operation of one of
+	 * this provider's sessions; see {@link ISessionChangesetOperationInvokedEvent}.
+	 */
+	readonly onDidInvokeChangesetOperation?: Event<ISessionChangesetOperationInvokedEvent>;
 
 	/**
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
@@ -306,6 +358,8 @@ export interface ISessionsProvider {
 	readonly supportsPermissionsForCreation?: boolean;
 	/** Current draft's provider-owned permission choice, including its policy availability. */
 	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
+	/** Translates the current draft's permission intent to a comparison participant's session type. */
+	getComparisonPermissionOptionForSession?(sessionId: string, sessionTypeId: string): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -419,6 +473,9 @@ export interface ISessionsProvider {
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
 
+	/** Close one live canvas of a chat, notifying the extension that provides it. */
+	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;
+
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
@@ -512,7 +569,7 @@ export interface ISessionsProvider {
 	 * Returns the current on-disk size of the session's isolated worktree.
 	 * Providers without host-owned worktrees leave this capability undefined.
 	 */
-	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+	getSessionWorktreeDiskUsage?(sessionId: string, token?: CancellationToken): Promise<number | undefined>;
 
 	/**
 	 * Unarchive a session.
@@ -541,6 +598,12 @@ export interface ISessionsProvider {
 	 * Returns `false` when the transition was not accepted and may be retried.
 	 */
 	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
+
+	/**
+	 * Set the read/unread state of multiple chats in one provider operation.
+	 * Providers may use this to publish one atomic local state change before persisting each chat.
+	 */
+	setChatReadStates?(sessionId: string, chatResources: readonly URI[], isRead: boolean): Promise<void>;
 
 	/**
 	 * Delete a session.
@@ -581,8 +644,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source

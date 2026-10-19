@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { DisposableStore, IReference, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -39,6 +39,7 @@ import { ChatEditor, IChatEditorOptions } from '../../../../browser/widgetHosts/
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
@@ -163,6 +164,7 @@ suite('ChatEditorInput', () => {
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IChatService, chatService);
 			instantiationService.stub(IChatSessionsService, sessions);
+			instantiationService.stub(IChatOpenDiagnosticsService, disposables.add(new ChatOpenDiagnosticsService(new NullLogService())));
 			const createInput = (sessionResource: URI) => disposables.add(new ChatEditorInput(sessionResource, {}, chatService,
 				upcastPartial<IDialogService>({}), configurationService, sessions, instantiationService, disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
 				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
@@ -244,7 +246,8 @@ suite('ChatEditorInput', () => {
 				displayName: 'Copilot', description: '', agentHostProviderId: 'copilotcli',
 			}]);
 			const editor: ChatEditor = Object.assign(Object.create(ChatEditor.prototype), {
-				_widget: widget, chatSessionsService: sessions, loadEditorViewState: () => undefined,
+				_widget: widget, chatSessionsService: sessions, loadEditorViewState: () => undefined, layoutService: { isRestored: () => false },
+				_openDiagnostics: disposables.add(new MutableDisposable()),
 			});
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
 			assert.deepStrictEqual(events, toCopilot
@@ -253,7 +256,7 @@ suite('ChatEditorInput', () => {
 		});
 	}
 
-	for (const policyKey of ['permissions.allow', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled']) {
+	for (const policyKey of ['permissions.allow', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
 		for (const unavailable of [false, true]) {
 			test(`${policyKey} settles before routing explicit Local and never fall back (unavailable=${unavailable})`, async () => {
 				const ready = new DeferredPromise<void>();
@@ -282,7 +285,7 @@ suite('ChatEditorInput', () => {
 				));
 				const pending = input.resolve();
 				const before = [...selected];
-				rules = policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
+				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
 				ready.complete();
 				await assert.rejects(pending, /organization requires the new Copilot experience/);
 				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: [SessionType.AgentHostCopilot], localStarts: 0 });
@@ -906,5 +909,101 @@ suite('ChatEditorInput', () => {
 			copiedSessionResource: undefined,
 			copiedType: localChatSessionType,
 		});
+	});
+});
+
+suite('ChatEditor chat open diagnostics', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const chat = URI.parse('vscode-chat-session://local/abc');
+
+	function createEditor(summaries: string[], options: { restored?: boolean; groupId?: number }): ChatEditor {
+		const widget = { getInput: () => '', visible: true, unlockFromCodingAgent: () => { }, setModel: () => { }, restoreViewState: () => { } };
+		return Object.assign(Object.create(ChatEditor.prototype), {
+			_openDiagnostics: store.add(new MutableDisposable()),
+			_widget: widget,
+			chatOpenDiagnosticsService: store.add(new ChatOpenDiagnosticsService(new class extends NullLogService {
+				override info(message: string): void { summaries.push(message); }
+			}())),
+			group: { id: options.groupId ?? 1 },
+			layoutService: { isRestored: () => options.restored ?? true },
+			chatSessionsService: new MockChatSessionsService(), loadEditorViewState: () => undefined,
+		});
+	}
+
+	function createInput(options: { resolved?: boolean; fail?: boolean; resource?: URI; resolving?: Promise<void> }): ChatEditorInput {
+		const resource = options.resource ?? chat;
+		return {
+			sessionResource: resource,
+			hasResolvedModel: options.resolved ?? false,
+			getSessionType: () => localChatSessionType,
+			resolve: async () => {
+				await options.resolving;
+				if (options.fail) {
+					throw new Error('boom');
+				}
+				return { model: { sessionResource: resource, inputModel: {} } };
+			},
+		} as unknown as ChatEditorInput;
+	}
+
+	async function open(options: { restored?: boolean; resolved?: boolean; cancelled?: boolean; fail?: boolean; resource?: URI }): Promise<string[][]> {
+		const summaries: string[] = [];
+		const editor = createEditor(summaries, options);
+		const cts = store.add(new CancellationTokenSource());
+		if (options.cancelled) {
+			cts.cancel();
+		}
+		if (options.fail) {
+			await assert.rejects(editor.setInput(createInput(options), undefined, {}, cts.token), /boom/);
+		} else {
+			await editor.setInput(createInput(options), undefined, {}, cts.token);
+		}
+		return summaries.map(summary => {
+			const parts = summary.split(' ');
+			return [parts[1], parts[2], String(summary.endsWith('alreadyShown=true'))];
+		});
+	}
+
+	test('host cancellation ends an old load while other editors load independently', async () => {
+		const summaries: string[] = [];
+		const other = URI.parse('vscode-chat-session://local/other');
+		const third = URI.parse('vscode-chat-session://local/third');
+		const resolving = new DeferredPromise<void>();
+		const cts = store.add(new CancellationTokenSource());
+		const first = createEditor(summaries, { groupId: 1 }).setInput(createInput({ resolving: resolving.p }), undefined, {}, cts.token);
+		const cancelled = assert.rejects(first);
+		await timeout(0);
+		cts.cancel();
+		await createEditor(summaries, { groupId: 1 }).setInput(createInput({ resource: other }), undefined, {}, CancellationToken.None);
+		await createEditor(summaries, { groupId: 2 }).setInput(createInput({ resource: third }), undefined, {}, CancellationToken.None);
+		resolving.complete();
+		await cancelled;
+
+		assert.deepStrictEqual(summaries.map(summary => [summary.split(' ')[2], summary.endsWith('alreadyShown=true')]), [['cancelled', false], ['completed', false], ['completed', false]]);
+	});
+
+	test('binding the chat completes the open', async () => {
+		assert.deepStrictEqual(await open({}), [['editor', 'completed', 'false']]);
+	});
+
+	test('showing a chat with a resolved model is reported as a re-show', async () => {
+		assert.deepStrictEqual(await open({ resolved: true }), [['editor', 'completed', 'true']]);
+	});
+
+	test('a failure to resolve the chat fails the open', async () => {
+		assert.deepStrictEqual(await open({ fail: true }), [['editor', 'failed', 'false']]);
+	});
+
+	test('a re-show whose resolution fails is not logged as completed', async () => {
+		assert.deepStrictEqual(await open({ fail: true, resolved: true }), [['editor', 'failed', 'true']]);
+	});
+
+	test('a cancelled open is reported as cancelled, also for a re-show', async () => {
+		assert.deepStrictEqual([await open({ cancelled: true }), await open({ cancelled: true, resolved: true })], [[['editor', 'cancelled', 'false']], [['editor', 'cancelled', 'true']]]);
+	});
+
+	test('restored editors and untitled chats are not measured', async () => {
+		assert.deepStrictEqual([await open({ restored: false }), await open({ resource: URI.parse('vscode-chat-session://local/untitled-1') })], [[], []]);
 	});
 });

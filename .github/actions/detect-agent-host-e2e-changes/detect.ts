@@ -38,6 +38,8 @@ const exactPaths = new Set([
 	'package.json',
 	'package-lock.json',
 	'product.json',
+	'scripts/test-agent-host-e2e.sh',
+	'scripts/test-agent-host-e2e.bat',
 	'scripts/test-integration.sh',
 	'scripts/test-integration.bat',
 	'scripts/test.sh',

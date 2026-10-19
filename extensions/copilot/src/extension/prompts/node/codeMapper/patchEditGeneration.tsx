@@ -328,17 +328,6 @@ export type PatchEditReplyProcessorResult = {
 	readonly annotations: OutcomeAnnotation[];
 };
 
-export function getReferencedFiles(replyText: string): string[] {
-	const result = new Set<string>();
-	for (const section of iterateSections(iterateLines(replyText))) {
-		if (section.marker === Marker.FILEPATH) {
-			result.add(section.content.join('\n').trim());
-		}
-	}
-
-	return [...result];
-}
-
 export function getPatchEditReplyProcessor(promptPathRepresentationService: IPromptPathRepresentationService): PatchEditReplyProcessor {
 	return {
 		getFirstParagraph(text: string): string {

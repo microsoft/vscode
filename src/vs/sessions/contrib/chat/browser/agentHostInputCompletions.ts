@@ -131,10 +131,10 @@ export function getAgentHostCompletionAttachmentRange(
 
 /**
  * Determines whether an inline argument-hint placeholder should be shown for an
- * accepted agent-host slash command. Returns the hint text and the offset just
- * after the command token when the command is the sole content of `value`
- * followed by exactly one trailing space (i.e. no argument has been typed yet),
- * or `undefined` otherwise.
+ * accepted agent-host slash command or skill. Returns the hint text and the
+ * offset just after the command token when the command is the sole content of
+ * `value` followed by exactly one trailing space (i.e. no argument has been
+ * typed yet), or `undefined` otherwise.
  */
 export function getCommandArgumentHintPlaceholder(
 	value: string,
@@ -142,7 +142,7 @@ export function getCommandArgumentHintPlaceholder(
 	insertedReferences: ReadonlyMap<string, { text: string; range: OffsetRange | undefined }>,
 ): { argumentHint: string; endOffset: number } | undefined {
 	for (const entry of attachments) {
-		if (getAgentHostCompletionReferenceKind(entry) !== AgentHostCompletionReferenceKind.Command) {
+		if (getAgentHostCompletionReferenceKind(entry) === undefined) {
 			continue;
 		}
 		const argumentHint = getCommandArgumentHint(entry._meta);
@@ -311,7 +311,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					const session = this._sessionContext.session.get();
 					const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 					const host = provider && isAgentHostProvider(provider) ? provider : undefined;
-					if (isPolicyBlockedCompletionAction(action, this._configurationService, session ? host?.getSessionConfig(session.sessionId) : undefined)) {
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, session ? host?.getSessionConfig(session.sessionId, session.activeChat.get().resource) : undefined)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text
@@ -467,9 +467,10 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		if (!provider || !isAgentHostProvider(provider)) {
 			throw new Error(localize('agentHost.completion.providerUnavailable', "Agent Host session provider is not available."));
 		}
+		const chat = session.activeChat.get().resource;
 		const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => {
-			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value)));
-		}, provider.getSessionConfig(session.sessionId));
+			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, chat, key, value)));
+		}, provider.getSessionConfig(session.sessionId, chat));
 		// Keep-text items add their argument-hint reference once applied. Toggle
 		// items insert nothing, so there is no text to remove.
 		if (applied && arg.entry) {

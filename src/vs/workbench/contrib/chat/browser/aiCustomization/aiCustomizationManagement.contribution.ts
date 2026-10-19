@@ -65,7 +65,7 @@ import {
 	DELETE_AI_CUSTOMIZATION_ID,
 	resolveAICustomizationManagementOpenEditorTarget,
 } from './aiCustomizationManagement.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
@@ -880,8 +880,18 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
 					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
-					const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
-					pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+					if (typeof target !== 'string' && target?.connectorName) {
+						const result = await pane.showCopilotConnectorDetail(target.connectorName);
+						if (result === CopilotConnectorDetailOpenResult.NotFound) {
+							throw new Error(`Copilot connector '${target.connectorName}' is not available`);
+						}
+					} else {
+						const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+						pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
+						if (typeof target !== 'string' && target?.searchQuery !== undefined) {
+							pane.setSearchQuery(target.searchQuery);
+						}
+					}
 				}
 			}
 		}));

@@ -55,6 +55,8 @@ export type AICustomizationManagementSection = typeof AICustomizationManagementS
 export interface IAICustomizationMarketplaceOpenTarget {
 	readonly section: AICustomizationManagementSection;
 	readonly sourceId?: string;
+	readonly searchQuery?: string;
+	readonly connectorName?: string;
 }
 
 /** Command IDs for the AI Customizations Management Editor. */

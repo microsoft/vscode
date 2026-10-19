@@ -298,6 +298,7 @@ const permissionsProperty = schemaProperty<IPermissionsValue>({
 	},
 	default: { allow: [], deny: [] },
 	sessionMutable: true,
+	chatMutable: true,
 });
 
 /**
@@ -373,6 +374,7 @@ export const platformSessionSchema = createSchema({
 		description: localize('agentHost.sessionConfig.sandboxEnabledDescription', "Sandbox behavior for this session. Default follows the global setting."),
 		enum: ['default', 'on', 'off'],
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.AutoApprove]: schemaProperty<AutoApproveLevel>({
 		type: 'string',
@@ -391,6 +393,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'default',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[SessionConfigKey.Mode]: schemaProperty<SessionMode>({
@@ -410,6 +413,7 @@ export const platformSessionSchema = createSchema({
 		],
 		default: 'interactive',
 		sessionMutable: true,
+		chatMutable: true,
 	}),
 	[SessionConfigKey.ShellInitScripts]: shellInitScriptsProperty,
 	[SessionConfigKey.SensitiveEditLocations]: sensitiveEditLocationsProperty,
@@ -636,6 +640,8 @@ export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 /** Root config key controlling Canvas extensions in Copilot sessions. */
 export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
 
+export const AgentHostAhpJsonlLoggingEnabledConfigKey = 'ahpJsonlLoggingEnabled';
+
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -646,6 +652,13 @@ export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests'
  * session while the turn-start checkpoint is captured, instead of after it.
  */
 export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPreparation';
+
+/**
+ * Root config key forwarded from the renderer's
+ * `chat.agentHost.experimental.prewarmSessions` setting. When `true`, a new
+ * Copilot draft starts its SDK session and MCP servers before the first send.
+ */
+export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
 
 // Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
 // setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
@@ -661,25 +674,6 @@ export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchive
 
 /** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
 export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
-
-/**
- * Root config key forwarded from the renderer that gates multiple-working-directory
- * support for the Copilot provider. When `true`, the Copilot provider advertises
- * the `multipleWorkingDirectories` capability. Mirrors the hidden
- * `chat.agentHost.copilotAgent.multiRootEnabled` VS Code setting.
- */
-export const AgentHostCopilotMultiRootEnabledConfigKey = 'copilotMultiRootEnabled';
-
-/**
- * Root config key forwarded from the renderer that gates multiple-working-directory
- * support for the Claude provider. When `true`, the Claude provider advertises
- * the `multipleWorkingDirectories` capability. Mirrors the hidden
- * `chat.agentHost.claudeAgent.multiRootEnabled` VS Code setting.
- */
-export const AgentHostClaudeMultiRootEnabledConfigKey = 'claudeMultiRootEnabled';
-
-/** Root config key forwarded from the renderer that gates Codex multiple-working-directory support. */
-export const AgentHostCodexMultiRootEnabledConfigKey = 'codexMultiRootEnabled';
 
 /**
  * Root config key forwarded from the renderer when VS Code's
@@ -866,6 +860,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
+		description: localize('agentHost.config.ahpJsonlLogging.description', "Capture Mission Control AHP transport messages on the host."),
+		readOnly: true,
+	}),
 	[SessionConfigKey.Permissions]: permissionsProperty,
 	[AgentHostDisableRepoInfoTelemetryConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1062,6 +1062,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.overlapProviderPreparation.description', "Whether agents prepare their session for a turn while the turn-start checkpoint is captured, instead of after it."),
 		default: false,
 	}),
+	[AgentHostPrewarmSessionsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
+		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
+		default: false,
+	}),
 	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
@@ -1093,24 +1099,6 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
 		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
 		default: 0,
-	}),
-	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.copilotMultiRootEnabled.title', "Copilot Multiple Working Directories"),
-		description: localize('agentHost.config.copilotMultiRootEnabled.description', "Whether the Copilot provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
-		default: false,
-	}),
-	[AgentHostClaudeMultiRootEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.claudeMultiRootEnabled.title', "Claude Multiple Working Directories"),
-		description: localize('agentHost.config.claudeMultiRootEnabled.description', "Whether the Claude provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
-		default: false,
-	}),
-	[AgentHostCodexMultiRootEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.codexMultiRootEnabled.title', "Codex Multiple Working Directories"),
-		description: localize('agentHost.config.codexMultiRootEnabled.description', "Whether the Codex provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
-		default: false,
 	}),
 	[AgentHostEditAutoApprovePatternsConfigKey]: schemaProperty<ChatEditAutoApprovePatterns>({
 		type: 'object',

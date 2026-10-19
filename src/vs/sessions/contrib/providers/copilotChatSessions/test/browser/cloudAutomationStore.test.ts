@@ -11,8 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,12 +21,10 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
-import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
-import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepository, GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
-import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
-import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
-import { IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
+import { ITasksClient, ListTasksResponse, Task, TaskListOptions } from '../../../../../../platform/github/common/missionControl/tasks.js';
+import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { IRepositoriesClient, Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -45,7 +42,8 @@ import { ISessionsRecentWorkspacesService } from '../../../../../services/sessio
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
 import { ConfigureAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
@@ -61,6 +59,7 @@ const manual: IAutomationSchedule = { interval: 'manual', scheduleHour: 0, sched
 const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
+	readonly historyOptions: (TaskListOptions | undefined)[] = [];
 	readonly calls: string[] = [];
 	definitions: readonly AutomationDetail[] = [definition];
 	tasks: readonly Task[] = [];
@@ -93,7 +92,8 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
-	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
+	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
+		this.historyOptions.push(options);
 		this.calls.push('history');
 		await this.pendingHistory;
 		if (this.historyError) {
@@ -152,7 +152,7 @@ class TestApi extends mock<IAutomationsClient>() {
 
 suite('CloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({})) {
+	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({}), initialAccount?: DeferredPromise<IDefaultAccount | null>) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: false } } } });
 		const changed = disposables.add(new Emitter<IDefaultAccount | null>());
@@ -161,8 +161,14 @@ suite('CloudAutomationStore', () => {
 			disposables.add(changed.event(() => clientChanged.fire()));
 		}
 		const accounts = new class extends mock<IDefaultAccountService>() {
-			override currentDefaultAccount: IDefaultAccount | null = account;
+			override currentDefaultAccount: IDefaultAccount | null = initialAccount ? null : account;
 			override onDidChangeDefaultAccount = changed.event;
+			override async getDefaultAccount(): Promise<IDefaultAccount | null> {
+				if (initialAccount) {
+					this.currentDefaultAccount = await initialAccount.p;
+				}
+				return this.currentDefaultAccount;
+			}
 		}();
 		const sentimentChanged = disposables.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
@@ -171,35 +177,26 @@ suite('CloudAutomationStore', () => {
 		}();
 		const api = new TestApi();
 		const credentialLifetime = new AbortController();
-		const client = new class extends mock<IGitHubClient>() {
+		const client = new class extends mock<IGitHubAccountClient>() {
 			override readonly onDidInvalidate = Event.None;
+			override readonly onDidChangeCredentials = Event.fromDOMEventEmitter<void>(credentialLifetime.signal, 'abort');
+			override dispose(): void { }
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
-			override readonly endpoint = new class extends mock<IGitHubEndpointProvider>() {
-				override getApiBaseUri() { return 'https://api.github.com'; }
-				override getGraphQlUri() { return 'https://api.github.com/graphql'; }
-			}();
 			override readonly automations = api;
-			override readonly query = new class extends mock<IGitHubQuery>() {
-				override async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
-					const isPrivate = await api.isPrivateRepository(ref, signal);
-					return new class extends mock<GitHubRepository>() { override readonly private = isPrivate; }();
+			override readonly repositories = new class extends mock<IRepositoriesClient>() {
+				override async get(ref: RepositoryRef, signal: AbortSignal) {
+					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.name }, signal);
+					return new class extends mock<Repository>() { override readonly private = isPrivate; }();
 				}
 			}();
 			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
 				override async abort() { api.calls.push('stop'); }
 			}();
-			override readonly credentials = new class extends mock<IGitHubCredentials>() {
-				override async getCredential() {
-					return { account: { host: 'api.github.com', accountId: account.accountName }, token: 'test-token', generation: 1, signal: credentialLifetime.signal };
-				}
-			}();
 		}();
-		const lease = () => Object.assign(toDisposable(() => { }), { object: client });
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = clientChanged.event;
-			override async acquireDefaultAccountClient() { return lease(); }
-			override acquireClient() { return lease(); }
+			override async acquireDefaultAccountApiClient() { return client; }
 		}());
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(IConfigurationService, configuration);
@@ -449,14 +446,150 @@ suite('CloudAutomationStore', () => {
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await provider.refresh();
 			api.calls.length = 0;
+			api.historyOptions.length = 0;
 			await clock.tickAsync(60_000);
 			assert.deepStrictEqual(api.calls, []);
 			await provider.runAutomation(provider.automations.get()[0].id);
 			await clock.tickAsync(120_000);
-			assert.deepStrictEqual(api.calls.filter(call => call !== 'visibility'), ['run', 'history', 'history', 'history', 'history', 'history']);
+			assert.deepStrictEqual({
+				calls: api.calls.filter(call => call !== 'visibility'),
+				priorities: api.historyOptions.map(options => options?.priority),
+			}, {
+				calls: ['run', 'history', 'history', 'history', 'history', 'history'],
+				priorities: Array(5).fill('background'),
+			});
 		} finally {
 			clock.restore();
 		}
+	});
+
+	test('background refresh preserves an open cloud draft and its unsaved model selection', async () => {
+		const { provider, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const currentSession = observableValue<ISession | undefined>('draft', undefined);
+		let modelId = 'saved-model';
+		let created = 0;
+		let discarded = 0;
+		const errors: unknown[] = [];
+		const sessions = upcastPartial<ISessionsManagementService>({
+			automationSession: currentSession,
+			isNewSessionTargetAvailable: () => true,
+			supportsAutomationSessionConfiguration: () => true,
+			createAutomationSession: (_workspace, options) => {
+				created++;
+				modelId = options?.sessionTemplate?.modelId ?? 'saved-model';
+				currentSession.set(session, undefined);
+				return session;
+			},
+			getAutomationSessionConfiguration: async () => ({ sessionTemplate: { modelId } }),
+			discardAutomationSession: () => { discarded++; currentSession.set(undefined, undefined); },
+		});
+		const draft = disposables.add(new AutomationSessionDraftSynchronizer(sessions, async () => true, error => errors.push(error)));
+		disposables.add(autorun(reader => {
+			const target = provider.configuration.getWorkspaceTarget(workspace).read(reader);
+			draft.update(target.workspace ? {
+				kind: 'workspace', folderUri: target.workspace, providerId: 'cloud', sessionTypeId: 'cloud-agent',
+				sessionConfiguration: { sessionTemplate: { modelId: 'saved-model' } },
+			} : undefined);
+		}));
+		await timeout(0);
+		await draft.waitForSync();
+		modelId = 'unsaved-model';
+		await provider.refresh({ background: true });
+		await draft.waitForSync();
+		const afterBackground = { created, discarded, configuration: await draft.getSessionConfiguration(), errors };
+		await provider.refresh();
+		await timeout(0);
+		await draft.waitForSync();
+		assert.deepStrictEqual({ afterBackground, manualRefreshRecheckedTarget: discarded > 0 }, {
+			afterBackground: { created: 1, discarded: 0, configuration: { kind: 'captured', configuration: { sessionTemplate: { modelId: 'unsaved-model' } } }, errors: [] },
+			manualRefreshRecheckedTarget: true,
+		});
+	});
+
+	test('cached definitions stay editable during refresh and refresh progress includes history', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const list = new DeferredPromise<void>();
+		const history = new DeferredPromise<void>();
+		api.pendingList = list.p;
+		api.pendingHistory = history.p;
+		const refreshingStates: boolean[] = [];
+		disposables.add(autorun(reader => refreshingStates.push(provider.isRefreshing.read(reader))));
+		const first = provider.refresh();
+		const second = provider.refresh();
+		await timeout(0);
+		const definitions = {
+			refreshing: provider.isRefreshing.get(),
+			catalogue: provider.catalogueState.get(),
+			editable: provider.canUpdateAutomation(automation.id),
+		};
+		await list.complete();
+		await timeout(0);
+		const loadingHistory = { refreshing: provider.isRefreshing.get(), history: provider.historyState.get() };
+		await history.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({ definitions, loadingHistory, refreshing: provider.isRefreshing.get(), refreshingStates }, {
+			definitions: { refreshing: true, catalogue: 'ready', editable: true },
+			loadingHistory: { refreshing: true, history: 'loading' },
+			refreshing: false,
+			refreshingStates: [false, true, false],
+		});
+	});
+
+	test('failed refresh clears progress and preserves the error gate until successful reconciliation', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		api.listError = new Error('Offline');
+		await assert.rejects(provider.refresh());
+		const failed = { refreshing: provider.isRefreshing.get(), state: provider.catalogueState.get(), editable: provider.canUpdateAutomation(automation.id) };
+		api.listError = undefined;
+		const pending = new DeferredPromise<void>();
+		api.pendingList = pending.p;
+		const refresh = provider.refresh();
+		const retrying = { refreshing: provider.isRefreshing.get(), editable: provider.canUpdateAutomation(automation.id) };
+		await pending.complete();
+		await refresh;
+		assert.deepStrictEqual({ failed, retrying, ready: provider.canUpdateAutomation(automation.id) }, {
+			failed: { refreshing: false, state: 'error', editable: false },
+			retrying: { refreshing: true, editable: false },
+			ready: true,
+		});
+	});
+
+	test('explicit refresh reloads definitions after an in-flight history-only poll', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const pending = new DeferredPromise<void>();
+		api.pendingHistory = pending.p;
+		await provider.runAutomation(provider.automations.get()[0].id);
+		await timeout(0);
+		const polling = { fullRefresh: provider.isRefreshing.get(), history: provider.historyState.get() };
+		api.calls.length = 0;
+		api.definitions = [{ ...definition, name: 'Updated on GitHub' }];
+		const refresh = provider.refresh();
+		const fullRefreshStarted = provider.isRefreshing.get();
+		await pending.complete();
+		await refresh;
+		assert.deepStrictEqual({
+			polling, fullRefreshStarted,
+			fullRefresh: provider.isRefreshing.get(),
+			catalogueReads: api.calls.filter(call => call === 'list').length,
+			name: provider.automations.get()[0].name,
+		}, {
+			polling: { fullRefresh: false, history: 'loading' },
+			fullRefreshStarted: true,
+			fullRefresh: false,
+			catalogueReads: 1,
+			name: 'Updated on GitHub',
+		});
 	});
 
 	test('concurrent refreshes share history and cannot republish rows after the cloud gate closes', async () => {
@@ -704,6 +837,63 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ enabled: provider.enabled.get(), calls: api.calls }, { enabled: false, calls: [] });
 	});
 
+	test('read refresh waits for a late initial account without a change event', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const refresh = provider.refresh();
+		const initializing = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(), calls: [...api.calls] };
+		await initialAccount.complete(account);
+		await refresh;
+		assert.deepStrictEqual({
+			initializing,
+			state: provider.catalogueState.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { initializing: { state: 'loading', writable: false, calls: [] }, state: 'ready', names: ['Review'] });
+	});
+
+	test('a history-only failure after account initialization leaves the catalogue ready', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.historyError = new Error('History unavailable');
+		const refresh = provider.refresh();
+		await initialAccount.complete(account);
+		await assert.rejects(refresh, /History unavailable/);
+		assert.deepStrictEqual({
+			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
+			writable: provider.canCreateAutomation.get(), names: provider.automations.get().map(automation => automation.name),
+		}, { catalogue: 'ready', history: 'error', writable: true, names: ['Review'] });
+	});
+
+	for (const resolvedAccount of [null, { ...account, enterprise: true }]) {
+		test(`read refresh still rejects an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
+			const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+			const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			const refresh = provider.refresh();
+			await initialAccount.complete(resolvedAccount);
+			await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
+			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+		});
+	}
+
+	test('read refresh retries successfully after a catalogue error', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.listError = new Error('Definitions unavailable');
+		await assert.rejects(provider.refresh(), /Some GitHub repositories could not be refreshed/);
+		const failed = { state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() };
+		api.listError = undefined;
+		api.definitions = [{ ...definition, name: 'Recovered' }];
+		await provider.refresh();
+		assert.deepStrictEqual({
+			failed, state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get(),
+			names: provider.automations.get().map(automation => automation.name),
+		}, { failed: { state: 'error', writable: false }, state: 'ready', writable: true, names: ['Recovered'] });
+	});
+
 	test('enablement discovers and projects definitions; hiding AI clears catalogue and cancels work', async () => {
 		const { provider, api, set, entitlement, sentimentChanged } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -785,15 +975,15 @@ suite('CloudAutomationStore', () => {
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		api.calls.length = 0;
-		let hideOnReady = false;
+		let hideAfterRefresh = false;
 		disposables.add(autorun(reader => {
-			if (provider.catalogueState.read(reader) === 'ready' && hideOnReady) {
-				hideOnReady = false;
+			if (provider.automations.read(reader).length > 0 && hideAfterRefresh) {
+				hideAfterRefresh = false;
 				entitlement.sentiment = { hidden: true };
 				sentimentChanged.fire();
 			}
 		}));
-		hideOnReady = true;
+		hideAfterRefresh = true;
 		await assert.rejects(provider.refresh(), isCancellationError);
 		assert.deepStrictEqual({
 			enabled: provider.enabled.get(),
