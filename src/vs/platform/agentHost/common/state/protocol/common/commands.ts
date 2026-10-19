@@ -300,7 +300,35 @@ export interface InitializeResult {
 	 * @see {@link /specification/tcp-channel | TCP Channel}
 	 */
 	tcpConnections?: TcpConnectionsCapability;
+	/**
+	 * Present when the host lets chats in one session be backed by different
+	 * agents. Clients MAY then pass {@link CreateChatParams.provider} to
+	 * `createChat`, and chats MAY report a {@link ChatSummary.provider} that
+	 * differs from the session's {@link SessionMetadata.provider}. When absent,
+	 * every chat uses its session's provider and clients MUST NOT send
+	 * {@link CreateChatParams.provider}.
+	 *
+	 * This is a host capability rather than an {@link AgentCapabilities | agent
+	 * capability} because the host, not an individual agent, decides which
+	 * agents may share a session. Hosts MUST NOT advertise it on connections
+	 * that negotiated a protocol version earlier than `1.1.0`.
+	 * @stability 1.0
+	 * @see {@link /specification/chat-channel#chat-providers | Chat Channel: Chat providers}
+	 */
+	multipleChatProviders?: MultipleChatProvidersCapability;
 }
+
+/**
+ * Present when the host supports chats backed by different agents within one
+ * session. See {@link InitializeResult.multipleChatProviders}.
+ *
+ * The empty object means "supported"; sub-fields are reserved for future
+ * options.
+ *
+ * @category Commands
+ * @stability 1.0
+ */
+export interface MultipleChatProvidersCapability { }
 
 /**
  * Automation features supported by this host authority.

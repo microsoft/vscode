@@ -19,6 +19,7 @@ import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, 
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
+import { chatProvidersRootConfigSchema } from '../common/agentHostChatProviders.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
@@ -338,11 +339,12 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const copilotCliSchema = copilotCliConfigSchema.toProtocol();
 		const agentMergeSchema = agentMergeRootConfigSchema.toProtocol();
 		const chatMoveSchema = chatMoveRootConfigSchema.toProtocol();
+		const chatProvidersSchema = chatProvidersRootConfigSchema.toProtocol();
 		const automationSchema = automationRootConfigSchema.toProtocol();
 		this._stateManager.rootState.config = {
 			schema: {
 				type: 'object',
-				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...chatMoveSchema.properties, ...automationSchema.properties },
+				properties: { ...existing?.schema.properties, ...ownSchema.properties, ...sandboxSchema.properties, ...copilotCliSchema.properties, ...agentMergeSchema.properties, ...chatMoveSchema.properties, ...chatProvidersSchema.properties, ...automationSchema.properties },
 			},
 			values: { ...existing?.values, ...this._loadPersistedRootConfig() },
 		};
@@ -943,6 +945,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				...copilotCliConfigSchema.validateOrDefault(parsed, {}),
 				...agentMergeRootConfigSchema.validateOrDefault(parsed, {}),
 				...chatMoveRootConfigSchema.validateOrDefault(parsed, {}),
+				...chatProvidersRootConfigSchema.validateOrDefault(parsed, {}),
 				...automationRootConfigSchema.validateOrDefault(parsed, {}),
 				...agentHostProxyConfigSchema.validateOrDefault(parsed, {}),
 			};

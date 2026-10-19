@@ -122,6 +122,32 @@ export interface CreateChatParams extends BaseParams {
 	workingDirectories?: URI[];
 	/** Client-selected initial display title for the new chat. */
 	title?: string;
+	/**
+	 * Agent provider ID (an {@link AgentInfo.provider}) that backs the new chat.
+	 * When absent, the chat uses the source chat's provider if `source` is
+	 * present, and otherwise the session's
+	 * {@link SessionMetadata.provider | `provider`}.
+	 *
+	 * A client MUST NOT supply this field unless the host advertises
+	 * {@link InitializeResult.multipleChatProviders}. The host MUST reject the
+	 * request with `InvalidParams` when:
+	 *
+	 * - it does not advertise `multipleChatProviders`;
+	 * - the value is not the `provider` of an agent in the root state's
+	 *   `agents`, or that agent does not advertise
+	 *   {@link AgentCapabilities.multipleChats}; or
+	 * - `source` is present and the value differs from the source chat's
+	 *   provider. Forks and side chats always use their source chat's agent;
+	 *   history is never transferred between agents.
+	 *
+	 * Capability checks that depend on the agent — `multipleChats.fork`,
+	 * `multipleChats.sideChat`, and `multipleWorkingDirectories` — apply to the
+	 * chat's agent. The new chat's
+	 * {@link ChatSummary.provider | `ChatSummary.provider`} reports the
+	 * resolved agent.
+	 * @stability 1.0
+	 */
+	provider?: string;
 }
 
 // ─── moveChat ────────────────────────────────────────────────────────────────
@@ -190,6 +216,16 @@ export type ChatMoveDestination =
  * optional anchor MUST resolve; and the source MUST NOT anchor itself.
  * Rejection leaves ownership, catalog order, chat state, and root summaries
  * unchanged.
+ *
+ * When the host advertises {@link InitializeResult.multipleChatProviders},
+ * every moved chat keeps its agent ({@link ChatSummary.provider}), and every
+ * moved chat whose provider differs from the destination session's
+ * {@link SessionMetadata.provider} MUST carry `provider` in its destination
+ * catalog entry. A `newSession` destination's session `provider` is the
+ * requested chat's provider. A host that does not advertise the capability
+ * cannot report a per-chat provider, so it MAY reject, as an unsupported
+ * destination, a move that would place a chat in a session with a different
+ * provider.
  *
  * On success every moved chat keeps its URI, state, and immutable
  * `ChatOrigin`. The host commits ownership and catalog order before publishing

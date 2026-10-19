@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ICreateNewChatOptions, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -1854,7 +1854,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return session.startPreparation();
 	}
 
-	async createNewChat(sessionId: string, _prompt?: string): Promise<IChat> {
+	async createNewChat(sessionId: string, _prompt?: string, _options?: ICreateNewChatOptions): Promise<IChat> {
 		const session = this._newSessions.get(sessionId);
 		if (!session) {
 			throw new Error(`[CopilotChatSessionsProvider] Session '${sessionId}' does not support multiple chats`);

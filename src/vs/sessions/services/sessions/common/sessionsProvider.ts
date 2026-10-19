@@ -202,6 +202,17 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 }
 
 /**
+ * Options for {@link ISessionsProvider.createNewChat}.
+ */
+export interface ICreateNewChatOptions {
+	/**
+	 * The harness the new peer chat should use, chosen among the session's
+	 * `ISessionCapabilities.supportsChatHarnesses`. Absent means the session's harness.
+	 */
+	readonly harness?: string;
+}
+
+/**
  * Options controlling how a chat is deleted via {@link ISessionsProvider.deleteChat}.
  */
 export interface IDeleteChatOptions {
@@ -615,8 +626,9 @@ export interface ISessionsProvider {
 	 *
 	 * @param sessionId The ID of the session to create the new chat in.
 	 * @param prompt Optional prompt to initialize the new chat with.
+	 * @param options Optional creation options, e.g. the harness to use.
 	 */
-	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
+	createNewChat(sessionId: string, prompt?: string, options?: ICreateNewChatOptions): Promise<IChat>;
 
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded

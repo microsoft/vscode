@@ -101,7 +101,11 @@ export type SessionOrigin = AutomationSessionOrigin;
  * @category Session State
  */
 export interface SessionMetadata {
-	/** Agent provider ID */
+	/**
+	 * Agent provider ID of the session: the agent that backs the session's
+	 * initial chat and every chat that does not report its own
+	 * {@link ChatSummary.provider | `provider`}.
+	 */
 	provider: string;
 	/** Session title */
 	title: string;
@@ -528,6 +532,15 @@ export interface SessionChatSummary {
 	 * backward compatibility.
 	 */
 	interactivity?: ChatInteractivity;
+	/**
+	 * Agent provider ID backing this chat, matching {@link ChatSummary.provider}.
+	 *
+	 * Absence means the session's {@link SessionMetadata.provider | `provider`}.
+	 * Hosts MUST set it when it differs, so session lists can show sessions
+	 * whose chats use different agents without subscribing to them.
+	 * @stability 1.0
+	 */
+	provider?: string;
 	/**
 	 * Current chat status, matching {@link ChatSummary.status}.
 	 *

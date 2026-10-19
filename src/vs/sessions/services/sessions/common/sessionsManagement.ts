@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ICreateNewChatOptions, IDeleteChatOptions, type IForkChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -135,7 +135,7 @@ export interface ICreateNewSessionOptions {
 /**
  * Options for {@link ISessionsManagementService.createNewChatInSession}.
  */
-export interface ICreateNewChatInSessionOptions {
+export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	/**
 	 * Always create a fresh chat instead of reusing an existing untitled one.
 	 * Used to reset the composer right after a background send, where the

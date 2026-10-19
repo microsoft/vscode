@@ -57,6 +57,7 @@ import {
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { ChatMoveConfigKey, ChatMoveSettingId } from './agentHostChatMove.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatProviders.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
@@ -222,6 +223,14 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			agentHost: { key: ChatMoveConfigKey.Enabled },
+		},
+		[ChatProvidersSettingId.Enabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.multipleChatProviders.enabled', "Enables chats in one Agent Host session to use different agents."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			agentHost: { key: ChatProvidersConfigKey.Enabled },
 		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,

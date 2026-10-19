@@ -718,7 +718,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				return existingUntitled;
 			}
 		}
-		const created = await provider.createNewChat(session.sessionId);
+		const created = await provider.createNewChat(session.sessionId, undefined, options);
 		return created;
 	}
 
