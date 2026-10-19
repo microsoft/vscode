@@ -193,6 +193,18 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
+	test('reports whether the session working set offers Undo', async () => {
+		const offered = [];
+		for (const undo of [undefined, constObservable({ enabled: constObservable(true), undo: async () => false })]) {
+			const { inputPart, setEnabled } = createWorkingSetInput();
+			store.add(inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))]), undo));
+			await setEnabled(true);
+			inputPart.renderChatEditingSessionState(null);
+			offered.push({ workingSet: inputPart.hasSessionWorkingSet, undo: inputPart.hasSessionWorkingSetUndo });
+		}
+		assert.deepStrictEqual(offered, [{ workingSet: true, undo: false }, { workingSet: true, undo: true }]);
+	});
+
 	test('leaves Local controls, pending files, and live-editor opening unchanged when enabled', async () => {
 		const harness = createWorkingSetInput(false, LocalChatSessionUri.forSession('local'));
 		const { inputPart, container, sessionResource, opened, setEnabled } = harness;

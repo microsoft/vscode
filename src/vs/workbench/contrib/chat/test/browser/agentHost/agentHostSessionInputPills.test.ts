@@ -272,7 +272,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel'] }) {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService, transcript?: { service: IChatArtifactsService; local?: boolean }, options?: { sessionResource?: URI; configurationService?: IConfigurationService; defaultChangesetKind?: DefaultChangesetKind; dialogService?: IDialogService; notificationService?: INotificationService; supportsSessionWorkingSet?: boolean; getUriLabel?: ILabelService['getUriLabel']; workingSetUndo?: boolean }) {
 		const instantiationService = createInstantiationService();
 		if (options?.configurationService) {
 			instantiationService.stub(IConfigurationService, options.configurationService);
@@ -404,6 +404,9 @@ suite('AgentHostSessionInputPills', () => {
 		class TestAgentHostSessionInputPills extends AgentHostSessionInputPills {
 			protected override createCustomizationScheduler() {
 				return customizationScheduler;
+			}
+			protected override get workingSetUndoEnabled() {
+				return !!options?.workingSetUndo;
 			}
 		}
 		const pills = store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
@@ -2379,7 +2382,7 @@ suite('AgentHostSessionInputPills', () => {
 		]);
 	});
 
-	function createWorkingSetUndoPills(options?: { dialogService?: IDialogService; notificationService?: INotificationService }) {
+	function createWorkingSetUndoPills(options?: { dialogService?: IDialogService; notificationService?: INotificationService; workingSetUndo?: boolean }) {
 		const harness = createActivityPills(upcastPartial<SessionState>({
 			provider: 'copilotcli',
 			defaultChat: 'vendor-chat:/opaque/main',
@@ -2388,7 +2391,7 @@ suite('AgentHostSessionInputPills', () => {
 		}), upcastPartial<ChatState>({
 			changesets: [{ label: 'Branch Changes', uriTemplate: 'vendor-diff:/opaque/branch-changes', changeKind: ChangesetKind.Branch }],
 			turns: [],
-		}), undefined, 'remote-test', undefined, undefined, { ...options, getUriLabel: labelService.getUriLabel });
+		}), undefined, 'remote-test', undefined, undefined, { ...options, getUriLabel: labelService.getUriLabel, workingSetUndo: options?.workingSetUndo ?? true });
 		const setOperations = (operations: ChangesetOperation[] | undefined, fileNames = ['file.ts']) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
 			status: ChangesetStatus.Ready,
 			files: fileNames.map(fileName => ({
@@ -2423,6 +2426,19 @@ suite('AgentHostSessionInputPills', () => {
 		confirmation: 'Discard the session\'s changes to \'{0}\'?',
 		scopes,
 		status,
+	});
+
+	test('does not offer working-set Undo while it is switched off, even when the host can discard changes', async () => {
+		const { harness, setOperations } = createWorkingSetUndoPills({ workingSetUndo: false });
+		setOperations([discardChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		assert.deepStrictEqual({
+			files: harness.workingSetChanges()?.map(diff => basename(diff.modifiedURI)),
+			undo: harness.workingSetUndo(),
+		}, {
+			files: ['file.ts'],
+			undo: undefined,
+		});
 	});
 
 	test('offers working-set Undo only while the host advertises file-level Discard Changes for Session changes', async () => {

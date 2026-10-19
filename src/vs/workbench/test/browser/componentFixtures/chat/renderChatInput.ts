@@ -365,8 +365,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	if (editingSession) {
 		if (fixtureOptions.sessionWorkingSet) {
-			// Like a Copilot Agent Host session whose host can discard the session's changes to files.
-			disposableStore.add(inputPart.registerSessionFileChanges(editingSession.getDiffsForFilesInSession(), constObservable({ enabled: constObservable(true), undo: async () => false })));
+			disposableStore.add(inputPart.registerSessionFileChanges(editingSession.getDiffsForFilesInSession()));
 		}
 		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));

@@ -4964,6 +4964,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return !!this._sessionWorkingSetView.value;
 	}
 
+	/** Whether the session working set offers Undo for the session's changes. */
+	get hasSessionWorkingSetUndo(): boolean {
+		return this.hasSessionWorkingSet && !!this._sessionFileChanges.get()?.undo.get();
+	}
+
 	/**
 	 * Whether this input can show the session working set. Only the editor
 	 * window offers it; the Agents window doesn't, even in a chat editor.

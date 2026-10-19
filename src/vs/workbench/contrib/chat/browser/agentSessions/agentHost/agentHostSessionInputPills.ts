@@ -735,7 +735,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, workingSetUndo));
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, this.workingSetUndoEnabled ? workingSetUndo : undefined));
 			}
 		}));
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {
@@ -952,6 +952,15 @@ export class AgentHostSessionInputPills extends Disposable {
 	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
 	protected createCustomizationScheduler(): ICustomizationJobScheduler | undefined {
 		return undefined;
+	}
+
+	/**
+	 * Whether the session working set offers Undo for the session's changes.
+	 * Undo is switched off, which hides its buttons, until it ships; overridable
+	 * so tests can turn it on.
+	 */
+	protected get workingSetUndoEnabled(): boolean {
+		return false;
 	}
 
 	private _buildReferenceSections(
