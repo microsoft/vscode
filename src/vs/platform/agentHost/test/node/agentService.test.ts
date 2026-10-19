@@ -1984,6 +1984,13 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					await super.setMetadataValues(values);
 				}
+				override async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+					if (this.pause && set[SESSION_CREDENTIAL_PRINCIPAL_KEY]) {
+						this.started.complete();
+						await this.release.p;
+					}
+					await super.applyMetadataChanges(set, remove);
+				}
 			}
 			const database = new GatedPrincipalDatabase();
 			const scopedService = disposables.add(createTestAgentService(
@@ -35044,7 +35051,8 @@ suite('AgentService (node dispatcher)', () => {
 				/** Sessions sponsored by the given GitHub users (`undefined` for an unsponsored one), `source` with a peer chat. */
 				async function setupCredentials(owners: { readonly source: string | undefined; readonly target: string | undefined }) {
 					const data = createPerSessionDataService();
-					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestrator));
 					registerTestAgentProvider(service, disposables.add(new SponsoredAgent('copilot')));
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 					const sponsor = async (userId: string | undefined, token: string) => {
@@ -35073,7 +35081,7 @@ suite('AgentService (node dispatcher)', () => {
 					const principal = (session: URI | string) => authentication.getSessionCredentialPrincipal(session.toString())?.userId;
 					const owner = (chat: URI | string) => getStateManager(service).getChatOwner(chat.toString());
 					const defaultChat = (session: URI) => getStateManager(service).getDefaultChat(session.toString())!;
-					return { data, service, source, target, peer, token, principal, owner, defaultChat, authentication };
+					return { data, orchestrator, service, source, target, peer, token, principal, owner, defaultChat, authentication };
 				}
 
 				for (const [name, owners] of [
@@ -35125,12 +35133,38 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual({ owner: env.owner(env.peer), principal: env.principal(promoted), peer: env.principal(env.peer) }, { owner: promoted.toString(), principal: '1', peer: '1' });
 				});
 
-				test('a promoted session persists its credential owner, so a restart never falls back to the ambient token', async () => {
+				test('a promoted session gets its credential owner in the promote commit, so a restarted host never falls back to the ambient token', async () => {
 					const env = await setupCredentials({ source: '1', target: undefined });
 					completeTurn(env.service, env.peer);
+					const store = (env.service as unknown as { _sessionStateStore: { promoteChat(promotion: { readonly values: Readonly<Record<string, string>> }): Promise<unknown> } })._sessionStateStore;
+					const promoteChat = store.promoteChat.bind(store);
+					const committed: Readonly<Record<string, string>>[] = [];
+					store.promoteChat = async promotion => {
+						committed.push(promotion.values);
+						return promoteChat(promotion);
+					};
 					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
-					const metadata = await env.data.database(promoted).getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
-					assert.deepStrictEqual(JSON.parse(metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY]!), { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' });
+
+					const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, env.data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, env.orchestrator));
+					registerTestAgentProvider(restarted, disposables.add(new SponsoredAgent('copilot')));
+					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
+					await restarted.restoreSession(promoted);
+					const authentication = getTestAgentServiceComposition(restarted).authenticationService;
+					let resolved: string | number | undefined;
+					try {
+						resolved = authentication.getAuthToken({ session: env.peer.toString(), resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+					} catch (error) {
+						resolved = (error as ProtocolError).code;
+					}
+					assert.deepStrictEqual({
+						committedPrincipal: committed.map(values => JSON.parse(values[SESSION_CREDENTIAL_PRINCIPAL_KEY])),
+						restoredPrincipal: authentication.getSessionCredentialPrincipal(promoted.toString())?.userId,
+						resolved,
+					}, {
+						committedPrincipal: [{ apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' }],
+						restoredPrincipal: '1',
+						resolved: AhpErrorCodes.AuthRequired,
+					});
 				});
 
 				test('a credential owner cannot be set on a session while a move into it is committing', async () => {
