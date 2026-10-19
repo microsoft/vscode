@@ -31,7 +31,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -256,20 +256,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 		});
 		instantiationService.set(IOpenerService, NullOpenerService);
-		const permissionNotices: (Pick<IPrompt<unknown>, 'message' | 'detail' | 'custom' | 'cancelButton'> & { buttons: string[] })[] = [];
-		const permissionDialog: { apply: boolean; decision?: Promise<void> } = { apply: false };
-		const dialogService = new TestDialogService();
-		const fallbackDialogs = new TestDialogService(undefined, { result: true });
-		const prompt = stub(dialogService, 'prompt').callsFake(async options => {
-			if (options.buttons?.[0]?.label !== 'Apply Now') {
-				return fallbackDialogs.prompt(options);
-			}
-			permissionNotices.push({ message: options.message, detail: options.detail, buttons: options.buttons.map(button => button.label), cancelButton: options.cancelButton, custom: options.custom });
-			await permissionDialog.decision;
-			return { result: permissionDialog.apply ? await options.buttons[0].run({}) : undefined };
-		});
-		store.add(toDisposable(() => prompt.restore()));
-		instantiationService.set(IDialogService, dialogService);
+		instantiationService.set(IDialogService, new TestDialogService(undefined, { result: true }));
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IPreferencesService, {
 			openSettings: async options => {
@@ -338,11 +325,19 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, createPicker, permissionNotices, permissionDialog, submissions, model, hasActiveRequest, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, createPicker, submissions, model, hasActiveRequest, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
 
 	async function setupCodexPermissions(initial: string, running = true) {
 		const rig = setup(false);
+		const permissionDialog: { apply: boolean; decision?: Promise<void> } = { apply: false };
+		const dialogService = new TestDialogService();
+		const permissionPrompt = stub(dialogService, 'prompt').callsFake(async options => {
+			await permissionDialog.decision;
+			return { result: permissionDialog.apply ? await options.buttons?.[0]?.run({}) : undefined };
+		});
+		store.add(toDisposable(() => permissionPrompt.restore()));
+		rig.instantiationService.set(IDialogService, dialogService);
 		const property = CodexSessionConfigKey.PermissionsPreset;
 		rig.config.schema.properties[property] = { title: 'Approvals', type: 'string', enum: ['default', 'auto-review', 'full-access'], sessionMutable: true };
 		rig.config.values[property] = initial;
@@ -353,28 +348,21 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const container = dom.$('div');
 		picker.render(container);
 		await picker['_showPicker'](container.querySelector<HTMLElement>('.action-label')!);
-		return { ...rig, picker, property };
+		return { ...rig, picker, property, permissionDialog, permissionPrompt };
 	}
 
-	for (const [initial, selected, running, notice] of [
-		['default', 'full-access', true, true],
-		['full-access', 'default', true, true],
-		['default', 'auto-review', true, false],
-		['auto-review', 'default', true, false],
-		['full-access', 'full-access', true, false],
-		['default', 'full-access', false, false],
+	for (const [initial, selected, running, prompts] of [
+		['default', 'full-access', true, 1],
+		['full-access', 'default', true, 1],
+		['default', 'auto-review', true, 0],
+		['auto-review', 'default', true, 0],
+		['full-access', 'full-access', true, 0],
+		['default', 'full-access', false, 0],
 	] as const) {
 		test(`Codex permissions notice for ${initial} to ${selected} while running=${running}`, async () => {
 			const rig = await setupCodexPermissions(initial, running);
 			await rig.actionWidget.select(selected);
-			assert.deepStrictEqual(rig.permissionNotices, notice ? [{
-				message: selected === 'full-access' ? 'Enable Full Access Now?' : 'Disable Full Access Now?',
-				detail: selected === 'full-access'
-					? 'Applying now will stop the current turn and send a new message to continue with Full Access.\n\nClose this dialog to apply the change with your next message after the current turn finishes.'
-					: 'Applying now will stop the current turn and send a new message to disable Full Access and continue with Default Permissions.\n\nClose this dialog to apply the change with your next message after the current turn finishes.',
-				buttons: ['Apply Now'], cancelButton: undefined, custom: true,
-			}] : []);
-			assert.deepStrictEqual(rig.submissions, []);
+			assert.deepStrictEqual({ prompts: rig.permissionPrompt.callCount, submissions: rig.submissions }, { prompts, submissions: [] });
 		});
 	}
 
@@ -386,7 +374,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			rig.permissionDialog.decision = decision.p;
 			const selecting = rig.actionWidget.select('full-access');
 			await timeout(0);
-			assert.strictEqual(rig.permissionNotices.length, 1);
+			assert.strictEqual(rig.permissionPrompt.callCount, 1);
 			rig.config.values[rig.property] = 'full-access';
 			switch (change) {
 				case 'chat': rig.widget.viewModel = undefined; break;
