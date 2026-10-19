@@ -26,8 +26,9 @@ import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platform
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
+import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import { ChatOriginKind, isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
-import { applyChatConfigLayers, filterChatConfigValues, splitChatConfigPatch } from '../common/sessionConfigProperties.js';
+import { applyChatConfigLayers, filterChatConfigValues, splitChatConfigPatch, withChatSchemaDefaults } from '../common/sessionConfigProperties.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
@@ -214,7 +215,7 @@ export interface IAgentConfigurationService {
 	 * writes during its creation see them. Disposing ends the seed; the caller
 	 * registers the chat with {@link IAgentChatConfigurationSeed.values}.
 	 */
-	seedChatConfig(chat: ProtocolURI, values: Readonly<Record<string, unknown>>): IAgentChatConfigurationSeed;
+	seedChatConfig(chat: ProtocolURI, values: Readonly<Record<string, unknown>>, schema?: SessionConfigSchema): IAgentChatConfigurationSeed;
 
 	/** Returns all effective session roots, including inherited parent-session roots. */
 	getEffectiveWorkingDirectories(session: ProtocolURI): readonly string[] | undefined;
@@ -315,7 +316,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	readonly onDidSessionConfigChange: Event<IAgentSessionConfigurationChangeEvent> = this._onDidSessionConfigChange.event;
 	private readonly _onDidChatConfigChange = this._register(new Emitter<IAgentChatConfigurationChangeEvent>());
 	readonly onDidChatConfigChange: Event<IAgentChatConfigurationChangeEvent> = this._onDidChatConfigChange.event;
-	private readonly _chatConfigSeeds = new Map<ProtocolURI, { values: Record<string, unknown> }>();
+	private readonly _chatConfigSeeds = new Map<ProtocolURI, { values: Record<string, unknown>; readonly schema?: SessionConfigSchema }>();
 	/** A chat's effective values with the inputs they were computed from, so unchanged inputs return the same object. */
 	private readonly _chatValues = new Map<ProtocolURI, { readonly inputs: readonly unknown[]; readonly values: Record<string, unknown> }>();
 	/** The keys the config change being reduced changed, by channel, until its envelope is processed. */
@@ -451,12 +452,28 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getChatConfigState(target: IAgentChatConfigurationTarget): SessionConfigState | undefined {
+		const own = this._ownChatSchema(target.chat);
+		if (own) {
+			return { schema: own.schema, values: this.getChatConfigValues(target)! };
+		}
 		const config = this._stateManager.getSessionState(target.session)?.config;
 		const values = this.getChatConfigValues(target);
 		return config && values && values !== config.values ? { schema: config.schema, values } : config;
 	}
 
 	getChatConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> | undefined {
+		const own = this._ownChatSchema(target.chat);
+		if (own) {
+			// A chat whose agent differs from its session's has its own config: it does not inherit the session's.
+			const inputs = [own.schema, ...[...this._chatAncestry(target.chat)].map(chat => this._ownChatValues(chat))];
+			const cached = this._chatValues.get(target.chat);
+			if (cached && cached.inputs.length === inputs.length && cached.inputs.every((input, index) => input === inputs[index])) {
+				return cached.values;
+			}
+			const values = applyChatConfigLayers(withChatSchemaDefaults(own.schema, undefined), [...this._chatLayers(target)]);
+			this._chatValues.set(target.chat, { inputs, values });
+			return values;
+		}
 		const session = this._stateManager.getSessionState(target.session)?.config;
 		if (!session) {
 			return undefined;
@@ -473,8 +490,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	getChatOwnConfigValues(target: IAgentChatConfigurationTarget): Record<string, unknown> {
-		const schema = this._stateManager.getSessionState(target.session)?.config?.schema;
-		return filterChatConfigValues(schema, this._ownChatValues(this._configurableChat(target.chat)));
+		return filterChatConfigValues(this._chatSchema(target), this._ownChatValues(this._configurableChat(target.chat)));
 	}
 
 	updateChatConfig(target: IAgentChatConfigurationTarget, patch: Record<string, unknown>): void {
@@ -482,9 +498,15 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	}
 
 	private _updateChatConfig(target: IAgentChatConfigurationTarget, patch: Record<string, unknown>, isSandboxRollback: boolean): void {
-		const { chat, session } = splitChatConfigPatch(this._stateManager.getSessionState(target.session)?.config?.schema, patch);
+		const ownSchema = this._ownChatSchema(target.chat)?.schema;
+		const { chat, session } = splitChatConfigPatch(ownSchema ?? this._stateManager.getSessionState(target.session)?.config?.schema, patch);
 		if (Object.keys(session).length > 0) {
-			this.updateSessionConfig(target.session, session);
+			if (ownSchema) {
+				// The session's agent owns the session's config; a chat with its own agent never changes it.
+				this._logService.warn(`[AgentConfigurationService] Dropping config the schema of chat ${target.chat} does not have: ${Object.keys(session).join(', ')}`);
+			} else {
+				this.updateSessionConfig(target.session, session);
+			}
 		}
 		if (Object.keys(chat).length === 0) {
 			return;
@@ -501,8 +523,8 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 	}
 
-	seedChatConfig(chat: ProtocolURI, values: Readonly<Record<string, unknown>>): IAgentChatConfigurationSeed {
-		const seed = { values: { ...values } };
+	seedChatConfig(chat: ProtocolURI, values: Readonly<Record<string, unknown>>, schema?: SessionConfigSchema): IAgentChatConfigurationSeed {
+		const seed = { values: { ...values }, schema };
 		this._chatConfigSeeds.set(chat, seed);
 		const disposable = toDisposable(() => {
 			if (this._chatConfigSeeds.get(chat) === seed) {
@@ -546,21 +568,59 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 	}
 
-	/** The own values of the chat and of the chats it was spawned by, innermost first, restricted to properties a chat may set. */
+	/**
+	 * The own values of the chat and of the chats it was spawned by, innermost first, restricted to properties a chat
+	 * may set. A chat with its own agent ends the chain: it does not take values of chats of another agent.
+	 */
 	private *_chatLayers(target: IAgentChatConfigurationTarget): Iterable<Record<string, unknown>> {
-		const schema = this._stateManager.getSessionState(target.session)?.config?.schema;
+		const own = this._ownChatSchema(target.chat);
+		const schema = own?.schema ?? this._stateManager.getSessionState(target.session)?.config?.schema;
 		for (const chat of this._chatAncestry(target.chat)) {
-			const own = filterChatConfigValues(schema, this._ownChatValues(chat));
-			if (Object.keys(own).length > 0) {
-				yield own;
+			const values = filterChatConfigValues(schema, this._ownChatValues(chat));
+			if (Object.keys(values).length > 0) {
+				yield values;
+			}
+			if (chat === own?.chat) {
+				return;
 			}
 		}
 	}
 
-	/** The value bags of a chat's effective config in precedence order: its layers, the session, the host. */
+	/**
+	 * The value bags of a chat's effective config in precedence order: its layers, the session, the host. A chat with
+	 * its own agent takes its schema's defaults instead of the session's values.
+	 */
 	private *_chatChain(target: IAgentChatConfigurationTarget): Iterable<Record<string, unknown>> {
 		yield* this._chatLayers(target);
+		const own = this._ownChatSchema(target.chat);
+		if (own) {
+			yield withChatSchemaDefaults(own.schema, undefined);
+			const host = this._stateManager.rootState.config?.values;
+			if (host) {
+				yield host;
+			}
+			return;
+		}
 		yield* this._effectiveChain(target.session);
+	}
+
+	/**
+	 * The chat whose agent differs from its session's that `chat` takes its config from, with its own schema: the chat
+	 * itself or the chat that spawned it. `undefined` when the chat uses its session's config.
+	 */
+	private _ownChatSchema(chat: ProtocolURI): { readonly chat: ProtocolURI; readonly schema: SessionConfigSchema } | undefined {
+		for (const candidate of this._chatAncestry(chat)) {
+			const schema = this._chatConfigSeeds.get(candidate)?.schema ?? this._stateManager.getChatConfig(candidate)?.schema;
+			if (schema) {
+				return { chat: candidate, schema };
+			}
+		}
+		return undefined;
+	}
+
+	/** The schema of the properties of a chat's config: its own, or the session's. */
+	private _chatSchema(target: IAgentChatConfigurationTarget): SessionConfigSchema | undefined {
+		return this._ownChatSchema(target.chat)?.schema ?? this._stateManager.getSessionState(target.session)?.config?.schema;
 	}
 
 	private _effectiveValuesOf(target: IAgentChatConfigurationTarget, keys: readonly string[]): Record<string, unknown> {
@@ -580,6 +640,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._onDidSessionConfigChange.fire(event);
 		for (const chat of this._stateManager.getSessionState(event.session)?.chats ?? []) {
 			const target = { session: event.session, chat: chat.resource };
+			if (this._ownChatSchema(chat.resource)) {
+				// A chat with its own agent does not take the session's values.
+				continue;
+			}
 			const overridden = new Set([...this._chatLayers(target)].flatMap(layer => Object.keys(layer)));
 			const changed = keys.filter(key => !overridden.has(key));
 			if (changed.length > 0) {

@@ -109,7 +109,8 @@ import { IAgentHostChatOwnershipService, mintSubagentChatUri } from './agentHost
  */
 export interface IAgentSideEffectsOptions {
 	/** Resolve the agent responsible for a given session URI. */
-	readonly getAgent: (session: ProtocolURI) => IAgent | undefined;
+	/** Resolves the agent of `chat` of `session`, or the session's agent when no chat is given. */
+	readonly getAgent: (session: ProtocolURI, chat?: ProtocolURI) => IAgent | undefined;
 	/** Observable set of registered agents. Triggers `root/agentsChanged` when it changes. */
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
@@ -356,7 +357,7 @@ export class AgentSideEffects extends Disposable {
 			const sessionConfig = this._stateManager.getSessionState(e.session)?.config;
 			const previousMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.previous));
 			const currentMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.current));
-			const agent = this._options.getAgent(e.session);
+			const agent = this._options.getAgent(e.session, e.chat);
 			if (!previousMode || !currentMode || previousMode === currentMode || !agent) {
 				return;
 			}
@@ -440,7 +441,7 @@ export class AgentSideEffects extends Disposable {
 					case ActionType.ChatInputRequested: {
 						const turnId = chatState?.activeTurn?.id;
 						const owner = this._chatOwnership.getChatOwner(envelope.channel);
-						const provider = owner === undefined ? undefined : this._options.getAgent(owner)?.id;
+						const provider = owner === undefined ? undefined : this._options.getAgent(owner, envelope.channel)?.id;
 						if (turnId && provider && owner !== undefined) {
 							this._inputRequestTracker.inputRequested(provider, envelope.channel, owner, turnId, action.request);
 						}
@@ -532,8 +533,7 @@ export class AgentSideEffects extends Disposable {
 
 	/** Hands a client's contribution to each exact chat Agent Host owns. */
 	private _fanOutActiveClient(session: ProtocolURI, activeClient: SessionActiveClient): void {
-		const agent = this._options.getAgent(session);
-		if (!agent) {
+		if (!this._options.getAgent(session)) {
 			return;
 		}
 		const chats = getSessionChatsForFanOut(this._stateManager, session);
@@ -543,6 +543,10 @@ export class AgentSideEffects extends Disposable {
 		}
 		const hostCustomizations = this._hostCustomizations(session);
 		for (const chat of chats) {
+			const agent = this._options.getAgent(session, chat.toString());
+			if (!agent) {
+				continue;
+			}
 			const handle = agent.getOrCreateActiveClient(chat, this._chatContext(session, chat.toString()), {
 				clientId: activeClient.clientId,
 				displayName: activeClient.displayName,
@@ -553,9 +557,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _removeActiveClient(session: ProtocolURI, clientId: string): void {
-		const agent = this._options.getAgent(session);
 		for (const chat of getSessionChatsForFanOut(this._stateManager, session) ?? []) {
-			agent?.removeActiveClient(chat, this._chatContext(session, chat.toString()), clientId);
+			this._options.getAgent(session, chat.toString())?.removeActiveClient(chat, this._chatContext(session, chat.toString()), clientId);
 		}
 	}
 
@@ -1315,7 +1318,7 @@ export class AgentSideEffects extends Disposable {
 			startedAt: new Date().toISOString(),
 			message: { text: taskPrompt ?? '', origin: { kind: MessageKind.Tool } },
 		});
-		const agent = this._options.getAgent(parentSessionUri);
+		const agent = this._options.getAgent(parentSessionUri, chatURI.toString());
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._agentConfigService.getChatConfigState({ session: parentSessionUri, chat: subagentChatUri }));
 			this._turnTracker.turnStarted(agent, subagentChatUri, parentSessionUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI), subagentKind);
@@ -1392,7 +1395,7 @@ export class AgentSideEffects extends Disposable {
 			startedAt: new Date().toISOString(),
 			message: message ?? { text: '', origin: { kind: MessageKind.Tool } },
 		});
-		const agent = this._options.getAgent(subagent.sessionUri);
+		const agent = this._options.getAgent(subagent.sessionUri, subagent.chatUri.toString());
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._agentConfigService.getChatConfigState({ session: subagent.sessionUri, chat: subagent.chatUri }));
 			this._turnTracker.turnStarted(agent, subagent.chatUri, subagent.sessionUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource, URI.parse(parentChatURI), subagent.subagentKind);
@@ -1640,7 +1643,7 @@ export class AgentSideEffects extends Disposable {
 			}
 		}
 		const completionChat = this._toolCallCompletionChat(chatChannel);
-		const agent = this._options.getAgent(sessionChannel);
+		const agent = this._options.getAgent(sessionChannel, completionChat.toString());
 		if (!agent) {
 			this._logService.warn(`[AgentSideEffects] No agent for client tool completion: source=${source}, session=${sessionChannel}, chat=${chatChannel}, completionChat=${completionChat}, toolCallId=${toolCallId}`);
 			return;
@@ -1792,7 +1795,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel || !resumedTurn) {
 					throw new Error(`ChatTurnResume must be accepted with its previous turn on an AHP chat channel: ${channel}`);
 				}
-				const agent = this._options.getAgent(sessionChannel);
+				const agent = this._options.getAgent(sessionChannel, chatChannel);
 				if (!agent?.chats.resumeTurn) {
 					throw new Error(`ChatTurnResume reached side effects without provider support: ${sessionChannel}`);
 				}
@@ -1886,7 +1889,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
 				}
-				const agent = this._options.getAgent(sessionChannel);
+				const agent = this._options.getAgent(sessionChannel, chatChannel);
 				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
 				break;
 			}
@@ -1912,7 +1915,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				void this._checkpointService.discardTurnStartCheckpoint(URI.parse(sessionChannel), URI.parse(channel), action.turnId).catch(() => undefined);
 				this.cancelSubagentSessions(channel, { retainRegistrations: true });
-				const agent = this._options.getAgent(sessionChannel);
+				const agent = this._options.getAgent(sessionChannel, channel);
 				if (agent) {
 					const chat = URI.parse(channel);
 					agent.chats.abort(chat, { ...this._chatContext(sessionChannel, channel), clientTelemetryContext: clientContext }).catch(err => {
@@ -1942,7 +1945,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatTruncated must be handled on an AHP chat channel: ${channel}`);
 				}
 				void this._checkpointService.discardChatTurnStartCheckpoints(URI.parse(sessionChannel), URI.parse(chatChannel)).catch(() => undefined);
-				const agent = this._options.getAgent(sessionChannel);
+				const agent = this._options.getAgent(sessionChannel, chatChannel);
 				// When the truncation boundary is a host-injected local turn
 				// (`/rename` / `!command`), redirect the SDK truncation to the
 				// preceding concrete turn so the agent keeps everything up to

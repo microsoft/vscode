@@ -2093,6 +2093,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			channel: session.toString(),
 			chat: chat.toString(),
 			...(options?.title !== undefined ? { title: options.title } : {}),
+			...(options?.provider !== undefined ? { provider: options.provider } : {}),
 			...(initialMessage ? { initialMessage } : {}),
 			...(options?.workingDirectories !== undefined && !options.fork
 				? { workingDirectories: options.workingDirectories.map(directory => fromAgentHostUri(directory).toString()) }
@@ -2172,6 +2173,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					summary: chat.title,
 					kind: s.defaultChat === chat.resource ? 'default' : 'peer',
 					origin: chat.origin,
+					...(chat.provider !== undefined ? { provider: chat.provider } : {}),
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					...(isSessionChatArchived(chat) ? { archived: true } : {}),
 					...(chat.status !== undefined ? { status: chat.status, isRead: isSessionStatusRead(chat.status) } : {}),

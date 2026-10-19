@@ -8,7 +8,7 @@ import { createSchema, schemaProperty } from './agentHostSchema.js';
 
 /** Host root config keys for chats of one session using different agents. */
 export const ChatProvidersConfigKey = {
-	Enabled: 'chatProviders.enabled',
+	Enabled: 'multipleChatProviders.enabled',
 } as const;
 
 /** Workbench settings mirrored into {@link ChatProvidersConfigKey}. */
@@ -19,7 +19,7 @@ export const ChatProvidersSettingId = {
 export const chatProvidersRootConfigSchema = createSchema({
 	[ChatProvidersConfigKey.Enabled]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('chatProviders.config.enabled', "Multiple Chat Providers"),
+		title: localize('multipleChatProviders.config.enabled', "Multiple Chat Providers"),
 		default: false,
 	}),
 });

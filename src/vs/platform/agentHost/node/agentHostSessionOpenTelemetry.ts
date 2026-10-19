@@ -351,7 +351,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 			return undefined;
 		}
 		const session = URI.parse(owner);
-		const provider = this._providerService.getProviderForSession(session)?.id;
+		const provider = this._providerService.getProviderForChat(session, isAhpChatChannel(resourceString) ? resourceString : undefined)?.id;
 		if (!provider) {
 			return undefined;
 		}

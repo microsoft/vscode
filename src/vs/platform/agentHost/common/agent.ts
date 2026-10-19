@@ -202,6 +202,8 @@ export interface IAgentSessionChatMetadata {
 	readonly kind: 'default' | 'peer';
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
+	/** The chat's own agent when it differs from its session's; absence means the session's agent. */
+	readonly provider?: string;
 	readonly archived?: boolean;
 	/** Exact chat read state when known; absence means the provider did not supply it. */
 	readonly isRead?: boolean;
@@ -915,6 +917,13 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
+	/**
+	 * The agent requested for the new chat (`CreateChatParams.provider`). The
+	 * host resolves and validates it and creates the chat in that agent;
+	 * absent means the source chat's agent for a fork or side chat, else the
+	 * session's. Never passed to providers.
+	 */
+	readonly provider?: AgentProvider;
 }
 
 /** Identifies the exact source chat and turn to fork from. */

@@ -161,8 +161,50 @@ export function filterChatConfigValues(schema: SessionConfigSchema | undefined, 
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) => value !== undefined && isChatConfigProperty(schema, key)));
 }
 
+/**
+ * The defaults of a chat's own schema with `values` applied over them: the
+ * effective config of a chat whose agent differs from its session's. An omitted
+ * value falls back to its schema default.
+ */
+export function withChatSchemaDefaults(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+	const result: Record<string, unknown> = {};
+	for (const [key, property] of Object.entries(schema.properties)) {
+		if (property.default !== undefined) {
+			result[key] = property.default;
+		}
+	}
+	for (const [key, value] of Object.entries(values ?? {})) {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+/**
+ * The chat-applicable part of an agent's config, for a chat whose agent
+ * differs from its session's: the properties a chat may set, seeded with the
+ * agent's defaults (`values`) and then with `existing` values the schema accepts.
+ */
+export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Readonly<Record<string, unknown>>): Required<ChatConfigState> {
+	const properties = Object.fromEntries(Object.entries(agentConfig.schema.properties).filter(([, property]) => property.chatMutable === true));
+	const schema: SessionConfigSchema = { ...agentConfig.schema, properties };
+	const candidates = { ...agentConfig.values, ...existing };
+	const values: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(candidates)) {
+		if (value !== undefined && Object.hasOwn(properties, key) && !getSessionConfigWriteError(agentConfig.schema, candidates, key, value, () => true)) {
+			values[key] = value;
+		}
+	}
+	return { schema, values };
+}
+
 /** A chat's effective config: the session's config with the chat's own values applied over it (see {@link applyChatConfigLayers}). */
 export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
+	if (chat?.schema) {
+		// A chat whose agent differs from its session's has its own config.
+		return { schema: chat.schema, values: withChatSchemaDefaults(chat.schema, chat.values) };
+	}
 	const own = filterChatConfigValues(session.schema, chat?.values);
 	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: applyChatConfigLayers(session.values, [own]) };
 }
