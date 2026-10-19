@@ -331,8 +331,8 @@ interface ITrackedChannel {
  * A per-session subscription is acquired lazily and held while the session is
  * visible so reads are synchronous and server-driven changes surface via
  * {@link onDidChangeItems}. It is released once the session leaves the screen
- * and acquired again on the next read. A local cache backs reads before the
- * first snapshot arrives.
+ * and the host has acknowledged its feedback writes, and acquired again on the
+ * next read. A local cache backs reads before the first snapshot arrives.
  */
 export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements IAgentFeedbackItemsBackend {
 
@@ -363,6 +363,8 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	private readonly _suspendedAnnotationsReconciliation = new Set<string>();
 	/** Sessions on screen, whose annotations subscriptions are held. */
 	private _visibleSessionKeys = new Set<string>();
+	/** Hidden sessions whose subscriptions are released once the host acknowledges their feedback writes. */
+	private readonly _releaseOnAcknowledgement = new Set<string>();
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -391,7 +393,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			if (activeSession) {
 				visible.add(activeSession.resource.toString());
 			}
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
+			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
 				if (session) {
 					visible.add(session.resource.toString());
 				}
@@ -609,6 +611,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._channels.deleteAndDispose(key);
 		this._channelBySession.delete(key);
 		this._loadedBySession.delete(key);
+		this._releaseOnAcknowledgement.delete(key);
 	}
 
 	private _releaseChannel(sessionResource: URI): void {
@@ -621,19 +624,32 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 	/**
 	 * Releases the subscription of every session that is no longer visible; the
-	 * next read acquires it again. A session with feedback keeps its last known
-	 * items until then, so reads stay consistent while the snapshot reloads.
+	 * next read acquires it again.
 	 */
 	private _releaseHiddenChannels(): void {
 		for (const [key, resource] of [...this._sessionResourceByKey]) {
-			if (this._visibleSessionKeys.has(key)) {
-				continue;
+			if (!this._visibleSessionKeys.has(key)) {
+				this._releaseHiddenChannel(key, resource);
 			}
-			if (this._cacheBySession.get(key)?.length) {
-				this._suspendChannel(resource);
-			} else {
-				this._releaseChannel(resource);
-			}
+		}
+	}
+
+	/**
+	 * Releases a hidden session's subscription. A session with feedback keeps
+	 * its last known items, so reads stay consistent while the snapshot reloads.
+	 */
+	private _releaseHiddenChannel(key: string, resource: URI): void {
+		// Releasing the last reference discards writes the host has not
+		// acknowledged yet, so a reconnect could not resend them and the next
+		// snapshot would erase them. Release once they are acknowledged.
+		if (this._channelBySession.get(key)?.subscription.hasPendingActions) {
+			this._releaseOnAcknowledgement.add(key);
+			return;
+		}
+		if (this._cacheBySession.get(key)?.length) {
+			this._suspendChannel(resource);
+		} else {
+			this._releaseChannel(resource);
 		}
 	}
 
@@ -681,7 +697,12 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			this._cacheBySession.set(key, items);
 			this._signatureBySession.set(key, this._feedbackSignature(items));
 		}
-		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
+		store.add(ref.object.onDidChange(() => {
+			this._onAnnotationsChange(sessionResource);
+			if (this._releaseOnAcknowledgement.has(key) && !this._visibleSessionKeys.has(key)) {
+				this._releaseHiddenChannel(key, sessionResource);
+			}
+		}));
 
 		this._channels.set(key, store);
 		this._channelBySession.set(key, channel);

@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -31,12 +31,121 @@ import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedba
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** Shows the given sessions in the window, as {@link ISessionsService.visibleSessions}. */
-	function stubVisibleSessions(instantiationService: TestInstantiationService, visibleSessions: IObservable<readonly IActiveSession[]>): void {
+	/**
+	 * Renders the given panes in the window, as {@link ISessionsService.visibleSessionPanes}.
+	 * The main session slots in {@link ISessionsService.visibleSessions} exclude standalone child panes.
+	 */
+	function stubVisibleSessions(
+		instantiationService: TestInstantiationService,
+		visibleSessionPanes: IObservable<readonly IActiveSession[]>,
+		visibleSessions: IObservable<readonly IActiveSession[]> = visibleSessionPanes,
+		activeSession: IObservable<IActiveSession | undefined> = constObservable(undefined),
+	): void {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
+			override readonly activeSession = activeSession;
 			override readonly visibleSessions = visibleSessions;
+			override readonly visibleSessionPanes = visibleSessionPanes;
 		}());
+	}
+
+	/**
+	 * A backend whose sessions reach a fake agent host through a real
+	 * {@link AgentSubscriptionManager}, so feedback writes stay pending until
+	 * the host acknowledges them. While `host.connected` is false, writes are
+	 * lost on the wire as on a dropped connection, and
+	 * `host.replayPendingActions` resends what is still pending, as a reconnect
+	 * does.
+	 */
+	function createConnectedBackend(sessionCount: number) {
+		const clientId = 'client';
+		const resourceUris = createAgentHostResourceUriMapper('test');
+		const sessions = Array.from({ length: sessionCount }, (_, i) => new class extends mock<IActiveSession>() {
+			override readonly resource = URI.parse(`agent-host-test:/s${i + 1}`);
+			override readonly providerId = 'agenthost-test';
+			override readonly sessionId = `s${i + 1}`;
+		}());
+		const annotationsUri = (session: ISession) => URI.parse(`test:/${session.sessionId}/annotations`);
+		const hostState = new Map<string, AnnotationsState>();
+		// Channels subscribed on the host.
+		const open = new Set<string>();
+		let serverSeq = 0;
+		let clientSeq = 0;
+		const manager = store.add(new AgentSubscriptionManager(clientId, () => ++clientSeq, () => { }, async resource => {
+			open.add(resource.toString());
+			return { resource: resource.toString(), state: hostState.get(resource.toString()) ?? { annotations: [] }, fromSeq: serverSeq };
+		}, resource => open.delete(resource.toString())));
+		const hostApply = (channel: string, action: ClientAnnotationsAction, origin?: { clientId: string; clientSeq: number }) => {
+			hostState.set(channel, annotationsReducer(hostState.get(channel) ?? { annotations: [] }, action));
+			manager.receiveEnvelope({ channel, action, serverSeq: ++serverSeq, origin });
+		};
+		const host = {
+			connected: true,
+			open,
+			/** Feedback texts the host holds for the session. */
+			items: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations.map(annotation => annotation.entries[0].text) ?? [],
+			/** Adds feedback from another client, such as the agent. */
+			addFeedback: (session: ISession, id: string) => hostApply(annotationsUri(session).toString(), {
+				type: ActionType.AnnotationsSet,
+				annotation: {
+					id, resource: URI.file('/repo/file.ts').toString(), resolved: false,
+					origin: { session: session.resource.toString() },
+					entries: [{ id: `${id}:0`, text: id }],
+					_meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind: 'user', state: 'accepted', sessionResource: session.resource.toString() } },
+				},
+			}),
+			replayPendingActions: () => {
+				for (const pending of manager.getPendingActions()) {
+					hostApply(pending.channel, pending.action as ClientAnnotationsAction, { clientId, clientSeq: pending.clientSeq });
+				}
+			},
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = resourceUris;
+			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return manager.getSubscription(kind, resource, owner);
+			}
+			override dispatch(channel: string, action: ClientAnnotationsAction): void {
+				const seq = manager.dispatchOptimistic(channel, action);
+				if (host.connected) {
+					hostApply(channel, action, { clientId, clientSeq: seq });
+				}
+			}
+		}();
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override getFeedbackAnnotationsChannel(sessionId: string) {
+				const session = sessions.find(candidate => candidate.sessionId === sessionId)!;
+				return { connection, annotationsUri: annotationsUri(session) };
+			}
+		}();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override onDidDeleteSession = Event.None;
+			override onDidChangeSessions = Event.None;
+			override getSession(resource: URI) { return sessions.find(session => session.resource.toString() === resource.toString()); }
+		});
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider<T extends ISessionsProvider>(): T {
+				return provider as unknown as T;
+			}
+		});
+		const visibleSessionPanes = observableValue<readonly IActiveSession[]>('visibleSessionPanes', []);
+		const visibleSessions = observableValue<readonly IActiveSession[]>('visibleSessions', []);
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		stubVisibleSessions(instantiationService, visibleSessionPanes, visibleSessions, activeSession);
+		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
+		/** Renders `panes`, of which `mainSlots` are main session slots, and focuses `active`. */
+		const showPanes = (panes: readonly IActiveSession[], mainSlots = panes, active = panes[0]) => transaction(tx => {
+			visibleSessionPanes.set(panes, tx);
+			visibleSessions.set(mainSlots, tx);
+			activeSession.set(active, tx);
+		});
+		const feedback = (id: string, session: ISession) => ({
+			id, text: id, sessionResource: session.resource,
+			resourceUri: resourceUris.fromAgentHost(URI.file('/repo/file.ts')),
+			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted,
+		});
+		return { backend, host, sessions, showPanes, feedback };
 	}
 
 	for (const initiallyAvailable of [false, true]) {
@@ -502,6 +611,64 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			archivedAfterLeaving: ['old test:/s2/annotations'],
 			afterDelete: [],
 			afterReconnect: ['new test:/s3/annotations'],
+		});
+	});
+
+	test('keeps a left session subscribed until the host acknowledges its feedback writes', async () => {
+		const { backend, host, sessions: [first, second], showPanes, feedback } = createConnectedBackend(2);
+		showPanes([first]);
+		backend.getItems(first.resource);
+		await timeout(0);
+
+		// The connection drops right after the comment is sent, and the user
+		// moves on before the reconnect resends it.
+		host.connected = false;
+		backend.upsert(feedback('offline', first));
+		showPanes([second]);
+		backend.getItems(second.resource);
+		await timeout(0);
+		const leaving = [...host.open];
+
+		host.connected = true;
+		host.replayPendingActions();
+		const replayed = { open: [...host.open], host: host.items(first) };
+
+		showPanes([first]);
+		backend.getItems(first.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual({ leaving, replayed, returned: backend.getItems(first.resource).map(item => item.text) }, {
+			leaving: ['test:/s1/annotations', 'test:/s2/annotations'],
+			replayed: { open: ['test:/s2/annotations'], host: ['offline'] },
+			returned: ['offline'],
+		});
+	});
+
+	test('keeps a standalone child pane subscribed after its parent pane closes', async () => {
+		const { backend, host, sessions: [parent, other], showPanes } = createConnectedBackend(2);
+		const child = new class extends mock<IActiveSession>() {
+			override readonly resource = parent.resource;
+			override readonly providerId = parent.providerId;
+			override readonly sessionId = parent.sessionId;
+			override readonly scopedChatResource = URI.parse('agent-host-test:/s1/chat');
+		}();
+		showPanes([parent, child]);
+		backend.getItems(parent.resource);
+		await timeout(0);
+
+		// Close the parent pane and focus another session. The child pane of
+		// the parent session stays on screen.
+		showPanes([other, child], [other]);
+		backend.getItems(other.resource);
+		await timeout(0);
+		const changed: string[] = [];
+		store.add(backend.onDidChangeItems(resource => changed.push(resource.toString())));
+		host.addFeedback(parent, 'live');
+
+		assert.deepStrictEqual({ open: [...host.open], items: backend.getItems(parent.resource).map(item => item.text), changed }, {
+			open: ['test:/s1/annotations', 'test:/s2/annotations'],
+			items: ['live'],
+			changed: ['agent-host-test:/s1'],
 		});
 	});
 });
