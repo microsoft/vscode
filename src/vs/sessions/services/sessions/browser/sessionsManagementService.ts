@@ -72,7 +72,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
 	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
 	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent> = this._onDidInvokeChangesetOperation.event;
-	private readonly _explicitlyMarkedUnreadMainChats = new ResourceMap<number | undefined>();
+	private readonly _explicitlyMarkedUnreadChats = new ResourceMap<ResourceMap<number | undefined>>();
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
 	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
@@ -184,7 +184,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
-		this._explicitlyMarkedUnreadMainChats.delete(from.resource);
+		this._explicitlyMarkedUnreadChats.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
 		this._onDidReplaceSession.fire({ from, to });
@@ -1326,19 +1326,53 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
 		if (isRead) {
-			this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
 		}
 		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
 	}
 
-	async markChatRead(session: ISession, chat: IChat): Promise<boolean | void> {
-		return this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true) ?? false;
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<boolean | void> {
+		const markers = this._explicitlyMarkedUnreadChats.get(session.resource);
+		if (options?.preserveExplicitUnread
+			&& markers?.has(chat.resource)
+			&& markers.get(chat.resource) === this._getChatReadMarker(chat)) {
+			return Promise.resolve();
+		}
+		return this._setChatReadState(session, chat, true);
+	}
+
+	async markChatUnread(session: ISession, chat: IChat): Promise<boolean | void> {
+		const provider = this._getProvider(session);
+		if (!provider || (!provider.setChatReadState && !this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource))) {
+			return false;
+		}
+		const markers = this._explicitlyMarkedUnreadChats.get(session.resource) ?? new ResourceMap<number | undefined>();
+		const hadExplicitUnread = markers.has(chat.resource);
+		const previousMarker = markers.get(chat.resource);
+		markers.set(chat.resource, this._getChatReadMarker(chat));
+		this._explicitlyMarkedUnreadChats.set(session.resource, markers);
+		try {
+			return await this._setChatReadState(session, chat, false, provider);
+		} catch (error) {
+			if (hadExplicitUnread) {
+				markers.set(chat.resource, previousMarker);
+			} else {
+				markers.delete(chat.resource);
+				if (markers.size === 0) {
+					this._explicitlyMarkedUnreadChats.delete(session.resource);
+				}
+			}
+			throw error;
+		}
 	}
 
 	async markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!provider || chats.length === 0) {
 			return;
+		}
+		for (const chat of chats) {
+			this._clearChatUnreadMarker(session, chat.resource);
 		}
 		if (provider.setChatReadStates) {
 			await provider.setChatReadStates(session.sessionId, chats.map(chat => chat.resource), true);
@@ -1352,50 +1386,38 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void> {
-		if (options?.preserveExplicitUnread
-			&& this._explicitlyMarkedUnreadMainChats.has(session.resource)
-			&& this._explicitlyMarkedUnreadMainChats.get(session.resource) === this._getMainChatReadMarker(session)) {
-			return Promise.resolve();
-		}
-		return this._setMainChatReadState(session, true);
+		return this.markChatRead(session, session.mainChat.get(), options);
 	}
 
-	private _getMainChatReadMarker(session: ISession): number | undefined {
-		const chat = session.mainChat.get();
+	private _getChatReadMarker(chat: IChat): number | undefined {
 		return (chat.lastTurnEnd.get() ?? chat.updatedAt.get())?.getTime();
 	}
 
 	async markUnread(session: ISession): Promise<void> {
-		const provider = this._getProvider(session);
-		if (!provider) {
-			return;
-		}
-		const hadExplicitUnread = this._explicitlyMarkedUnreadMainChats.has(session.resource);
-		const previousMarker = this._explicitlyMarkedUnreadMainChats.get(session.resource);
-		this._explicitlyMarkedUnreadMainChats.set(session.resource, this._getMainChatReadMarker(session));
-		try {
-			await this._setMainChatReadState(session, false, provider);
-		} catch (error) {
-			if (hadExplicitUnread) {
-				this._explicitlyMarkedUnreadMainChats.set(session.resource, previousMarker);
-			} else {
-				this._explicitlyMarkedUnreadMainChats.delete(session.resource);
-			}
-			throw error;
-		}
+		await this.markChatUnread(session, session.mainChat.get());
 	}
 
-	private _setMainChatReadState(session: ISession, isRead: boolean, provider = this._getProvider(session)): Promise<boolean | void> {
+	private _setChatReadState(session: ISession, chat: IChat, isRead: boolean, provider = this._getProvider(session)): Promise<boolean | void> {
 		if (isRead) {
-			this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+			this._clearChatUnreadMarker(session, chat.resource);
 		}
 		if (!provider) {
 			return Promise.resolve(false);
 		}
-		const mainChat = session.mainChat.get();
-		return provider.setChatReadState
-			? provider.setChatReadState(session.sessionId, mainChat.resource, isRead)
-			: provider.setSessionReadState(session.sessionId, isRead);
+		if (provider.setChatReadState) {
+			return provider.setChatReadState(session.sessionId, chat.resource, isRead);
+		}
+		return this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)
+			? provider.setSessionReadState(session.sessionId, isRead)
+			: Promise.resolve(false);
+	}
+
+	private _clearChatUnreadMarker(session: ISession, chat: URI): void {
+		const markers = this._explicitlyMarkedUnreadChats.get(session.resource);
+		markers?.delete(chat);
+		if (markers?.size === 0) {
+			this._explicitlyMarkedUnreadChats.delete(session.resource);
+		}
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {
@@ -1404,7 +1426,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async deleteSession(session: ISession): Promise<void> {
 		await this._getProvider(session)?.deleteSession(session.sessionId);
-		this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+		this._explicitlyMarkedUnreadChats.delete(session.resource);
 		this._onDidDeleteSession.fire(session);
 	}
 
@@ -1428,7 +1450,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			try {
 				await provider.deleteSessions(providerSessions.map(session => session.sessionId));
 				for (const session of providerSessions) {
-					this._explicitlyMarkedUnreadMainChats.delete(session.resource);
+					this._explicitlyMarkedUnreadChats.delete(session.resource);
 					this._onDidDeleteSession.fire(session);
 				}
 			} catch (error) {
@@ -1445,6 +1467,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
+			this._clearChatUnreadMarker(session, chatUri);
 			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;

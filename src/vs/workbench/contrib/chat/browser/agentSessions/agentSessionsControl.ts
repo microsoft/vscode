@@ -958,6 +958,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return focused.filter(e => isAgentSession(e));
 	}
 
+	getSelectedSessions(): IAgentSession[] {
+		return this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
+	}
+
 	/** Temporarily reveals a row through filters and collapsed sections, without opening its chat. */
 	async revealSession(resource: URI, token: CancellationToken): Promise<IDisposable | undefined> {
 		const list = this.sessionsList;

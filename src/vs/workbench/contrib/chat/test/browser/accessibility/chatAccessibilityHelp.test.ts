@@ -715,6 +715,24 @@ suite('Chat Accessibility Help', () => {
 		});
 	});
 
+	test('documents session read shortcuts only for persistent editor-window chats', () => {
+		const keybindingService = new MockKeybindingService();
+		const containsShortcuts = (type: 'panelChat' | 'agentView' | 'editsView' | 'quickChat' | 'inlineChat', isSessionsWindow = false) => {
+			const content = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
+			return content.includes('as read<keybinding:agentSession.markRead>')
+				&& content.includes('or unread<keybinding:agentSession.markUnread> without opening them')
+				&& content.includes('change only the targeted nested sessions, not their parent');
+		};
+		assert.deepStrictEqual({
+			panel: containsShortcuts('panelChat'),
+			agent: containsShortcuts('agentView'),
+			edits: containsShortcuts('editsView'),
+			quick: containsShortcuts('quickChat'),
+			inline: containsShortcuts('inlineChat'),
+			agentsWindow: containsShortcuts('agentView', true),
+		}, { panel: true, agent: true, edits: true, quick: false, inline: false, agentsWindow: false });
+	});
+
 	test('documents session rename where the focused-chat keybinding is enabled', () => {
 		const keybindingService = new MockKeybindingService();
 		const keybinding = `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`;

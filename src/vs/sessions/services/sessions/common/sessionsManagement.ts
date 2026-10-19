@@ -585,7 +585,10 @@ export interface ISessionsManagementService {
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
 	/** Mark a chat as read through its provider when it supports independent chat read state. */
-	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<boolean | void>;
+
+	/** Mark a chat as unread through its provider when it supports independent chat read state. */
+	markChatUnread(session: ISession, chat: IChat): Promise<boolean | void>;
 
 	/** Mark multiple chats as read through one provider operation when supported. */
 	markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void>;
