@@ -19308,6 +19308,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('a first send that selects the model the draft was created with claims the warm launch', async () => {
+			// Every first send selects its model before it runs (`chat/turnStarted`), including an unchanged one.
+			const model = { id: 'claude-sonnet', config: { thinkingLevel: 'high' } };
+			const h = await createWarmableAgent('warm-same-model', undefined, { model });
+			try {
+				await h.agent.chats.warmChat!(h.chat, h.context);
+				await h.agent.chats.changeModel(h.chat, { ...model, config: { ...model.config } }, h.context);
+				await h.agent.chats.sendMessage(h.chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, h.sendContext);
+
+				assert.deepStrictEqual(h.state(), { creates: 1, mcpLists: 1, materialized: 1, prewarm: ['used'], deleted: 0, live: true });
+			} finally {
+				await disposeAgent(h.agent);
+			}
+		});
+
 		test('a model option change before the first send starts it cold instead of applying it live', async () => {
 			const h = await createWarmableAgent('warm-model-config-change', undefined, { model: { id: 'claude-sonnet' } });
 			try {
