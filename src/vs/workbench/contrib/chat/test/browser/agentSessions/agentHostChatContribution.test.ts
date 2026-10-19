@@ -11708,11 +11708,18 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Fusion response footers name the Fusion tier they ran as', async () => {
-			const footers = async (balanceUsesHydraFusion: boolean) => {
+			const footers = async (balanceUsesHydraFusion: boolean, providerTiers = false) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
 						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] } } },
+						configurationSchema: {
+							properties: {
+								tier: providerTiers
+									? { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] }
+									: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] },
+							},
+						},
+						...(providerTiers && { autoModelProviderTiers: true }),
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11734,9 +11741,10 @@ suite('AgentHostChatContribution', () => {
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
-			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
+			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false), providerTiers: await footers(false, true) }, {
 				routed: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+				providerTiers: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 			});
 		});
 

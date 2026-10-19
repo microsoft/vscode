@@ -245,7 +245,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};
 		if (selectedModel) {
-			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
+			label = localize('chat.modelPicker.selectedModelHover', "{0} • {1}", label, this._pickerWidget.fusionDisplayName ?? getLanguageModelDisplayNameWithSubscriptionSource(selectedModel));
 		}
 		if (statusIcon && tooltip) {
 			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
