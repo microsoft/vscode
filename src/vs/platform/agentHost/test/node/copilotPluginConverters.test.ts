@@ -76,7 +76,7 @@ suite('copilotPluginConverters', () => {
 			const result = toSdkMcpServers(defs);
 			assert.deepStrictEqual(result, {
 				'test-server': {
-					type: 'local',
+					type: 'stdio',
 					command: 'node',
 					args: ['server.js', '--port', '3000'],
 					tools: ['*'],
@@ -170,7 +170,7 @@ suite('copilotPluginConverters', () => {
 			}];
 
 			const result = toSdkMcpServers(defs);
-			assert.strictEqual(result['minimal'].type, 'local');
+			assert.strictEqual(result['minimal'].type, 'stdio');
 			assert.deepStrictEqual((result['minimal'] as { args?: string[] }).args, []);
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'env'), false);
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'cwd'), false);

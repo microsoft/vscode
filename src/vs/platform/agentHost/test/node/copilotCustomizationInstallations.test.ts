@@ -398,7 +398,7 @@ suite('CopilotCustomizationInstallations', () => {
 		assert.deepStrictEqual(requests, [{
 			name: 'demo',
 			config: {
-				type: 'local',
+				type: 'stdio',
 				command: 'node',
 				args: ['server.js'],
 				tools: ['*'],
