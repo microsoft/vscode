@@ -108,7 +108,7 @@ import { ILocalModelSetupService } from './localModelBridge/localModelSetupServi
 import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
-import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
+import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
@@ -122,6 +122,7 @@ import { ShellManager } from './copilotShellTools.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
+import { readAgentEntitlementHint } from '../../common/meta/agentEntitlementHintMeta.js';
 import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRouter.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
@@ -2962,7 +2963,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return selectedModel !== undefined && this._byokModels.includes(selectedModel);
 	}
 
-	async authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean> {
+	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
 		if (resource === this._gitHubEndpointService.getRepoResource().resource) {
 			return true;
 		}
@@ -2984,8 +2985,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._authenticationRequired.set(undefined, undefined);
 			}
 			await this._applyGitHubToken(token || undefined, expiresIn);
+			if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== (token || undefined)) {
+				return;
+			}
 			this._automationAuthenticationReady.set(token.length > 0, undefined);
 		});
+		const entitlement = readAgentEntitlementHint({ _meta });
+		if (token && entitlement && endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
+			void this._copilotApiService.refreshCopilotUser?.(token, entitlement.trackingId, entitlement.sku).then(async () => {
+				if (endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
+					await this._resolveRestrictedTelemetry(token);
+				}
+			}).catch(error => this._logService.warn('[Copilot] Failed to refresh account discovery after an entitlement change', error));
+		}
 		return true;
 	}
 
@@ -8125,7 +8137,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} else {
 				const entry = current.target ?? await this._ensureResolvedChatSession(current, undefined, undefined, token);
 				if (entry) {
-					const resolvedAgentName = agent ? this._resolveAgentName(entry.appliedSnapshot, agent) : undefined;
+					const published = this._activeClients.get(current.ownerSession)?.pluginController.currentAppliedPlugins();
+					const resolvedAgentName = agent
+						? this._resolveAgentName(entry.appliedSnapshot, agent) ?? (published && findRelocatedAgentName(entry.appliedSnapshot.plugins, published, agent.uri))
+						: undefined;
 					await entry.setAgent(resolvedAgentName);
 				}
 			}
@@ -10518,6 +10533,7 @@ class ActiveClient extends Disposable {
 		pluginController: SessionPluginController,
 		onDidSessionProgress: Emitter<AgentSignal>,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this.pluginController = this._register(pluginController);
@@ -10660,10 +10676,20 @@ class ActiveClient extends Disposable {
 		return structuredClone(servers);
 	}
 
+	/** An equivalent relocation keeps the session on its applied roots, which plugin cache eviction can delete. */
+	private async _hasEvictedRelocatedRoot(applied: readonly ICopilotPluginInfo[], current: readonly ICopilotPluginInfo[]): Promise<boolean> {
+		const relocated = applied.flatMap((plugin, index) => {
+			const root = plugin.pluginDir ?? plugin.resourceDir;
+			return root && !isEqual(root, current[index]?.pluginDir ?? current[index]?.resourceDir) ? [root] : [];
+		});
+		const exists = await Promise.all(relocated.map(root => this._fileService.exists(root)));
+		return exists.includes(false);
+	}
+
 	/** Reports the first changed structural contribution without including its contents. */
 	async getRestartReason(snap: IActiveClientSnapshot, chatKey?: string, current?: IActiveClientSnapshot, anchor?: CustomizationAnchor): Promise<CopilotSessionRefreshReason | undefined> {
 		current ??= await this.snapshot(chatKey, anchor);
-		if (!parsedPluginsEqual(snap.plugins, current.plugins)) {
+		if (!parsedPluginsEqual(snap.plugins, current.plugins) || await this._hasEvictedRelocatedRoot(snap.plugins, current.plugins)) {
 			return 'clientPluginsChanged';
 		}
 		if (!equals(snap.mcpServers, current.mcpServers)) {
