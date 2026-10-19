@@ -347,7 +347,11 @@ export class FileSearchManager {
 			onBatch(batch.map(m => this.rawMatchToSearchItem(m)));
 		};
 
-		return this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult, token).then(
+		return this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult, token).finally(() => {
+			if (!config.cacheKey) {
+				sessionTokenSource.cancel();
+			}
+		}).then(
 			result => {
 				return {
 					limitHit: result.limitHit,
@@ -369,16 +373,16 @@ export class FileSearchManager {
 		this.sessions.delete(cacheKey);
 	}
 
-	private getSessionTokenSource(cacheKey: string | undefined): SessionLifecycle | undefined {
+	private getSessionTokenSource(cacheKey: string | undefined): SessionLifecycle {
 		if (!cacheKey) {
-			return undefined;
+			return new SessionLifecycle();
 		}
 
 		if (!this.sessions.has(cacheKey)) {
 			this.sessions.set(cacheKey, new SessionLifecycle());
 		}
 
-		return this.sessions.get(cacheKey);
+		return this.sessions.get(cacheKey)!;
 	}
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
