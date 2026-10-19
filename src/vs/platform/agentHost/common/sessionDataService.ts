@@ -400,6 +400,15 @@ export interface ISessionDatabase extends IDisposable {
 	storeFileEdit(edit: IFileEditRecord & IFileEditContent): Promise<void>;
 
 	/**
+	 * Store several file-edit snapshots of a single file in one transaction,
+	 * in order: either all of them are stored or none is. When provided,
+	 * `beforeCommit` runs after the snapshots are inserted and before the
+	 * transaction commits, which is rolled back if it throws. It can make a
+	 * change that must only happen if the snapshots are stored.
+	 */
+	storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void>;
+
+	/**
 	 * Retrieve file-edit metadata for the given tool call IDs.
 	 * Content blobs are **not** included — use {@link readFileEditContent}
 	 * to fetch them on demand. Results are returned in insertion order.

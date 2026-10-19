@@ -18,7 +18,7 @@ import { ProtocolError } from '../../../../common/state/sessionProtocol.js';
 import { newTestChatUri } from '../../hostDefaultChats.js';
 import { defaultChatChannel, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
-import { createTestDirectory } from '../harness/testDirectories.js';
+import { createTestDirectory, ownCodexProtectedDirectories } from '../harness/testDirectories.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
@@ -35,6 +35,8 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 	function workspace(prefix: string): URI {
 		const directory = createTestDirectory(join(tmpdir(), `ahp-chat-move-${prefix}-`));
 		tempDirs.push(directory);
+		// Every scenario starts several Codex chats here: sessions sharing it, or a session and its peers.
+		ownCodexProtectedDirectories(directory, config.provider, context.isLinux);
 		return URI.file(directory);
 	}
 

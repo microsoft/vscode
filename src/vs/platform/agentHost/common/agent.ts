@@ -14,6 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -22,7 +23,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
+import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Permission response provenance and its originating client. */
@@ -535,6 +536,7 @@ export interface AuthenticateParams {
 
 /** Request for a previously accepted bearer token. */
 export interface IAgentHostAuthTokenRequest {
+	readonly session?: string;
 	/** Protected resource identifier from {@link ProtectedResourceMetadata.resource}. */
 	readonly resource: string;
 	/** Required token scopes, when the caller needs a scope-specific token. */
@@ -604,6 +606,7 @@ export function protectedResourcesRequireGitHubCopilotSignIn(resources: readonly
 }
 
 export interface IAgentCreateSessionConfig {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly _meta?: Record<string, unknown>;
@@ -726,6 +729,7 @@ export function fixedChatOwnerRef(owner: URI, subagentChatUriFormat: ChatUriForm
  * addressed chat operation).
  */
 export interface IAgentChatContext {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly resource: URI;
 	/** The session that owns the chat, read at each use and never stored. */
 	readonly owner: IAgentChatOwnerRef;
@@ -862,7 +866,11 @@ export interface IAgentCreateChatOptions {
 	 * carries no destination the permission layer can check against the scope.
 	 */
 	readonly hasScopedEditSurface?: boolean;
-	/** Optional display title for the new chat. */
+	/**
+	 * Authoritative initial title supplied to host creation. When present, it
+	 * takes precedence over a generated fork placeholder; explicit provenance
+	 * determines whether automatic title replacement is allowed.
+	 */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
@@ -894,6 +902,13 @@ export interface IAgentCreateChatOptions {
  * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
  */
 export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
+	/**
+	 * Host-owned first user message submitted after creating the chat. This is
+	 * intentionally excluded from {@link IAgentCreateChatOptions}: providers
+	 * create the chat before the host processes this message through the normal
+	 * client-aware send path.
+	 */
+	readonly initialMessage?: Message;
 	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
 	 * chat (via `/btw`). The host resolves this into {@link fork} before calling
@@ -1168,6 +1183,11 @@ export interface IAgentResolveChatConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, unknown>;
+}
+
+/** A policy query failed before the provider could apply a selection or send a prompt. */
+export class AgentPolicyError extends Error {
+	readonly code = 'policyResolutionFailed';
 }
 
 export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {
@@ -1564,6 +1584,7 @@ export interface IAgentChatAdoptionResult {
 
 /** Identifies the client that submitted a pending message. */
 export interface IAgentPendingMessageSender {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
@@ -1587,6 +1608,7 @@ export interface IAgentSessionPlan {
  * the agent id.
  */
 export interface IAgent {
+	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 
 	/** Unique provider identifier. */
@@ -1672,6 +1694,9 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
+	/** Host-wide progress for provider setup, including work without a chat yet. */
+	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
+
 	/** Optional admitted native metadata stream for environment-owned session mirroring. */
 	readonly onDidChatSessionEvent?: Event<IAgentChatSessionEvent>;
 
@@ -1696,8 +1721,18 @@ export interface IAgent {
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
-	/** Optional steering hook for providers that can accept messages during an active turn. */
-	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void;
+	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
+
+	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
+
+	/**
+	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
+	 * client removed before the model received it. A message the model already received stays in its
+	 * turn. Without this hook, the host rejects removing steering while a turn is active.
+	 */
+	withdrawSteeringMessage?(chat: URI, messageId: string): void;
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
@@ -1707,6 +1742,12 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
+	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Replaces the live runtime's sandbox CA after explicit client consent. */
+	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
+	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native

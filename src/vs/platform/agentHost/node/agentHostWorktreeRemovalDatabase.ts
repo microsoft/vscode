@@ -6,6 +6,7 @@
 import { AH_META_IS_ARCHIVED_DB_KEY } from '../common/state/sessionState.js';
 import type { ISessionStateSqlConnection, ISessionStateSqlHost } from './agentHostSessionStateDatabase.js';
 import { SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY } from './shared/sessionAdditionalWorktrees.js';
 
 /**
  * agent-host.db table of worktree folders whose removal was requested by an
@@ -18,7 +19,7 @@ export const WORKTREE_REMOVAL_MIGRATION_VERSION = 18;
 
 export const WORKTREE_REMOVAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS pending_worktree_removals (
-	kind            TEXT NOT NULL CHECK (kind IN ('session', 'detached')),
+	kind            TEXT NOT NULL CHECK (kind IN ('session', 'detached', 'coOwned')),
 	owner           TEXT NOT NULL,
 	owner_session   TEXT,
 	worktree_path   TEXT NOT NULL,
@@ -33,6 +34,46 @@ CREATE TABLE IF NOT EXISTS pending_worktree_removals (
 ) WITHOUT ROWID`;
 
 /**
+ * Migration version of the worktree co-owner table, which also rebuilds
+ * `pending_worktree_removals` to accept the `coOwned` kind. Older builds never
+ * read either table. Version 20 is taken by this migration (Move Chats, Block
+ * 5): a migration added in parallel must take the next free version, and the
+ * open-time repair re-applies this one where another numbering reached 20
+ * without it.
+ */
+export const WORKTREE_CO_OWNER_MIGRATION_VERSION = 20;
+
+/**
+ * Sessions sharing a worktree since a chat moved (Move Chats, Block 5): every co-owner of a
+ * shared worktree has a row, its original owner included, which keeps its own record
+ * (`copilot.worktree.*` or an additional worktree handle) unchanged. Rows are written only in
+ * the transactions of a move, promotion or session move and deleted with their session's
+ * tombstone; an owner is only ever the session a move recorded, never derived from a URI or path.
+ */
+export const WORKTREE_CO_OWNER_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS worktree_co_owners (
+	worktree_path   TEXT NOT NULL,
+	session_uri     TEXT NOT NULL,
+	repository_root TEXT NOT NULL,
+	branch          TEXT NOT NULL,
+	PRIMARY KEY (worktree_path, session_uri)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS worktree_co_owners_session ON worktree_co_owners(session_uri)`;
+
+/**
+ * Migration {@link WORKTREE_CO_OWNER_MIGRATION_VERSION}: the co-owner table, and the removal table rebuilt for its wider
+ * `kind` check. Created first when missing (a profile shared with a pre-release build that skipped it), so the rebuild
+ * always has a source. Also repairs a profile at 20 or later whose removal table still has the old check.
+ */
+export const WORKTREE_CO_OWNER_MIGRATION_SQL = `${WORKTREE_CO_OWNER_SCHEMA_SQL};
+${WORKTREE_REMOVAL_SCHEMA_SQL};
+DROP TABLE IF EXISTS pending_worktree_removals_rebuilt;
+${WORKTREE_REMOVAL_SCHEMA_SQL.replace('pending_worktree_removals', 'pending_worktree_removals_rebuilt')};
+INSERT INTO pending_worktree_removals_rebuilt SELECT kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at FROM pending_worktree_removals;
+DROP TABLE pending_worktree_removals;
+ALTER TABLE pending_worktree_removals_rebuilt RENAME TO pending_worktree_removals`;
+
+/**
  * How a pending worktree is removed:
  * - `commit`: a manual archive. Commits uncommitted changes, then removes the folder.
  * - `synced`: an automatic archive or lifecycle deletion. Removes the folder only when its branch is synced with its upstream.
@@ -45,8 +86,37 @@ export type WorktreeRemovalMode = 'commit' | 'synced' | 'delete';
 /**
  * `session`: the worktree recorded for a session; the owner is the session URI.
  * `detached`: a detached (Dev Container) worktree; the owner is its handle, and its record is deleted with a `delete` removal.
+ * `coOwned`: a worktree a session co-owns ({@link IWorktreeCoOwner}); the owner is opaque (see {@link coOwnedWorktreeRemovalOwner}),
+ * the owner session is the co-owner, and its lock is the worktree folder's.
  */
-export type WorktreeRemovalKind = 'session' | 'detached';
+export type WorktreeRemovalKind = 'session' | 'detached' | 'coOwned';
+
+/** The opaque owner of a co-owner's removal of a worktree folder. */
+export function coOwnedWorktreeRemovalOwner(session: string, worktreePath: string): string {
+	return `${session}|${worktreePath}`;
+}
+
+/** A worktree folder a move shares, as its original owner records it (URI strings). */
+export interface IWorktreeCoOwnedFolder {
+	readonly worktreePath: string;
+	readonly repositoryRoot: string;
+	/**
+	 * The worktree's branch when the move shared it. A snapshot is enough: the host never renames a branch it created,
+	 * and the original owner's record holds the same creation-time name. A branch removed outside the host keeps the
+	 * folder intact (its removal is skipped and retried), as for a worktree that was never shared.
+	 */
+	readonly branch: string;
+}
+
+/** A session sharing a worktree folder since a chat moved; see {@link WORKTREE_CO_OWNER_SCHEMA_SQL}. */
+export interface IWorktreeCoOwner extends IWorktreeCoOwnedFolder {
+	readonly session: string;
+}
+
+/** A co-owner row and whether it is live: its session is registered, not deleted, and still has a folder at or inside the worktree. */
+export interface IWorktreeCoOwnerState extends IWorktreeCoOwner {
+	readonly live: boolean;
+}
 
 export interface IWorktreeRemovalRequest {
 	readonly kind: WorktreeRemovalKind;
@@ -99,6 +169,34 @@ export interface IAgentHostWorktreeRemovalDatabase {
 	 * neither knows the session. Opens no session database.
 	 */
 	readSessionArchived(session: string): Promise<boolean | undefined>;
+	/** The worktrees `session` co-owns. Read on moves, archive, unarchive and deletion only. */
+	listWorktreeCoOwnersOfSession(session: string): Promise<readonly IWorktreeCoOwner[]>;
+	/** The co-owners of a worktree folder, and whether each is live; read without changing them. */
+	readWorktreeCoOwners(worktreePath: string): Promise<readonly IWorktreeCoOwnerState[]>;
+	/**
+	 * Deletes the stale co-owner rows of a worktree folder (a session deleted or no longer working there), except
+	 * that one row always stays while any exists: the marker that the folder was ever shared, which forces commit
+	 * mode until the folder is removed. Returns the rows left. The caller holds the worktree folder's lock.
+	 */
+	pruneWorktreeCoOwners(worktreePath: string): Promise<readonly IWorktreeCoOwnerState[]>;
+	/**
+	 * The live sessions whose central `agentHost.additionalWorktrees` lists `handle`: the owner a crash between a
+	 * committed handle transfer and its record's owner update left unrecorded. Startup repair only.
+	 */
+	findAdditionalWorktreeOwners(handle: string): Promise<readonly string[]>;
+	/** Whether `session` is registered and not deleted (tombstoned), by its recorded state. */
+	isSessionLive(session: string): Promise<boolean>;
+	/**
+	 * Deletes the co-owner rows of sessions that are deleted (not registered, or tombstoned; also by an older build),
+	 * keeping one row of a folder no other row is left for: the marker that it was ever shared. Clean-up passes only.
+	 */
+	pruneDeletedWorktreeCoOwners(): Promise<void>;
+	/**
+	 * Deletes every co-owner row of a removed worktree folder that isn't live (its session deleted, or no longer
+	 * working there), the marker included: a co-owner that still works there, archived, keeps its row to recreate it
+	 * from. The caller holds the folder's lock.
+	 */
+	clearStaleWorktreeCoOwners(worktreePath: string): Promise<void>;
 }
 
 const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at';
@@ -187,9 +285,78 @@ const worktreeInUseSql = `
 	WHERE d.session_uri <> ?2
 		AND (lower(d.directory) = lower(?1) OR substr(lower(d.directory), 1, length(?1) + 1) = lower(?1) || '/')
 		AND NOT COALESCE(${sessionArchivedSql('d.session_uri')}, 0)
+	UNION ALL
+	SELECT 1 FROM worktree_co_owners o
+	WHERE o.session_uri <> ?2 AND rtrim(lower(o.worktree_path), '/') = lower(?1)
+		AND ${sessionLiveSql('o.session_uri')}
+		AND ${sessionUsesFolderSql('o.session_uri')}
+		AND NOT COALESCE(${sessionArchivedSql('o.session_uri')}, 0)
 	LIMIT 1`;
 
 const sessionArchivedQuery = `SELECT ${sessionArchivedSql('?1')} AS archived`;
+
+/** Whether the session `uri` is registered and not deleted (by this build or an older one). */
+function sessionLiveSql(uri: string): string {
+	return `(NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || ${uri} AND value = 'true')
+		AND (EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = ${uri}) OR EXISTS (SELECT 1 FROM sessions WHERE session_uri = ${uri})))`;
+}
+
+/** Whether `directory` is the folder `?1` (no trailing slash) or inside it, case-insensitively. */
+function withinFolderSql(directory: string): string {
+	return `(lower(${directory}) = lower(?1) OR substr(lower(${directory}), 1, length(?1) + 1) = lower(?1) || '/')`;
+}
+
+/**
+ * Whether the session `uri` has a central folder at or inside `?1`: its session folders, or the folders of a chat
+ * it owns, archived chats included (they may be unarchived). A chat's session-state folders count only while it has
+ * no normalized row: a normalized chat's later folder changes are recorded in `chats_v2` alone.
+ */
+function sessionUsesFolderSql(uri: string): string {
+	return `(EXISTS (SELECT 1 FROM sessions_v2 p, json_each(p.payload, '$.data.workingDirectories') j
+			WHERE p.session_uri = ${uri} AND json_valid(p.payload) AND ${withinFolderSql('j.value')})
+		OR EXISTS (SELECT 1 FROM session_state_values v, json_each(v.value) j
+			WHERE v.session_uri = ${uri} AND v.key = '${SESSION_WORKING_DIRECTORIES_KEY}' AND json_valid(v.value) AND ${withinFolderSql('j.value')})
+		OR EXISTS (SELECT 1 FROM chats_v2 c, json_each(c.working_directories) j
+			WHERE c.owner_session_uri = ${uri} AND c.tombstoned = 0 AND json_valid(c.working_directories) AND ${withinFolderSql('j.value')})
+		OR EXISTS (SELECT 1 FROM session_chat_state s, json_each(s.working_directories) j
+			WHERE s.session_uri = ${uri} AND json_valid(s.working_directories) AND ${withinFolderSql('j.value')}
+				AND NOT EXISTS (SELECT 1 FROM chats_v2 n WHERE n.chat_uri = s.chat_uri)))`;
+}
+
+/** `?1` is the worktree folder without a trailing slash. */
+const worktreeCoOwnersSql = `SELECT worktree_path, session_uri, repository_root, branch,
+	${sessionLiveSql('o.session_uri')} AND ${sessionUsesFolderSql('o.session_uri')} AS live
+	FROM worktree_co_owners o WHERE rtrim(lower(o.worktree_path), '/') = lower(?1)
+	ORDER BY o.session_uri`;
+
+function toCoOwner(row: Record<string, unknown>): IWorktreeCoOwner {
+	return {
+		worktreePath: row.worktree_path as string,
+		session: row.session_uri as string,
+		repositoryRoot: row.repository_root as string,
+		branch: row.branch as string,
+	};
+}
+
+function toCoOwnerState(row: Record<string, unknown>): IWorktreeCoOwnerState {
+	return { ...toCoOwner(row), live: row.live === 1 };
+}
+
+/** Writes co-owner rows inside the caller's transaction; a row a session already has stays. */
+export async function insertWorktreeCoOwners(connection: Pick<ISessionStateSqlConnection, 'run'>, coOwners: readonly IWorktreeCoOwner[]): Promise<void> {
+	for (const coOwner of coOwners) {
+		await connection.run(`INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch) VALUES (?, ?, ?, ?)
+			ON CONFLICT(worktree_path, session_uri) DO NOTHING`, [coOwner.worktreePath, coOwner.session, coOwner.repositoryRoot, coOwner.branch]);
+	}
+}
+
+/** Gives every co-owner row of `source` to `target`, inside the caller's transaction (a session that ends by a move). */
+export async function rekeyWorktreeCoOwners(connection: Pick<ISessionStateSqlConnection, 'run'>, source: string, target: string): Promise<void> {
+	await connection.run(`INSERT INTO worktree_co_owners (worktree_path, session_uri, repository_root, branch)
+		SELECT worktree_path, ?, repository_root, branch FROM worktree_co_owners WHERE session_uri = ?
+		ON CONFLICT(worktree_path, session_uri) DO NOTHING`, [target, source]);
+	await connection.run('DELETE FROM worktree_co_owners WHERE session_uri = ?', [source]);
+}
 
 export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemovalDatabase {
 
@@ -236,5 +403,57 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 
 	isWorktreeInUse(worktreePath: string, excludedSession: string | undefined): Promise<boolean> {
 		return this._host.read(async connection => !!await connection.get(worktreeInUseSql, [worktreePath.replace(/\/+$/, ''), excludedSession ?? '']));
+	}
+
+	listWorktreeCoOwnersOfSession(session: string): Promise<readonly IWorktreeCoOwner[]> {
+		return this._host.read(async connection => (await connection.all(`SELECT worktree_path, session_uri, repository_root, branch FROM worktree_co_owners
+			WHERE session_uri = ? ORDER BY worktree_path`, [session])).map(toCoOwner));
+	}
+
+	readWorktreeCoOwners(worktreePath: string): Promise<readonly IWorktreeCoOwnerState[]> {
+		return this._host.read(async connection => (await connection.all(worktreeCoOwnersSql, [worktreePath.replace(/\/+$/, '')])).map(toCoOwnerState));
+	}
+
+	pruneWorktreeCoOwners(worktreePath: string): Promise<readonly IWorktreeCoOwnerState[]> {
+		return this._host.write('Failed to prune the co-owners of a worktree', async connection => {
+			const rows = (await connection.all(worktreeCoOwnersSql, [worktreePath.replace(/\/+$/, '')])).map(toCoOwnerState);
+			const stale = rows.filter(row => !row.live);
+			// One row always stays: the folder was shared, which forces commit mode until it is removed.
+			const pruned = stale.length === rows.length ? stale.slice(1) : stale;
+			for (const row of pruned) {
+				await connection.run('DELETE FROM worktree_co_owners WHERE worktree_path = ? AND session_uri = ?', [row.worktreePath, row.session]);
+			}
+			return rows.filter(row => !pruned.includes(row));
+		});
+	}
+
+	pruneDeletedWorktreeCoOwners(): Promise<void> {
+		return this._host.write('Failed to prune the co-owner rows of deleted sessions', async connection => {
+			await connection.run(`DELETE FROM worktree_co_owners WHERE NOT ${sessionLiveSql('worktree_co_owners.session_uri')}
+				AND EXISTS (SELECT 1 FROM worktree_co_owners o
+					WHERE rtrim(lower(o.worktree_path), '/') = rtrim(lower(worktree_co_owners.worktree_path), '/') AND o.session_uri <> worktree_co_owners.session_uri
+						AND (${sessionLiveSql('o.session_uri')} OR o.session_uri < worktree_co_owners.session_uri))`, []);
+		});
+	}
+
+	clearStaleWorktreeCoOwners(worktreePath: string): Promise<void> {
+		return this._host.write('Failed to clear the co-owners of a removed worktree', async connection => {
+			for (const row of (await connection.all(worktreeCoOwnersSql, [worktreePath.replace(/\/+$/, '')])).map(toCoOwnerState)) {
+				if (!row.live) {
+					await connection.run('DELETE FROM worktree_co_owners WHERE worktree_path = ? AND session_uri = ?', [row.worktreePath, row.session]);
+				}
+			}
+		});
+	}
+
+	isSessionLive(session: string): Promise<boolean> {
+		return this._host.read(async connection => !!(await connection.get(`SELECT ${sessionLiveSql('?1')} AS live`, [session]))?.live);
+	}
+
+	findAdditionalWorktreeOwners(handle: string): Promise<readonly string[]> {
+		return this._host.read(async connection => (await connection.all(`SELECT DISTINCT v.session_uri FROM session_state_values v, json_each(v.value) j
+			WHERE v.key = '${ADDITIONAL_WORKTREES_METADATA_KEY}' AND instr(v.value, ?1) > 0 AND json_valid(v.value)
+				AND json_extract(j.value, '$.handle') = ?1 AND ${sessionLiveSql('v.session_uri')}
+			ORDER BY v.session_uri`, [handle])).map(row => row.session_uri as string));
 	}
 }

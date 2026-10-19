@@ -18,7 +18,7 @@ import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 import type { ChatStorageRole } from './sessionStorageIdentity.js';
 import { AgentHostSessionStateTables, deleteSessionStateRows, IAgentHostSessionStateDatabase, ISessionStateSqlConnection, ISessionStateSqlHost, SESSION_STATE_MIGRATION_VERSION, SESSION_STATE_SCHEMA_SQL, checkSessionChatStateTransfer, IAgentHostSessionChatStateTransfer, transferSessionChatStateRows, checkSessionChatStatePromotion, IAgentHostSessionChatStatePromotion, promoteSessionChatStateRows } from './agentHostSessionStateDatabase.js';
-import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, IWorktreeRemovalRequest, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
+import { AgentHostWorktreeRemovalTables, IAgentHostWorktreeRemovalDatabase, insertPendingWorktreeRemovals, insertWorktreeCoOwners, IWorktreeCoOwnedFolder, IWorktreeRemovalRequest, rekeyWorktreeCoOwners, WORKTREE_CO_OWNER_MIGRATION_SQL, WORKTREE_CO_OWNER_MIGRATION_VERSION, WORKTREE_CO_OWNER_SCHEMA_SQL, WORKTREE_REMOVAL_MIGRATION_VERSION, WORKTREE_REMOVAL_SCHEMA_SQL } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -336,6 +336,11 @@ export interface IAgentHostDatabaseChatV2Move {
 	readonly workingDirectories: readonly string[] | undefined;
 	/** The central session state the move carries along, applied in the same transaction. */
 	readonly state: IAgentHostSessionChatStateTransfer;
+	/**
+	 * The worktrees the moved chats keep working in that become shared (Block 5): each gets a co-owner row for the
+	 * source and the target. A session that ends by the move gives every co-owner row it has to the target.
+	 */
+	readonly coOwnedWorktrees: readonly IWorktreeCoOwnedFolder[];
 }
 
 export interface IAgentHostDatabaseChatV2Promotion {
@@ -348,6 +353,8 @@ export interface IAgentHostDatabaseChatV2Promotion {
 	readonly expectedSourceRevision: number;
 	/** The central session state of the new session and what it carries from the source, applied in the same transaction. */
 	readonly state: IAgentHostSessionChatStatePromotion;
+	/** The worktrees the promoted chats keep working in that become shared: co-owner rows for the source and the new session (Block 5). */
+	readonly coOwnedWorktrees: readonly IWorktreeCoOwnedFolder[];
 }
 
 export type AgentHostDatabaseChatV2PromotionResult =
@@ -830,6 +837,10 @@ const migrations = [
 		version: PROJECTED_REVISION_MIGRATION_VERSION,
 		sql: '',
 	},
+	{
+		version: WORKTREE_CO_OWNER_MIGRATION_VERSION,
+		sql: WORKTREE_CO_OWNER_MIGRATION_SQL,
+	},
 ] as const;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
@@ -1281,6 +1292,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 		await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [session]);
 		await deleteSessionStateRows(this._sessionStateConnection(database), session);
+		await run(database, 'DELETE FROM worktree_co_owners WHERE session_uri = ?', [session]);
 	}
 
 	async updateSessionExternal(updates: readonly IAgentHostDatabaseExternalUpdate[]): Promise<void> {
@@ -3077,7 +3089,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await this._markSessionV2PayloadDirty(database, session);
 				}
 				const state = await transferSessionChatStateRows(stateConnection, move.source, move.target, move.state, moved, endSource ? move.chat : undefined);
+				await insertWorktreeCoOwners(stateConnection, move.coOwnedWorktrees.flatMap(folder => [
+					...(endSource ? [] : [{ ...folder, session: move.source }]),
+					{ ...folder, session: move.target },
+				]));
 				if (endSource) {
+					// The source's shares of worktrees continue as the target's; then the tombstone drops what is left of it.
+					await rekeyWorktreeCoOwners(stateConnection, move.source, move.target);
 					await this._tombstoneSessionRows(database, move.source);
 				}
 				await exec(database, 'COMMIT');
@@ -3167,6 +3185,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await this._markSessionV2PayloadDirty(database, session);
 				}
 				const state = await promoteSessionChatStateRows(stateConnection, promotion.source, promotion.target, promotion.chat, promotion.state, moved);
+				await insertWorktreeCoOwners(stateConnection, promotion.coOwnedWorktrees.flatMap(folder => [{ ...folder, session: promotion.source }, { ...folder, session: promotion.target }]));
 				await exec(database, 'COMMIT');
 				return { status: 'applied', sourceRevision, sourceStateRevision: state.sourceRevision, moved: [...placed, ...[...moved].filter(chat => !placed.includes(chat))] };
 			} catch (error) {
@@ -4249,6 +4268,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	recordPendingWorktreeRemovalFailure(...args: Parameters<IAgentHostWorktreeRemovalDatabase['recordPendingWorktreeRemovalFailure']>) { return this._worktreeRemovals.recordPendingWorktreeRemovalFailure(...args); }
 	isWorktreeInUse(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isWorktreeInUse']>) { return this._worktreeRemovals.isWorktreeInUse(...args); }
 	readSessionArchived(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readSessionArchived']>) { return this._worktreeRemovals.readSessionArchived(...args); }
+	listWorktreeCoOwnersOfSession(...args: Parameters<IAgentHostWorktreeRemovalDatabase['listWorktreeCoOwnersOfSession']>) { return this._worktreeRemovals.listWorktreeCoOwnersOfSession(...args); }
+	readWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['readWorktreeCoOwners']>) { return this._worktreeRemovals.readWorktreeCoOwners(...args); }
+	pruneWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneWorktreeCoOwners']>) { return this._worktreeRemovals.pruneWorktreeCoOwners(...args); }
+	findAdditionalWorktreeOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['findAdditionalWorktreeOwners']>) { return this._worktreeRemovals.findAdditionalWorktreeOwners(...args); }
+	isSessionLive(...args: Parameters<IAgentHostWorktreeRemovalDatabase['isSessionLive']>) { return this._worktreeRemovals.isSessionLive(...args); }
+	pruneDeletedWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['pruneDeletedWorktreeCoOwners']>) { return this._worktreeRemovals.pruneDeletedWorktreeCoOwners(...args); }
+	clearStaleWorktreeCoOwners(...args: Parameters<IAgentHostWorktreeRemovalDatabase['clearStaleWorktreeCoOwners']>) { return this._worktreeRemovals.clearStaleWorktreeCoOwners(...args); }
 
 	private async _rollback(database: Database, error: unknown, message: string): Promise<never> {
 		try {
@@ -4310,6 +4336,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							}
 							if (currentVersion >= WORKTREE_REMOVAL_MIGRATION_VERSION) {
 								await exec(database, WORKTREE_REMOVAL_SCHEMA_SQL);
+							}
+							if (currentVersion >= WORKTREE_CO_OWNER_MIGRATION_VERSION) {
+								await exec(database, WORKTREE_CO_OWNER_SCHEMA_SQL);
+								// Another pre-release numbering may have reached 20 without widening the removal table's `kind` check.
+								const removalTable = await get(database, `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'pending_worktree_removals'`, []);
+								if (typeof removalTable?.sql !== 'string' || !removalTable.sql.includes('coOwned')) {
+									await exec(database, WORKTREE_CO_OWNER_MIGRATION_SQL);
+								}
 							}
 							await exec(database, 'COMMIT');
 						} catch (error) {

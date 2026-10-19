@@ -32,13 +32,9 @@
 }
 
 .agent-sessions-workbench.modern-ui-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) > .active-item-indicator {
-	inset: 0 var(--vscode-spacing-size20);
-	width: auto;
-	height: auto;
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-editor-tab-border);
 	border-radius: var(--vscode-cornerRadius-small);
 	box-sizing: border-box;
-	transform: none;
 }
 
 .agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels {
@@ -74,6 +70,7 @@
 	left: 0;
 	height: auto;
 	border-radius: var(--vscode-cornerRadius-small);
+	transform: none;
 }
 
 .agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.phone-layout) .part.panel.bottom.panel-labels > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon).checked > .active-item-indicator {

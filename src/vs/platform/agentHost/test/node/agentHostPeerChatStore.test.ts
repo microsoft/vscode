@@ -19,7 +19,7 @@ import { AgentHostPeerChatStore, CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_M
 import { getChatChangesSummaryMetadataKey } from '../../common/agentHostChangesetService.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 
 const session = URI.parse('agenthost:peer-store');
 const first = URI.parse(buildChatUri(session, 'first'));
@@ -98,10 +98,59 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)), noOlderBuildCopyParticipant);
 		stores.push(store);
 		return store;
 	}
+
+	test('session catalog idle waits for local metadata migration without waiting for another session', async () => {
+		const localGate = new DeferredPromise<void>();
+		const otherGate = new DeferredPromise<void>();
+		const otherSession = URI.parse('agenthost:other-peer-store');
+		const store = createStore(new TestSessionDatabase());
+		store.setMetadataMigration(async (owner, _resource, values) => {
+			await (owner.toString() === session.toString() ? localGate.p : otherGate.p);
+			return values;
+		});
+		const localWrite = store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'Local title' });
+		const otherWrite = store.persistMetadata(otherSession, otherSession, { [SESSION_CUSTOM_TITLE_KEY]: 'Other title' });
+		let sessionIdle = false;
+		let allIdle = false;
+		const sessionDrain = store.whenIdle(session).then(() => { sessionIdle = true; });
+		const allDrain = store.whenIdle().then(() => { allIdle = true; });
+		try {
+			await timeout(0);
+			assert.deepStrictEqual({ sessionIdle, allIdle }, { sessionIdle: false, allIdle: false });
+			localGate.complete();
+			await localWrite;
+			await timeout(0);
+			assert.deepStrictEqual({ sessionIdle, allIdle }, { sessionIdle: true, allIdle: false });
+		} finally {
+			localGate.complete();
+			otherGate.complete();
+			await Promise.all([localWrite, otherWrite, sessionDrain, allDrain]);
+		}
+		assert.strictEqual(allIdle, true);
+	});
+
+	test('session catalog idle propagates rejected writes while session data idle settles', async () => {
+		const gate = new DeferredPromise<void>();
+		const store = createStore(new TestSessionDatabase());
+		store.setMetadataMigration(async () => {
+			await gate.p;
+			throw new Error('metadata migration failed');
+		});
+		const write = assert.rejects(store.persistMetadata(session, first, { [SESSION_CUSTOM_TITLE_KEY]: 'New title' }), /metadata migration failed/);
+		const sessionCatalogDrain = assert.rejects(store.whenIdle(session), /metadata migration failed/);
+		const allDrain = assert.rejects(store.whenIdle(), /metadata migration failed/);
+		let sessionIdle = false;
+		const sessionDrain = store.whenSessionIdle(session).then(() => { sessionIdle = true; });
+		await timeout(0);
+		assert.strictEqual(sessionIdle, false);
+		gate.complete();
+		await Promise.all([write, sessionCatalogDrain, allDrain, sessionDrain]);
+		assert.strictEqual(sessionIdle, true);
+	});
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
 		const defaultChat = buildDefaultChatUri(session);
@@ -363,7 +412,7 @@ suite('AgentHostPeerChatStore', () => {
 				return database ? { object: database, dispose: () => { } } : undefined;
 			},
 		};
-		const store = new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service));
+		const store = new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, service), noOlderBuildCopyParticipant);
 		stores.push(store);
 		return {
 			store,
@@ -383,7 +432,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -451,7 +500,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -493,7 +542,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable));
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(orchestrator, unavailable), noOlderBuildCopyParticipant);
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));
@@ -631,7 +680,7 @@ suite('AgentHostPeerChatStore', () => {
 		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
 		const tombstonedOwner = (await orchestrator.findCentralChatOwners([tombstoned])).get(tombstoned);
 		const lookups = sinon.spy(orchestrator, 'findCentralChatOwners');
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), createLiveChatOwnership(chat => chat === liveElsewhere ? other : undefined, () => undefined), createTestSessionStateStore(orchestrator, createSessionDataService(database)), noOlderBuildCopyParticipant);
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
 		assert.deepStrictEqual({
@@ -918,7 +967,7 @@ suite('AgentHostPeerChatStore', () => {
 		const recordedDefault = buildChatUri(session, 'primary');
 		const shapedPeer = URI.parse(buildDefaultChatUri(session));
 		const local = new TestSessionDatabase();
-		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(local), new NullLogService(), createLiveChatOwnership(() => undefined, candidate => candidate === session.toString() ? recordedDefault : undefined), createTestSessionStateStore(orchestrator, createSessionDataService(local)), noOlderBuildCopyParticipant);
 		await store.upsert(session, shapedPeer, 'peer-backing');
 		await store.setRead(session, shapedPeer, false);
 		const afterPeer = await local.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY);
@@ -1131,9 +1180,22 @@ suite('AgentHostPeerChatStore', () => {
 		let statements = 0;
 		// Trigger bodies are traced as `-- TRIGGER` lines; they are not statements of their own, nor is the drain below.
 		const drainSql = 'SELECT 1 AS drain';
-		sqlite.on('trace', (sql: string) => statements += sql.startsWith('-- TRIGGER') || sql === drainSql ? 0 : 1);
-		// Traces of finished statements arrive before this one completes.
-		const drain = () => new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve()));
+		let traceDrained: DeferredPromise<void>;
+		sqlite.on('trace', (sql: string) => {
+			if (sql === drainSql) {
+				traceDrained.complete();
+			} else if (!sql.startsWith('-- TRIGGER')) {
+				statements++;
+			}
+		});
+		const drain = async () => {
+			// Trace delivery and SQL completion use separate asynchronous callbacks.
+			traceDrained = new DeferredPromise<void>();
+			await Promise.all([
+				traceDrained.p,
+				new Promise<void>((resolve, reject) => sqlite.get(drainSql, error => error ? reject(error) : resolve())),
+			]);
+		};
 		const chats = Array.from({ length: 10 }, (_, index) => URI.parse(buildChatUri(session, `burst-${index}`)));
 		const publish = async (burst: () => Promise<void>) => {
 			await burst();

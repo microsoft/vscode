@@ -12,7 +12,7 @@ import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, Search
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -33,6 +33,85 @@ import { IManagedSettingsPresentationService, ManagedSettingsPresentationService
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { SettingMatches } from '../../browser/preferencesSearch.js';
 import { chatNetworkDomainConfigurationProperties } from '../../../chat/browser/chatNetworkConfiguration.js';
+import { getDefaultModelPolicyDescription } from '../../../chat/common/modelSelection.js';
+import { getIndicatorsLabelAriaLabel } from '../../browser/settingsEditorSettingIndicators.js';
+import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+
+suite('SettingsTree managed default descriptions', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const key = 'test.managedDefaultModelDescription';
+	const configurationNode: IConfigurationNode = {
+		id: 'managedDefaultDescriptionTest',
+		properties: { [key]: { type: 'string', default: '', policyValueDescription: getDefaultModelPolicyDescription } },
+	};
+	suiteSetup(() => registry.registerConfiguration(configurationNode));
+	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
+
+	for (const target of [ConfigurationTarget.USER_LOCAL, ConfigurationTarget.WORKSPACE] as const) {
+		test(`explains the overridden value in scope ${target} and restores it when policy is removed`, async () => {
+			const policy = new TestConfigurationService({ [key]: 'opus' });
+			const workspace = new TestConfigurationService({ [key]: 'auto' });
+			const configuration = new class extends TestConfigurationService {
+				isSettingAppliedForAllProfiles(): boolean { return false; }
+				override inspect<T>(setting: string): IConfigurationValue<T> {
+					const result = super.inspect<T>(setting);
+					const policyValue = policy.getValue<T>(setting);
+					const workspaceValue = workspace.getValue<T>(setting);
+					return { ...result, workspaceValue, policyValue, value: policyValue ?? workspaceValue ?? result.value };
+				}
+			}({ [key]: 'gemini' });
+			for (const service of [policy, workspace, configuration]) {
+				store.add(service.onDidChangeConfigurationEmitter);
+			}
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IWorkbenchConfigurationService, configuration);
+			instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+			instantiationService.stub(IProductService, TestProductService);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+			const model = store.add(instantiationService.createInstance(SettingsTreeModel, { settingsTarget: target }, true));
+			model.update({
+				id: 'test', label: 'Test',
+				settings: [new class extends mock<ISetting>() {
+					override key = key;
+					override type = 'string';
+					override description = [];
+				}()],
+			});
+			const element = model.getElementsByName(key)![0];
+			const read = () => {
+				element.inspectSelf();
+				return {
+					value: element.value,
+					managed: element.hasPolicyValue,
+					description: element.policyValueDescription,
+					accessible: getIndicatorsLabelAriaLabel(element, instantiationService.get(IWorkbenchConfigurationService), new class extends mock<IUserDataProfilesService>() { }(), instantiationService.get(ILanguageService)),
+				};
+			};
+			const managed = read();
+			await policy.setUserConfiguration(key, 'auto');
+			const changed = read();
+			await policy.setUserConfiguration(key, undefined);
+			const removed = read();
+			const saved = target === ConfigurationTarget.USER_LOCAL ? 'gemini' : 'auto';
+			assert.deepStrictEqual({
+				managed, changed,
+				removed: { value: removed.value, managed: removed.managed, description: removed.description },
+				savedUser: configuration.inspect(key).userLocalValue,
+				savedWorkspace: configuration.inspect(key).workspaceValue,
+			}, {
+				managed: { value: 'opus', managed: true, description: getDefaultModelPolicyDescription('opus', saved), accessible: getDefaultModelPolicyDescription('opus', saved) },
+				changed: { value: 'auto', managed: true, description: getDefaultModelPolicyDescription('auto', saved), accessible: getDefaultModelPolicyDescription('auto', saved) },
+				removed: { value: saved, managed: false, description: undefined },
+				savedUser: 'gemini', savedWorkspace: 'auto',
+			});
+		});
+	}
+});
 
 suite('SettingsTree Agents Window density', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -199,47 +278,6 @@ suite('SettingsTree managed sandbox', () => {
 				managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
 				return read();
 			});
-
-			test('composes managed filesystem presentation with local paths and restores preferences on removal', () => {
-				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
-				const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
-				const initial = read();
-				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = '["managed.deny"]';
-				const denied = read();
-				managed[COPILOT_SANDBOX_READONLY_PATHS_KEY] = '[]';
-				const restricted = read();
-				delete managed[COPILOT_SANDBOX_DENIED_PATHS_KEY];
-				delete managed[COPILOT_SANDBOX_READONLY_PATHS_KEY];
-				const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
-				assert.deepStrictEqual({ initial, denied, restricted, removed: read(), stored: configuration.getValue(key) }, {
-					initial: [{ value: local, managed: false, policyFilter: false }],
-					denied: [{ value: { ...local, deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
-					restricted: [{ value: { ...local, readonlyPaths: [], deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
-					removed: initial,
-					stored: local,
-				});
-			});
-
-			test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
-				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
-				const consoleWarn = stub(console, 'warn');
-				try {
-					const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
-						[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
-					});
-					const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
-						managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
-						return read();
-					});
-					const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
-					assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
-						settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
-						stored: local,
-					});
-				} finally {
-					consoleWarn.restore();
-				}
-			});
 			assert.deepStrictEqual({
 				settings,
 				stored: configuration.getValue(key),
@@ -248,6 +286,47 @@ suite('SettingsTree managed sandbox', () => {
 				settings: Array.from({ length: 5 }, () => [{ value: ['local.example'], managed: false, policyFilter: false }]),
 				stored: ['local.example'],
 				warnings: 5,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
+
+	test('composes managed filesystem presentation with local paths and restores preferences on removal', () => {
+		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+		const initial = read();
+		managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = '["managed.deny"]';
+		const denied = read();
+		managed[COPILOT_SANDBOX_READONLY_PATHS_KEY] = '[]';
+		const restricted = read();
+		delete managed[COPILOT_SANDBOX_DENIED_PATHS_KEY];
+		delete managed[COPILOT_SANDBOX_READONLY_PATHS_KEY];
+		const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+		assert.deepStrictEqual({ initial, denied, restricted, removed: read(), stored: configuration.getValue(key) }, {
+			initial: [{ value: local, managed: false, policyFilter: false }],
+			denied: [{ value: { ...local, deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+			restricted: [{ value: { ...local, readonlyPaths: [], deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+			removed: initial,
+			stored: local,
+		});
+	});
+
+	test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
+		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
+				[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
+			});
+			const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
+				return read();
+			});
+			const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+			assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
+				settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
+				stored: local,
 			});
 		} finally {
 			consoleWarn.restore();

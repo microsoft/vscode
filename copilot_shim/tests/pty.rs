@@ -556,8 +556,20 @@ fn macos_pty_install_only_keeps_installer_profile_consent_and_never_launches_cli
 			read(&state.join("profile-answer")),
 			state.join("cli-launched").exists(),
 			count_bytes(process.transcript(), INSTALL_PROMPT),
+			trim_newline(process.transcript().to_vec()),
 		),
-		(Some(0), b"n".to_vec(), false, 0),
+		(
+			Some(0),
+			b"n".to_vec(),
+			false,
+			0,
+			format!(
+				"Would you like to add it to {}/.profile? [y/N] GitHub Copilot CLI installed successfully.\nLocation: {}/bin/copilot",
+				home.display(),
+				prefix.display()
+			)
+			.into_bytes(),
+		),
 		"PTY transcript:\n{}",
 		String::from_utf8_lossy(process.transcript())
 	);

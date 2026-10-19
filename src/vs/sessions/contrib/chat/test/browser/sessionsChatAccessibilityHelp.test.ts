@@ -33,7 +33,7 @@ import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/re
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
@@ -56,7 +56,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
-		}, { back: true, forward: true, singletonViews: true });
+			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
+			independentDrag: content.includes('without moving its parent.'),
+			independentVisibility: content.includes('Closing the parent pane leaves independent sub-session panes open.'),
+			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
+			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
+			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -177,7 +183,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
+	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
@@ -214,11 +220,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				fileSystemAccess: content.includes('read and modify files across this machine'),
-				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+				backendPicker: content.includes('Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments'),
+				previewSetting: content.includes('The preview setting chat.agentHost.remoteConnections selects the connection method'),
 			}, {
 				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled,
-				fileSystemAccess: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				fileSystemAccess: !hidden && !aiDisabled, backendPicker: !hidden && !aiDisabled,
+				previewSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
@@ -540,6 +548,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			responsiveImagePreview: content.includes('The thumbnail row follows the selected preview\'s size'),
 			noEmptyImagePreview: content.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: content.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			batchDownload: content.includes('download action beside the Image batch status to save all currently ready images as a ZIP archive'),
+			downloadSnapshot: content.includes('Only images ready when you start the download are included'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
 			carouselDownload: content.includes('Images Preview offers Download for the selected image'),
 			artifactDownload: content.includes('Image rows in Artifacts and References offer Download Image'),
@@ -561,6 +571,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			responsiveImagePreview: true,
 			noEmptyImagePreview: true,
 			countsBelowThumbnails: true,
+			batchDownload: true,
+			downloadSnapshot: true,
 			imageNavigation: true,
 			carouselDownload: true,
 			artifactDownload: true,
@@ -817,12 +829,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Compare Models'),
 			enabled: enabledProvider.provideContent().includes('activate Compare Models'),
-			repeated: enabledProvider.provideContent().includes('choose one model and set Number of Runs from two to ten'),
+			doneAndNextGated: enabledProvider.provideContent().includes('Done and Next stay disabled until two to ten models are checked'),
 			optionalJudge: enabledProvider.provideContent().includes('run attempts without review'),
 			optionalSynthesizer: enabledProvider.provideContent().includes('Without a Synthesizer, review is available but synthesis is not'),
 			done: enabledProvider.provideContent().includes('Done returns to the composer'),
 			configRefresh: enabledProvider.provideContent().includes('Comparison selections are kept while draft permissions or mode are updating.'),
-			cancelSetup: enabledProvider.provideContent().includes('Cancel, Escape, or clicking outside the picker discards setup changes'),
+			cancelSetup: enabledProvider.provideContent().includes('Escape or clicking outside the picker discards setup changes'),
 			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
 			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
 			threePaneInputs: enabledProvider.provideContent().includes('With three or more, only the active attempt pane shows its chat input'),
@@ -837,16 +849,18 @@ suite('SessionsChatAccessibilityHelp', () => {
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
 			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
-			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
-			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
+			rationaleOrder: enabledProvider.provideContent().includes('Solution, Comparison, Validation, Code quality'),
+			attemptRows: enabledProvider.provideContent().includes('Up Arrow or Down Arrow to move between them, then press Enter or Space to expand a row'),
+			attemptOpen: enabledProvider.provideContent().includes('Each row also has an Open button after its metrics that opens that attempt\'s session.'),
+			checksSummary: enabledProvider.provideContent().includes('a summary of its validation checks such as Tests passed or Not run'),
 			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
-			focusAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to focus another attempt'),
+			openAttempts: enabledProvider.provideContent().includes('use its adjacent dropdown to open another attempt'),
 			additionalInstructions: enabledProvider.provideContent().includes('choose Additional Synthesis Instructions'),
 			submitInstructions: enabledProvider.provideContent().includes('Activate Start Synthesis with Instructions'),
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 		}, {
 			disabled: false,
-			enabled: true, repeated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
+			enabled: true, doneAndNextGated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
 			cancelSetup: true,
 			opensAttemptsGrid: true,
@@ -864,9 +878,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			deleteGroup: true,
 			inactivePaneNotification: true,
 			rationaleOrder: true,
-			attemptLinks: true,
+			attemptRows: true,
+			attemptOpen: true,
+			checksSummary: true,
 			accessibleView: true,
-			focusAttempts: true,
+			openAttempts: true,
 			additionalInstructions: true,
 			submitInstructions: true,
 			customSynthesis: false,

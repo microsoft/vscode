@@ -386,6 +386,14 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_JOB_NAME: Smoke
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
@@ -436,6 +444,14 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
             - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -491,6 +507,13 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
