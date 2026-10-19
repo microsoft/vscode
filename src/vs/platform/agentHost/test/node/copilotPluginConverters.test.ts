@@ -363,25 +363,46 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
-		test('infer defaults to false when disable-model-invocation is set', async () => {
-			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-invoke.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString([
+		test('forwards model invocation restrictions', async () => {
+			const disabledUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-invoke.md' });
+			const legacyUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/legacy-no-invoke.md' });
+			await fileService.writeFile(disabledUri, VSBuffer.fromString([
 				'---',
 				'name: no-invoke',
 				'disable-model-invocation: true',
 				'---',
 				'Body.',
 			].join('\n')));
+			await fileService.writeFile(legacyUri, VSBuffer.fromString([
+				'---',
+				'name: legacy-no-invoke',
+				'infer: false',
+				'---',
+				'Legacy body.',
+			].join('\n')));
 
-			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'no-invoke' }];
+			const agents: INamedPluginResource[] = [
+				{ uri: disabledUri, name: 'no-invoke' },
+				{ uri: legacyUri, name: 'legacy-no-invoke' },
+			];
 			const result = await toSdkCustomAgents(agents, fileService);
 
-			assert.deepStrictEqual(result, [{
-				name: 'no-invoke',
-				tools: null,
-				infer: false,
-				prompt: 'Body.',
-			}]);
+			assert.deepStrictEqual(result, [
+				{
+					name: 'no-invoke',
+					tools: null,
+					infer: false,
+					disableModelInvocation: true,
+					prompt: 'Body.',
+				},
+				{
+					name: 'legacy-no-invoke',
+					tools: null,
+					infer: false,
+					disableModelInvocation: true,
+					prompt: 'Legacy body.',
+				},
+			]);
 		});
 
 		test('omits skills and infer when frontmatter does not specify them', async () => {
