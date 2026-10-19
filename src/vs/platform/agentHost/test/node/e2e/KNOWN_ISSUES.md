@@ -1083,3 +1083,11 @@ The entire Claude or Codex suite also skips when its bundled SDK package is unav
 2. Reevaluate broad provider gates one title at a time and check whether a capture exists.
 3. Re-record narrowly after SDK/CLI behavior changes and review every generated artifact.
 4. Remove fixed gates, entries, comments, and orphaned captures together.
+
+### Chats with different agents in one session are not covered for Codex
+
+A session whose default chat runs in Codex and which also has a chat in the Copilot agent sends model requests in two wire formats (Responses and Anthropic). A capture holds a single `dialect`, so this mix cannot be replayed.
+
+- Tests: `chats of one session run turns in their own agent`, `a fork stays on its source chat's agent and rejects another provider` and `chats keep their own agent across a host restart` in `suites/multipleChatProvidersSuite.ts`.
+- Scope: the Codex parity run. They run for Claude, whose session and the Copilot agent both use the Anthropic dialect.
+- Gate: the suite registers them for `claude` only.
