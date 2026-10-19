@@ -23,7 +23,8 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -61,9 +62,15 @@ export class AgentHostGenericConfigChips extends Disposable {
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostService agentHostService: IAgentHostService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
+		this._register(this._configurationService.onDidChangeConfiguration(event => {
+			if (affectsAgentHostProviderPreference(event, true)) {
+				this._reattach();
+			}
+		}));
 		this._register(agentHostService.onAgentHostExit(() => {
 			this._initialResolved = undefined;
 			this._cancelInitialResolve();
@@ -110,10 +117,11 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 	private _reattach(): void {
 		const sessionResource = this._widget.viewModel?.sessionResource;
+		const localProvider = sessionResource ? getLocalAgentHostSessionProvider(sessionResource) : undefined;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, provisionalBackend, this._connectionsService) : undefined;
 
-		if (!sessionResource || !resolution) {
+		if (!sessionResource || !resolution || (localProvider && isLocalAgentHostProviderDisabledByPolicy(localProvider, this._configurationService))) {
 			this._subRef.clear();
 			this._initialResolved = undefined;
 			this._cancelInitialResolve();
@@ -122,7 +130,6 @@ export class AgentHostGenericConfigChips extends Disposable {
 		}
 
 		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
-		const localProvider = getLocalAgentHostSessionProvider(sessionResource);
 		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {

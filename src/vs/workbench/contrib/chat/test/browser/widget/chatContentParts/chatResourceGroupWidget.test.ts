@@ -151,6 +151,25 @@ suite('ChatResourceGroupWidget', () => {
 		return { content, fileService };
 	}
 
+	/** Resolves with the first element in `container` that matches `selector`, waiting for the DOM mutation that adds it. */
+	function waitForElement<T extends Element>(container: HTMLElement, selector: string): Promise<T> {
+		const existing = container.querySelector<T>(selector);
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+		return new Promise(resolve => {
+			const observer = new MutationObserver(() => {
+				const element = container.querySelector<T>(selector);
+				if (element) {
+					observer.disconnect();
+					resolve(element);
+				}
+			});
+			observer.observe(container, { childList: true, subtree: true });
+			store.add(toDisposable(() => observer.disconnect()));
+		});
+	}
+
 	function snapshot(widget: ChatResourceGroupWidget) {
 		const attachment = widget.domNode.querySelector('.image-attachment');
 		const image = attachment?.querySelector('img');
@@ -471,16 +490,17 @@ suite('ChatResourceGroupWidget', () => {
 	test('ordinary tool resources keep their deferred attachment thumbnails', async () => {
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
 		const initial = snapshot(widget);
-		await retry(async () => {
-			const image = widget.domNode.querySelector<HTMLImageElement>('img');
-			assert.ok(image?.complete && image.naturalWidth > 0);
-		}, 20, 50);
+		// The thumbnail replaces the placeholder only after a decode delay and an asynchronous canvas
+		// encode whose duration depends on renderer load, so wait for it instead of polling on a budget.
+		const image = await waitForElement<HTMLImageElement>(widget.domNode, 'img.chat-attached-context-pill-image');
+		await image.decode();
 
 		assert.deepStrictEqual({
 			initialFilePills: initial.filePills,
 			initialImages: initial.images,
 			finalImages: snapshot(widget).images,
+			decoded: image.naturalWidth > 0,
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
-		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, hoverImages: 1 });
+		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
 	});
 });

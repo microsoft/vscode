@@ -135,7 +135,7 @@ export class FusionReplayState {
 			if (update.part) {
 				parts.push(update.part);
 			}
-			if (update.phase) {
+			if (update.phase?.presentation === 'childChat') {
 				const toolCall = update.phase.toolCall;
 				const part: ResponsePart = { kind: ResponsePartKind.ToolCall, toolCall };
 				const index = parts.findIndex(existing => existing.kind === ResponsePartKind.ToolCall && existing.toolCall.toolCallId === toolCall.toolCallId);

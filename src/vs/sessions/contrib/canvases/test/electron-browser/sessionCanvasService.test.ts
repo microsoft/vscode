@@ -33,7 +33,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
-import { ISessionCanvasRegistryService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
@@ -320,23 +320,18 @@ suite('SessionCanvasService', () => {
 		const original = opened[0];
 		await openSettled[0];
 		await Promise.resolve();
-		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
-		const command = CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID);
-		assert.ok(command);
 
-		await command.handler(upcastPartial<ServicesAccessor>({}), original.reference);
+		await canvasService.revealCanvas(original.reference);
 		const focusedInput = opened[1];
 		original.dispose();
 		const reopenableAfterDismiss = canvasService.reopenableCanvases.get().length;
-		await command.handler(upcastPartial<ServicesAccessor>({}), original.reference);
-		registration.dispose();
+		await canvasService.revealCanvas(original.reference);
 
 		assert.deepStrictEqual({
 			focusedExistingInput: focusedInput === original,
 			reopenableAfterDismiss,
 			reopenedWithNewInput: opened[2] !== original,
 			openOptions,
-			commandRegisteredAfterDispose: CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID) !== undefined,
 		}, {
 			focusedExistingInput: true,
 			reopenableAfterDismiss: 1,
@@ -346,7 +341,6 @@ suite('SessionCanvasService', () => {
 				{ pinned: true, revealIfOpened: true, preserveFocus: false },
 				{ pinned: true, revealIfOpened: true, preserveFocus: false },
 			],
-			commandRegisteredAfterDispose: false,
 		});
 	});
 
@@ -568,10 +562,20 @@ suite('SessionCanvasService', () => {
 		const getSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+		const getListSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEmptyEditorGroupAddTab)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
+		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
+		const activityBarSubmenus = getActivityBarSubmenus();
 		const initialCommandIds = items.map(item => item.command.id);
 		const when = submenus[0].when?.serialize() ?? '';
+		const activityBarWhen = activityBarSubmenus[0]?.when?.serialize() ?? '';
+		const listSubmenus = getListSubmenus();
+		const itemWhen = items[0].when?.serialize() ?? '';
 		canvasStates.set(canvases.map((canvas, index) => index === 1 ? { ...canvas, title: 'Preview Updated' } : canvas), undefined);
 		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
@@ -589,6 +593,12 @@ suite('SessionCanvasService', () => {
 			requiresSessionsWindow: when.includes(IsSessionsWindowContext.key),
 			excludesAuxiliaryWindow: when.includes(`!${IsAuxiliaryWindowContext.key}`),
 			requiresRightPane: when.includes(IsTopRightEditorGroupContext.key),
+			listSubmenuWhenMatchesAddTab: listSubmenus.length === 1 && listSubmenus[0].when?.serialize() === when,
+			activityBarSubmenuTitles: activityBarSubmenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
+			activityBarRequiresChat: activityBarWhen.includes(ChatContextKeys.enabled.key),
+			activityBarRequiresRightPane: activityBarWhen.includes(IsTopRightEditorGroupContext.key),
+			itemRequiresChat: itemWhen.includes(ChatContextKeys.enabled.key),
+			itemRequiresRightPane: itemWhen.includes(IsTopRightEditorGroupContext.key),
 			reopenedResource: opened.at(-1)?.reference.canvas.toString(),
 			refreshedCommandIds: refreshedItems.map(item => item.command.id),
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
@@ -596,6 +606,8 @@ suite('SessionCanvasService', () => {
 			initialCommandsRegisteredAfterReopen: staleCommandsRegistered,
 			itemsAfterDispose: getItems().length,
 			submenusAfterDispose: getSubmenus().length,
+			listSubmenusAfterDispose: getListSubmenus().length,
+			activityBarSubmenusAfterDispose: getActivityBarSubmenus().length,
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
@@ -605,6 +617,12 @@ suite('SessionCanvasService', () => {
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,
 			requiresRightPane: true,
+			listSubmenuWhenMatchesAddTab: true,
+			activityBarSubmenuTitles: ['Canvas'],
+			activityBarRequiresChat: true,
+			activityBarRequiresRightPane: false,
+			itemRequiresChat: true,
+			itemRequiresRightPane: false,
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
 			refreshedCommandIds: initialCommandIds,
 			refreshedTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
@@ -612,6 +630,8 @@ suite('SessionCanvasService', () => {
 			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
+			listSubmenusAfterDispose: 0,
+			activityBarSubmenusAfterDispose: 0,
 			remainingCommandsAfterDispose: [false, false, false, false, false],
 		});
 	});

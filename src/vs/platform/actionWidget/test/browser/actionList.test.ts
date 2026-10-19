@@ -1916,6 +1916,38 @@ suite('ActionListWidget', () => {
 		);
 	});
 
+	test('a submenu beneath hover content is still advertised by its chevron and popup state', () => {
+		const child = toAction({ id: 'child', label: 'Child', run: () => { } });
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('menu'), hover: { content: 'About this item' }, submenuActions: [child] }, { ...action('hover'), hover: { content: 'About this item' } }],
+			listOptions: { showFilter: false },
+		});
+		const rows = () => Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')).filter(row => !row.closest('.action-list-submenu-panel'));
+		const state = () => rows().map(row => ({
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			haspopup: row.getAttribute('aria-haspopup'),
+			expanded: row.getAttribute('aria-expanded'),
+		}));
+
+		const initial = state();
+		rows()[0].querySelector<HTMLElement>('.action-list-submenu-indicator.has-submenu')?.click();
+		const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel');
+
+		assert.deepStrictEqual({
+			initial,
+			opened: state()[0].expanded,
+			panel: {
+				hover: panel?.querySelector('.action-list-submenu-hover-header')?.textContent,
+				actions: Array.from(panel?.querySelectorAll('.monaco-list-row.action .title') ?? [], title => title.textContent),
+			},
+		}, {
+			// A row with only hover content has no menu to advertise.
+			initial: [{ chevron: true, haspopup: 'menu', expanded: 'false' }, { chevron: false, haspopup: null, expanded: null }],
+			opened: 'true',
+			panel: { hover: 'About this item', actions: ['Child'] },
+		});
+	});
+
 	test('the submenu gutter follows the items the list currently holds', () => {
 		const expandable = (id: string): IActionListItem<ITestActionItem> => ({ ...action(id), hover: { content: 'panel', expandable: true } });
 		const gutters = (widget: ActionListWidget<ITestActionItem>) =>
@@ -3120,6 +3152,38 @@ suite('ActionListWidget', () => {
 		});
 	}));
 
+	for (const side of ['left', 'right'] as const) {
+		test(`Chat submenu tolerates diagonal pointer travel into the ${side} flyout`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { widget, panel, hover } = createPersistentPreview(side, true);
+			widget.updateItems([{
+				...action('Chat'),
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuActions: ['This Computer', 'ah1', 'ah2', 'ah3', 'ah4', 'sh1', 'sh2', 'sh3', 'sh4'].map(label =>
+					toAction({ id: label, label, run: () => { } })),
+				openSubmenuOnClick: true,
+			}, action('workspace'), action('another workspace'), action('Remote')]);
+
+			const origin = hover(0);
+			const initialContents = panel.textContent;
+			hover(2, origin.x + (side === 'right' ? 60 : -60));
+			const duringTravel = panel.textContent;
+			panel.dispatchEvent(new MouseEvent('mouseenter'));
+			await timeout(350);
+
+			assert.deepStrictEqual({
+				opened: initialContents?.includes('sh4'),
+				preservedDuringTravel: duringTravel === initialContents,
+				preservedAfterEntering: panel.textContent === initialContents,
+				visible: panel.style.display !== 'none',
+			}, {
+				opened: true,
+				preservedDuringTravel: true,
+				preservedAfterEntering: true,
+				visible: true,
+			});
+		}));
+	}
+
 	test('pointer travel grace is bounded across multiple crossed rows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { panel, hover } = createPersistentPreview();
 		const origin = hover(0);
@@ -3149,6 +3213,53 @@ suite('ActionListWidget', () => {
 			afterDelay: 'Details for third',
 		});
 	}));
+
+	for (const { name, crossWorkspace, enterSubmenu } of [
+		{ name: 'returning to its trigger', crossWorkspace: true, enterSubmenu: false },
+		{ name: 'returning to its trigger and entering it', crossWorkspace: true, enterSubmenu: true },
+		{ name: 'entering it after the pointer leaves', crossWorkspace: false, enterSubmenu: true },
+	]) {
+		test(`keyboard navigation cancels pending submenu dismissal when ${name}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { widget, panel } = createPersistentPreview('right', true);
+			widget.updateItems([{
+				...action('Chat'),
+				submenuActions: [toAction({ id: 'local', label: 'This Computer', run: () => { } })],
+			}, action('workspace')]);
+			const parentList = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+			const hoverRow = (index: number) => {
+				const row = parentList.querySelectorAll<HTMLElement>('.monaco-list-row')[index];
+				const bounds = row.getBoundingClientRect();
+				const point = { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+				row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, ...point }));
+				row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1, ...point }));
+			};
+			parentList.focus();
+			hoverRow(0);
+			if (crossWorkspace) {
+				hoverRow(1);
+				widget.focusPrevious();
+			} else {
+				panel.dispatchEvent(new MouseEvent('mouseleave'));
+			}
+			if (enterSubmenu) {
+				dispatchKeyDown(parentList, { key: 'ArrowRight', keyCode: 39 });
+			}
+			const immediateFocus = enterSubmenu ? panel.contains(document.activeElement) : document.activeElement === parentList;
+			await timeout(350);
+
+			assert.deepStrictEqual({
+				immediateFocus,
+				retainedFocus: enterSubmenu ? panel.contains(document.activeElement) : document.activeElement === parentList,
+				visible: panel.style.display !== 'none',
+				content: panel.querySelector('.title')?.textContent,
+			}, {
+				immediateFocus: true,
+				retainedFocus: true,
+				visible: true,
+				content: 'This Computer',
+			});
+		}));
+	}
 
 	test('disposing a persistent preview cancels pending pointer travel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const { widget, panel, hover } = createPersistentPreview();

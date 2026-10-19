@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
@@ -13,7 +14,9 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListItemInlineToggle, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -22,6 +25,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostS
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatOriginKind, SessionStatus, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -41,7 +45,8 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { IChatWidget } from '../../../browser/chat.js';
+import { IChatAcceptInputOptions, IChatWidget } from '../../../browser/chat.js';
+import { IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -128,9 +133,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 			values: { mode: 'interactive', autoApprove: 'assisted' },
 		};
+		const submissions: { query: string | undefined; options: IChatAcceptInputOptions | undefined }[] = [];
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = Event.None;
 			override viewModel: IChatViewModel | undefined;
+			override async acceptInput(query?: string, options?: IChatAcceptInputOptions) { submissions.push({ query, options }); return undefined; }
+		}();
+		const hasActiveRequest = observableValue('hasActiveRequest', false);
+		const model = new class extends mock<IChatViewModel['model']>() {
+			override readonly hasActiveRequest = hasActiveRequest;
+			override lastRequest: IChatRequestModel | undefined;
 		}();
 		const onDidShow = store.add(new Emitter<void>());
 		const branchCompletionQueries: (string | undefined)[] = [];
@@ -166,6 +178,17 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override updateItems<T>(items: readonly IActionListItem<T>[]): void {
 				this.items = items;
 			}
+			focused: string[] = [];
+			override focusItemById(itemId: string): void {
+				this.focused.push(itemId);
+			}
+			sections: string[] = [];
+			override collapseSection(): void {
+				this.sections.push('collapse');
+			}
+			override expandSection(): void {
+				this.sections.push('expand');
+			}
 			override hide(): void {
 				this.isVisible = false;
 				const onHide = this.onHide;
@@ -174,6 +197,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 		}();
 		const dispatches: { type: string; config: Record<string, unknown> }[] = [];
+		const configChannels: { channel: string; type: string }[] = [];
 		const settingsRequests: IOpenSettingsOptions[] = [];
 		const hoverTargets: HTMLElement[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
@@ -195,9 +219,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				branchCompletionProperties.push(params.property);
 				return { items: branchCompletionItems };
 			},
-			dispatch: (_session, action) => {
+			dispatch: (channel, action) => {
 				if (action.type === ActionType.SessionConfigChanged) {
 					dispatches.push(action);
+				}
+				if (action.type === ActionType.SessionConfigChanged || action.type === ActionType.ChatConfigChanged) {
+					configChannels.push({ channel, type: action.type });
 				}
 			}
 		});
@@ -248,11 +275,20 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced, managedSandboxAllowsBypass });
 		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority });
-		const modePicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Mode));
-		const permissionPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.AutoApprove));
+		const menu = dom.$('div');
+		instantiationService.stub(IContextViewService, { getContextViewElement: () => menu });
+		const pickers: AgentHostChatInputPicker[] = [];
+		const createPicker = (property: string) => {
+			const picker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, property));
+			pickers.push(picker);
+			return picker;
+		};
+		const modePicker = createPicker(SessionConfigKey.Mode);
+		const permissionPicker = createPicker(SessionConfigKey.AutoApprove);
 		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = sessionResource;
+			override readonly model = model;
 		}();
 		modePicker['_initialResolved'] = permissionPicker['_initialResolved'] = { sessionResource, result: config };
 		const modeContainer = dom.$('div');
@@ -260,29 +296,168 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		modePicker.render(modeContainer);
 		permissionPicker.render(permissionContainer);
 		const sandboxReady = () => timeout(0);
-		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme) => {
+		type TestChat = { readonly resource: string; readonly state: ChatState | undefined };
+		/** `chat.spawnedBy` are the chats that spawned it, innermost first; `chats` is the session's catalog. */
+		const setSession = (sessionResource: URI, backendSession: URI, host: IAgentConnection, provider = backendSession.scheme, chat?: TestChat & { readonly spawnedBy?: readonly TestChat[] }, chats: ChatSummary[] = []) => {
 			sessionResolutions.set(sessionResource.toString(), { connection: host, backendSession, connectionAuthority: 'test-host' });
 			widget.viewModel = new class extends mock<IChatViewModel>() {
 				override readonly sessionResource = sessionResource;
+				override readonly model = model;
 			}();
 			const state = new class extends mock<SessionState>() {
 				override readonly provider = provider;
 				override readonly config = config;
+				override readonly chats = chats;
 				override _meta: Record<string, unknown> | undefined;
 			}();
-			for (const picker of [modePicker, permissionPicker]) {
+			const subscription = (member: TestChat) => new class extends mock<IAgentSubscription<ChatState>>() {
+				override get value() { return member.state; }
+			}();
+			const getChat = () => chat && { resource: chat.resource, chain: new Map([chat, ...chat.spawnedBy ?? []].map(member => [member.resource, subscription(member)])) };
+			for (const picker of pickers) {
 				const sub = new class extends mock<IAgentSubscription<SessionState>>() {
 					override readonly value = state;
 				}();
 				picker['_initialResolved'] = undefined;
 				picker['_subRef'].value = Object.assign(toDisposable(() => { }), {
-					sessionResource, backendSession, connection: host, generation: picker['_sessionGeneration'], sub,
+					sessionResource, backendSession, connection: host, generation: picker['_sessionGeneration'], sub, getChat,
 				});
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, createPicker, submissions, model, hasActiveRequest, modeContainer, permissionContainer, configuration, config, actionWidget, menu, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, configChannels, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
+
+	async function setupCodexPermissions(initial: string, running = true) {
+		const rig = setup(false);
+		const permissionDialog: { apply: boolean; decision?: Promise<void> } = { apply: false };
+		const dialogService = new TestDialogService();
+		const permissionPrompt = stub(dialogService, 'prompt').callsFake(async options => {
+			await permissionDialog.decision;
+			return { result: permissionDialog.apply ? await options.buttons?.[0]?.run({}) : undefined };
+		});
+		store.add(toDisposable(() => permissionPrompt.restore()));
+		rig.instantiationService.set(IDialogService, dialogService);
+		const property = CodexSessionConfigKey.PermissionsPreset;
+		rig.config.schema.properties[property] = { title: 'Approvals', type: 'string', enum: ['default', 'auto-review', 'full-access'], sessionMutable: true };
+		rig.config.values[property] = initial;
+		rig.widget.viewModel = undefined;
+		const picker = rig.createPicker(property);
+		rig.setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('test-host', 'codex'), path: '/display-session' }), URI.parse('ahp-session:/opaque-session'), rig.connection, 'codex');
+		rig.hasActiveRequest.set(running, undefined);
+		const container = dom.$('div');
+		picker.render(container);
+		await picker['_showPicker'](container.querySelector<HTMLElement>('.action-label')!);
+		return { ...rig, picker, property, permissionDialog, permissionPrompt };
+	}
+
+	for (const [initial, selected, running, prompts] of [
+		['default', 'full-access', true, 1],
+		['full-access', 'default', true, 1],
+		['default', 'auto-review', true, 0],
+		['auto-review', 'default', true, 0],
+		['full-access', 'full-access', true, 0],
+		['default', 'full-access', false, 0],
+	] as const) {
+		test(`Codex permissions notice for ${initial} to ${selected} while running=${running}`, async () => {
+			const rig = await setupCodexPermissions(initial, running);
+			await rig.actionWidget.select(selected);
+			assert.deepStrictEqual({ prompts: rig.permissionPrompt.callCount, submissions: rig.submissions }, { prompts, submissions: [] });
+		});
+	}
+
+	for (const change of ['none', 'chat', 'request', 'permissions', 'dispose'] as const) {
+		test(`Apply Now in the editor after ${change} changes while the dialog is open`, async () => {
+			const rig = await setupCodexPermissions('default');
+			const decision = new DeferredPromise<void>();
+			rig.permissionDialog.apply = true;
+			rig.permissionDialog.decision = decision.p;
+			const selecting = rig.actionWidget.select('full-access');
+			await timeout(0);
+			assert.strictEqual(rig.permissionPrompt.callCount, 1);
+			rig.config.values[rig.property] = 'full-access';
+			switch (change) {
+				case 'chat': rig.widget.viewModel = undefined; break;
+				case 'request': rig.model.lastRequest = new class extends mock<IChatRequestModel>() { override readonly id = 'replacement-request'; }(); break;
+				case 'permissions': rig.config.values[rig.property] = 'auto-review'; break;
+				case 'dispose': rig.picker.dispose(); break;
+				case 'none': break;
+			}
+			await decision.complete();
+			await selecting;
+			assert.deepStrictEqual(rig.submissions, change === 'none' ? [{ query: 'Continue (I changed permissions from Default Permissions to Full Access)', options: { cancelCurrentRequest: true, preserveInput: true } }] : []);
+		});
+	}
+
+	test('reads its chat\'s own values and sends a property the chat may set to that chat', async () => {
+		const rig = setup();
+		rig.config.schema.properties.mode = { ...rig.config.schema.properties.mode, chatMutable: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default' };
+		const chat = 'ahp-chat://peer/session';
+		rig.setSession(URI.parse('agent-host-copilotcli:/test-session#peer'), URI.parse('copilotcli:/test-session'), rig.connection, undefined, {
+			resource: chat,
+			state: { resource: chat, title: 'Peer', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], config: { values: { mode: 'plan', autoApprove: 'autoApprove' } } },
+		});
+		const context = rig.modePicker['_readContext']();
+		await rig.modePicker['_setValue'](context!, 'autopilot');
+		await rig.permissionPicker['_setValue'](rig.permissionPicker['_readContext']()!, 'assisted');
+
+		assert.deepStrictEqual({ mode: context?.value, autoApprove: rig.permissionPicker['_readContext']()?.value, sent: rig.configChannels }, {
+			mode: 'plan',
+			// A property the session's schema does not let a chat set reads, and is written, as the session's.
+			autoApprove: 'default',
+			sent: [{ channel: chat, type: ActionType.ChatConfigChanged }, { channel: 'copilotcli:/test-session', type: ActionType.SessionConfigChanged }],
+		});
+	});
+
+	test('a subagent reads the values of the chats that spawned it and its writes change the nearest one that is not a subagent', async () => {
+		const rig = setup();
+		rig.config.schema.properties.mode = { ...rig.config.schema.properties.mode, chatMutable: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default' };
+		const summary = (resource: string, origin?: ChatSummary['origin']): ChatSummary => ({ resource, title: resource, status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), ...(origin ? { origin } : {}) });
+		const peer = 'ahp-chat://peer/session';
+		const subagent = 'ahp-chat://subagent/session';
+		const chatState = (resource: string, values?: Record<string, unknown>): ChatState => ({ ...summary(resource), turns: [], ...(values ? { config: { values } } : {}) });
+		const peerChat: { resource: string; state: ChatState | undefined } = { resource: peer, state: undefined };
+		rig.setSession(URI.parse('agent-host-copilotcli:/test-session#subagent'), URI.parse('copilotcli:/test-session'), rig.connection, undefined,
+			{ resource: subagent, state: chatState(subagent), spawnedBy: [peerChat] },
+			[summary('ahp-chat://default/session'), summary(peer), summary(subagent, { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 't' })]);
+		const read = () => ({ resolving: rig.modePicker['_isChatConfigResolving'](rig.modePicker['_readContext']()!), mode: rig.modePicker['_readContext']()?.value });
+		const beforePeer = read();
+		peerChat.state = chatState(peer, { mode: 'plan' });
+		const afterPeer = read();
+		await rig.modePicker['_setValue'](rig.modePicker['_readContext']()!, 'autopilot');
+
+		assert.deepStrictEqual({ beforePeer, afterPeer, sent: rig.configChannels }, {
+			beforePeer: { resolving: true, mode: 'interactive' },
+			afterPeer: { resolving: false, mode: 'plan' },
+			sent: [{ channel: peer, type: ActionType.ChatConfigChanged }],
+		});
+	});
+
+	test('shows a property the chat may set as resolving until the chat\'s state arrives', async () => {
+		const rig = setup();
+		rig.config.schema.properties.mode = { ...rig.config.schema.properties.mode, chatMutable: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default' };
+		const resource = 'ahp-chat://peer/session';
+		const chat: { resource: string; state: ChatState | undefined } = { resource, state: undefined };
+		rig.setSession(URI.parse('agent-host-copilotcli:/test-session#peer'), URI.parse('copilotcli:/test-session'), rig.connection, undefined, chat);
+		rig.modePicker.render(rig.modeContainer);
+		const read = () => ({
+			resolving: !!rig.modeContainer.querySelector('.agent-host-chat-input-picker-slot.resolving'),
+			canEdit: rig.modePicker['_canEdit'](rig.modePicker['_readContext']()!),
+			// Approvals are the session's here, so they never wait for the chat.
+			approvalsResolving: rig.permissionPicker['_isChatConfigResolving'](rig.permissionPicker['_readContext']()!),
+		});
+		const before = read();
+		chat.state = { resource, title: 'Peer', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], config: { values: { mode: 'plan' } } };
+		rig.modePicker['_renderChip']();
+
+		assert.deepStrictEqual({ before, after: { ...read(), mode: rig.modePicker['_readContext']()?.value } }, {
+			before: { resolving: true, canEdit: false, approvalsResolving: false },
+			after: { resolving: false, canEdit: true, approvalsResolving: false, mode: 'plan' },
+		});
+	});
 
 	test('native approval bindings restrict combined choices and write the original host key', async () => {
 		const rig = setup();
@@ -328,6 +503,20 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}, {
 			hidden: 'none', generic: ['autoApprove'],
 		});
+	});
+
+	test('hides the input request timeout picker without hiding other host options', () => {
+		const schema: SessionConfigPropertySchema = {
+			type: 'string', title: 'Question timeout', enum: ['5m', '4h', 'none'], default: '5m', sessionMutable: true,
+		};
+
+		assert.deepStrictEqual([false, true].map(isStartedSession => ({
+			timeout: isGenericConfigPickerProperty('inputRequestTimeout', schema, isStartedSession),
+			other: isGenericConfigPickerProperty('customChoice', schema, isStartedSession),
+		})), [
+			{ timeout: false, other: true },
+			{ timeout: false, other: true },
+		]);
 	});
 
 	test('never exposes the pull request URL as a generic config chip', () => {
@@ -563,7 +752,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		actionWidget.hide();
 		assert.deepStrictEqual({ draft, bypassAllowed, running, published, dispatches }, {
 			draft: { checked: !isWeb, disabled: !isWeb },
-			bypassAllowed: { checked: !isWeb, disabled: !isWeb },
+			bypassAllowed: { checked: false, disabled: false },
 			running: { checked: !isWeb, disabled: !isWeb },
 			published: { checked: false, disabled: false },
 			dispatches: [],
@@ -600,7 +789,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			sessionEnabled: permissionPicker['_getSandboxStandaloneToggle']()?.checked,
 		}, {
 			requiredState: { checked: true, disabled: true, writes: 0 },
-			optionalState: { checked: true, disabled: true },
+			optionalState: { checked: false, disabled: false },
 			sessionEnabled: true,
 		});
 
@@ -1182,6 +1371,53 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		]);
 	});
 
+	test('showSection opens a section, moves the open menu between sections, and hands off between separate pickers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { modePicker, actionWidget, menu } = setup();
+		const closedMenu = modePicker.menuElement;
+		await modePicker.showSection('mode', CancellationToken.None);
+		const opened = { showCount: actionWidget.showCount, collapsed: [...actionWidget.options?.collapsedByDefault ?? []], menu: modePicker.menuElement === menu };
+		await modePicker.showSection('permissions', CancellationToken.None);
+		await modePicker.showSection('mode', CancellationToken.Cancelled);
+		const separate = setup(false);
+		await separate.modePicker.showSection('mode', CancellationToken.None);
+		await separate.permissionPicker.showSection('permissions', CancellationToken.None);
+
+		assert.deepStrictEqual({ closedMenu, opened, showCount: actionWidget.showCount, focused: actionWidget.focused, sections: actionWidget.sections, separate: { showCount: separate.actionWidget.showCount, open: separate.permissionPicker.menuElement === separate.menu } }, {
+			closedMenu: undefined,
+			opened: { showCount: 1, collapsed: ['agentHostModePicker.permissions'], menu: true },
+			showCount: 1,
+			focused: ['agentHostModePicker.mode', 'agentHostModePicker.mode', 'agentHostModePicker.permissions'],
+			sections: ['collapse', 'expand'],
+			separate: { showCount: 2, open: true },
+		});
+	}));
+
+	test('showSection does not open the menu once the step is cancelled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { modePicker, permissionPicker, actionWidget } = setup(false);
+		const whileLoading = new CancellationTokenSource();
+		const cancelledWhileLoading = modePicker.showSection('mode', whileLoading.token);
+		whileLoading.cancel();
+		await cancelledWhileLoading;
+		const showCountAfterLoading = actionWidget.showCount;
+
+		await modePicker.showSection('mode', CancellationToken.None);
+		// The mode menu stays visible while it animates closed.
+		const hide = actionWidget.hide.bind(actionWidget);
+		actionWidget.hide = () => {
+			hide();
+			actionWidget.isVisible = true;
+		};
+		const whileClosing = new CancellationTokenSource();
+		const cancelledWhileClosing = permissionPicker.showSection('permissions', whileClosing.token);
+		whileClosing.cancel();
+		actionWidget.isVisible = false;
+		await cancelledWhileClosing;
+		whileLoading.dispose();
+		whileClosing.dispose();
+
+		assert.deepStrictEqual({ showCountAfterLoading, showCount: actionWidget.showCount, menu: permissionPicker.menuElement }, { showCountAfterLoading: 0, showCount: 1, menu: undefined });
+	}));
+
 	test('does not handle touch taps on the non-interactive combined group', async () => {
 		const { modeContainer, actionWidget } = setup();
 		modeContainer.querySelector('.action-label')!.dispatchEvent(new CustomEvent(TouchEventType.Tap));
@@ -1543,6 +1779,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly remoteAuthority = undefined;
 			}(),
+			new class extends mock<IContextViewService>() { }(),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });
@@ -1575,6 +1812,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			backendSession: URI.parse('copilotcli:/test-session'),
 			connection,
 			generation: picker['_sessionGeneration'],
+			getChat: () => undefined,
 			sub: new class extends mock<IAgentSubscription<SessionState>>() {
 				override readonly value = state;
 			}(),
@@ -1590,12 +1828,12 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 					writes.length = 0;
 					toggle.onChange(false);
 					toggle.onChange(true);
-					const disabled = managed;
+					const disabled = managed && bypass !== true;
 					assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title, writes }, {
 						checked: true,
 						disabled,
 						title: managed
-							? 'Sandboxing is required by your organization'
+							? disabled ? 'Sandboxing is required by your organization' : 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.'
 							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
@@ -1622,7 +1860,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		assert.deepStrictEqual({ writes, disabled: picker['_getSandboxStandaloneToggle']()!.disabled }, { writes: [], disabled: true });
 		allowBypass = true;
 		managedSettingsChanged.fire();
-		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, true);
+		assert.strictEqual(picker['_getSandboxStandaloneToggle']()!.disabled, false);
 
 		allowBypass = false;
 		managedSettingsChanged.fire();
@@ -1642,7 +1880,9 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
+			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
+			{ disabled: false, title: 'Your organization allows you to turn sandboxing off for this session. Changes are subject to runtime approval.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
 		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];

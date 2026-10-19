@@ -12,8 +12,11 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../bro
 import { DesktopLayoutController } from './desktopLayoutController.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
 registerSingleton(ISessionEditorWorkingSetService, SessionEditorWorkingSetService, InstantiationType.Delayed);
@@ -57,5 +60,27 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			experiment: { mode: 'startup' },
 			description: localize('sessionsLayoutScope.description', "Choose whether layout state belongs to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Terminal behavior is unchanged in all modes. Changes take effect after manually reloading the window."),
 		},
+		[SESSION_ACTIVITY_BAR_SETTING]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			experiment: { mode: 'auto' },
+			description: localize('sessions.showSessionActivityBar', "Controls whether the Session Activity Bar is shown at the right edge of the active chat in the Agents window. It opens the Changes, Files, Browser, and Canvas tabs."),
+		},
+		[SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('sessions.sessionActivityBar.showLayoutActions', "Controls whether the Session Activity Bar shows the Toggle Side Panel and Toggle Panel actions in place of their title bar buttons. Only applies when {0} is enabled.", '`#sessions.showSessionActivityBar#`'),
+		},
 	},
 });
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: LEGACY_SESSION_TOOLBAR_SETTING,
+	migrateFn: (value, accessor) => {
+		const pairs: ConfigurationKeyValuePairs = [[LEGACY_SESSION_TOOLBAR_SETTING, { value: undefined }]];
+		if (accessor(SESSION_ACTIVITY_BAR_SETTING) === undefined) {
+			pairs.push([SESSION_ACTIVITY_BAR_SETTING, { value }]);
+		}
+		return pairs;
+	},
+}]);

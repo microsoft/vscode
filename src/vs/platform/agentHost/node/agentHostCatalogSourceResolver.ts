@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { AgentSession } from '../common/agent.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
@@ -18,9 +19,15 @@ import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostC
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
+import { sessionWorktreeFolderRepositoryRoot, WORKTREE_FOLDERS_KEY } from './shared/sessionWorktreeFolders.js';
 import type { IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 
 export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
+
+/** Standard session URIs identify host containers, including when a native alias shares their storage. */
+export function isAgentHostChatBacking(session: URI, marked: boolean): boolean {
+	return marked && AgentSession.provider(session) !== undefined;
+}
 
 export interface ICatalogSourceState {
 	readonly modifiedTime: number;
@@ -102,6 +109,8 @@ const sessionMetadata = {
 	changes: parsedSessionMetadataKey(META_CHANGES_SUMMARY, readPersistedChanges),
 	chatBacking: stringSessionMetadataKey(CHAT_BACKING_METADATA_KEY),
 	worktreeRepositoryRoot: stringSessionMetadataKey(WORKTREE_META_REPOSITORY_ROOT),
+	/** Central only: worktrees another session recorded that this session works in since a move (Block 5). */
+	worktreeFolders: stringSessionMetadataKey(WORKTREE_FOLDERS_KEY),
 	gitHubData: parsedSessionMetadataKey(META_GITHUB_DATA_STATE, readPersistedGitHubData),
 	/** Written by earlier versions; migrated to the session folder. */
 	gitHub: parsedSessionMetadataKey(META_GITHUB_STATE, readPersistedGitHubState),
@@ -227,15 +236,19 @@ export class AgentHostCatalogSourceResolver {
 		const isRead = aggregateChats.length === 1 && aggregateChats[0].isRead !== undefined
 			? chatIsRead(aggregateChats[0]) ?? persistedSessionIsRead
 			: persistedSessionIsRead && !aggregateChats.some(chat => chatIsRead(chat) === false);
+		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
+		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
 		const persistedArchived = sessionMetadata.isArchived.read(metadata) ?? sessionMetadata.isDone.read(metadata);
-		const isArchived = preferPersistedMetadata && persistedArchived !== undefined
+		// Until adoption, the provider's legacy marker owns archive state rather than the host's partial metadata.
+		const isArchived = preferPersistedMetadata && persistedArchived !== undefined && !(ehcliAdoptable && !ehcliAdopted)
 			? persistedArchived
 			: (state.status & SessionStatus.IsArchived) !== 0;
 		const persistedChanges = sessionMetadata.changes.read(metadata);
 		const changes = preferPersistedMetadata && metadata[META_CHANGES_SUMMARY] !== undefined ? persistedChanges : state.changes;
-		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata));
-		const ehcliAdoptable = readSessionEhcliAdoptable(state.meta);
-		const ehcliAdopted = readSessionEhcliAdopted(state.meta) || sessionMetadata.ehcliAdopted.read(metadata) === true;
+		const workingDirectories = (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories;
+		// Its own recorded worktree, else a shared worktree a move recorded as its primary folder: never a path's shape.
+		const worktreeProject = this._dependencies.worktreeProjectFromRepositoryRoot(sessionMetadata.worktreeRepositoryRoot.read(metadata)
+			?? sessionWorktreeFolderRepositoryRoot(sessionMetadata.worktreeFolders.read(metadata), workingDirectories[0]));
 		const persistedDevContainerWorktree = sessionMetadata.devContainerWorktree.read(metadata);
 		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
 			? persistedDevContainerWorktree
@@ -267,8 +280,8 @@ export class AgentHostCatalogSourceResolver {
 			project: worktreeProject
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
-			isChatBacking: !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session),
-			workingDirectories: (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories,
+			isChatBacking: isAgentHostChatBacking(session, !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session)),
+			workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 			chats: authoritativeChats ?? state.chats.map((chat, order) => {
@@ -374,7 +387,8 @@ export class AgentHostCatalogSourceResolver {
 		} else if (metadata[META_GIT_DATA_STATE] !== undefined) {
 			legacyMetadata[META_GIT_DATA_STATE] = '';
 		}
-		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
+		// A summary derived from legacy blobs during migration has no persisted key yet; writing it completes the migration.
+		if (metadata[META_CHANGES_SUMMARY] !== undefined || (preferPersistedMetadata && changes)) {
 			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
 		}
 		if (authoritativeChats !== undefined) {

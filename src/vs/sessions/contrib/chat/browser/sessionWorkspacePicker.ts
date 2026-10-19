@@ -321,7 +321,7 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * Currently active workspace tab (a group label contributed by a
-	 * provider, e.g. `"Local"` / `"Cloud"` / `"Remote"`).
+	 * provider, e.g. `"This Computer"` / `"Cloud"` / `"Remote"`).
 	 */
 	private _activeTab: string | undefined;
 
@@ -909,7 +909,7 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
 			: { className: 'sessions-new-chat-picker-list', submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
@@ -1650,7 +1650,7 @@ export class WorkspacePicker extends Disposable {
 				toAction({
 					id: `${actionId}.host`,
 					label: workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
-						? localize('workspacePicker.devContainer.local', "Use Local")
+						? localize('workspacePicker.devContainer.local', "Use This Computer")
 						: localize('workspacePicker.devContainer.remote', "Use Remote Host"),
 					tooltip: '',
 					checked: !usingDevContainer,
@@ -2030,6 +2030,9 @@ export class WorkspacePicker extends Disposable {
 			},
 			submenuActions: noWorkspaceOption.submenuActions ? [...noWorkspaceOption.submenuActions] : undefined,
 			openSubmenuOnClick: !!noWorkspaceOption.submenuActions?.length,
+			hover: this._useConsolidatedRemoteWorkspaces() && noWorkspaceOption.submenuActions?.length
+				? { preserveVerticalPosition: true, alignToAnchorTop: true }
+				: undefined,
 		};
 		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]

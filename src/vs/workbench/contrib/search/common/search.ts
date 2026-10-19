@@ -5,7 +5,7 @@
 
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { SymbolKind, Location, ProviderResult, SymbolTag } from '../../../../editor/common/languages.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -21,6 +21,24 @@ import { compare } from '../../../../base/common/strings.js';
 import { groupBy } from '../../../../base/common/arrays.js';
 import * as nls from '../../../../nls.js';
 import type { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { AnythingQuickAccessProviderRunOptions } from '../../../../platform/quickinput/common/quickAccess.js';
+
+/**
+ * Supplies scoped file candidates while the Anything Quick Access provider retains query handling, scoring, sorting, and rendering.
+ */
+export interface IAnythingQuickAccessFileSearchDelegate {
+	search(filePattern: string, token: CancellationToken): Promise<ISearchComplete>;
+	getItemDescription?(resource: URI): string | undefined;
+}
+
+/**
+ * Run options specific to the Anything Quick Access provider.
+ */
+export interface IAnythingQuickAccessProviderRunOptions extends AnythingQuickAccessProviderRunOptions {
+	readonly filesOnly?: boolean;
+	readonly includeOpenToSideButton?: boolean;
+	readonly fileSearchDelegate?: IAnythingQuickAccessFileSearchDelegate;
+}
 
 export interface IWorkspaceSymbol {
 	name: string;

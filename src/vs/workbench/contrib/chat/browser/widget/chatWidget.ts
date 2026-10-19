@@ -13,7 +13,8 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
+import { CancellationError, ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -27,6 +28,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatOpenDiagnosticsService } from '../../common/chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -39,7 +41,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../platform/agentHost/common/agentService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
@@ -54,7 +56,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { SaveReason } from '../../../../common/editor.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
@@ -71,14 +73,15 @@ import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } fro
 import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
-import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage, ThinkingDisplayMode } from '../../common/constants.js';
 import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -87,7 +90,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatTreeItem, ChatViewPaneTarget, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatFindController, IChatListItemRendererOptions, IChatPasteTargetService, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, IChatWidgetViewState, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
@@ -107,6 +110,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { IChatTipService } from '../chatTipService.js';
 import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
+import { animateChatProgress } from './chatProgressAnimation.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -335,6 +339,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
 	private _submitHandlerInFlight = false;
+	private _participantRedirectInFlight = false;
 
 	private _onDidChangeAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidChangeAgent = this._onDidChangeAgent.event;
@@ -641,6 +646,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAgentHostPolicyContinuationService private readonly policyContinuationService: IAgentHostPolicyContinuationService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
@@ -741,9 +748,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.accessibilityService.onDidChangeReducedMotion(() => {
 			this.updateWorkingProgressBorder();
-			if (this.visible) {
-				this.listWidget.rerender();
-			}
+			this.rerenderListIfConnected();
 		}));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
@@ -1276,9 +1281,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
 			this.container.style.fontSize = `${fontSize}px`;
 
-			if (this.visible) {
-				this.listWidget.rerender();
-			}
+			this.rerenderListIfConnected();
 		}));
 
 		this._register(Event.runAndSubscribe(this.editorOptions.onDidChange, () => this.onDidStyleChange()));
@@ -1507,6 +1510,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._pendingFirstRenderSessionResource = undefined;
 				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
 				CloudSandboxSessionTrace.get(this.viewModel.model)?.record('firstRender', { items: items.length });
+				this.chatOpenDiagnosticsService.mark(this.viewModel.sessionResource, 'firstRender');
 			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -1565,6 +1569,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (message) {
 			const store = new DisposableStore();
 			this.transcriptProgressPart.value = store;
+			store.add(animateChatProgress(this.transcriptProgress.part.domNode));
 			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
 			renderedMessage.element.classList.add('progress-step');
@@ -1618,6 +1623,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (context) {
 			this.transcriptContextPart.value = this.instantiationService.createInstance(ChatAttachmentsContentPart, {
 				variables: [context],
+				sessionResource: this.viewModel?.sessionResource,
 				domNode: this.transcriptContext,
 			});
 		} else {
@@ -1659,7 +1665,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				} else {
 					additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 				}
-				if (!additionalMessage && !this._lockedAgent) {
+				if (!additionalMessage && (!this._lockedAgent || this._lockedAgent.agentHostProviderId)) {
 					additionalMessage = this._getGenerateInstructionsMessage();
 				}
 				const welcomeContent = this.getWelcomeViewContent(additionalMessage);
@@ -1769,7 +1775,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
-		if (this.isLockedToCodingAgent) {
+		if (this.isLockedToCodingAgent && !this._lockedAgent?.agentHostProviderId) {
 			// Check for provider-specific customizations from chat sessions service
 			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 			const providerIcon = contribution?.icon;
@@ -2142,13 +2148,36 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.setInputVisible(!readOnly || keepInputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
-		if (this.visible) {
-			this.listWidget?.rerender();
+		this.rerenderListIfConnected();
+	}
+
+	private _listRerenderPending = false;
+
+	/**
+	 * Re-renders the list rows. A detached or hidden list measures every row as 0px,
+	 * so the rerender is deferred until a layout gives the list real dimensions.
+	 */
+	private rerenderListIfConnected(): void {
+		if (!this.visible || !this.listWidget) {
+			return;
+		}
+		const listDomNode = this.listWidget.domNode;
+		if (listDomNode.isConnected && listDomNode.offsetHeight > 0) {
+			this._listRerenderPending = false;
+			this.listWidget.rerender();
+		} else {
+			this._listRerenderPending = true;
 		}
 	}
 
-	private observeLocalSessionArchived(model: IChatModel): IObservable<boolean> {
-		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)
+	private flushPendingListRerender(): void {
+		if (this._listRerenderPending) {
+			this.rerenderListIfConnected();
+		}
+	}
+
+	private observeSessionArchived(model: IChatModel): IObservable<boolean> {
+		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || model.sessionResource.scheme === 'agent-host-claude' || model.sessionResource.scheme === 'agent-host-codex'
 			? observableFromEvent(this, this.agentSessionsService.model.onDidChangeSessions, () => this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true)
 			: constObservable(false);
 	}
@@ -2159,30 +2188,57 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.setReadOnly(model.isReadOnly.read(reader) || policyRequired, !policyRequired && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
 
-	private autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
-		if (model.initialLocation !== ChatAgentLocation.Chat || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)) {
+	private autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
+		const provider = model.sessionResource.scheme === 'agent-host-claude' ? 'claude' : model.sessionResource.scheme === 'agent-host-codex' ? 'codex' : undefined;
+		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)))) {
 			return Disposable.None;
 		}
+		const providerDisabled = provider ? observableFromEvent(Event.filter(this.configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)), () => isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService)) : constObservable(true);
+		const hasRequests = observableFromEvent(model.onDidChange, () => model.hasRequests);
 		let attempted = false;
 		return autorun(reader => {
-			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !model.hasRequests) {
+			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || !providerDisabled.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !hasRequests.read(reader) || (provider && !model.isReadOnly.read(reader))) {
 				return;
 			}
 			// Let the widget finish binding the transcript and restoring the draft first.
 			reader.store.add(disposableTimeout(async () => {
+				if (this.viewModel?.model !== model) {
+					return;
+				}
 				attempted = true;
-				this.readOnlyBanner?.setMessage(localize('chatReadOnlyBanner.movingToCopilot', "Moving this chat to Copilot…"));
+				const movingMessage = localize('chatReadOnlyBanner.movingToCopilot', "Moving this chat to Copilot…");
+				if (this.readOnlyBanner) {
+					this.readOnlyBanner.setMessage(movingMessage);
+				} else {
+					status(movingMessage);
+				}
 				try {
-					await this.readOnlyBanner?.runAction();
+					if (provider) {
+						const run = () => this.policyContinuationService.continueInCopilot(model.sessionResource, 'automatic');
+						await (this.readOnlyBanner ? this.readOnlyBanner.runAction(run) : run());
+					} else {
+						await this.readOnlyBanner?.runAction();
+					}
 				} catch (error) {
 					if (isCancellationError(error)) {
 						if (this.viewModel?.model === model) {
 							this.setReadOnly(this._readOnly);
+							const historyStatus = model.historyStatus?.read(undefined);
+							if (!this.readOnlyBanner && historyStatus) {
+								status(historyStatus.message);
+							}
 						}
 					} else {
-						this.logService.error('Failed to automatically move Local chat to Copilot', error);
+						this.logService.error(provider ? 'Failed to automatically continue Agent Host chat in Copilot' : 'Failed to automatically move Local chat to Copilot', error);
 						if (this.viewModel?.model === model) {
-							this.readOnlyBanner?.setMessage(localize('chatReadOnlyBanner.moveFailed', "Couldn't move this chat to Copilot. Use Move to Copilot to try again."));
+							const failedMessage = provider
+								? localize('chatReadOnlyBanner.continueFailed', "Couldn't move this chat to Copilot. Use Continue in Copilot to try again.")
+								: localize('chatReadOnlyBanner.moveFailed', "Couldn't move this chat to Copilot. Use Move to Copilot to try again.");
+							if (this.readOnlyBanner) {
+								this.readOnlyBanner.setMessage(failedMessage);
+							} else {
+								status(failedMessage);
+							}
 						}
 					}
 				}
@@ -2988,14 +3044,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0, model.sessionResource);
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
+		const archived = this.observeSessionArchived(model);
 		if (!this.viewOptions.isSessionsWindow) {
-			const archived = this.observeLocalSessionArchived(model);
 			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, archived.read(reader), reader)));
-			this.viewModelDisposables.add(this.autoMigrateLocalSession(model, archived));
 		}
+		this.viewModelDisposables.add(this.autoMigratePolicySession(model, archived));
 
 		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
+		this.chatOpenDiagnosticsService.mark(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;
@@ -3045,16 +3102,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._chatSessionSupportsRenameContextKey.set(false);
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const updateSessionCapabilities = () => {
-			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
-			this._chatSessionSupportsForkContextKey.set(supportsFork);
-			const supportsRename = getChatSessionType(model.sessionResource) === localChatSessionType
-				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
-			this._chatSessionSupportsRenameContextKey.set(supportsRename);
-			this.listWidget?.updateRendererOptions({ supportsFork });
-		};
-		updateSessionCapabilities();
-		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSessionCapabilities()));
+		this.viewModelDisposables.add(this.bindSessionCapabilities(model));
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
@@ -3117,6 +3165,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewOptions.renderArtifactsWidget !== false) {
 			this.input.renderArtifactsWidget(this.viewModel.sessionResource);
 		}
+	}
+
+	private bindSessionCapabilities(model: IChatModel): IDisposable {
+		const sessionType = getChatSessionType(model.sessionResource);
+		return Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
+			// Saved history can bind before its live session contribution registers.
+			if (sessionType !== localChatSessionType && !this._lockedAgent) {
+				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+				if (contribution) {
+					this.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
+				}
+			}
+			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
+			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			const supportsRename = sessionType === localChatSessionType
+				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
+			this._chatSessionSupportsRenameContextKey.set(supportsRename);
+			this.listWidget?.updateRendererOptions({ supportsFork });
+		});
 	}
 
 	setLoading(isLoading: boolean): void {
@@ -3195,9 +3262,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._updateAgentCapabilitiesContextKeys(agent);
 		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
 		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints && !this._readOnly, noFooter: false, progressMessageAtBottomOfResponse: true });
-		if (this.visible) {
-			this.listWidget?.rerender();
-		}
+		this.rerenderListIfConnected();
 	}
 
 	unlockFromCodingAgent(): void {
@@ -3227,9 +3292,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.inputEditor?.updateOptions({ placeholder: undefined });
 		this.listWidget?.updateRendererOptions({ restorable: true, editable: !this._readOnly, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
-		if (this.visible) {
-			this.listWidget?.rerender();
-		}
+		this.rerenderListIfConnected();
 	}
 
 	get isLockedToCodingAgent(): boolean {
@@ -3244,10 +3307,121 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.logInputHistory();
 	}
 
+	private getParticipantForLocalChat(query: string | undefined): IChatAgentData | undefined {
+		const sessionResource = this.viewModel?.sessionResource;
+		if (!sessionResource || this.location !== ChatAgentLocation.Chat || !isAgentHostTarget(getChatSessionType(sessionResource))) {
+			return undefined;
+		}
+		const inputValue = query ?? this.getInput();
+		if (!inputValue.trimStart().startsWith(chatAgentLeader) || IsSessionsWindowContext.getValue(this.contextKeyService)) {
+			return undefined;
+		}
+		const parsed = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, inputValue, this.location, { selectedAgent: this._lastSelectedAgent });
+		const participantPart = parsed.parts.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
+		if (!participantPart || participantPart.agent.isCore || this.chatSessionsService.getChatSessionContribution(participantPart.agent.id)) {
+			return undefined;
+		}
+		if (query === undefined && getDynamicVariablesForWidget(this).some(reference => Range.areIntersecting(reference.range, participantPart.editorRange))) {
+			return undefined;
+		}
+		return participantPart.agent;
+	}
+
+	private async acceptParticipantInputInLocalChat(participant: IChatAgentData, query: string | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
+		if (this._participantRedirectInFlight) {
+			this.logService.debug('ChatWidget: Participant redirect already in progress');
+			return undefined;
+		}
+		if (this.policyRequiresAgentHost.get()) {
+			throw new ErrorNoTelemetry(managedPolicyRequiresAgentHostMessage());
+		}
+		const source = this.viewModel;
+		if (!source) {
+			throw new CancellationError();
+		}
+		this._participantRedirectInFlight = true;
+		try {
+			if (!options.preserveInput) {
+				await stopDictationForEditor(this.inputEditor);
+			}
+			if (this._store.isDisposed || this.viewModel !== source) {
+				throw new CancellationError();
+			}
+			const inputValue = query ?? this.getInput();
+			const attachedContext = options.preserveInput ? [] : (options.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext()).asArray();
+			const references = !options.preserveInput && query === undefined ? getDynamicVariablesForWidget(this) : [];
+			const mode = this.input.currentModeKind;
+			const target = isIChatViewViewContext(this.viewContext) ? ChatViewPaneTarget : this.editorService.findEditors(source.sessionResource)[0]?.groupId ?? ACTIVE_GROUP;
+			const localSession = this.chatService.startNewLocalSession(this.location, { debugOwner: 'ChatWidget#participant', sessionTypeSelectionReason: 'explicitOverride' });
+			try {
+				localSession.object.inputModel.setState({
+					inputText: options.preserveInput ? '' : inputValue,
+					attachments: attachedContext,
+					contrib: { [ChatDynamicVariableModel.ID]: references },
+				});
+				const widget = await this.chatWidgetService.openSession(localSession.object.sessionResource, target, { pinned: true, preserveFocus: options.preserveFocus, explicitSessionType: localChatSessionType });
+				if (!widget?.viewModel || !isEqual(widget.viewModel.sessionResource, localSession.object.sessionResource)) {
+					throw new Error(localize('chat.participant.localSession.failed', "Could not start a Local chat for @{0}.", participant.name));
+				}
+				widget.lastSelectedAgent = participant;
+				widget.input.setChatMode(participant.modes.includes(mode) ? mode : participant.modes[0]);
+				status(localize('chat.participant.localSession', "Started a Local chat for @{0}.", participant.name));
+				return await widget.acceptInput(options.preserveInput ? inputValue : undefined, { ...options, storeToHistory: options.storeToHistory ?? query === undefined, queue: undefined, cancelCurrentRequest: false });
+			} finally {
+				localSession.dispose();
+			}
+		} finally {
+			this._participantRedirectInFlight = false;
+		}
+	}
+
+	private _createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined {
+		const sourceSessionResource = this.viewModel?.sessionResource;
+		if (!sourceSessionResource || !isAgentHostTarget(getChatSessionType(sourceSessionResource)) || !!query || options?.preserveInput) {
+			return undefined;
+		}
+		const ownedInput = this.getInput();
+		const forkPart = this.parsedInput.parts.find((part): part is ChatRequestSlashCommandPart =>
+			part instanceof ChatRequestSlashCommandPart && part.slashCommand.command === 'fork');
+		const afterFork = forkPart ? ownedInput.slice(forkPart.range.endExclusive) : '';
+		const promptToken = afterFork ? /^(\s*)prompt(?=\s|$)/.exec(afterFork) : undefined;
+		const promptText = promptToken ? afterFork.slice(promptToken[0].length).trim() : '';
+		if (!forkPart
+			|| !promptToken
+			|| !promptText) {
+			return undefined;
+		}
+		const sourceInputModel = this.viewModel?.model.inputModel;
+		const ownedAttachments = [...this.input.attachmentModel.attachments];
+		// Keep cleanup bound to the source model even after navigating to the fork.
+		return () => {
+			if (!sourceInputModel) {
+				return;
+			}
+			const state = sourceInputModel.state.get();
+			if (state?.inputText !== ownedInput) {
+				return;
+			}
+			if (!structuralEquals(state.attachments ?? [], ownedAttachments)) {
+				return;
+			}
+			sourceInputModel.setState({ inputText: '', attachments: [] });
+		};
+	}
+
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
+		const participant = this.getParticipantForLocalChat(query);
+		if (participant) {
+			return this.acceptParticipantInputInLocalChat(participant, query, options);
+		}
+		// A prompt-bearing fork is a host-owned create-and-send operation. Keep
+		// its captured source draft until its silent callback establishes whether
+		// creation/message acceptance succeeded; ordinary slash commands retain
+		// their existing eager-clear behavior.
+		let clearOwnedForkPromptInput: (() => void) | undefined;
 		const sessionResource = this.viewModel?.sessionResource;
 		const modeInfo = this.input.currentModeInfo;
 		const interaction = this.instantiationService.createInstance(ChatUserInteraction, {
@@ -3274,6 +3448,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// unrelated dictation and flush its final transcript into that draft.
 				await stopDictationForEditor(this.inputEditor);
 			}
+			// Dictation may flush its final transcript while stopping. Snapshot the
+			// owned source only after that update, immediately before submission.
+			clearOwnedForkPromptInput = this._createForkPromptInputCleanup(query, options);
 
 			if (this.viewModel) {
 				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
@@ -3282,7 +3459,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (kind === 'queued') {
 					interaction.cancel('queued');
 				}
-			});
+			}, clearOwnedForkPromptInput);
 			if (!response) {
 				interaction.cancel('notDispatched');
 				return undefined;
@@ -3459,7 +3636,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return blocked;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'], clearOwnedForkPromptInput?: () => void): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
@@ -3510,8 +3687,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return;
 		}
-		if (this.viewModel.model.hasActiveRequest.get() && await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined)) {
-			this.setInput('');
+		// Immediate silent commands run before the ordinary request collection
+		// below. Capture the source composer's context while it still belongs to
+		// this input, so callbacks that create another session can retain it.
+		const immediateCommandOptions: IChatSendRequestOptions = {
+			attachedContext: options?.preserveInput
+				? []
+				: options?.enableImplicitContext === false ? this.input.getAttachedContext().asArray() : this.input.getAttachedAndImplicitContext().asArray(),
+		};
+		const immediateCommandResult = this.viewModel.model.hasActiveRequest.get()
+			? await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined, immediateCommandOptions)
+			: undefined;
+		if (immediateCommandResult?.executed) {
+			if (clearOwnedForkPromptInput) {
+				clearOwnedForkPromptInput();
+			} else if (!immediateCommandResult.preserveInput) {
+				this.setInput('');
+			}
 			return;
 		}
 		if (isUserQuery) {
@@ -3548,7 +3740,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, clearOwnedForkPromptInput)) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
@@ -3596,7 +3788,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const model = this.viewModel.model;
-		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
+		if (options.cancelCurrentRequest && model.hasActiveRequest.get() && !cancelledCurrentRequest) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
 			cancelledCurrentRequest = true;
 			options.queue = undefined;
@@ -3705,6 +3897,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 				onDidCreateResponse,
+				onDidExecuteSlashCommand: clearOwnedForkPromptInput,
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
@@ -3746,7 +3939,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, clearOwnedForkPromptInput ? true : options?.preserveInput);
 
 		if (!options.preserveInput) {
 			// A maintenance command is not the user's goal.
@@ -3810,7 +4003,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return preserveInput ? [] : this.input.getAttachedContext().asArray();
 	}
 
-	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
+	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined, clearOwnedForkPromptInput?: () => void): Promise<boolean> {
 		const viewModel = this.viewModel;
 		if (!viewModel?.model.hasActiveRequest.get()) {
 			return false;
@@ -3840,7 +4033,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: request.response.response.toString() }] });
 		}
 
-		this.input.acceptInput(storeToHistory, preserveFocus);
+		if (!clearOwnedForkPromptInput) {
+			this.input.acceptInput(storeToHistory, preserveFocus);
+		}
 		const prompt = parsedRequest.text.slice(commandPart.range.endExclusive).trimStart();
 		try {
 			await this.chatSlashCommandService.executeCommand(
@@ -3852,7 +4047,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				viewModel.sessionResource,
 				CancellationToken.None,
 				requestOptions,
+				{ input },
 			);
+			clearOwnedForkPromptInput?.();
 			this.chatTipService.recordSlashCommandUsage(commandPart.slashCommand.command);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
@@ -3880,10 +4077,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return resolved.flat();
 	}
 
-	private async _tryExecuteImmediateSlashCommand(input: string, parsedInput: IParsedChatRequest | undefined): Promise<boolean> {
+	private async _tryExecuteImmediateSlashCommand(input: string, parsedInput: IParsedChatRequest | undefined, requestOptions: IChatSendRequestOptions): Promise<{ readonly executed: boolean; readonly preserveInput: boolean }> {
 		const viewModel = this.viewModel;
 		if (!viewModel) {
-			return false;
+			return { executed: false, preserveInput: false };
 		}
 		const parsedRequest = parsedInput ?? this.instantiationService.createInstance(ChatRequestParser)
 			.parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), input, this.location, {
@@ -3895,7 +4092,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		const commandPart = getImmediateSilentSlashCommandPart(parsedRequest);
 		if (!commandPart) {
-			return false;
+			return { executed: false, preserveInput: false };
 		}
 
 		const history: IChatMessage[] = [];
@@ -3908,7 +4105,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const command = commandPart.slashCommand.command;
-		await this.chatSlashCommandService.executeCommand(
+		const result = await this.chatSlashCommandService.executeCommand(
 			command,
 			input.slice(commandPart.range.endExclusive).trimStart(),
 			new Progress(() => { }),
@@ -3916,9 +4113,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.location,
 			viewModel.sessionResource,
 			CancellationToken.None,
+			requestOptions,
+			{ input: parsedRequest.text },
 		);
 		this.chatTipService.recordSlashCommandUsage(command);
-		return true;
+		return { executed: true, preserveInput: result?.preserveInput === true };
 	}
 
 	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {
@@ -4124,6 +4323,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const contentHeight = Math.max(0, height - inputHeight - readOnlyBannerHeight - chatSuggestNextWidgetHeight);
 		this.listWidget.layout(contentHeight, width);
+		this.flushPendingListRerender();
 
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 

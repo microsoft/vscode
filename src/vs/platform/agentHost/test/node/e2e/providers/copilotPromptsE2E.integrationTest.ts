@@ -33,12 +33,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
-import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 import { withAgentHostE2ESnapshotDiagnostics } from '../harness/agentHostE2EDiagnostics.js';
@@ -83,6 +83,33 @@ const SNAPSHOT_MODELS = [
 	'claude-opus-5.5',
 	'gemini-2.0-flash',
 ] as const;
+
+/**
+ * Every tool definition the model receives on a replayed turn, in wire order.
+ * Each entry costs input tokens on every request and, for the per-session cache
+ * block, is paid again whenever the set changes, so this list is a reviewed
+ * budget rather than a mirror of the baseline. Tool search is off in this
+ * harness (no root-config seam), so every host server tool is sent with
+ * `defer: 'never'`, deferred or not: a new server tool fails here until it is
+ * added to `HOST_SERVER_TOOL_NAMES`, and whether it is deferred when tool search
+ * is on is checked by `test/node/serverToolGroups.test.ts` and
+ * `test/node/toolSearchDeferral.test.ts`. A runtime built-in adopted into
+ * `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` fails here until it is added below too.
+ * See `src/vs/platform/agentHost/AGENTS.md` §9.
+ */
+const RUNTIME_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'view', 'create', 'edit', 'web_fetch', 'skill', 'ask_user', 'sql', 'session_store_sql', 'read_agent', 'list_agents', 'write_agent', 'grep', 'glob', 'task'] as const;
+/** The Codex and GPT 5.6 families get the patch-based editing profile instead of `create`/`edit`/`grep`. */
+const RUNTIME_PATCH_PROFILE_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'apply_patch', 'view', 'web_fetch', 'skill', 'ask_user', 'sql', 'session_store_sql', 'read_agent', 'list_agents', 'write_agent', 'rg', 'glob', 'task'] as const;
+const HOST_SERVER_TOOL_NAMES = [
+	'addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments',
+	'list_sessions', 'get_current_session', 'set_workspace', 'create_session', 'send_message', 'get_session_context', 'delete_session',
+	'isolate_session',
+] as const;
+
+function expectedModelFacingToolNames(model: typeof SNAPSHOT_MODELS[number]): readonly string[] {
+	const runtimeTools = model.includes('codex') || model.startsWith('gpt-5.6') ? RUNTIME_PATCH_PROFILE_TOOL_NAMES : RUNTIME_TOOL_NAMES;
+	return [...runtimeTools, ...HOST_SERVER_TOOL_NAMES];
+}
 
 suite('Agent Host E2E — Copilot prompts', function () {
 
@@ -155,6 +182,9 @@ suite('Agent Host E2E — Copilot prompts', function () {
 
 			const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-prompt-snap-`);
 			tempDirs.push(workspaceDir);
+			mkdirSync(join(workspaceDir, '.github'));
+			writeFileSync(join(workspaceDir, '.github', 'copilot-instructions.md'), 'COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS');
+			writeFileSync(join(workspaceDir, 'AGENTS.md'), 'COPILOT_PROMPT_WORKSPACE_AGENTS');
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
 			await driveTurnWithModel(client, sessionUri, model);
@@ -162,11 +192,21 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
-			assert.deepStrictEqual(
-				(JSON.parse(body) as IWireRequest).tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
-				[],
-				'Dynamic workflow tools must not be exposed to the model',
-			);
+			const request = JSON.parse(body) as IWireRequest;
+			const systemPrompt = readSystemPrompt(request);
+			assert.deepStrictEqual({
+				copilotInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS'),
+				agentsInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_AGENTS'),
+			}, { copilotInstructions: true, agentsInstructions: true });
+			// Recording uses live model profiles and experiment assignments (for example
+			// the allow-listed `execution_subagent`), so the inventory is pinned in replay only.
+			if (!RECORDING) {
+				assert.deepStrictEqual(
+					request.tools?.map(tool => tool.name ?? tool.type),
+					expectedModelFacingToolNames(model),
+					'The model-facing tool set changed. A new host server tool: add it to HOST_SERVER_TOOL_NAMES in this file and keep it deferred; tool search is off here, so deferred server tools are listed too, and serverToolGroups.test.ts checks their deferral. A new runtime built-in: the default fix is to leave it off the built-in allow-list (add it to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). If the runtime renamed a tool listed here, replace the old name with the new one. Adopting a new runtime built-in is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
+				);
+			}
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -257,7 +297,7 @@ function countIncludedBudgetSkills(rawBody: string): { skills: number; descripti
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
-	const chatUri = buildDefaultChatUri(sessionUri);
+	const chatUri = defaultChatChannel(sessionUri);
 	c.clearReceived();
 	c.dispatch({
 		channel: chatUri,

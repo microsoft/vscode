@@ -2157,7 +2157,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (menuId === MenuId.EditorTitle) {
 				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService);
 				if (available) {
-					const editorTypeActions = createEditorTypeActions(available, this.editorResolverService, this.commandService, this.editorService);
+					const editorTypeActions = createEditorTypeActions(available, this, this.editorResolverService, this.commandService, this.editorService);
 					const reopenWithSubmenu = new SubmenuAction('editor.reopenWith', localize('reopenWith', "Reopen Editor With"), editorTypeActions);
 					if (actions.secondary.length) {
 						actions.secondary.push(new Separator());
@@ -2201,7 +2201,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		const { showTabs } = this.groupsView.partOptions;
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
+		const titleBackground = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || 'transparent';
+		this.titleContainer.style.backgroundColor = `var(--modern-ui-editor-title-background, ${titleBackground})`;
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';
@@ -2234,6 +2235,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentRightInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleControl.layout({

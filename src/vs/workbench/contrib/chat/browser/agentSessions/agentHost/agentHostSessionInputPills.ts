@@ -5,29 +5,37 @@
 
 import { getWindow } from '../../../../../../base/browser/dom.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { format } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
-import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isSubagentChatUri, parseChatUri, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { getFileNamesMessage, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
@@ -36,19 +44,23 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { browserViewUrlMatches, BrowserViewSharingState, getAgentBrowserViewsNewestFirst, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
+import { CanvasesPillControl } from '../../../../canvases/browser/canvasesPillControl.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../common/chatIssue.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
-import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual } from '../../../common/agentHostSessionCustomizations.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
@@ -157,11 +169,14 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	};
 }
 
+/** The changeset the workbench Changes pill targets unless the session's provider configures another default. */
+const CHANGES_PILL_DEFAULT_CHANGESET_KIND: DefaultChangesetKind = ChangesetKind.Session;
+
 /** Resolves the changeset represented by the workbench Changes pill. */
 export function resolveAgentHostChangeset(
 	ownerResource: URI,
 	changesets: readonly Changeset[] | undefined,
-	defaultKind?: DefaultChangesetKind,
+	defaultKind: DefaultChangesetKind = CHANGES_PILL_DEFAULT_CHANGESET_KIND,
 ): { readonly changeset: Changeset; readonly resource: URI } | undefined {
 	const staticChangesets = changesets?.filter(changeset => !changeset.uriTemplate.includes('{')) ?? [];
 	const changeset = selectDefaultChangeset(staticChangesets, defaultKind);
@@ -169,23 +184,26 @@ export function resolveAgentHostChangeset(
 	return changeset && resource ? { changeset, resource } : undefined;
 }
 
-/** Resolves the chat channel URI a workbench chat resource addresses. */
-export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): URI | undefined {
+/**
+ * Resolves the chat channel URI a workbench chat resource addresses.
+ * `defaultChat` is the session's advertised default chat (`SessionState.defaultChat`).
+ */
+export function getAgentHostSessionChatResource(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): URI | undefined {
 	const explicitChatResource = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
 	if (explicitChatResource) {
 		return parseUri(explicitChatResource);
 	}
-	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID)?.toString()) : undefined;
+	return state ? parseUri(getSessionChatResource(state, sessionResource.fragment || DEFAULT_CHAT_ID, defaultChat)?.toString()) : undefined;
 }
 
 /** Returns the workbench chat resources whose browsers belong in the current chat's pill. */
-export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats' | 'defaultChat'> | undefined): ReadonlySet<string> {
+export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: Pick<SessionState, 'chats'> | undefined, defaultChat: string | undefined): ReadonlySet<string> {
 	const ownerIds = new Set<string>([sessionResource.toString()]);
 	if (!state) {
 		return ownerIds;
 	}
 
-	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state);
+	const currentChatResource = getAgentHostSessionChatResource(sessionResource, state, defaultChat);
 	if (!currentChatResource) {
 		return ownerIds;
 	}
@@ -200,11 +218,9 @@ export function getAgentHostSessionBrowserOwnerIds(sessionResource: URI, state: 
 		query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, chat.resource);
 		ownerIds.add(sessionResource.with({ fragment: chat.resource, query: query.toString() }).toString());
 		// Retain browser ownership for editors restored with the legacy local chat fragment.
-		const parsedChat = parseChatUri(chat.resource);
-		if (parsedChat) {
-			ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: null }).toString());
-			ownerIds.add(sessionResource.with({ fragment: parsedChat.chatId, query: query.toString() }).toString());
-		}
+		const chatId = getAgentHostChatId(chat.resource);
+		ownerIds.add(sessionResource.with({ fragment: chatId, query: null }).toString());
+		ownerIds.add(sessionResource.with({ fragment: chatId, query: query.toString() }).toString());
 	}
 	return ownerIds;
 }
@@ -487,6 +503,29 @@ function isPendingCheck(check: PullRequestCheck): boolean {
 		: check.status === 'PENDING' || check.status === 'EXPECTED';
 }
 
+/** Whether `operation` is the host's Discard Changes operation for single files. */
+function isFileDiscardOperation(operation: ChangesetOperation): boolean {
+	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && operation.scopes.includes(ChangesetOperationScope.Resource);
+}
+
+/** How long Undo waits for Session Changes to finish updating before it gives up on the files left to undo. */
+const SESSION_CHANGES_READY_TIMEOUT = 30_000;
+
+/**
+ * Resolves to the state of `changeset` once it's up to date, or `undefined`
+ * if it fails or doesn't finish updating in time. While it updates, its files
+ * are the previous ones, which miss the edits of a turn that just ran.
+ */
+async function whenChangesetReady(changeset: IAgentSubscription<ChangesetState>): Promise<ChangesetState | undefined> {
+	const isSettled = (state: ChangesetState | Error | undefined) => state instanceof Error || state?.status === ChangesetStatus.Ready || state?.status === ChangesetStatus.Error;
+	let state = changeset.value;
+	if (!isSettled(state)) {
+		const settled = Event.toPromise(Event.filter(changeset.onDidChange, isSettled));
+		state = await raceTimeout(settled, SESSION_CHANGES_READY_TIMEOUT, () => settled.cancel());
+	}
+	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
+}
+
 function isFailingCheck(check: PullRequestCheck): boolean {
 	return check.type === 'checkRun'
 		? check.conclusion === 'FAILURE'
@@ -523,6 +562,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -530,14 +570,23 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
+		const workingSetConfigured = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
+		const policyChanged = observableSignalFromEvent(this, Event.filter(this._configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)));
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
 			sessionResolutionChanged.read(reader);
 			const resource = sessionResource.read(reader);
 			if (!resource) {
 				return undefined;
+			}
+			const localProvider = getLocalAgentHostSessionProvider(resource);
+			if (localProvider) {
+				policyChanged.read(reader);
+				if (isLocalAgentHostProviderDisabledByPolicy(localProvider, this._configurationService)) {
+					return undefined;
+				}
 			}
 			provisionalSessionChanged.read(reader);
 			const provisionalBackend = provisionalSessions.get(resource);
@@ -556,9 +605,13 @@ export class AgentHostSessionInputPills extends Disposable {
 			return observableFromSubscription(this, subscription.object);
 		});
 		const sessionState = derived(this, reader => sessionStateSource.read(reader).read(reader));
+		const defaultChat = derived(this, reader => {
+			const current = resolution.read(reader);
+			return current ? sessionState.read(reader)?.defaultChat : undefined;
+		});
 		const chatResource = derivedOpts<URI | undefined>({ owner: this, equalsFn: isEqual }, reader => {
 			const resource = sessionResource.read(reader);
-			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader)) : undefined;
+			return resource ? getAgentHostSessionChatResource(resource, sessionState.read(reader), defaultChat.read(reader)) : undefined;
 		});
 		const chatStateSource = derived(this, reader => {
 			const current = resolution.read(reader);
@@ -573,24 +626,38 @@ export class AgentHostSessionInputPills extends Disposable {
 		// Session-wide metadata pills still belong to the parent session.
 		const subagentChat = derived(this, reader => {
 			const resource = chatResource.read(reader);
-			return !!resource && (isSubagentChatUri(resource) || sessionState.read(reader)?.chats.some(chat =>
-				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool));
+			return !!resource && !!sessionState.read(reader)?.chats.some(chat =>
+				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool);
 		});
+		const selectableChangesets = derived(this, reader => {
+			const chat = chatResource.read(reader);
+			if (!chat) {
+				return undefined;
+			}
+			const session = sessionState.read(reader);
+			return resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader))
+				?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
+		});
+		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
+		const workingSetEnabled = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
+			&& workingSetConfigured.read(reader)
+			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
+			&& !subagentChat.read(reader)
+			&& selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true);
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const session = sessionState.read(reader);
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
-			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
-			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
+			const selectableEntries = selectableChangesets.read(reader);
+			const defaultKind = workingSetEnabled.read(reader) ? ChangesetKind.Session : currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
+			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
 				selectedEntry?.owner === 'session' ? currentResolution.backendSession : chat,
 				selectedChangeset ? [selectedChangeset] : undefined,
-				currentResolution.defaultChangesetKind,
+				defaultKind,
 			);
 		});
 		const changesetStateSource = derived(this, reader => {
@@ -618,6 +685,12 @@ export class AgentHostSessionInputPills extends Disposable {
 				&& isEqual(lastValue.resource, target.resource)) {
 				return lastValue;
 			}
+			// Status and operation updates keep the same files, so they don't rebuild the file lists (and drop focus within them).
+			if (lastValue?.files === state.files
+				&& lastValue.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.resource, target.resource)) {
+				return lastValue;
+			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
 		});
 		const changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
@@ -630,6 +703,41 @@ export class AgentHostSessionInputPills extends Disposable {
 				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
 				.filter(isDefined);
 		});
+		const workingSetChanges = derived(this, reader => {
+			if (!workingSetEnabled.read(reader)) {
+				return undefined;
+			}
+			return changes.read(reader);
+		});
+		// Undo reverts a file's Session Changes with the host's file-level Discard Changes operation, when the host offers it.
+		const sessionChangesDiscard = derived<ChangesetOperation | undefined>(this, reader => {
+			if (!workingSetEnabled.read(reader) || changesetTarget.read(reader)?.changeset.changeKind !== ChangesetKind.Session) {
+				return undefined;
+			}
+			return changesetStateSource.read(reader).read(reader)?.operations?.find(isFileDiscardOperation);
+		});
+		const canDiscardSessionChanges = derived(this, reader => !!sessionChangesDiscard.read(reader));
+		// The Session Changes channels with an undo in flight; one for each undo, so overlapping undos on a channel each count.
+		const discardsInFlight = observableValue<readonly string[]>(this, []);
+		const workingSetUndo = derived<IChatSessionWorkingSetUndo | undefined>(this, reader => {
+			const currentResolution = resolution.read(reader);
+			const channel = changesetTarget.read(reader)?.resource;
+			if (!currentResolution || !channel || !canDiscardSessionChanges.read(reader)) {
+				return undefined;
+			}
+			return {
+				enabled: derived(enabledReader => {
+					const status = sessionChangesDiscard.read(enabledReader)?.status;
+					return !discardsInFlight.read(enabledReader).includes(channel.toString()) && status !== ChangesetOperationStatus.Disabled && status !== ChangesetOperationStatus.Running;
+				}),
+				undo: diffs => this._discardSessionChanges(currentResolution, channel, sessionChangesDiscard, discardsInFlight, diffs),
+			};
+		});
+		this._register(autorun(reader => {
+			if (workingSetEnabled.read(reader)) {
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, this.workingSetUndoEnabled ? workingSetUndo : undefined));
+			}
+		}));
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {
 			const diffs = changes.read(reader);
 			return diffs.length === 0
@@ -674,7 +782,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!resource || !resolution.read(reader)) {
 				return [];
 			}
-			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader));
+			const ownerIds = getAgentHostSessionBrowserOwnerIds(resource, sessionState.read(reader), defaultChat.read(reader));
 			return getAgentBrowserViewsNewestFirst(this._browserViewService, ownerIds);
 		});
 		const browserUrls = derivedOpts<ReadonlySet<string>>({ owner: this, equalsFn: setsEqual }, reader => {
@@ -737,6 +845,12 @@ export class AgentHostSessionInputPills extends Disposable {
 			const entries = browserInputs.read(reader).map(input => this._browserEntry(input, sessionResource.read(reader)));
 			return entries.length > 0 ? [{ title: localize('agentHostSessionPills.browsers.section', "Browsers"), entries }] : [];
 		});
+		const targetWindow = getWindow(this._widget.inputPart.persistentContentContainerElement);
+		// Canvases are only presented in the main window, beside their owning chat.
+		const presentsCanvases = !isAuxiliaryWindow(targetWindow);
+		const chatModel = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.model);
+		const canvases = this._register(instantiationService.createInstance(CanvasesPillControl, derived(this, reader =>
+			presentsCanvases ? chatModel.read(reader)?.canvasContext?.read(reader) : undefined)));
 		const subagents = derived<readonly IChatSubagentPillEntry[]>(this, reader => {
 			const parentSession = sessionResource.read(reader);
 			const parentChat = chatResource.read(reader);
@@ -768,23 +882,19 @@ export class AgentHostSessionInputPills extends Disposable {
 			})) : [];
 		});
 		const customizations = derived(this, reader => sessionState.read(reader)?.customizations);
-		const customizationIndex = derived(this, reader => {
+		const customizationUriMapper = derived(this, reader => {
 			const current = resolution.read(reader);
-			return new CustomizationIndex(customizations.read(reader), customizationRoots.read(reader),
-				current ? uri => current.connection.resourceUris.fromAgentHost(uri) : undefined);
+			return current ? (uri: URI) => current.connection.resourceUris.fromAgentHost(uri) : undefined;
 		});
-		const customizationParser = derived(this, reader => {
-			resolution.read(reader);
-			chatResource.read(reader);
-			return createIncrementalChatCustomizationRefsParser();
+		const customizationIndex = createCustomizationIndexObservable(this, customizations, customizationRoots, customizationUriMapper, { scope: derived(this, reader => chatResource.read(reader)?.toString()) });
+		// Resolution is sliced over idle time so selecting a large chat never blocks on it.
+		const chatCustomizations = createProgressiveChatCustomizations(this, chatState, customizationIndex, {
+			scheduler: this.createCustomizationScheduler(),
+			scope: derived(this, reader => {
+				resolution.read(reader);
+				return chatResource.read(reader)?.toString();
+			}),
 		});
-		const customizationRefs = derivedOpts({ owner: this, equalsFn: customizationRefsEqual }, reader => {
-			const parse = customizationParser.read(reader);
-			const state = chatState.read(reader);
-			return state ? parse(state) : [];
-		});
-		const chatCustomizations = derivedOpts({ owner: this, equalsFn: sessionChatCustomizationsEqual }, reader =>
-			resolveChatCustomizations(customizationRefs.read(reader), customizationIndex.read(reader)));
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, chatCustomizations, customizationFolders));
 		// A new source per chat keeps one chat's shell details from carrying over to another.
 		const backgroundShellOutputs = new AgentHostBackgroundShellOutputs(reader => resolution.read(reader)?.connection);
@@ -796,13 +906,14 @@ export class AgentHostSessionInputPills extends Disposable {
 			changes: {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
-				open: () => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
+				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
 			artifacts: { sections: artifactSections },
 			references: { sections: referenceSections },
 			customizations: sessionCustomizations,
+			canvases: { sections: canvases.sections },
 			browsers: { sections: browserSections },
 			subagents: createSessionSubagentsPillData(subagents, visibility.subagents),
 			backgroundShells,
@@ -810,11 +921,17 @@ export class AgentHostSessionInputPills extends Disposable {
 		const inputPills = this._register(instantiationService.createInstance(ChatInputPills, this._widget.inputPart.persistentContentContainerElement, {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
-			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
+			targetWindow,
 			enabled: constObservable(true),
-			sources: derived(this, reader => subagentChat.read(reader)
-				? sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts)
-				: sources.sources),
+			sources: derived(this, reader => {
+				if (subagentChat.read(reader)) {
+					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
+				}
+				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+				return workingSetEnabled.read(reader)
+					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
+					: offeredSources;
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));
@@ -830,6 +947,20 @@ export class AgentHostSessionInputPills extends Disposable {
 		};
 		this._register(inputPills.onDidChangeVisibility(updateVisibility));
 		updateVisibility(inputPills.visible);
+	}
+
+	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
+	protected createCustomizationScheduler(): ICustomizationJobScheduler | undefined {
+		return undefined;
+	}
+
+	/**
+	 * Whether the session working set offers Undo for the session's changes.
+	 * Undo is switched off, which hides its buttons, until it ships; overridable
+	 * so tests can turn it on.
+	 */
+	protected get workingSetUndoEnabled(): boolean {
+		return false;
 	}
 
 	private _buildReferenceSections(
@@ -1081,7 +1212,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				open: () => this._openExternal(link),
 			};
 			return artifact.type === SessionArtifactType.Commit
-				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover) }
+				? { ...entry, ...this._commitHoverCache.get(artifact.id, entry, createCommitHover, commitTarget ? 'preview' : 'content') }
 				: entry;
 		}
 		if (artifact.type === SessionArtifactType.Commit && artifact.commitHash) {
@@ -1126,6 +1257,86 @@ export class AgentHostSessionInputPills extends Disposable {
 		}
 	}
 
+	/**
+	 * Discards the session's changes to the files of `diffs`, one at a time, with
+	 * the host's `operation` on the Session Changes `channel`, after confirming
+	 * once if the host requires that. Each file is checked against up-to-date
+	 * Session Changes first, and a file whose changes differ from its diff, as
+	 * when a turn changed it after the confirmation, is left alone. Each file
+	 * leaves the working set once the host recomputes Session Changes. Resolves
+	 * to whether any file's changes were discarded.
+	 */
+	private async _discardSessionChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
+		const discard = operation.get();
+		if (!discard || diffs.length === 0) {
+			return false;
+		}
+		if (discard.confirmation) {
+			const template = typeof discard.confirmation === 'string' ? discard.confirmation : discard.confirmation.markdown;
+			// The host's confirmation names one file, so several are counted there and listed in the detail.
+			const { confirmed } = await this._dialogService.confirm({
+				type: 'warning',
+				message: format(template, diffs.length === 1 ? basename(diffs[0].modifiedURI) : localize('agentHostSessionPills.undoFileCount', "{0} files", diffs.length)),
+				detail: diffs.length === 1 ? undefined : getFileNamesMessage(diffs.map(diff => this._labelService.getUriLabel(diff.modifiedURI, { relative: true, noPrefix: true }))),
+				primaryButton: discard.label,
+			});
+			if (!confirmed) {
+				return false;
+			}
+		}
+		const { connection, connectionAuthority } = resolution;
+		const channelKey = channel.toString();
+		// Each file is checked against the channel's latest state, which outlasts a switch to another session.
+		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.undo');
+		const failures: { readonly fileName: string; readonly message: string }[] = [];
+		let discarded = 0;
+		inFlight.set([...inFlight.get(), channelKey], undefined);
+		try {
+			for (let i = 0; i < diffs.length; i++) {
+				const diff = diffs[i];
+				const fileName = basename(diff.modifiedURI);
+				// Undoing a file updates Session Changes too, so each file waits for them.
+				const state = await whenChangesetReady(changeset.object);
+				if (!state) {
+					// Without up-to-date changes, a file can't be checked against the confirmed ones, so none is undone.
+					const message = localize('agentHostSessionPills.undoUnverified', "The session's changes couldn't be checked. Try again.");
+					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message })));
+					break;
+				}
+				const current = state.files
+					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))
+					.find(candidate => candidate && isEqual(candidate.modifiedURI, diff.modifiedURI));
+				if (!current) {
+					// The session's changes to the file are already gone.
+					continue;
+				}
+				if (!isSameSessionFileChange(current, diff)) {
+					failures.push({ fileName, message: localize('agentHostSessionPills.undoChanged', "'{0}' changed after the undo was confirmed.", fileName) });
+					continue;
+				}
+				try {
+					await connection.invokeChangesetOperation({
+						channel: channelKey,
+						operationId: discard.id,
+						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
+					});
+					discarded++;
+				} catch (error) {
+					failures.push({ fileName, message: toErrorMessage(error) });
+				}
+			}
+		} finally {
+			changeset.dispose();
+			const channels = [...inFlight.get()];
+			channels.splice(channels.indexOf(channelKey), 1);
+			inFlight.set(channels, undefined);
+		}
+		if (failures.length > 0) {
+			this._notificationService.error(localize('agentHostSessionPills.undoFailed', "Could not undo changes to {0}: {1}", failures.map(failure => failure.fileName).join(', '), distinct(failures.map(failure => failure.message)).join(' ')));
+		}
+		return discarded > 0;
+	}
+
 	private _browserEntry(input: BrowserEditorInput, sessionResource: URI | undefined): IChatPillEntry {
 		const label = input.title?.trim() || localize('agentHostSessionPills.browser', "Browser");
 		return {
@@ -1151,8 +1362,18 @@ export class AgentHostSessionInputPills extends Disposable {
 		await this._editorService.openEditor(target, undefined, targetGroup);
 	}
 
-	private _openChanges(label: string, diffs: readonly IEditSessionEntryDiff[]): void {
+	private _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): void {
 		if (diffs.length > 0) {
+			const sessionEditorLabel = localize('agentHostSessionPills.changesEditor', "Session Changes");
+			let label = changeset?.label ?? sessionEditorLabel;
+			// Keep editor titles descriptive without replacing host-defined labels.
+			if (changeset?.changeKind === ChangesetKind.Branch && label === branchChangesetLabel()) {
+				label = localize('agentHostSessionPills.branchChangesEditor', "Branch Changes");
+			} else if (changeset?.changeKind === ChangesetKind.Uncommitted && label === uncommittedChangesetLabel()) {
+				label = localize('agentHostSessionPills.uncommittedChangesEditor', "Uncommitted Changes");
+			} else if (changeset?.changeKind === ChangesetKind.Session && label === sessionChangesetLabel()) {
+				label = sessionEditorLabel;
+			}
 			openChatFileChanges(this._editorService, label, diffs);
 		}
 	}

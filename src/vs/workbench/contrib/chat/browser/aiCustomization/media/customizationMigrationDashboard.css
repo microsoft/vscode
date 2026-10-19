@@ -19,7 +19,7 @@
 	height: 100%;
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin: 0 auto;
-	padding-block: var(--vscode-spacing-size400);
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-sizeNone);
 }
 
 .customization-migration-dashboard .migration-page-header {

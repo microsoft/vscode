@@ -10,15 +10,26 @@ import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, Man
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { isEmptyObject, isObject, isString } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { PolicyDefinition } from './policy.js';
 
 export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
-/** Whether a raw managed-settings document contains at least one top-level setting. */
+/** The temporary harness control does not contribute general presence-based governance. */
+export function isManagedSettingGovernanceActive(key: string): boolean {
+	return key !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY && !key.startsWith(`${COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY}.`);
+}
+
+/** Detect raw governance without counting the Local-only harness control or its containing object. */
 export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
-	return data !== undefined && Object.keys(data).length > 0;
+	return data !== undefined && Object.entries(data).some(([key, value]) => {
+		if (key === 'vscode' && isManagedSettingsObject(value) && Object.hasOwn(value, 'temporaryAllowLocalHarness')) {
+			return Object.keys(value).some(key => isManagedSettingGovernanceActive(`vscode.${key}`));
+		}
+		return isManagedSettingGovernanceActive(key);
+	});
 }
 
 /** Windows registry root for GitHub Copilot policies. */
@@ -63,10 +74,19 @@ export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 /** Managed-settings transport control that requires a fresh server fetch on startup. */
 export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
 
+/** Enterprise escape hatch for automatic Copilot harness routing in VS Code. */
+export const COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY = 'vscode.temporaryDefaultToLocalHarness';
+
+/** Temporary managed permission for Local, Claude, and Codex harnesses; only false prohibits them. */
+export const COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY = 'vscode.temporaryAllowLocalHarness';
+
+/** Policy-only configuration projection of the Local harness escape hatch. */
+export const TemporaryDefaultToLocalHarnessSettingId = 'chat.temporaryDefaultToLocalHarness';
+
 /**
  * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
  * The runtime owns composing and enforcing this floor — it is `force-on-wins`, so a managed `true`
- * cannot be loosened by the user. VS Code only *reads* it to decide which chat harness to offer,
+ * cannot be loosened by the user. VS Code only *reads* it to display Copilot sandbox state,
  * and deliberately declares no configuration policy for it: the control is runtime-owned, and
  * mirroring it as a VS Code policy would invert ownership.
  */
@@ -123,6 +143,8 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	'permissions.limitTo': { type: 'string' },
 	'permissions.model': { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
+	[COPILOT_STRICT_MARKETPLACES_KEY]: { type: 'string' },
+	[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_LSP_SERVERS_KEY]: { type: 'boolean' },
@@ -182,6 +204,9 @@ export const COPILOT_OTEL_ENABLED_KEY = 'telemetry.enabled';
 
 /** Managed-settings key for the enterprise OTLP collector endpoint. */
 export const COPILOT_OTEL_ENDPOINT_KEY = 'telemetry.endpoint';
+
+/** Managed-settings key for the enterprise OTel file export destination. */
+export const COPILOT_OTEL_FILE_PATH_KEY = 'telemetry.filePath';
 
 /** Managed-settings key for the enterprise OTLP protocol (`http/json`, `http/protobuf`, or `grpc`). */
 export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
@@ -280,15 +305,20 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	}
 }
 
-/** Presence selects the runtime harness; interpreting permission values remains runtime-owned. */
+/** Detects permission settings without interpreting their runtime-owned values. */
 export function hasManagedPermissions(service: IManagedSettingsService): boolean {
 	const settings = service.getManagedSettings();
 	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
 }
 
-/** Whether effective policy requires enforcement unavailable in the Local harness. */
+/** Whether an administrator has enabled the temporary Local harness escape hatch. */
+export function isTemporaryDefaultToLocalHarnessEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue === true;
+}
+
+/** Only explicit Local disablement requires Agent Host, independently of runtime permission and sandbox settings. */
 export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
-	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissions(service);
+	return service.getManagedSettingValue(COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY) === false;
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
@@ -324,14 +354,15 @@ export function managedSettingsDisabledValue(policyData: IPolicyData): boolean |
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
  * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
- * or when the user is governed by managed settings at all.
+ * when the user is governed by managed settings, or when Local harnesses are explicitly prohibited.
  *
  * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
  * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
  * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
-	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
+	return policyData.chat_preview_features_enabled === false || policyData.managedSettings?.[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY] === false
+		? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
