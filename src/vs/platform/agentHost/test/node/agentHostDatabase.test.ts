@@ -1906,6 +1906,35 @@ suite('AgentHostDatabase sessions_v2', () => {
 			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
 		}
 
+		test('a legacy peer row that never recorded a read state is read, as the aggregate of a new peer says', async () => {
+			database = new AgentHostDatabase(':memory:');
+			const payload = stableStringify({
+				payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				data: {
+					modifiedTime: 110, isRead: true, isArchived: false, workingDirectories: [],
+					chats: [
+						{ uri: peer, kind: 'peer', order: 0, isRead: true },
+						{ uri: defaultChat, kind: 'default', order: 1, isRead: true },
+					],
+				},
+			});
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.upsertSessionV2(createEnvelope(session, 'catalog-generation', 10, { payload }), undefined);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Write the legacy row a peer is created with: no read state.
+			await exec(await database['_ensureDatabase'](), `PRAGMA foreign_keys = OFF;
+				INSERT INTO session_chats (session_uri, chat_uri, chat_order) VALUES ('${session}', '${peer}', 0);
+				PRAGMA foreign_keys = ON;`);
+			const source = createEnvelope(session, 'catalog-generation', 10, { payload });
+
+			const result = await database.ensureChatCatalogV2(session, { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0 }, {
+				defaultChat: { chat: defaultChat, order: 1, storageResource: 'storage://default' },
+				peers: [{ chat: peer, order: 0, storageResource: 'storage://peer' }],
+				privateDescendants: [],
+			});
+
+			assert.deepStrictEqual(result.status, 'applied');
+		});
+
 		test('records the session each chat is created in; rows without it read as created in their owner', async () => {
 			const path = join(temporaryDirectory!, 'chat-origin.db');
 			let instance = new AgentHostDatabase(path);
