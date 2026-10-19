@@ -236,6 +236,26 @@ suite('Marker Service', () => {
 		assert.strictEqual(markersWithoutVersion[0].modelVersionId, undefined);
 	});
 
+	test('tracks diagnostic truncation per resource across owners', () => {
+		service = new markerService.MarkerService();
+		const resource = URI.parse('file:///path/file.ts');
+		const otherResource = URI.parse('file:///path/other.ts');
+		service.changeOne('first', resource, [randomMarkerData()], { isTruncated: true });
+		service.changeOne('second', resource, [randomMarkerData()]);
+		service.changeOne('first', resource, [randomMarkerData()]);
+		service.changeOne('first', otherResource, [randomMarkerData()], { isTruncated: true });
+		const afterChangeAll = [service.isSourceTruncated(resource), service.isSourceTruncated(otherResource)];
+		service.changeAll('first', []);
+
+		assert.deepStrictEqual({
+			afterChangeAll,
+			afterClear: [service.isSourceTruncated(resource), service.isSourceTruncated(otherResource)]
+		}, {
+			afterChangeAll: [false, true],
+			afterClear: [false, false]
+		});
+	});
+
 	test('resource filter hides markers for the filtered resource', () => {
 		service = new markerService.MarkerService();
 		const resource1 = URI.parse('file:///path/file1.cs');

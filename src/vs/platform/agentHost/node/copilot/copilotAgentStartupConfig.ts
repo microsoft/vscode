@@ -31,6 +31,7 @@ export class CopilotAgentStartupConfig {
 		readonly localModel = false,
 		readonly executionSubagent = false,
 		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
+		readonly dynamicAutoTiers = false,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

@@ -6,8 +6,14 @@
 /** Host-supplied fetch implementation for one request attempt and its response body. */
 export type RequestFetch = typeof globalThis.fetch;
 
-/** Wire operation category used for scheduling and diagnostics. */
-export type RequestKind = 'rest' | 'graphql' | 'download';
+/** Fixed API domains for request attribution, independent of callers and quota identities. */
+export const gitHubRequestDomains = [
+	'actions', 'automations', 'capabilities', 'checks', 'content', 'credentials', 'environments',
+	'gists', 'issues', 'notifications', 'organizations', 'pullRequests', 'repositories', 'reviews',
+	'search', 'tasks', 'users', 'other',
+] as const;
+
+export type GitHubRequestDomain = typeof gitHubRequestDomains[number];
 
 /** Stable account quota identity at a service host, independent of its credential. */
 export interface AccountHandle {
@@ -63,9 +69,9 @@ export interface RequestOptions {
 
 /** Immutable admission context for one governed operation and its owning consumer. */
 export interface RequestContext {
-	readonly kind: RequestKind;
 	readonly account: RequestAccount;
 	readonly caller: string;
+	readonly domain?: GitHubRequestDomain;
 	readonly resource: string;
 	readonly priority: RequestPriority;
 	readonly deadline: number;
@@ -114,7 +120,7 @@ export interface IRequestTiming {
 /** Optional diagnostics supplied by the domain owning a request queue. */
 export interface IRequestQueueTelemetry {
 	startQueue(context: RequestContext): IRequestTiming | undefined;
-	recordRejection(reason: 'engine' | 'account' | 'caller' | 'waiter'): void;
+	recordRejection(reason: 'engine' | 'account' | 'caller' | 'waiter', domain?: GitHubRequestDomain): void;
 	recordQueueSize(active: number, pending: number): void;
 }
 

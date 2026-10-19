@@ -188,6 +188,7 @@ export interface IChatListItemTemplate {
 	readonly rowContainer: HTMLElement;
 	/** Height allocated by the list for the currently rendered row. */
 	allocatedHeight?: number;
+	lastMeasuredHeight?: number;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
@@ -1041,6 +1042,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		template.lastMeasuredHeight = height;
 		const normalizedHeight = Math.ceil(height);
 		const element = template.currentElement;
 		this.updateWorkingProgressRounding(template, height);
@@ -1074,7 +1076,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private updateWorkingProgressRounding(template: IChatListItemTemplate, measuredHeight?: number): void {
+	private updateWorkingProgressRounding(template: IChatListItemTemplate, measuredHeight: number): void {
 		if (!template.renderedPersistentProgress || !template.currentElement || !isResponseVM(template.currentElement) || !template.rowContainer.isConnected) {
 			return;
 		}
@@ -1082,8 +1084,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!progress) {
 			return;
 		}
-		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
-		const rounding = `${Math.ceil(height) - height}px`;
+		const rounding = `${Math.ceil(measuredHeight) - measuredHeight}px`;
 		if (progress.domNode.style.getPropertyValue('--chat-response-height-rounding') !== rounding) {
 			progress.domNode.style.setProperty('--chat-response-height-rounding', rounding);
 		}
@@ -1607,10 +1608,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._elementBeingRendered = node.element;
 		try {
 			this.renderChatTreeItem(node.element, index, templateData);
-			const usesIncrementalRendering = isResponseVM(node.element) && !node.element.renderData && this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
-			if (!usesIncrementalRendering && this.delegate.isScrolledToBottom?.() && templateData.rowContainer.classList.contains(progressScrollTargetClassName)) {
-				// Incremental markdown updates alignment through its height-change event after rendering.
-				this.updateWorkingProgressRounding(templateData);
+			if (templateData.lastMeasuredHeight !== undefined) {
+				// Reuse layout's fractional height; ResizeObserver updates it before paint when the row changes size.
+				this.updateWorkingProgressRounding(templateData, templateData.lastMeasuredHeight);
 			}
 		} finally {
 			this._elementBeingRendered = undefined;

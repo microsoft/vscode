@@ -61,15 +61,6 @@ function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader)
 	return getWorkspaceTerminalInfo(workspace);
 }
 
-function getActiveSessionTerminalInfo(session: IActiveSession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
-	if (!session) {
-		return undefined;
-	}
-	const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
-	const workspace = reader ? activeChat.workspace.read(reader) : activeChat.workspace.get();
-	return getWorkspaceTerminalInfo(workspace);
-}
-
 function getWorkspaceTerminalInfo(workspace: ISessionWorkspace | undefined): ISessionTerminalInfo | undefined {
 	if (workspace?.isVirtualWorkspace !== false) {
 		return undefined;
@@ -183,7 +174,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
-			const info = getActiveSessionTerminalInfo(session, reader);
+			const info = this._getActiveSessionTerminalInfo(session, reader);
 			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
 		}));
 
@@ -212,7 +203,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				}
 				return;
 			}
-			const info = getActiveSessionTerminalInfo(session, reader);
+			const info = this._getActiveSessionTerminalInfo(session, reader);
 			this._onActiveSessionChanged(session, info);
 		}));
 
@@ -454,12 +445,36 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return provider.remoteAddress ?? LOCAL_AGENT_HOST_ADDRESS;
 	}
 
-	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = getActiveSessionTerminalInfo(session)): Promise<void> {
+	private _getActiveSessionTerminalInfo(session: IActiveSession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
+		if (!session) {
+			return undefined;
+		}
+		const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
+		const workspace = reader ? activeChat.workspace.read(reader) : activeChat.workspace.get();
+		const info = getWorkspaceTerminalInfo(workspace);
+		if (info || workspace) {
+			return info;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
+			return undefined;
+		}
+		const workingDirectory = provider.getWorkingDirectory(session.sessionId, reader);
+		const cwd = workingDirectory ? URI.parse(workingDirectory) : undefined;
+		return cwd?.scheme === Schemas.file ? { cwd, agentHostCwd: cwd } : undefined;
+	}
+
+	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = this._getActiveSessionTerminalInfo(session)): Promise<void> {
 		if (!session) {
 			return;
 		}
+		const targetAgentHostAddress = this._getSessionAgentHostAddress(session);
 		if (!info && session.activeChat.get().workspace.get()?.isVirtualWorkspace === false) {
 			this._logService.trace(`[SessionsTerminal] Waiting for a filesystem working directory for ${session.sessionId}`);
+			return;
+		}
+		if (!info && targetAgentHostAddress && targetAgentHostAddress !== LOCAL_AGENT_HOST_ADDRESS) {
+			this._logService.trace(`[SessionsTerminal] Waiting for the remote working directory for ${session.sessionId}`);
 			return;
 		}
 
@@ -475,7 +490,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 			const targetPath = info?.cwd ?? await this._pathService.userHome();
 			const targetKey = targetPath.fsPath.toLowerCase();
-			const targetAgentHostAddress = this._getSessionAgentHostAddress(session);
 			if (this._activeKey === targetKey && this._activeAgentHostAddress === targetAgentHostAddress && this._activeSessionId === session.sessionId) {
 				return;
 			}

@@ -147,6 +147,16 @@ suite('git stack operations', () => {
 			return (await repository.getCommit('HEAD')).hash;
 		}
 
+		/**
+		 * Closes a repository before its folder is deleted, so that no pending
+		 * background git work (e.g. `check-ignore`) runs in a missing directory.
+		 */
+		async function closeRepository(repositoryToClose: Repository | null): Promise<void> {
+			if (repositoryToClose) {
+				await commands.executeCommand('git.close', repositoryToClose.rootUri);
+			}
+		}
+
 		setup(async () => {
 			directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-stack-'));
 			root = path.join(directory, 'repository');
@@ -163,9 +173,7 @@ suite('git stack operations', () => {
 		});
 
 		teardown(async () => {
-			if (repository) {
-				await commands.executeCommand('git.close', repository.rootUri);
-			}
+			await closeRepository(repository);
 			if (directory) {
 				await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
@@ -247,6 +255,7 @@ suite('git stack operations', () => {
 					feature: oldHead
 				});
 			} finally {
+				await closeRepository(temporaryRepository);
 				await repository.deleteWorktree(worktreePath, { force: true });
 			}
 
@@ -261,9 +270,10 @@ suite('git stack operations', () => {
 			const newBase = await commit('main\n', 'main');
 			const worktreePath = path.join(directory, 'conflict-worktree');
 			await repository.createWorktree({ path: worktreePath, commitish: oldHead });
+			let temporaryRepository: Repository | null = null;
 
 			try {
-				const temporaryRepository = await api.openRepository(Uri.file(worktreePath));
+				temporaryRepository = await api.openRepository(Uri.file(worktreePath));
 				assert.ok(temporaryRepository);
 				await assert.rejects(temporaryRepository.rebase(oldBase, { onto: newBase }), { gitErrorCode: GitErrorCodes.Conflict });
 				await temporaryRepository.status();
@@ -292,6 +302,7 @@ suite('git stack operations', () => {
 					content: 'resolved\n'
 				});
 			} finally {
+				await closeRepository(temporaryRepository);
 				await repository.deleteWorktree(worktreePath, { force: true });
 			}
 		});

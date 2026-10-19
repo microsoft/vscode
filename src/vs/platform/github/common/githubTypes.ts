@@ -102,6 +102,8 @@ export interface GitHubClientMetadata {
 export interface GitHubServiceOptions {
 	readonly credentialProvider?: IGitHubCredentialProvider;
 	readonly fetch?: RequestFetch;
+	/** Browser bindings may follow opaque redirects for bodyless repository reads. */
+	readonly useBrowserRedirects?: boolean;
 	readonly telemetrySource?: GitHubTelemetrySource;
 	readonly clientMetadata?: GitHubClientMetadata;
 	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;
