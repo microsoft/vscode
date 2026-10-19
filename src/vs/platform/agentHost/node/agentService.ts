@@ -7094,12 +7094,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// Like a brand-new session, a chat is durable as a session only once its conversation exists: no agent persists one
 		// before the chat's first turn starts, and a session whose default chat has none can't be restored.
-		let started: boolean;
-		try {
-			started = this._hasStartedTurn(await this._stateManager.resolveChatState(chatKey));
-		} catch (error) {
-			return refuse(AgentChatMoveRefusal.SessionNotReady, `Chat ${chatKey}'s history couldn't be read: ${toErrorMessage(error)}`);
-		}
+		const started = this._hasStartedTurn(await this._resolveChatForMove(chatKey));
 		if (!started) {
 			refuse(AgentChatMoveRefusal.NotStarted, `Chat ${chatKey} has no turns yet; send a message before moving it to its own session.`);
 		}
@@ -7394,10 +7389,19 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/** Resolves a chat a move reads, refusing as not ready when its backing can't be loaded (for example its working directory is gone). */
+	private async _resolveChatForMove(chat: string): Promise<ChatState | undefined> {
+		try {
+			return await this._stateManager.resolveChatState(chat);
+		} catch (error) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionNotReady, `Chat ${chat}'s history couldn't be read: ${toErrorMessage(error)}`);
+		}
+	}
+
 	/** The folders a moved chat works in: its own, else its source's. Resolves the chat, so its own config is loaded. */
 	private async _movedChatFolders(source: URI, chat: string): Promise<readonly string[]> {
 		const sourceKey = source.toString();
-		const chatState = await this._stateManager.resolveChatState(chat);
+		const chatState = await this._resolveChatForMove(chat);
 		return chatState?.workingDirectories
 			?? this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chat)?.workingDirectories
 			?? this._stateManager.getSessionSummary(sourceKey)?.workingDirectories
@@ -7415,7 +7419,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (descendant === chat) {
 				continue;
 			}
-			const own = (await this._stateManager.resolveChatState(descendant))?.workingDirectories ?? summaries.find(candidate => candidate.resource === descendant)?.workingDirectories ?? [];
+			const own = (await this._resolveChatForMove(descendant))?.workingDirectories ?? summaries.find(candidate => candidate.resource === descendant)?.workingDirectories ?? [];
 			for (const folder of own) {
 				if (!folders.some(existing => isEqual(URI.parse(existing), URI.parse(folder)))) {
 					folders.push(folder);
