@@ -128,6 +128,7 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
@@ -1562,6 +1563,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					remove: () => { },
 				};
 			}();
+			const secretStorageService = ctx.disposableStore.add(new TestSecretStorageService());
+			reg.defineInstance(ISecretStorageService, secretStorageService);
 			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
 				harnessService,
 				activeClientService,
@@ -1577,7 +1580,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
-				ctx.disposableStore.add(new TestSecretStorageService()),
+				secretStorageService,
 			));
 			const activeMcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider = options.mcpMigrationCandidates ? {
 				computeMigration: async () => ({
