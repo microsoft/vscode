@@ -259,6 +259,7 @@ class MockCopilotSession {
 	};
 	readonly connectorReconcileCalls: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	onConnectorReconcile: (() => Promise<void>) | undefined;
+	onConnectorCapabilities: (() => Promise<void>) | undefined;
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
 	mcpAuthenticationStateChangedError: Error | undefined;
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
@@ -726,7 +727,10 @@ class MockCopilotSession {
 			},
 		},
 		connectors: {
-			getCapabilities: async () => this.connectorCapabilities,
+			getCapabilities: async () => {
+				await this.onConnectorCapabilities?.();
+				return this.connectorCapabilities;
+			},
 			getAccount: async () => this.connectorAccount,
 			getStatus: async () => this.connectorStatus,
 			reconcile: async (request: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0]) => {
@@ -27005,6 +27009,62 @@ Use the attached image as context.
 					connectorName: 'workiqmcp',
 					calls: [undefined, 'workiqmcp'],
 				});
+			});
+
+			test('restores the Connector authentication challenge when a forced refresh is cancelled before reconciliation', async () => {
+				const serverUrl = 'https://api.github.com/copilot-connectors/api/v1/connectors/workiqmcp/mcp';
+				const { session, mockSession, runtime, waitForSignal } = await createAgentSession(disposables, {
+					rootValues,
+					configureMockSession: mock => {
+						mock.connectorStatus = {
+							...mock.connectorStatus,
+							runtimeServers: [{ connectorName: 'workiqmcp', runtimeServerId: 'connector-workiq', status: 'needs_auth' }],
+						};
+						mock.mcpListResult = { servers: [{ name: 'connector-workiq', status: 'needs-auth', source: 'managed', url: serverUrl }] };
+					},
+				});
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+
+				let settled = false;
+				const auth = runtime.handleMcpAuthRequest({
+					requestId: 'workiq-auth',
+					serverName: 'connector-workiq',
+					serverUrl,
+					reason: 'upscope',
+					wwwAuthenticateParams: { scope: 'write:plugin_gateway_connections', error: 'insufficient_scope' },
+				}, { sessionId: mockSession.sessionId });
+				void auth.then(() => { settled = true; });
+				await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+				const challenge = session.topLevelMcpCustomizations()[0].state;
+
+				const capabilitiesRequested = new DeferredPromise<void>();
+				mockSession.onConnectorCapabilities = () => {
+					capabilitiesRequested.complete();
+					return new Promise<void>(() => { /* the capability RPC never answers */ });
+				};
+				session.markConnectorConfigurationChanged('workiqmcp');
+				const refresh = session.refreshConnectors();
+				await capabilitiesRequested.p;
+				const duringRefresh = session.topLevelMcpCustomizations()[0].state.kind;
+				session.cancelConnectorRefresh();
+				await refresh;
+
+				assert.deepStrictEqual({
+					duringRefresh,
+					restored: session.topLevelMcpCustomizations()[0].state,
+					settled,
+					pending: session.hasPendingConnectorRefresh,
+					forcedReconciles: mockSession.connectorReconcileCalls.filter(call => call.forceConnectorName !== undefined).length,
+				}, {
+					duringRefresh: McpServerStatus.Starting,
+					restored: challenge,
+					settled: false,
+					pending: true,
+					forcedReconciles: 0,
+				});
+				session.cancelMcpServerAuthentication(session.topLevelMcpCustomizations()[0].id);
+				assert.deepStrictEqual(await auth, { kind: 'cancelled' });
 			});
 
 			test('reports a Connector authorization requirement for a Connector-owned server that needs authentication', async () => {

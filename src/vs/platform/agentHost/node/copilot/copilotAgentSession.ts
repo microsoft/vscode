@@ -235,6 +235,12 @@ interface IMcpAuthToolCall {
 	readonly parentToolCallId: string | undefined;
 }
 
+/** A server shown as restarting ahead of a forced Connector reconcile, with the state it replaced. */
+interface IProvisionalMcpServerRestart {
+	readonly previous: McpServerState;
+	readonly provisional: McpServerState;
+}
+
 interface ILastMcpAuthRequirement {
 	readonly requestId: string;
 	readonly auth: McpAuthRequirement;
@@ -1439,6 +1445,8 @@ export class CopilotAgentSession extends Disposable {
 				if (!canStart()) {
 					return;
 				}
+				let provisionalRestarts: ReadonlyMap<string, IProvisionalMcpServerRestart> | undefined;
+				let reconciled = false;
 				try {
 					// Apply customization enablement before connector reconciliation checks for stopped servers.
 					await raceCancellationError(this._reconcileMcpServerEnablement(), token);
@@ -1447,7 +1455,7 @@ export class CopilotAgentSession extends Disposable {
 					}
 					// Requests raised before a forced reconcile carry the credential the reconcile replaces.
 					const staleAuthRequestIds = forceConnectorName !== undefined ? this._pendingCopilotConnectorAuthRequestIds(forceConnectorName) : [];
-					this._markCopilotConnectorServersRestarting(staleAuthRequestIds);
+					provisionalRestarts = this._markCopilotConnectorServersRestarting(staleAuthRequestIds);
 					const result = await reconcileCopilotConnectors(this._wrapper.session, this._logService, {
 						forceConnectorName,
 						canReconcile,
@@ -1455,6 +1463,11 @@ export class CopilotAgentSession extends Disposable {
 						token,
 						onReconcileRequested: rpc => this._trackConnectorReconcile(rpc),
 					});
+					reconciled = result.reconciled;
+					if (reconciled) {
+						// The runtime restarted these servers, so their requests are stale even if this refresh is now cancelled.
+						this._cancelStaleCopilotConnectorAuthRequests(staleAuthRequestIds);
+					}
 					if (token.isCancellationRequested || this.isDisposed) {
 						return;
 					}
@@ -1465,9 +1478,6 @@ export class CopilotAgentSession extends Disposable {
 					}
 					if (result.connectorServers) {
 						this._setCopilotConnectorServers(result.connectorServers);
-					}
-					if (result.reconciled) {
-						this._cancelStaleCopilotConnectorAuthRequests(staleAuthRequestIds);
 					}
 					await raceCancellationError(this._refreshMcpServersFromRpc(), token);
 					if (token.isCancellationRequested || this.isDisposed) {
@@ -1485,6 +1495,10 @@ export class CopilotAgentSession extends Disposable {
 						this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh Connector MCP state; retaining the request for retry`, error);
 					}
 					return;
+				} finally {
+					if (!reconciled && provisionalRestarts) {
+						this._restoreProvisionalMcpServerRestarts(provisionalRestarts);
+					}
 				}
 			}
 			if (generation === this._connectorRefreshGeneration) {
@@ -1503,18 +1517,50 @@ export class CopilotAgentSession extends Disposable {
 		return requestIds;
 	}
 
-	/** A forced reconcile restarts these servers; show it rather than the challenge the restart supersedes. */
-	private _markCopilotConnectorServersRestarting(requestIds: readonly string[]): void {
+	/**
+	 * A forced reconcile restarts these servers; show it rather than the challenge the restart supersedes. Returns
+	 * the provisional states so they can be rolled back if reconciliation does not happen.
+	 */
+	private _markCopilotConnectorServersRestarting(requestIds: readonly string[]): ReadonlyMap<string, IProvisionalMcpServerRestart> {
+		const restarts = new Map<string, IProvisionalMcpServerRestart>();
 		const serverNames = new Set(requestIds.map(requestId => this._pendingMcpAuthRequests.getMetadata(requestId)?.serverName));
 		for (const serverName of serverNames) {
-			if (serverName !== undefined && this._mcpCustomizations.stateForServer(serverName)?.kind === McpServerStatus.AuthRequired) {
-				this._mcpCustomizations.applyOne({
-					name: serverName,
-					displayName: this._copilotConnectorServers.get(serverName)?.displayName,
-					state: { kind: McpServerStatus.Starting },
-					allowAuthRequiredToStarting: true,
-				});
+			const previous = serverName !== undefined ? this._mcpCustomizations.stateForServer(serverName) : undefined;
+			if (serverName === undefined || previous?.kind !== McpServerStatus.AuthRequired) {
+				continue;
 			}
+			this._mcpCustomizations.applyOne({
+				name: serverName,
+				displayName: this._copilotConnectorServers.get(serverName)?.displayName,
+				state: { kind: McpServerStatus.Starting },
+				allowAuthRequiredToStarting: true,
+			});
+			const provisional = this._mcpCustomizations.stateForServer(serverName);
+			if (provisional && provisional !== previous) {
+				restarts.set(serverName, { previous, provisional });
+			}
+		}
+		return restarts;
+	}
+
+	/**
+	 * Restores the challenge of servers whose forced reconcile never ran. A server whose state changed since, or whose
+	 * request no longer waits for authentication, already has a newer lifecycle and is left alone.
+	 */
+	private _restoreProvisionalMcpServerRestarts(restarts: ReadonlyMap<string, IProvisionalMcpServerRestart>): void {
+		if (this.isDisposed) {
+			return;
+		}
+		for (const [serverName, { previous, provisional }] of restarts) {
+			if (this._mcpCustomizations.stateForServer(serverName) !== provisional || !this._hasPendingMcpAuthentication(serverName)) {
+				continue;
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Restoring the authentication challenge of Connector-owned MCP server '${serverName}' because its reconciliation did not run`);
+			this._mcpCustomizations.applyOne({
+				name: serverName,
+				displayName: this._copilotConnectorServers.get(serverName)?.displayName,
+				state: previous,
+			});
 		}
 	}
 

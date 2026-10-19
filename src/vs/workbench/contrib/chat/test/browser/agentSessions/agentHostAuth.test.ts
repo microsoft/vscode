@@ -1902,13 +1902,38 @@ suite('authenticateProtectedResources', () => {
 		}));
 		const requests: { resource: string; token: string }[] = [];
 		const authenticate = async (request: { resource: string; token: string }) => { requests.push({ resource: request.resource, token: request.token }); };
-		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, authenticate);
+		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, current.id, authenticate);
 		sessions = [current, narrow, partial, full];
-		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, authenticate);
+		await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, current.id, authenticate);
 		assert.deepStrictEqual(requests, [
 			{ resource: 'https://api.github.com', token: 'current-token' },
 			{ resource: 'https://api.github.com', token: 'full-token' },
 		]);
+	});
+
+	test('Copilot Connector credential stays on the authorized account when another account is returned first', async () => {
+		const scopes = ['read:user', 'user:email'];
+		const account = { id: 'active-account', label: 'Active' };
+		const other = { id: 'other-account', label: 'Other' };
+		const otherCurrent: AuthenticationSession = { id: 'other-current', accessToken: 'other-current-token', account: other, scopes };
+		const otherFull: AuthenticationSession = { id: 'other-full', accessToken: 'other-full-token', account: other, scopes: [...scopes, 'write:plugin_gateway_connections'] };
+		const current: AuthenticationSession = { id: 'current', accessToken: 'current-token', account, scopes };
+		const full: AuthenticationSession = { id: 'full', accessToken: 'full-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'] };
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'github',
+			getSessions: async (_providerId, requested, options: IAuthenticationProviderSessionOptions) => requested
+				? [otherCurrent, current]
+				: [otherCurrent, otherFull, current, full].filter(session => !options.account || session.account.id === options.account.id),
+		});
+		const instantiationService = createAuthInstantiationService(disposables, authService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		}));
+		const tokens: string[] = [];
+		const authenticate = async (request: { token: string }) => { tokens.push(request.token); };
+		const authorized = await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, full.id, authenticate);
+		const unavailable = await instantiationService.invokeFunction(authenticateCopilotConnectorCredential, 'signed-out-session', authenticate);
+		assert.deepStrictEqual({ authorized, unavailable, tokens }, { authorized: true, unavailable: false, tokens: ['full-token'] });
 	});
 
 	test('a connector authorization upgrade replaces the token forwarded to a running agent host', async () => {

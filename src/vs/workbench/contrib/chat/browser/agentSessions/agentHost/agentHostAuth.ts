@@ -921,16 +921,18 @@ export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly str
 }
 
 /**
- * Forwards the GitHub Copilot credential without prompting, preferring an already-authorized session that also
- * grants the Connector scope. Connector-owned servers use this credential, so this is how an authorization of
- * the account reaches them.
+ * Forwards the GitHub Copilot credential of the account that authorized Copilot Connectors, without prompting and
+ * preferring that account's session that also grants the Connector scope. Connector-owned servers use this
+ * credential, so this is how an authorization of the account reaches them. Never falls back to another account.
  */
 export function authenticateCopilotConnectorCredential(
 	accessor: ServicesAccessor,
+	authorizedSessionId: string,
 	authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>,
 ): Promise<boolean> {
 	return authenticateProtectedResource(accessor, gitHubCopilotResource(deriveGitHubEndpoints(undefined)), {
 		logPrefix: '[AgentHost]',
+		preferredSessionId: authorizedSessionId,
 		authenticate,
 	});
 }

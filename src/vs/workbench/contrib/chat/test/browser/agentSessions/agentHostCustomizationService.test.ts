@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -728,7 +728,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			id: 'connector-session', accessToken: 'connector-token', scopes: ['read:user', 'user:email', 'write:plugin_gateway_connections'], account: { id: 'test-account', label: 'Test Account' },
 		};
 
-		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => void) {
+		function createConnectorSut(onRefresh: (sut: TestAgentHostCustomizationService) => Promise<void> | void) {
 			const operations: string[] = [];
 			const notifications: string[] = [];
 			const sut: TestAgentHostCustomizationService = createSut(undefined, {
@@ -741,12 +741,13 @@ suite('AbstractAgentHostCustomizationService', () => {
 						}
 					}());
 					instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
-						override async authorize(): Promise<void> {
+						override async authorize(): Promise<AuthenticationSession> {
 							operations.push('authorize');
+							return fullScopeSession;
 						}
 						override async refreshAgentHostSessions(connectorName?: string): Promise<void> {
 							operations.push(`refresh:${connectorName}`);
-							onRefresh(sut);
+							await onRefresh(sut);
 						}
 					}());
 				},
@@ -776,6 +777,32 @@ suite('AbstractAgentHostCustomizationService', () => {
 					operations: ['authorize', 'authenticate:https://api.github.com', `refresh:${refreshed}`],
 					starts: [],
 					tokens: [['https://api.github.com', 'connector-token']],
+					notifications: [],
+				});
+			});
+		}
+
+		for (const release of ['timeout', 'disposal'] as const) {
+			test(`releases Sign In on ${release} while the Connector refresh is still pending`, async () => {
+				const meta = withMcpServerConnectorNameMeta(undefined, 'workiqmcp');
+				const session = URI.parse('vscode-agent-session:///session-1');
+				const target = new FakeTarget([connectorAuthRequired(meta)]);
+				const refreshStarted = new DeferredPromise<void>();
+				const { sut, operations, notifications } = createConnectorSut(() => {
+					refreshStarted.complete();
+					return new Promise<void>(() => { /* never settles */ });
+				});
+				sut.setTarget(session, target);
+				sut.setMcpAuthenticationVerificationTimeout(release === 'timeout' ? 0 : 60_000);
+
+				const signIn = sut.authenticateMcpServer(session, 'workiq');
+				await refreshStarted.p;
+				if (release === 'disposal') {
+					sut.dispose();
+				}
+				assert.deepStrictEqual({ result: await signIn, operations, notifications }, {
+					result: false,
+					operations: ['authorize', 'refresh:workiqmcp'],
 					notifications: [],
 				});
 			});

@@ -31,6 +31,7 @@ import { ILogger, ILoggerService, ILogService } from '../../../../../../platform
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
+import { AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -531,7 +532,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return false;
 		}
 		const verification = this._verifyMcpAuthentication(sessionResource, server.id, challenge, true);
-		await this._copilotConnectorAuthorization.refresh(connectorName);
+		// Refresh queues behind work in every live session; the verification deadline and disposal still release Sign In.
+		await Promise.race([this._copilotConnectorAuthorization.refresh(connectorName), verification.outcome]);
 		verification.settle();
 		const outcome = await verification.outcome;
 		if (outcome === McpAuthenticationOutcome.Rejected) {
@@ -705,9 +707,10 @@ class AgentHostCopilotConnectorAuthorization {
 	 * Authorizes Connectors for the same account and forwards the resulting Copilot credential to the host, so it
 	 * is the credential Connector requests use before the Connector restarts.
 	 */
-	async authorize(label: string, authenticate: Parameters<typeof authenticateCopilotConnectorCredential>[1]): Promise<boolean> {
+	async authorize(label: string, authenticate: Parameters<typeof authenticateCopilotConnectorCredential>[2]): Promise<boolean> {
+		let authorized: AuthenticationSession;
 		try {
-			await this._copilotConnectorsService.authorize(CancellationToken.None);
+			authorized = await this._copilotConnectorsService.authorize(CancellationToken.None);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this._logService.warn(`[AgentHost] Copilot Connector authorization for ${label} failed`, error);
@@ -721,7 +724,7 @@ class AgentHostCopilotConnectorAuthorization {
 			return false;
 		}
 		try {
-			await this._instantiationService.invokeFunction(authenticateCopilotConnectorCredential, authenticate);
+			await this._instantiationService.invokeFunction(authenticateCopilotConnectorCredential, authorized.id, authenticate);
 		} catch (error) {
 			// Session change handling forwards the credential as well; the restart below still applies it.
 			this._logService.warn(`[AgentHost] Failed to forward the Copilot credential after authorizing connectors for ${label}`, error);
@@ -729,8 +732,12 @@ class AgentHostCopilotConnectorAuthorization {
 		return true;
 	}
 
-	refresh(connectorName: string | undefined): Promise<void> {
-		return this._copilotConnectorsService.refreshAgentHostSessions(connectorName);
+	async refresh(connectorName: string | undefined): Promise<void> {
+		try {
+			await this._copilotConnectorsService.refreshAgentHostSessions(connectorName);
+		} catch (error) {
+			this._logService.warn(`[AgentHost] Failed to refresh Copilot Connector sessions`, error);
+		}
 	}
 
 	notifyStillUnauthorized(label: string): void {
