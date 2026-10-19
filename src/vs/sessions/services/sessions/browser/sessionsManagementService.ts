@@ -24,9 +24,9 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ICopilotHomeService } from '../../../../workbench/services/environment/common/copilotHomeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -1481,6 +1481,32 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async renameSession(session: ISession, title: string): Promise<void> {
 		await this._getProvider(session)?.renameSession(session.sessionId, title);
 		this._onDidRenameSession.fire(session);
+	}
+
+	canMoveChat(session: ISession, chat: IChat): boolean {
+		return this._getProvider(session)?.canMoveChat(session.sessionId, chat.resource) === true;
+	}
+
+	async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || (destination.kind === 'session' && destination.session.providerId !== session.providerId)) {
+			throw new SessionMoveRefusedError(localize('sessions.moveChat.unsupported', "This chat can't be moved there."));
+		}
+		await provider.moveChat(session.sessionId, chat.resource, destination.kind === 'session'
+			? { kind: 'session', sessionId: destination.session.sessionId, after: destination.after?.resource }
+			: { kind: 'newSession' });
+	}
+
+	canMoveSessionUnder(session: ISession): boolean {
+		return this._getProvider(session)?.canMoveSessionUnder(session.sessionId) === true;
+	}
+
+	async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || destination.providerId !== session.providerId || destination.sessionId === session.sessionId) {
+			throw new SessionMoveRefusedError(localize('sessions.moveSession.unsupported', "This session can't be moved there."));
+		}
+		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
 	}
 
 	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {

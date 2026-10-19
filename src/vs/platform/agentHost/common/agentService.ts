@@ -1361,6 +1361,12 @@ export interface IAgentConnection {
 	 * when the host doesn't advertise `vscode.sessionMove`.
 	 */
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
+	/**
+	 * Moves `chat` (AHP `moveChat`) within its session, into another session, or into a new session, and resolves to
+	 * its owning session after the move. A host refusal rejects with a `ProtocolError` whose `data.reason` is an
+	 * `AgentChatMoveRefusal`.
+	 */
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */

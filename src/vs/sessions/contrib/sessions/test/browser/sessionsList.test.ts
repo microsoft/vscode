@@ -3698,6 +3698,40 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
+		test('renders folderless comparison groups under Chats without duplicating attempts', () => {
+			const attempts = ['one', 'two'].map(resourceId => createTestSession(resourceId, { resourceId, isQuickChat: true }).session);
+			const comparison: ISessionComparison = {
+				id: 'chat-comparison', groupId: group.id, title: 'Compare ideas', createdAt: 1, prompt: 'Compare ideas',
+				participants: attempts.map(session => ({
+					id: session.sessionId,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: session.resource,
+				})),
+			};
+			const harness = createListHarness(disposables, attempts, {
+				groups: [group],
+				memberships: new Map(attempts.map(session => [session.sessionId, group.id])),
+				comparisons: [comparison],
+			});
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			container.querySelector<HTMLElement>('.session-section')?.click();
+			assert.deepStrictEqual({
+				sections: [...container.querySelectorAll('.monaco-list-row[aria-level="1"] .session-section-label')].map(label => label.textContent),
+				comparisons: container.querySelectorAll('.session-comparison-group').length,
+				attempts: container.querySelectorAll('.session-comparison-attempt').length,
+				levels: [...container.querySelectorAll('.session-comparison-attempt')].map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-level')),
+			}, {
+				sections: ['Chats'], comparisons: 1, attempts: 2, levels: ['3', '3'],
+			});
+		});
+
 		test('only allows top-level comparison headers to be dragged', () => {
 			const workspace = renderComparison(undefined, 'all', new Set(), true);
 			const workspaceSection = [...workspace.container.querySelectorAll<HTMLElement>('.session-section')]
