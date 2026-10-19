@@ -633,15 +633,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
+			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
 			if (meta.fusionStatus === 'selected') {
-				const description = meta.fusionDescription === undefined
-					? markdown.value
-					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
-				return description ? {
-					kind: 'systemNotification',
-					content: { ...markdown, value: description },
-					presentation: 'workflowDescription',
-				} : undefined;
+				return undefined;
 			}
 			return {
 				kind: 'systemNotification',
