@@ -111,8 +111,14 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
-	background-color: var(--session-view-background);
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
+	max-width: calc(100% - var(--vscode-spacing-size120));
+	margin-inline: var(--vscode-spacing-size60);
+	padding-inline: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: var(--vscode-agentsChatInput-background);
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
