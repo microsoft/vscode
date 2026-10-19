@@ -35279,6 +35279,25 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a source the host has not loaded and cannot restore is refused as not movable, and nothing changes', async () => {
+					const { createService, service, source, target, chat } = await setupSessionMove();
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					const restarted = createService();
+					const missing = URI.from({ scheme: 'copilot', path: `/${generateUuid()}` });
+					const stateManager = getStateManager(restarted);
+					const reasons = [
+						await refusalOf(restarted.moveSession(missing, target, undefined)),
+						await refusalOf(restarted.moveChat(missing, chat, { kind: 'session', session: target, after: undefined })),
+					];
+
+					assert.deepStrictEqual({ reasons, loaded: [missing, source, target].map(session => stateManager.getSessionState(session.toString()) !== undefined) }, {
+						reasons: [AgentChatMoveRefusal.NotMovable, AgentChatMoveRefusal.SessionNotReady],
+						loaded: [false, false, false],
+					});
+				});
+
 				test('a session that owns a worktree its chat does not work in moves, and the target owns that worktree from then on (Block 5)', async () => {
 					const { service, source, target, chat } = await setupSessionMove();
 					const handle = generateUuid();
