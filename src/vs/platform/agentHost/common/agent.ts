@@ -1695,8 +1695,8 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
-	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
-	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+	/** File edits a provider recorded outside tool-call results; they can land after their turn ended. */
+	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnId: string }>;
 
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
@@ -1744,9 +1744,6 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
-
-	/** Waits for native file snapshots to be persisted, including after a host turn is cancelled or steered. */
-	waitForTurnEdits?(chat: URI, turnId: string): Promise<void>;
 
 	/**
 	 * Stops an entry of the chat's background work that this provider marked

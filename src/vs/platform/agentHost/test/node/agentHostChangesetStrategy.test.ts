@@ -41,7 +41,6 @@ import { createNoopGitService, createSessionDataService, encodeString, TestDiffC
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { createLegacyChatMetadataPersistence, createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 
 suite('AgentHostChangesetStrategy', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -190,7 +189,6 @@ suite('AgentHostChangesetStrategy', () => {
 			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
 			createTestChatOwnershipService(state),
 			sessionStateStore,
-			createTestAgentHostProviderService(() => undefined),
 		));
 		state.createSession({
 			resource: session,

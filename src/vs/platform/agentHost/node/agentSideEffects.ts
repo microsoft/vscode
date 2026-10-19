@@ -708,6 +708,9 @@ export class AgentSideEffects extends Disposable {
 		if (agent.onDidReportProgress) {
 			disposables.add(agent.onDidReportProgress(progress => this._stateManager.emitProgress(progress)));
 		}
+		if (agent.onDidStoreTurnEdits) {
+			disposables.add(agent.onDidStoreTurnEdits(({ chat, turnId }) => this._onTurnEditsStored(chat.toString(), turnId)));
+		}
 		if (agent.onDidCustomizationsChange) {
 			disposables.add(agent.onDidCustomizationsChange(() => {
 				this._publishAgentInfos(this._options.agents.get());
@@ -1185,6 +1188,24 @@ export class AgentSideEffects extends Disposable {
 	 * owner is recorded while the chat is registered so late signals for a
 	 * removed chat still reach its session.
 	 */
+	/** Refreshes changesets the way tool-call edits do; edits that land after their turn ended recompute right away. */
+	private _onTurnEditsStored(chat: ProtocolURI, turnId: string): void {
+		const session = this._sessionOf(chat);
+		if (session === undefined) {
+			return;
+		}
+		if (this._stateManager.getActiveTurnId(chat) !== turnId) {
+			// Same full recompute as discarded edits: an ended turn's stored edits changed.
+			this._changesets.onFileEditsDiscarded(chat, [turnId]);
+			return;
+		}
+		const clientContext = this._turnTracker.getClientTelemetryContext(chat, turnId);
+		this._changesets.onToolCallEditsApplied(chat, turnId, clientContext);
+		if (session !== chat) {
+			this._changesets.onToolCallEditsApplied(session, turnId, clientContext);
+		}
+	}
+
 	private _sessionOf(channel: ProtocolURI): ProtocolURI | undefined {
 		if (!isAhpChatChannel(channel)) {
 			return channel;

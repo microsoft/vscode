@@ -109,6 +109,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	readonly toolCallEdits: { session: string; turnId: string }[] = [];
 	readonly turnCompletes: { session: string; turnId: string | undefined }[] = [];
 	readonly truncates: string[] = [];
+	readonly discards: { owner: string; turnIds: readonly string[] }[] = [];
 
 	registerStaticChangesets(): void { /* no-op for routing tests */ }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly unknown[]): void { /* no-op */ }
@@ -141,7 +142,9 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	}
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
-	onFileEditsDiscarded(): void { }
+	onFileEditsDiscarded(owner: string, turnIds: readonly string[]): void {
+		this.discards.push({ owner, turnIds });
+	}
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -9740,6 +9743,33 @@ suite('AgentSideEffects', () => {
 				{ session: defaultChatUri, turnId: 'turn-1' },
 				{ session: sessionUri.toString(), turnId: 'turn-1' },
 			]);
+		});
+
+		test('provider-stored turn edits refresh changesets, right away once their turn ended', () => {
+			setupSession();
+			startTurn('turn-1');
+
+			const storedTurnEdits = disposables.add(new Emitter<{ readonly chat: URI; readonly turnId: string }>());
+			const editingAgent = disposables.add(new class extends MockAgent {
+				readonly onDidStoreTurnEdits = storedTurnEdits.event;
+			}());
+			const changesets = new FakeChangesetService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => editingAgent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+			}, undefined, NullTelemetryService, changesets);
+			disposables.add(localSideEffects.registerProgressListener(editingAgent));
+
+			storedTurnEdits.fire({ chat: URI.parse(defaultChatUri), turnId: 'turn-1' });
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 1000 });
+			storedTurnEdits.fire({ chat: URI.parse(defaultChatUri), turnId: 'turn-1' });
+			storedTurnEdits.fire({ chat: URI.parse('ahp-chat://unknown/chat'), turnId: 'turn-1' });
+
+			assert.deepStrictEqual({ debounced: changesets.toolCallEdits, immediate: changesets.discards }, {
+				debounced: [{ session: defaultChatUri, turnId: 'turn-1' }, { session: sessionUri.toString(), turnId: 'turn-1' }],
+				immediate: [{ owner: defaultChatUri, turnIds: ['turn-1'] }],
+			});
 		});
 
 		test('turn complete immediately fires onTurnComplete once per owner with the right turn id', () => {

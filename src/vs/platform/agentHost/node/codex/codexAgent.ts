@@ -1123,7 +1123,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
 	/** Latest contents per path across a chat's native turns, shared by their {@link CodexTurnDiff}s. */
 	private readonly _turnDiffContents = new WeakMap<ICodexSession, Map<string, string | undefined>>();
-	private readonly _onDidStoreTurnEdits = this._register(new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>());
+	private readonly _onDidStoreTurnEdits = this._register(new Emitter<{ readonly chat: URI; readonly turnId: string }>());
 	readonly onDidStoreTurnEdits = this._onDidStoreTurnEdits.event;
 
 	private readonly _onDidMaterializeChat = this._register(new Emitter<IAgentMaterializeChatEvent>());
@@ -3249,7 +3249,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			} finally {
 				database.dispose();
 			}
-			this._onDidStoreTurnEdits.fire({ chat, turnIds: [hostTurnId] });
+			this._onDidStoreTurnEdits.fire({ chat, turnId: hostTurnId });
 		})().catch(error => this._logService.warn(`[Codex:${params.threadId}] Failed to record turn diff`, error)));
 	}
 
