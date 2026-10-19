@@ -2243,7 +2243,8 @@ suite('SessionWorkspaceConversionService', () => {
 		const providerCalls: string[] = [];
 		const projectNotifications: Array<{ uri: string; displayName: string } | undefined> = [];
 		disposables.add(harness.stateManager.onDidChangeSessionSummary(event => {
-			if (event.session === harness.session.toString()) {
+			// Summary changes are debounced diffs, so a slow conversion can flush other changes before the project is set.
+			if (event.session === harness.session.toString() && Object.hasOwn(event.changes, 'project')) {
 				projectNotifications.push(event.changes.project);
 			}
 		}));
