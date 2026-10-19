@@ -1,0 +1,47 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The composer hosts a full chat widget for its input only: hide the transcript
+ * and welcome content, and let the widget size to the input. */
+.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-list,
+.sessions-shared-chat-input .sessions-shared-chat-widget .chat-welcome-view,
+.sessions-shared-chat-input .sessions-shared-chat-widget .chat-welcome-view-container {
+	display: none !important;
+}
+
+.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-session {
+	height: auto !important;
+}
+
+/* Flush with the composer's picker rows, through the session view's padding knob. */
+.sessions-shared-chat-input {
+	--session-view-content-horizontal-padding: 0;
+}
+
+/* The Agents window pickers render through registered view items, which the
+ * responsive toolbar does not treat as shrinkable, so it would otherwise widen
+ * the Add Context icon to the shrinkable minimum. */
+.sessions-shared-chat-input .chat-input-toolbars .monaco-toolbar.responsive.responsive-last .monaco-action-bar > .actions-container > .action-item.menu-entry.toolbar-shrinkable-item {
+	min-width: 0;
+}
+
+.sessions-shared-chat-input.hidden {
+	display: none !important;
+}
+
+.sessions-shared-chat-input .new-chat-bottom-container {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.sessions-shared-chat-input .new-chat-bottom-container.empty {
+	display: none;
+}
+
+/* The onboarding prompt template's placeholder, styled like an inline reference. */
+.sessions-shared-chat-input .monaco-editor .sessions-prompt-template-placeholder {
+	color: var(--vscode-chat-slashCommandForeground);
+	background-color: var(--vscode-chat-slashCommandBackground);
+	border-radius: var(--vscode-cornerRadius-small);
+}

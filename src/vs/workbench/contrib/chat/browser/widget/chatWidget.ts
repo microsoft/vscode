@@ -796,7 +796,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false)));
+		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (!this.viewOptions.hostSubmit && (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false))));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
@@ -1707,9 +1707,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * belongs to the empty state of the standard chat layout.
 	 */
 	private isGettingStartedTipEligible(): boolean {
-		if (typeof this.viewOptions.renderGettingStartedTip === 'function'
-			? !this.viewOptions.renderGettingStartedTip()
-			: this.viewOptions.renderGettingStartedTip === false) {
+		if (typeof this.viewOptions.renderGettingStartedTip === 'function' && !this.viewOptions.renderGettingStartedTip()) {
 			return false;
 		}
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -2714,6 +2712,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			inputPartHorizontalPadding: this.viewOptions.inputPartHorizontalPadding,
+			hostModelSelection: this.viewOptions.hostModelSelection,
+			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
+			hostSubmit: this.viewOptions.hostSubmit,
 		};
 
 		let input: ChatInputPart;
@@ -2786,15 +2788,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.customizationMigrationNotice.clear();
 			}
-			this._gettingStartedTip.value = this.instantiationService.createInstance(
-				ChatInputTipPresenter,
-				{
-					container: input.gettingStartedTipContainerElement,
-					isEligible: () => this.isGettingStartedTipEligible(),
-					focusInput: () => this.focusInput(),
-				},
-				input.noticeHost,
-			);
+			if (this.viewOptions.renderGettingStartedTip !== false) {
+				this._gettingStartedTip.value = this.instantiationService.createInstance(
+					ChatInputTipPresenter,
+					{
+						container: input.gettingStartedTipContainerElement,
+						isEligible: () => this.isGettingStartedTipEligible(),
+						focusInput: () => this.focusInput(),
+					},
+					input.noticeHost,
+				);
+			}
 		}
 		// Keep read-only chats' composer hidden if the input part was rebuilt.
 		this._applyInputVisibility();
@@ -3413,7 +3417,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
+		const modelInputBlocked = this.viewModel?.model.isInputBlocked.get() && !this.viewOptions.hostSubmit;
+		if (this._readOnly || modelInputBlocked || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
 		const participant = this.getParticipantForLocalChat(query);

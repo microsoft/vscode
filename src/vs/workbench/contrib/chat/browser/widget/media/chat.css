@@ -1467,6 +1467,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: var(--vscode-button-hoverBackground);
 }
 
+/* A host-provided label (for example "Run 3 Attempts") sits before the button. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button.labeled {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .chat-submit-button-label {
+	order: -1;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.labeled) > .chat-submit-button-label {
+	display: none;
+}
+
 .interactive-session .chat-editing-session {
 	width: 100%;
 	position: relative;

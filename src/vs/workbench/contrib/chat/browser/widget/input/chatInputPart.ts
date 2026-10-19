@@ -114,7 +114,7 @@ import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.j
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { getRegisteredLanguageModels, isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, resolveModelIdentifierFromLanguageModels, RestoredModelReason } from '../../../common/modelSelection.js';
-import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
+import { filterModelsForSession, getNextModelInCycle, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -164,7 +164,7 @@ import { getChatPetPillPlatformTop, getChatPetStackPlatformTop } from '../chatPe
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
-import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
+import { ChatInputNotificationWidget, IChatInputNotificationModelSelection } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
@@ -300,7 +300,11 @@ export interface IChatInputPartOptions {
 	inputEditorMinLines?: number;
 	/** Quick-suggestion behavior for the input editor. Defaults to disabled. */
 	inputEditorQuickSuggestions?: IEditorOptions['quickSuggestions'];
-	deferredNotificationsEnabled?: boolean;
+	/**
+	 * Whether deferred notifications, such as promotions, may show. Defaults to
+	 * this input's own rule, which holds them back during a first chat session.
+	 */
+	deferredNotificationsEnabled?: IObservable<boolean>;
 	/** Whether this input is a transient surface (inline, terminal, or quick chat). */
 	isTransientChat?: boolean;
 	widgetViewKindTag: string;
@@ -356,6 +360,36 @@ export interface IChatInputPartOptions {
 	 * can pass `0` so the editor fills the box and its scrollbar sits at the edge.
 	 */
 	inputPartHorizontalPadding?: number;
+	/** Model selection owned by the host instead of this input; see {@link IChatInputHostModelSelection}. */
+	hostModelSelection?: IChatInputHostModelSelection;
+	/** Submitting that the host takes part in; see {@link IChatInputHostSubmit}. */
+	hostSubmit?: IChatInputHostSubmit;
+}
+
+/**
+ * Model selection that a host owns instead of the chat input, such as a composer
+ * whose models come from a session provider. The host's current model is the
+ * input's model, and the input's model commands, keybindings and notifications
+ * act on the host's selection. The input does not apply a mode's preferred
+ * model or remember picks for other inputs.
+ */
+export interface IChatInputHostModelSelection extends IChatInputNotificationModelSelection {
+	switchToNextModel(): void;
+	switchToNextPinnedModel(): void;
+	switchModel(model: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>): void;
+}
+
+/**
+ * How a host that sends requests itself, such as a composer that sends to a
+ * session provider, takes part in submitting the input.
+ */
+export interface IChatInputHostSubmit {
+	/** Whether the host currently allows submitting, in addition to the input's own checks. */
+	readonly canSubmit: IObservable<boolean>;
+	/** Whether the host has content to send even when the input is empty, such as feedback it sends along. */
+	readonly hasContent?: IObservable<boolean>;
+	/** Label shown on the submit button, for sends that do more than send one request. */
+	readonly label?: IObservable<string | undefined>;
 }
 
 export interface IWorkingSetEntry {
@@ -1096,7 +1130,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 		};
 		this._modelSelectionController = this._register(new ChatInputModelSelectionController(this._modelSelectionRuntime, this._modelSelectionDiagnostics));
-		this._currentLanguageModel = this._modelSelectionController.currentModel;
+		const hostModelSelection = this.options.hostModelSelection;
+		this._currentLanguageModel = hostModelSelection
+			? derived(this, reader => hostModelSelection.state.read(reader).currentModel)
+			: this._modelSelectionController.currentModel;
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
 			this._modelSelectionDiagnostics.logStorageChange(event, this._currentLanguageModel.get()?.identifier);
 		}));
@@ -1336,7 +1373,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
 			this.chatModeNameKey.set(mode.name.read(r));
-			if (this.options.suppressModePreferredModel) {
+			if (this.options.suppressModePreferredModel || this.options.hostModelSelection) {
 				return;
 			}
 			const models = mode.model?.read(r);
@@ -1390,6 +1427,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public switchModel(modelMetadata: Pick<ILanguageModelChatMetadata, 'vendor' | 'id' | 'family'>) {
+		if (this.options.hostModelSelection) {
+			this.options.hostModelSelection.switchModel(modelMetadata);
+			return;
+		}
 		const models = this.getModels();
 		const model = models.find(m => m.metadata.vendor === modelMetadata.vendor && m.metadata.id === modelMetadata.id && m.metadata.family === modelMetadata.family);
 		if (model) {
@@ -1444,38 +1485,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	get hasPendingProgrammaticModelSelection(): boolean {
-		return this._modelSelectionController.hasPendingProgrammaticSelection();
+		return !this.options.hostModelSelection && this._modelSelectionController.hasPendingProgrammaticSelection();
 	}
 
 
 	public switchToNextModel(): void {
-		const models = this.getModels();
-		if (models.length > 0) {
-			const currentIndex = models.findIndex(model => model.identifier === this._currentLanguageModel.get()?.identifier);
-			const nextIndex = (currentIndex + 1) % models.length;
-			this.setCurrentLanguageModel(models[nextIndex], true);
+		if (this.options.hostModelSelection) {
+			this.options.hostModelSelection.switchToNextModel();
+			return;
+		}
+		const nextModel = getNextModelInCycle(this.getModels(), this._currentLanguageModel.get()?.identifier);
+		if (nextModel) {
+			this.setCurrentLanguageModel(nextModel, true);
 		}
 	}
 
 	public switchToNextPinnedModel(): void {
-		const models = this.getModels();
-		if (models.length === 0) {
+		if (this.options.hostModelSelection) {
+			this.options.hostModelSelection.switchToNextPinnedModel();
 			return;
 		}
-
-		const modelMap = new Map(models.map(model => [model.identifier, model]));
-		const pinnedModels = this.languageModelsService
-			.getPinnedModelIds()
-			.map(modelId => modelMap.get(modelId))
-			.filter(isDefined);
-
-		if (pinnedModels.length === 0) {
-			return;
+		const nextModel = getNextModelInCycle(this.getModels(), this._currentLanguageModel.get()?.identifier, this.languageModelsService.getPinnedModelIds());
+		if (nextModel) {
+			this.setCurrentLanguageModel(nextModel, true);
 		}
-
-		const currentIndex = pinnedModels.findIndex(model => model.identifier === this._currentLanguageModel.get()?.identifier);
-		const nextIndex = (currentIndex + 1) % pinnedModels.length;
-		this.setCurrentLanguageModel(pinnedModels[nextIndex], true);
 	}
 
 	/** Exact desktop picker owned by this input; combined phone sheets have no search contract. */
@@ -1484,6 +1517,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public openModelPicker(): void {
+		if (this.options.hostModelSelection) {
+			this.options.hostModelSelection.openPicker();
+			return;
+		}
 		if (this.chatPhoneInputPresenter.enabled.get()) {
 			this._showCombinedPhonePickerSheet();
 			return;
@@ -1521,7 +1558,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				const previousModelIdentifier = this._currentLanguageModel.get()?.identifier;
-				this.setCurrentLanguageModel(model, true, !this.options.suppressModelPersistence);
+				this.setCurrentLanguageModel(model, true, !this.options.suppressModelPersistence && !this.options.hostModelSelection);
 				if (didExplicitlySwitchChatPetModel(previousModelIdentifier, model.identifier)) {
 					this.chatPetService.unlockAchievement(ChatPetAchievementIds.ModelSwitch);
 				}
@@ -2662,10 +2699,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _updateInputContentContextKeys(): void {
 		const inputHasText = !!this._inputEditor?.getModel()?.getValue().trim();
 		this.inputEditorHasText.set(inputHasText);
-		const hasSendableContent = inputHasText || this._attachmentModel.attachments.some(isExplicitFileOrImageVariableEntry);
+		const hostSubmit = this.options.hostSubmit;
+		const hasSendableContent = inputHasText || this._attachmentModel.attachments.some(isExplicitFileOrImageVariableEntry) || !!hostSubmit?.hasContent?.get();
 		// Block sending when the session type has no usable model (and can't
-		// fall back to Auto): there is nothing to send the request with.
-		this.inputEditorHasSendableContent.set(hasSendableContent && !this.hasNoAvailableModel() && !this.hasPendingProgrammaticModelSelection);
+		// fall back to Auto): there is nothing to send the request with. A host
+		// that owns model selection reports that through `canSubmit` instead.
+		const hasUsableModel = !!this.options.hostModelSelection || (!this.hasNoAvailableModel() && !this.hasPendingProgrammaticModelSelection);
+		this.inputEditorHasSendableContent.set(hasSendableContent && hasUsableModel && (hostSubmit?.canSubmit.get() ?? true));
 	}
 
 	private getOrCreateOptionEmitter(optionGroupId: string): Emitter<IChatSessionProviderOptionItem> {
@@ -3116,10 +3156,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				inputUri: this.inputUri,
 				modelTargetChatSessionType: this._notificationModelTargetChatSessionType,
 				sessionResource: this._currentSessionResourceObservable,
-				deferredNotificationsEnabled: this._deferredNotificationsEnabled,
+				deferredNotificationsEnabled: this.options.deferredNotificationsEnabled ?? this._deferredNotificationsEnabled,
 				isTransientChat: constObservable(this.options.isTransientChat ?? false),
 				sessionStarted: this._sessionStarted,
-				modelSelection: {
+				modelSelection: this.options.hostModelSelection ?? {
 					state: this._notificationModelState,
 					openPicker: () => this.openModelPicker(),
 					selectModel: modelIdentifier => this.selectNotificationModel(modelIdentifier),
@@ -3137,10 +3177,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputUri: this.inputUri,
 			sessionType: this._notificationModelTargetChatSessionType.get(),
 			sessionResource: this._currentSessionResourceObservable.get(),
-			deferredNotificationsEnabled: this._deferredNotificationsEnabled.get(),
+			deferredNotificationsEnabled: (this.options.deferredNotificationsEnabled ?? this._deferredNotificationsEnabled).get(),
 			isTransientChat: this.options.isTransientChat ?? false,
 			sessionStarted: this._sessionStarted.get(),
-			modelState: this._notificationModelState.get(),
+			modelState: (this.options.hostModelSelection?.state ?? this._notificationModelState).get(),
 		};
 	}
 
@@ -3680,6 +3720,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
+		const hostSubmit = this.options.hostSubmit;
+		if (hostSubmit) {
+			this._register(autorun(reader => {
+				hostSubmit.canSubmit.read(reader);
+				hostSubmit.hasContent?.read(reader);
+				this._updateInputContentContextKeys();
+			}));
+		}
+
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this._effectiveInputEditorMaxHeight);
 			if (currentHeight !== this.inputEditorHeight) {
@@ -3970,10 +4019,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
+					const submitLabel = this.options.hostSubmit?.label;
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.add('chat-submit-button');
+							if (submitLabel) {
+								const labelElement = dom.append(container, dom.$('span.chat-submit-button-label'));
+								labelElement.setAttribute('aria-hidden', 'true');
+								this._register(autorun(reader => {
+									const label = submitLabel.read(reader);
+									labelElement.textContent = label ?? '';
+									container.classList.toggle('labeled', !!label);
+									this.updateAriaLabel();
+								}));
+							}
+						}
+
+						protected override updateAriaLabel(): void {
+							super.updateAriaLabel();
+							const label = submitLabel?.get();
+							if (label) {
+								this.label?.setAttribute('aria-label', label);
+							}
 						}
 					}, action, options);
 				}

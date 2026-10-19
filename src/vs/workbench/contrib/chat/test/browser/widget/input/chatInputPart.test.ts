@@ -692,4 +692,57 @@ suite('ChatInputPart', () => {
 			{ compact: true, working: true, widthIncrease: 0, heightIncrease: 0 },
 		]);
 	});
+
+	test('routes model commands to a host-owned model selection and lets the host gate and add sendable content', () => {
+		const calls: string[] = [];
+		const canSubmit = observableValue('canSubmit', true);
+		const hasContent = observableValue('hasContent', false);
+		let text = 'Build it';
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+		const sendableKey = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
+		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			options: {
+				hostSubmit: { canSubmit, hasContent },
+				hostModelSelection: {
+					state: constObservable({ models: [], currentModel: undefined }),
+					openPicker: () => calls.push('open'),
+					selectModel: () => true,
+					switchToNextModel: () => calls.push('next'),
+					switchToNextPinnedModel: () => calls.push('nextPinned'),
+					switchModel: (model: { id: string }) => calls.push(`switch:${model.id}`),
+				},
+			},
+			_inputEditor: { getModel: () => ({ getValue: () => text }) },
+			_attachmentModel: { attachments: [] },
+			inputEditorHasText: ChatContextKeys.inputHasText.bindTo(contextKeyService),
+			inputEditorHasSendableContent: sendableKey,
+			// The input's own pool is empty; with a host selection it must not block sending.
+			hasNoAvailableModel: () => true,
+		}) as ChatInputPart;
+		const sendable = () => {
+			Reflect.get(ChatInputPart.prototype, '_updateInputContentContextKeys').call(inputPart);
+			return sendableKey.get();
+		};
+
+		inputPart.openModelPicker();
+		inputPart.switchToNextModel();
+		inputPart.switchToNextPinnedModel();
+		inputPart.switchModel({ vendor: 'copilot', id: 'gpt', family: 'gpt' });
+		const withText = sendable();
+		text = '';
+		const empty = sendable();
+		hasContent.set(true, undefined);
+		const onlyHostContent = sendable();
+		canSubmit.set(false, undefined);
+		const blockedByHost = sendable();
+
+		assert.deepStrictEqual({ calls, withText, empty, onlyHostContent, blockedByHost }, {
+			calls: ['open', 'next', 'nextPinned', 'switch:gpt'],
+			withText: true,
+			empty: false,
+			onlyHostContent: true,
+			blockedByHost: false,
+		});
+	});
 });

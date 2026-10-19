@@ -70,9 +70,9 @@ export const Menus = {
 	/** Target controls above the Automation dialog prompt editor. */
 	AutomationsDialogTargetToolbar: new MenuId('AutomationsDialogTargetToolbar'),
 
-	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
+	/** Input toolbar of the new-session and new-chat composers. */
+	NewSessionChatInputToolbar: new MenuId('NewSessions.ChatInputToolbar'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
-	NewSessionAttachContext: new MenuId('NewSessions.AttachContextMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	NewSessionWelcome: new MenuId('NewSessions.WelcomeMenu'),
 	NewSessionWelcomeContext: new MenuId('NewSessions.WelcomeContextMenu'),
