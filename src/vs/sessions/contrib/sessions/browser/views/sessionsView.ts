@@ -22,11 +22,11 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -49,6 +49,7 @@ import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionCollectionsService } from '../../../../services/sessions/browser/sessionCollectionsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -57,13 +58,15 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
-import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
 import { createSessionsListNotices } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { getWorkbenchContribution, IWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
+import { SESSIONS_LIST_COLLECTION_SWITCHER_SETTING, SESSIONS_LIST_COLLECTIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SessionsCollectionSwitcher } from '../../../../common/sessionConfig.js';
+import { ISessionCollectionsSwitcherDelegate, SESSION_COLLECTIONS_CONTROLLER_ID, SessionCollectionTitleButton, SessionCollectionsTabs, shouldShowCollectionsInSidebar } from '../sessionCollectionsSwitcher.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -94,6 +97,13 @@ export interface ISessionsHeaderElements {
 	readonly toolbar: MenuWorkbenchToolBar | undefined;
 }
 
+export interface ISessionsHeaderCollectionsOptions {
+	readonly collectionsEnabled: IObservable<boolean>;
+	readonly collectionSwitcher: IObservable<SessionsCollectionSwitcher>;
+	readonly collectionsService: ISessionCollectionsService;
+	readonly delegate: ISessionCollectionsSwitcherDelegate;
+}
+
 export function renderSessionsHeader(
 	parent: HTMLElement,
 	phoneLayout: boolean,
@@ -101,6 +111,7 @@ export function renderSessionsHeader(
 	contextKeyService: IContextKeyService,
 	disposables: DisposableStore,
 	onDidShowFilters?: () => void,
+	collections?: ISessionsHeaderCollectionsOptions,
 ): ISessionsHeaderElements {
 	const row = DOM.append(parent, $('.agent-sessions-header-row'));
 	const label = DOM.append(row, $('.agent-sessions-header-label'));
@@ -108,7 +119,13 @@ export function renderSessionsHeader(
 	let toolbar: MenuWorkbenchToolBar | undefined;
 
 	if (!phoneLayout) {
-		label.textContent = localize('sessionsHeader', "Sessions");
+		if (collections) {
+			disposables.add(instantiationService.createInstance(SessionCollectionTitleButton, label, {
+				shouldShow: reader => shouldShowCollectionsInSidebar(collections.collectionsEnabled, collections.collectionSwitcher, SessionsCollectionSwitcher.TitleBar, collections.collectionsService, reader),
+			}, collections.delegate));
+		} else {
+			label.textContent = localize('sessionsHeader', "Sessions");
+		}
 		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -162,6 +179,8 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
+	private readonly collectionsEnabled: IObservable<boolean>;
+	private readonly collectionSwitcher: IObservable<SessionsCollectionSwitcher>;
 	private customizationsPresentation: CustomizationsPresentation = 'hidden';
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
@@ -190,6 +209,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionCollectionsService private readonly sessionCollectionsService: ISessionCollectionsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
@@ -200,6 +220,8 @@ export class SessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
+		this.collectionsEnabled = observableConfigValue<boolean>(SESSIONS_LIST_COLLECTIONS_SETTING, false, configurationService);
+		this.collectionSwitcher = observableConfigValue<SessionsCollectionSwitcher>(SESSIONS_LIST_COLLECTION_SWITCHER_SETTING, SessionsCollectionSwitcher.TitleBar, configurationService);
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
@@ -279,6 +301,7 @@ export class SessionsView extends ViewPane {
 		const phoneLayout = isPhoneLayout(this.layoutService);
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
+		this.installCollectionTabs(sessionsContent, sessionsHeaderContainer, phoneLayout);
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
@@ -469,8 +492,52 @@ export class SessionsView extends ViewPane {
 		this._register(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(parent), () => this.layoutSidebarSplitView()));
 	}
 
+	private installCollectionTabs(sessionsContent: HTMLElement, before: HTMLElement, phoneLayout: boolean): void {
+		if (phoneLayout) {
+			return;
+		}
+		const tabs = this._register(new MutableDisposable<DisposableStore>());
+		const relayout = () => {
+			if (this.currentBodyHeight > 0) {
+				this.layoutBody(this.currentBodyHeight, this.currentBodyWidth);
+			}
+		};
+		this._register(autorun(reader => {
+			if (!shouldShowCollectionsInSidebar(this.collectionsEnabled, this.collectionSwitcher, SessionsCollectionSwitcher.Tabs, this.sessionCollectionsService, reader)) {
+				if (tabs.value) {
+					tabs.clear();
+					relayout();
+				}
+				return;
+			}
+			if (tabs.value) {
+				return;
+			}
+			const store = new DisposableStore();
+			const container = DOM.$('.session-collections-tabs-container');
+			sessionsContent.insertBefore(container, before);
+			store.add(toDisposable(() => container.remove()));
+			store.add(this.instantiationService.createInstance(SessionCollectionsTabs, container, this.getSessionCollectionsDelegate()));
+			tabs.value = store;
+			relayout();
+		}));
+	}
+
+	private getSessionCollectionsDelegate(): ISessionCollectionsSwitcherDelegate {
+		return getWorkbenchContribution<ISessionCollectionsSwitcherDelegate & IWorkbenchContribution>(SESSION_COLLECTIONS_CONTROLLER_ID);
+	}
+
+	private getSessionsHeaderCollectionsOptions(): ISessionsHeaderCollectionsOptions {
+		return {
+			collectionsEnabled: this.collectionsEnabled,
+			collectionSwitcher: this.collectionSwitcher,
+			collectionsService: this.sessionCollectionsService,
+			delegate: this.getSessionCollectionsDelegate(),
+		};
+	}
+
 	private createSessionsHeader(parent: HTMLElement, phoneLayout: boolean, disposables: DisposableStore): ISessionsHeaderElements {
-		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
+		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown(), this.getSessionsHeaderCollectionsOptions());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
 		this.updateHeaderLayout();

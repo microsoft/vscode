@@ -26,7 +26,8 @@ import './sessionDetailsAction.js';
 import './updateSessionFoldersAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING } from '../../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_COLLECTION_SWITCHER_SETTING, SESSIONS_LIST_COLLECTIONS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_COLORS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_GROUP_STYLE_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsCollectionSwitcher, SessionsListGroupStyle, USE_WORKTREE_SETTING } from '../../../common/sessionConfig.js';
+import { SessionCollectionsController } from './sessionCollections.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -129,6 +130,51 @@ export const sessionsConfiguration = {
 			scope: ConfigurationScope.APPLICATION,
 			experiment: { mode: 'auto' }
 		},
+		[SESSIONS_LIST_GROUP_COLORS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			markdownDescription: localize('sessions.list.groupColors', "Controls whether session groups in the sessions list are colored. When enabled, groups, workspaces, and the Pinned and Chats sections can be colored with **Edit Group...** or **Color Section...**."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_GROUP_STYLE_SETTING]: {
+			type: 'string',
+			tags: ['experimental'],
+			enum: [SessionsListGroupStyle.Rail, SessionsListGroupStyle.Outline, SessionsListGroupStyle.Tint, SessionsListGroupStyle.Dot],
+			enumDescriptions: [
+				localize('sessions.list.groupStyle.rail', "A colored header pill with a colored rail beside the group's sessions."),
+				localize('sessions.list.groupStyle.outline', "A solid colored header with a colored outline around the group's sessions."),
+				localize('sessions.list.groupStyle.tint', "A colored header pill inside a softly tinted card."),
+				localize('sessions.list.groupStyle.dot', "A colored dot on the header and a thin colored rail beside the group's sessions."),
+			],
+			markdownDescription: localize('sessions.list.groupStyle', "Controls how colored groups are drawn in the sessions list when `#sessions.list.groupColors#` is enabled."),
+			default: SessionsListGroupStyle.Rail,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_COLLECTIONS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: localize('sessions.list.collections', "Controls whether sessions can be organized into collections. The sessions list shows one collection at a time, and each collection remembers its last open session."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_COLLECTION_SWITCHER_SETTING]: {
+			type: 'string',
+			tags: ['experimental'],
+			enum: [SessionsCollectionSwitcher.TitleBar, SessionsCollectionSwitcher.Tabs, SessionsCollectionSwitcher.Menu],
+			enumDescriptions: [
+				localize('sessions.list.collectionSwitcher.titleBar', "Show a strip of collection icons in the title bar."),
+				localize('sessions.list.collectionSwitcher.tabs', "Show labeled collection tabs at the top of the sidebar."),
+				localize('sessions.list.collectionSwitcher.menu', "Switch collections only from the Sessions header menu."),
+			],
+			markdownDescription: localize('sessions.list.collectionSwitcher', "Controls where the collection switcher is shown when `#sessions.list.collections#` is enabled."),
+			default: SessionsCollectionSwitcher.TitleBar,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' }
+		},
 		[SESSIONS_CHAT_TABS_SETTING]: {
 			type: 'string',
 			tags: ['preview'],
@@ -181,3 +227,4 @@ registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemet
 registerWorkbenchContribution2(SessionsAccountTelemetryContribution.ID, SessionsAccountTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionConversationActionsContribution.ID, SessionConversationActionsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionCollectionsController.ID, SessionCollectionsController, WorkbenchPhase.BlockRestore);

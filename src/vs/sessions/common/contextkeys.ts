@@ -204,3 +204,9 @@ export const SessionActivityBarLayoutActionsContext = ContextKeyExpr.and(
 )!;
 
 //#endregion
+
+//#region < --- Sessions List Collections --- >
+
+export const SessionsHasMultipleCollectionsContext = new RawContextKey<boolean>('sessionsHasMultipleCollections', false, localize('sessionsHasMultipleCollections', "Whether the sessions list has more than one collection"));
+
+//#endregion

@@ -1242,8 +1242,13 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(groupHeader);
 			const labelContainer = groupHeader.querySelector<HTMLElement>('.session-section-label-container');
 			assert.ok(labelContainer);
+			// The uncolored header pill uses `display: contents`, so the label container still lays out in the header row.
+			let flexParent = labelContainer.parentElement;
+			while (flexParent && mainWindow.getComputedStyle(flexParent).display === 'contents') {
+				flexParent = flexParent.parentElement;
+			}
 			assert.deepStrictEqual({
-				labelContainerParent: labelContainer.parentElement?.classList.contains('session-group'),
+				labelContainerParent: flexParent?.classList.contains('session-group'),
 				labelParent: labelContainer.querySelector('.session-section-label')?.parentElement?.classList.contains('session-section-label-container'),
 				flexGrow: mainWindow.getComputedStyle(labelContainer).flexGrow,
 			}, {
@@ -3558,6 +3563,7 @@ suite('Sessions - SessionsList', () => {
 					ariaLabel: parent.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					connector: parent.closest('.monaco-list-row')?.getAttribute('data-session-group-connector'),
 					childOrder: [...parent.children].map(child => child.className),
+					pillChildOrder: [...parent.querySelector('.session-header-pill')?.children ?? []].map(child => child.className),
 					labelMaxWidth: mainWindow.getComputedStyle(parent.querySelector<HTMLElement>('.session-section-label')!).maxWidth,
 					labelsOverflow: mainWindow.getComputedStyle(parent.querySelector<HTMLElement>('.session-group-labels')!).overflow,
 				},
@@ -3608,11 +3614,14 @@ suite('Sessions - SessionsList', () => {
 					ariaLabel: 'Improve the picker, Comparison · 2 attempts working',
 					connector: null,
 					childOrder: [
+						'session-header-pill',
+						'session-group-input',
+						'session-section-toolbar has-no-actions',
+					],
+					pillChildOrder: [
 						'session-section-chevron collapsible codicon codicon-chevron-down',
 						'session-section-icon codicon codicon-layers',
 						'session-section-label-container session-group-labels',
-						'session-group-input',
-						'session-section-toolbar has-no-actions',
 					],
 					labelMaxWidth: '100%',
 					labelsOverflow: 'hidden',
