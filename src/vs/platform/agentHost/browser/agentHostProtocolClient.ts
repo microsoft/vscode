@@ -7,7 +7,7 @@
 
 import { supportsSandboxCertificateInstallation, supportsSandboxCertificateRemoval, supportsSandboxCertificateRotation } from '../common/meta/agentSandboxCertificate.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod } from '../common/sandboxCertificateProtocol.js';
-import { DeferredPromise, disposableTimeout, IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, IntervalTimer, raceCancellationError, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -19,6 +19,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
+import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -29,7 +30,7 @@ import { AgentPolicyError, IAgentCreateChatRequestOptions, IAgentCreateSessionCo
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
@@ -1721,6 +1722,31 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		const result = await this._sendExtensionRequest(StopBackgroundWorkExtensionMethod, { chat: chat.toString(), id });
 		return result.stopped;
+	}
+
+	async measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!supportsAgentHostWorktreeDiskUsage(this.initializeResult.get())) {
+			this._logService.debug('[WorktreeDiskUsage] Host does not support aggregate measurement');
+			return undefined;
+		}
+		const requestId = generateUuid();
+		const measurement = this._sendExtensionRequest(MeasureWorktreeDiskUsageExtensionMethod, { uri: fromAgentHostUri(root).toString(), requestId });
+		const cancellation = token.onCancellationRequested(() => {
+			void this._sendExtensionRequest(CancelWorktreeDiskUsageExtensionMethod, { requestId })
+				.catch(error => this._logService.warn('[WorktreeDiskUsage] Failed to cancel measurement', error));
+		});
+		try {
+			const result = await raceCancellationError(measurement, token);
+			if (result.sizeBytes !== undefined && (!Number.isSafeInteger(result.sizeBytes) || result.sizeBytes < 0)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid worktree size');
+			}
+			return result.sizeBytes;
+		} finally {
+			cancellation.dispose();
+		}
 	}
 
 	async installSandboxCertificate(chat: string, scopeId: string): Promise<void> {

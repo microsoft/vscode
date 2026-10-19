@@ -6,6 +6,7 @@
 import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
+import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
@@ -1016,6 +1017,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 		@IAgentHostTurnTracker private readonly _turnTracker: IAgentHostTurnTracker,
 		@IAgentHostResourceProviders private readonly _resourceProviders: IAgentHostResourceProviders,
+		@IAgentHostWorktreeDiskUsageService private readonly _worktreeDiskUsage: IAgentHostWorktreeDiskUsageService,
 	) {
 		super();
 		this._authService = core.authenticationService;
@@ -13350,6 +13352,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
 		return this._resourceProviders.resolve(params);
+	}
+
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+		return this._worktreeDiskUsage.measure(root, token);
 	}
 
 	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {

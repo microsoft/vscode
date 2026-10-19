@@ -93,7 +93,6 @@ import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../commo
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
-import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import type { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -6907,7 +6906,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const sizes: (number | undefined)[] = [];
 		for (const worktreeUri of worktrees.values()) {
-			sizes.push(await getWorktreeDiskUsage(connection, worktreeUri, token));
+			sizes.push(await connection.measureWorktreeDiskUsage?.(worktreeUri, token));
 		}
 		if (sizes.every(size => size === undefined)) {
 			return undefined;
