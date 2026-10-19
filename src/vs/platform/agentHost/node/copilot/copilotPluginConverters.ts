@@ -146,8 +146,7 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
 		for (const item of property.value.items) {
 			const command = yamlNodeToValue(item);
 			if (!isRecord(command)) {
-				commands.length = 0;
-				break;
+				continue;
 			}
 			commands.push(command);
 		}

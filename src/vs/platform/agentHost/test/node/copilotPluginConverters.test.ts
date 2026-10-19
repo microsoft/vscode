@@ -339,6 +339,46 @@ suite('copilotPluginConverters', () => {
 			]);
 		});
 
+		test('preserves valid hook commands around malformed entries', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/mixed.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: mixed',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo started',
+				'  PreToolUse:',
+				'    - invalid',
+				'    - type: command',
+				'      command: deny first',
+				'    - [invalid]',
+				'    - type: command',
+				'      command: deny second',
+				'    - null',
+				'  SessionEnd:',
+				'    - invalid',
+				'    - [invalid]',
+				'---',
+				'Mixed hooks.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([{ uri: agentUri, name: 'mixed' }], fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'mixed',
+				tools: null,
+				hooks: {
+					SessionStart: [{ type: 'command', command: 'echo started' }],
+					PreToolUse: [
+						{ type: 'command', command: 'deny first' },
+						{ type: 'command', command: 'deny second' },
+					],
+				},
+				prompt: 'Mixed hooks.',
+			}]);
+		});
+
 		test('parses supported reasoning-effort values from frontmatter', async () => {
 			const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 			const agents: INamedPluginResource[] = [];
