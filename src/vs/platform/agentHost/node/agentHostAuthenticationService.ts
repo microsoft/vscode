@@ -36,6 +36,7 @@ export interface IAgentHostAuthenticationService {
 	bindSessionCredentials(session: string, source: IAgentHostCredentialSource | undefined, chat?: string, usage?: 'execution' | 'agentMerge'): void;
 	restoreSessionCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal, chat?: string): void;
 	releaseSessionCredentials(session: string): void;
+	moveChatCredentials(chat: string, previous: string, current: string): void;
 	createLocalCredentialSource(principal: IAgentHostCredentialPrincipal, resources: readonly ProtectedResourceMetadata[]): Promise<IAgentHostCredentialSource>;
 }
 
@@ -312,6 +313,27 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (chat !== undefined) {
 			this._credentialOwners.set(chat, session);
 		}
+	}
+
+	/** Makes a chat's credential binding follow the chat to its new owner, so releasing the previous owner no longer drops it. */
+	moveChatCredentials(chat: string, previous: string, current: string): void {
+		if (this._credentialOwners.get(chat) !== previous) {
+			return;
+		}
+		const principal = this._sessionPrincipals.get(previous);
+		const existing = this._sessionPrincipals.get(current);
+		if (principal && existing && (existing.apiOrigin !== principal.apiOrigin || existing.userId !== principal.userId)) {
+			// Credentials never cross to a session owned by a different principal.
+			this._sessionCredentials.delete(chat);
+			this._agentMergeCredentials.delete(chat);
+			this._unavailableSources.delete(chat);
+			this._credentialOwners.delete(chat);
+			return;
+		}
+		if (principal && !existing) {
+			this._sessionPrincipals.set(current, principal);
+		}
+		this._credentialOwners.set(chat, current);
 	}
 
 	releaseSessionCredentials(session: string): void {

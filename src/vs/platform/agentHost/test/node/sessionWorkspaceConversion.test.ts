@@ -552,6 +552,29 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('isolation state follows a moved main chat when its previous session is removed', async () => {
+		const worktree = URI.file('/workspace/project.worktrees/chat');
+		const host: IChatIsolationHost = {
+			runWithChatCatalogLock: (_session, operation) => operation(),
+			prepareChatWorkingDirectory: async () => { throw new Error('No worktree should be prepared'); },
+			setChatWorkingDirectory: async () => { throw new Error('No workspace should change'); },
+		};
+		const harness = createHarness(new TestWorktreeIsolation(worktree), async () => true, new TestSessionDatabase(), 'copilot', host);
+		makeFolderSession(harness);
+		const target = URI.from({ scheme: 'copilot', path: '/target' }).toString();
+		harness.stateManager.createSession({ resource: target, provider: 'copilot', title: 'Target', status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(), defaultChat: buildDefaultChatUri(target) });
+		startTurn(harness.stateManager, harness.chat);
+		harness.service.requestChatIsolation(harness.chat, 'turn-1', 'client-1');
+		harness.stateManager.reassignChatOwner(harness.chat.toString(), target);
+		harness.stateManager.removeSession(harness.session.toString());
+		const afterSourceRemoved = harness.service.isPending(harness.chat.toString());
+		harness.stateManager.removeSession(target);
+
+		assert.deepStrictEqual({ afterSourceRemoved, afterTargetRemoved: harness.service.isPending(harness.chat.toString()) }, {
+			afterSourceRemoved: true, afterTargetRemoved: false,
+		});
+	});
+
 	for (const restoredState of ['isolated', 'quarantined', 'cancelled'] as const) {
 		test(`restores or cancels ${restoredState} chat isolation without blocking another chat`, async () => {
 			const worktree = URI.file('/workspace/project.worktrees/chat');

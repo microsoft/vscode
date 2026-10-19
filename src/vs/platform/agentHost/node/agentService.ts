@@ -1221,7 +1221,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		// A watch ends with its owner: it follows a moved chat (Block 4).
-		this._register(this._stateManager.onDidChangeChatOwner(({ chat, current }) => {
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
+			this._authService.moveChatCredentials(chat, previous, current);
 			const watched = URI.parse(chat);
 			if (this._chatWatchOwners.has(watched)) {
 				this._chatWatchOwners.set(watched, current);

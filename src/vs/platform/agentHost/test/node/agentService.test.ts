@@ -1708,6 +1708,32 @@ suite('AgentService (node dispatcher)', () => {
 			}, { steering: 'steer', queued: ['queued'], steeringReads: 0, queueReads: true, currentToken: 'first' });
 		});
 
+		test('a sponsored chat moved to another session keeps resolving its credentials after the previous session is removed', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+			}
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(scopedService, disposables.add(new ScopedAgent('copilot')));
+			const authentication = getTestAgentServiceComposition(scopedService).authenticationService;
+			const original = source();
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'original' }, original);
+			const sourceSession = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: original });
+			const targetSession = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const chat = hostDefaultChat(scopedService, sourceSession);
+			const resolve = () => {
+				try {
+					return authentication.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+				} catch (error) {
+					return (error as ProtocolError).code;
+				}
+			};
+			const before = resolve();
+			getStateManager(scopedService).reassignChatOwner(chat, targetSession.toString());
+			getStateManager(scopedService).removeSession(sourceSession.toString());
+			assert.deepStrictEqual({ before, after: resolve() }, { before: 'original', after: 'original' });
+		});
+
 		for (const canvasFirst of [false, true]) {
 			test(`cold isolated history and canvas discovery share a restore without authenticating (${canvasFirst ? 'canvas' : 'subscription'} first)`, async () => {
 				const historyStarted = new DeferredPromise<void>();
