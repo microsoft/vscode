@@ -1425,6 +1425,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			availableTools: sdkAvailableTools,
 			excludedTools: sdkExcludedTools,
+			excludedBuiltinAgents: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExploreAgent) === false ? ['explore'] : [],
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
 			tools: promptOverrides.tools,

@@ -1627,6 +1627,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				createToolNames: createConfigs[0].tools?.map(tool => tool.name),
 				createExcludedTools: createConfigs[0].excludedTools,
+				createExcludedBuiltinAgents: createConfigs[0].excludedBuiltinAgents,
 				createMemory: createConfigs[0].memory,
 				createLocalMemoryStore: createConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				resumeClientName: resumeConfigs[0].clientName,
@@ -1654,6 +1655,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
 				resumeExcludedTools: resumeConfigs[0].excludedTools,
+				resumeExcludedBuiltinAgents: resumeConfigs[0].excludedBuiltinAgents,
 				resumeMemory: resumeConfigs[0].memory,
 				resumeLocalMemoryStore: resumeConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMemory: createConfigs[1].memory,
@@ -1718,6 +1720,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
 				createExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				createExcludedBuiltinAgents: [],
 				createMemory: { enabled: true },
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
@@ -1752,6 +1755,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
 				resumeExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				resumeExcludedBuiltinAgents: [],
 				resumeMemory: { enabled: true },
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
@@ -3013,7 +3017,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; excludedBuiltinAgents?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
 		const plan = {
 			kind: 'resume',
 			client: { rpc: { managedSettings: createUnmanagedCopilotSettings() }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -3028,7 +3032,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: { model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } } }> })._buildSessionConfig(plan, runtime, () => { })).config;
+		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: { model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; excludedBuiltinAgents?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } } }> })._buildSessionConfig(plan, runtime, () => { })).config;
 	}
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
@@ -3189,6 +3193,37 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			enabled: [...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 		});
+	});
+
+	test('controls the built-in Explore agent independently of the search subagent', async () => {
+		const store = disposables.add(new DisposableStore());
+		const results = [];
+		for (const searchSubagent of [false, true]) {
+			for (const exploreAgent of [undefined, true, false]) {
+				const config = await buildResumeConfig(createLauncher(store, { searchSubagent, exploreAgent }), { id: 'gpt-5' });
+				results.push({
+					excludedBuiltinAgents: config.excludedBuiltinAgents,
+					searchExcluded: config.excludedTools?.includes('builtin:search_code_subagent'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ excludedBuiltinAgents: [], searchExcluded: true },
+			{ excludedBuiltinAgents: [], searchExcluded: true },
+			{ excludedBuiltinAgents: ['explore'], searchExcluded: true },
+			{ excludedBuiltinAgents: [], searchExcluded: false },
+			{ excludedBuiltinAgents: [], searchExcluded: false },
+			{ excludedBuiltinAgents: ['explore'], searchExcluded: false },
+		]);
+	});
+
+	test('preserves explicit tool exclusions when the search subagent is enabled', async () => {
+		const store = disposables.add(new DisposableStore());
+		const config = await buildResumeConfig(createLauncher(store, {
+			searchSubagent: true,
+			modelCapabilityOverrides: { '*': { excludedTools: ['builtin:search_code_subagent'] } },
+		}), { id: 'gpt-5' });
+		assert.deepStrictEqual(config.excludedTools, ['builtin:search_code_subagent', ...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]);
 	});
 
 	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
