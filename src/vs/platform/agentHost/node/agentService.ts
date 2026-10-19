@@ -1222,11 +1222,11 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 		// A watch ends with its owner: it follows a moved chat (Block 4).
 		this._register(this._stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
-			this._authService.moveChatCredentials(chat, previous, current);
 			const watched = URI.parse(chat);
 			if (this._chatWatchOwners.has(watched)) {
 				this._chatWatchOwners.set(watched, current);
 			}
+			this._authService.moveChatCredentials(chat, previous, current);
 		}));
 		this._register(this._stateManager.onDidRemoveSession(removed => {
 			for (const [chat, session] of this._chatWatchOwners) {
@@ -6771,6 +6771,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const transit = this._reserveChatWorkingDirectories(target, chatFolders);
 		this._chatMoveSessions.add(sourceKey);
 		this._chatMoveSessions.add(targetKey);
+		const credentialOwners = this._authService.holdSessionCredentialOwners([sourceKey, targetKey]);
 		try {
 			// The target gets the moved chat's folders before anything else changes; its other chats keep their own (PIN).
 			const releases: (() => Promise<void>)[] = [];
@@ -6904,6 +6905,7 @@ export class AgentService extends Disposable implements IAgentService {
 			transit.dispose();
 			this._chatMoveSessions.delete(sourceKey);
 			this._chatMoveSessions.delete(targetKey);
+			credentialOwners.dispose();
 			admission.dispose();
 		}
 	}
@@ -7108,6 +7110,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const admission = this._stateManager.holdChatAdmission(moved);
 		this._chatMoveSessions.add(sourceKey);
+		const credentialOwners = this._authService.holdSessionCredentialOwners([sourceKey]);
 		try {
 			let committed: readonly string[];
 			let worktreePlan: IWorktreeMoveDecisions;
@@ -7193,6 +7196,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
+			await this._persistPromotedCredentialPrincipal(targetKey);
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
 			await this._completeMovedWorktrees(session, target, worktreePlan, undefined, false);
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
@@ -7208,6 +7212,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return target;
 		} finally {
 			this._chatMoveSessions.delete(sourceKey);
+			credentialOwners.dispose();
 			admission.dispose();
 		}
 	}
@@ -7226,6 +7231,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 * session list and older builds read the session's own title, and would otherwise show the agent's summary (B4-1).
 	 * Never fails the promotion.
 	 */
+	/** The new session inherited its chat's credential principal in memory; a restart must find it too, never the ambient token. */
+	private async _persistPromotedCredentialPrincipal(target: string): Promise<void> {
+		const principal = this._authService.getSessionCredentialPrincipal(target);
+		if (!principal) {
+			return;
+		}
+		try {
+			await persistSessionMetadataValues(this._sessionStateStore, target, { [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify(principal) });
+		} catch (error) {
+			this._logService.error(error, `[AgentService] The credential owner of ${target} couldn't be persisted`);
+		}
+	}
+
 	private async _persistPromotedSessionTitle(target: URI, chat: string, renamed: boolean): Promise<void> {
 		const targetKey = target.toString();
 		const title = this._stateManager.getSessionState(targetKey)?.title;

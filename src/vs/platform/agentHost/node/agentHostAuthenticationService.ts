@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
@@ -37,6 +37,7 @@ export interface IAgentHostAuthenticationService {
 	restoreSessionCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal, chat?: string): void;
 	releaseSessionCredentials(session: string): void;
 	hasSameCredentialOwner(first: string, second: string): boolean;
+	holdSessionCredentialOwners(sessions: readonly string[]): IDisposable;
 	moveChatCredentials(chat: string, previous: string, current: string): void;
 	createLocalCredentialSource(principal: IAgentHostCredentialPrincipal, resources: readonly ProtectedResourceMetadata[]): Promise<IAgentHostCredentialSource>;
 }
@@ -70,6 +71,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	private readonly _unavailableSources = new Map<string, IAgentHostCredentialSource>();
 	private readonly _sessionPrincipals = new Map<string, IAgentHostCredentialPrincipal>();
 	private readonly _credentialOwners = new Map<string, string>();
+	private readonly _heldOwners = new Map<string, number>();
 	private readonly _revocations = new Map<string, number>();
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
@@ -307,6 +309,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	restoreSessionCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal, chat?: string): void {
 		const previous = this._sessionPrincipals.get(session);
+		if (!previous && this._heldOwners.has(session)) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'The session credential owner cannot be set while chats move into or out of the session');
+		}
 		if (previous && (previous.apiOrigin !== principal.apiOrigin || previous.userId !== principal.userId)) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'The session credential owner cannot change');
 		}
@@ -316,7 +321,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 	}
 
-	/** Whether two sessions have the same credential owner: both unsponsored, or both sponsored by the same principal. */
+	/**
+	 * Whether two sessions have the same credential owner: both unsponsored, or both sponsored by the same principal.
+	 * A session with only an agent-merge binding counts as sponsored (conservative: it is never combined with another owner).
+	 */
 	hasSameCredentialOwner(first: string, second: string): boolean {
 		const a = this._sessionPrincipals.get(first);
 		const b = this._sessionPrincipals.get(second);
@@ -324,9 +332,30 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	/**
+	 * Keeps unsponsored sessions unsponsored while a move validated their credential owners: setting a principal on a
+	 * held session is refused until the returned handle is disposed. A session that already has one is unaffected.
+	 */
+	holdSessionCredentialOwners(sessions: readonly string[]): IDisposable {
+		for (const session of sessions) {
+			this._heldOwners.set(session, (this._heldOwners.get(session) ?? 0) + 1);
+		}
+		return toDisposable(() => {
+			for (const session of sessions) {
+				const count = (this._heldOwners.get(session) ?? 1) - 1;
+				if (count > 0) {
+					this._heldOwners.set(session, count);
+				} else {
+					this._heldOwners.delete(session);
+				}
+			}
+		});
+	}
+
+	/**
 	 * Makes a chat's credential binding follow the chat to its new owner, so releasing the previous owner no longer
 	 * drops it. Moves between different credential owners are refused before they happen; a new session (a promotion)
-	 * takes the chat's principal.
+	 * takes the chat's principal. Should one happen anyway, it fails closed: the chat's sponsored bindings are removed
+	 * and it resolves under its new owner, never to the ambient token.
 	 */
 	moveChatCredentials(chat: string, previous: string, current: string): void {
 		if (this._credentialOwners.get(chat) !== previous) {
@@ -335,9 +364,13 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const principal = this._sessionPrincipals.get(previous);
 		if (principal && !this.hasSameCredentialOwner(previous, current)) {
 			if (this._sessionPrincipals.has(current)) {
-				throw new Error(`Chat ${chat} can't move between sessions with different credential owners`);
+				this._logService.error(`[AgentHostAuthenticationService] Chat ${chat} moved between sessions with different credential owners; its credentials were removed`);
+				this._sessionCredentials.delete(chat);
+				this._agentMergeCredentials.delete(chat);
+				this._unavailableSources.delete(chat);
+			} else {
+				this._sessionPrincipals.set(current, principal);
 			}
-			this._sessionPrincipals.set(current, principal);
 		}
 		this._credentialOwners.set(chat, current);
 	}

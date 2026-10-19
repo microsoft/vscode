@@ -35043,7 +35043,8 @@ suite('AgentService (node dispatcher)', () => {
 
 				/** Sessions sponsored by the given GitHub users (`undefined` for an unsponsored one), `source` with a peer chat. */
 				async function setupCredentials(owners: { readonly source: string | undefined; readonly target: string | undefined }) {
-					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const data = createPerSessionDataService();
+					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 					registerTestAgentProvider(service, disposables.add(new SponsoredAgent('copilot')));
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 					const sponsor = async (userId: string | undefined, token: string) => {
@@ -35072,7 +35073,7 @@ suite('AgentService (node dispatcher)', () => {
 					const principal = (session: URI | string) => authentication.getSessionCredentialPrincipal(session.toString())?.userId;
 					const owner = (chat: URI | string) => getStateManager(service).getChatOwner(chat.toString());
 					const defaultChat = (session: URI) => getStateManager(service).getDefaultChat(session.toString())!;
-					return { service, source, target, peer, token, principal, owner, defaultChat };
+					return { data, service, source, target, peer, token, principal, owner, defaultChat, authentication };
 				}
 
 				for (const [name, owners] of [
@@ -35122,6 +35123,45 @@ suite('AgentService (node dispatcher)', () => {
 					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
 					getStateManager(env.service).removeSession(env.source.toString());
 					assert.deepStrictEqual({ owner: env.owner(env.peer), principal: env.principal(promoted), peer: env.principal(env.peer) }, { owner: promoted.toString(), principal: '1', peer: '1' });
+				});
+
+				test('a promoted session persists its credential owner, so a restart never falls back to the ambient token', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					completeTurn(env.service, env.peer);
+					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
+					const metadata = await env.data.database(promoted).getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
+					assert.deepStrictEqual(JSON.parse(metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY]!), { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' });
+				});
+
+				test('a credential owner cannot be set on a session while a move into it is committing', async () => {
+					const env = await setupCredentials({ source: undefined, target: undefined });
+					const internals = env.service as unknown as IMoveInternals;
+					const moveChat = internals._sessionStateStore.moveChat.bind(internals._sessionStateStore);
+					const attempts: (string | undefined)[] = [];
+					const bind = () => {
+						try {
+							env.authentication.restoreSessionCredentialPrincipal(env.target.toString(), { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '2' });
+							return undefined;
+						} catch (error) {
+							return String((error as ProtocolError).code);
+						}
+					};
+					internals._sessionStateStore.moveChat = async move => {
+						attempts.push(bind());
+						return moveChat(move);
+					};
+					await env.service.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined });
+					attempts.push(bind());
+					assert.deepStrictEqual({ attempts, owner: env.owner(env.peer) }, { attempts: [String(AhpErrorCodes.PermissionDenied), undefined], owner: env.target.toString() });
+				});
+
+				test('a chat that changes owner across different credential owners anyway resolves under its new owner, never the ambient token', async () => {
+					const env = await setupCredentials({ source: '1', target: '2' });
+					const chat = env.defaultChat(env.source);
+					const before = env.token(chat);
+					getStateManager(env.service).reassignChatOwner(chat, env.target.toString());
+					getStateManager(env.service).removeSession(env.source.toString());
+					assert.deepStrictEqual({ before, after: env.token(chat), principal: env.principal(chat) }, { before: 'source-token', after: AhpErrorCodes.AuthRequired, principal: '2' });
 				});
 			});
 
