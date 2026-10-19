@@ -36,6 +36,7 @@ export interface IAgentHostAuthenticationService {
 	bindSessionCredentials(session: string, source: IAgentHostCredentialSource | undefined, chat?: string, usage?: 'execution' | 'agentMerge'): void;
 	restoreSessionCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal, chat?: string): void;
 	releaseSessionCredentials(session: string): void;
+	hasSameCredentialOwner(first: string, second: string): boolean;
 	moveChatCredentials(chat: string, previous: string, current: string): void;
 	createLocalCredentialSource(principal: IAgentHostCredentialPrincipal, resources: readonly ProtectedResourceMetadata[]): Promise<IAgentHostCredentialSource>;
 }
@@ -315,22 +316,27 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 	}
 
-	/** Makes a chat's credential binding follow the chat to its new owner, so releasing the previous owner no longer drops it. */
+	/** Whether two sessions have the same credential owner: both unsponsored, or both sponsored by the same principal. */
+	hasSameCredentialOwner(first: string, second: string): boolean {
+		const a = this._sessionPrincipals.get(first);
+		const b = this._sessionPrincipals.get(second);
+		return a === b || (!!a && !!b && a.apiOrigin === b.apiOrigin && a.userId === b.userId);
+	}
+
+	/**
+	 * Makes a chat's credential binding follow the chat to its new owner, so releasing the previous owner no longer
+	 * drops it. Moves between different credential owners are refused before they happen; a new session (a promotion)
+	 * takes the chat's principal.
+	 */
 	moveChatCredentials(chat: string, previous: string, current: string): void {
 		if (this._credentialOwners.get(chat) !== previous) {
 			return;
 		}
 		const principal = this._sessionPrincipals.get(previous);
-		const existing = this._sessionPrincipals.get(current);
-		if (principal && existing && (existing.apiOrigin !== principal.apiOrigin || existing.userId !== principal.userId)) {
-			// Credentials never cross to a session owned by a different principal.
-			this._sessionCredentials.delete(chat);
-			this._agentMergeCredentials.delete(chat);
-			this._unavailableSources.delete(chat);
-			this._credentialOwners.delete(chat);
-			return;
-		}
-		if (principal && !existing) {
+		if (principal && !this.hasSameCredentialOwner(previous, current)) {
+			if (this._sessionPrincipals.has(current)) {
+				throw new Error(`Chat ${chat} can't move between sessions with different credential owners`);
+			}
 			this._sessionPrincipals.set(current, principal);
 		}
 		this._credentialOwners.set(chat, current);

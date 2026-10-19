@@ -7507,6 +7507,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (target && this._providerService.getProviderForSession(source)?.id !== this._providerService.getProviderForSession(target)?.id) {
 			refuse(AgentChatMoveRefusal.DifferentProvider, 'Chats can only move between sessions of the same agent.');
 		}
+		if (target && !this._authService.hasSameCredentialOwner(sourceKey, targetKey!)) {
+			refuse(AgentChatMoveRefusal.DifferentCredentialOwner, 'Sessions with different credential owners can\'t be combined; pick a destination that uses the same account, or move it to its own session.');
+		}
 		const sessions = [[sourceKey, sourceState] as const, ...(targetKey !== undefined && targetState ? [[targetKey, targetState] as const] : [])];
 		for (const [key, state] of sessions) {
 			if (isSessionStatusArchived(state.status)) {
