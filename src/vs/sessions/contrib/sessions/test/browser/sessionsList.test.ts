@@ -3698,9 +3698,9 @@ suite('Sessions - SessionsList', () => {
 			);
 		});
 
-		test('renders folderless comparison groups under Chats without duplicating attempts', () => {
+		test('keeps folderless and same-named workspace comparisons in separate Chats sections', () => {
 			const attempts = ['one', 'two'].map(resourceId => createTestSession(resourceId, { resourceId, isQuickChat: true }).session);
-			const comparison: ISessionComparison = {
+			const folderlessComparison: ISessionComparison = {
 				id: 'chat-comparison', groupId: group.id, title: 'Compare ideas', createdAt: 1, prompt: 'Compare ideas',
 				participants: attempts.map(session => ({
 					id: session.sessionId,
@@ -3709,10 +3709,25 @@ suite('Sessions - SessionsList', () => {
 					sessionResource: session.resource,
 				})),
 			};
-			const harness = createListHarness(disposables, attempts, {
-				groups: [group],
-				memberships: new Map(attempts.map(session => [session.sessionId, group.id])),
-				comparisons: [comparison],
+			const workspaceGroup: ISessionGroup = { id: 'workspace-comparison-group', name: 'Workspace comparison', createdAt: 2 };
+			const workspaceAttempt = createTestSession('workspace-attempt', { resourceId: 'workspace-attempt', workspaceLabel: 'Chats' }).session;
+			const workspaceComparison: ISessionComparison = {
+				id: 'workspace-comparison', groupId: workspaceGroup.id, title: 'Workspace comparison', createdAt: 2,
+				workspace: URI.parse('file:///chats'), prompt: 'Compare workspace ideas',
+				participants: [{
+					id: workspaceAttempt.sessionId,
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+					sessionResource: workspaceAttempt.resource,
+				}],
+			};
+			const harness = createListHarness(disposables, [...attempts, workspaceAttempt], {
+				groups: [group, workspaceGroup],
+				memberships: new Map([
+					...attempts.map(session => [session.sessionId, group.id] as const),
+					[workspaceAttempt.sessionId, workspaceGroup.id],
+				]),
+				comparisons: [folderlessComparison, workspaceComparison],
 			});
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -3721,14 +3736,35 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			container.querySelector<HTMLElement>('.session-section')?.click();
+			for (const row of container.querySelectorAll<HTMLElement>('.monaco-list-row[aria-level="1"]')) {
+				if (row.getAttribute('aria-expanded') === 'false') {
+					row.querySelector<HTMLElement>('.session-section')?.click();
+				}
+			}
+			const sections: { label: string | undefined; comparisons: string[] }[] = [];
+			for (const row of container.querySelectorAll<HTMLElement>('.monaco-list-row')) {
+				if (row.getAttribute('aria-level') === '1') {
+					sections.push({
+						label: row.querySelector('.session-section-label')?.textContent,
+						comparisons: [],
+					});
+				} else if (row.getAttribute('aria-level') === '2' && row.querySelector('.session-comparison-group')) {
+					sections.at(-1)?.comparisons.push(row.querySelector('.session-section-label')?.textContent ?? '');
+				}
+			}
 			assert.deepStrictEqual({
-				sections: [...container.querySelectorAll('.monaco-list-row[aria-level="1"] .session-section-label')].map(label => label.textContent),
+				sections,
 				comparisons: container.querySelectorAll('.session-comparison-group').length,
 				attempts: container.querySelectorAll('.session-comparison-attempt').length,
 				levels: [...container.querySelectorAll('.session-comparison-attempt')].map(attempt => attempt.closest('.monaco-list-row')?.getAttribute('aria-level')),
 			}, {
-				sections: ['Chats'], comparisons: 1, attempts: 2, levels: ['3', '3'],
+				sections: [
+					{ label: 'Chats', comparisons: ['Compare ideas'] },
+					{ label: 'Chats', comparisons: ['Workspace comparison'] },
+				],
+				comparisons: 2,
+				attempts: 3,
+				levels: ['3', '3', '3'],
 			});
 		});
 
