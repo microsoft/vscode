@@ -13,14 +13,13 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnToCompletion, removeTempDirs, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { getActionEnvelope, isActionNotification, TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -137,83 +136,49 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 		client.setWorkingDirectory(parent);
 		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'codex-multiroot-skill' }, 30_000);
 		await client.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
-		await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-		let multiRootEnabled = false;
+		const sessionUri = URI.from({ scheme: CODEX_CONFIG.scheme, path: `/${generateUuid()}` }).toString();
+		await client.call('createSession', {
+			channel: sessionUri,
+			provider: CODEX_CONFIG.provider,
+			workingDirectories: [URI.file(rootA).toString(), URI.file(rootB).toString()],
+			config: { isolation: 'folder', ...CODEX_CONFIG.sessionConfig },
+		}, 30_000);
+		createdSessions.push(sessionUri);
+		await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionTitleChanged, title: 'Secondary workspace skill test' },
+		});
+		await client.waitForNotification(n => isActionNotification(n, ActionType.SessionTitleChanged), 30_000);
+		client.clearReceived();
 
+		const prompt = `Use the ${skillName} skill. Read its SKILL.md by running exactly this shell command, with no modifications: \`${readSkillCommand}\`. Then reply with exactly done.`;
+		const approvalLoop = startBackgroundApprovalLoop(client, {
+			approvalSeqStart: 100,
+			allow: [{ toolName: CODEX_CONFIG.shellToolName }],
+		});
 		try {
-			client.dispatch({
-				channel: ROOT_STATE_URI,
-				clientSeq: 0,
-				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: true } },
-			});
-			await client.waitForNotification(n => {
-				if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-					return false;
-				}
-				const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, boolean>> };
-				return action.config?.[AgentHostCodexMultiRootEnabledConfigKey] === true;
-			}, 30_000);
-			multiRootEnabled = true;
-
-			const sessionUri = URI.from({ scheme: CODEX_CONFIG.scheme, path: `/${generateUuid()}` }).toString();
-			await client.call('createSession', {
-				channel: sessionUri,
-				provider: CODEX_CONFIG.provider,
-				workingDirectories: [URI.file(rootA).toString(), URI.file(rootB).toString()],
-				config: { isolation: 'folder', ...CODEX_CONFIG.sessionConfig },
-			}, 30_000);
-			createdSessions.push(sessionUri);
-			await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
-			client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: { type: ActionType.SessionTitleChanged, title: 'Secondary workspace skill test' },
-			});
-			await client.waitForNotification(n => isActionNotification(n, ActionType.SessionTitleChanged), 30_000);
-			client.clearReceived();
-
-			const prompt = `Use the ${skillName} skill. Read its SKILL.md by running exactly this shell command, with no modifications: \`${readSkillCommand}\`. Then reply with exactly done.`;
-			const approvalLoop = startBackgroundApprovalLoop(client, {
-				approvalSeqStart: 100,
-				allow: [{ toolName: CODEX_CONFIG.shellToolName }],
-			});
-			try {
-				dispatchTurn(client, sessionUri, 'turn-secondary-skill', prompt, 2);
-				await client.waitForNotification(
-					n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
-					90_000,
-				);
-			} finally {
-				await approvalLoop.stop();
-			}
-
-			const errors = client.receivedNotifications(n => isActionNotification(n, 'chat/error'));
-			assert.deepStrictEqual({
-				approvalErrors: approvalLoop.errors,
-				errorCount: errors.length,
-				modelRequestIncludesMarker: lease!.observedModelRequestBodies.some(body => body.includes(marker)),
-			}, {
-				approvalErrors: [],
-				errorCount: 0,
-				modelRequestIncludesMarker: true,
-			});
+			dispatchTurn(client, sessionUri, 'turn-secondary-skill', prompt, 2);
+			await client.waitForNotification(
+				n => isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error'),
+				90_000,
+			);
 		} finally {
-			if (multiRootEnabled) {
-				client.dispatch({
-					channel: ROOT_STATE_URI,
-					clientSeq: 3,
-					action: { type: ActionType.RootConfigChanged, config: { [AgentHostCodexMultiRootEnabledConfigKey]: false } },
-				});
-				await client.waitForNotification(n => {
-					if (!isActionNotification(n, ActionType.RootConfigChanged)) {
-						return false;
-					}
-					const action = getActionEnvelope(n).action as { readonly config?: Readonly<Record<string, boolean>> };
-					return action.config?.[AgentHostCodexMultiRootEnabledConfigKey] === false;
-				}, 30_000);
-			}
+			await approvalLoop.stop();
 		}
+
+		const errors = client.receivedNotifications(n => isActionNotification(n, 'chat/error'));
+		assert.deepStrictEqual({
+			approvalErrors: approvalLoop.errors,
+			errorCount: errors.length,
+			modelRequestIncludesMarker: lease!.observedModelRequestBodies.some(body => body.includes(marker)),
+		}, {
+			approvalErrors: [],
+			errorCount: 0,
+			modelRequestIncludesMarker: true,
+		});
 	});
 
 	suiteTeardown(async function () {

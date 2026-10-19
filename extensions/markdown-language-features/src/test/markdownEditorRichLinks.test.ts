@@ -7,11 +7,40 @@ import * as assert from 'assert';
 import { autorun, derived, observableValue } from '@vscode/observables';
 import 'mocha';
 import * as vscode from 'vscode';
-import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl } from '../preview/linkPresentation/gitLinkPresentationResolver';
+import { getGitCommitPresentation, GitLinkPresentationResolver, normalizeGitRemoteUrl, resolveGitCommitHref } from '../preview/linkPresentation/gitLinkPresentationResolver';
 import { createAsyncLinkPresentation, ImmutableLinkPresentationCache } from '../preview/linkPresentation/linkPresentationResolver';
 import { LinkPresentationService } from '../preview/linkPresentation/linkPresentationService';
 
 suite('Markdown editor rich links', () => {
+	test('resolves repository hints relative to the authoritative Markdown document', () => {
+		const resolve = (href: string, source: vscode.Uri) =>
+			new URL(resolveGitCommitHref(href, source)).searchParams.get('path');
+		const href = 'commit:1234567?path=../../my%20repo';
+		assert.deepStrictEqual([
+			resolve(href, vscode.Uri.parse('file:///workspace/notes/daily/note.md')),
+			resolve(href, vscode.Uri.parse('file:///other/notes/daily/note.md')),
+			resolve(href, vscode.Uri.parse('vscode-remote://ssh-remote+host/workspace/notes/daily/note.md')),
+			resolve('commit:1234567?path=/repo', vscode.Uri.parse('vscode-remote://ssh-remote+host/notes/note.md')),
+			resolve('commit:1234567?path=file%3A%2F%2F%2Frepo', vscode.Uri.parse('file:///notes/note.md')),
+		], [
+			'file:///workspace/my%20repo',
+			'file:///other/my%20repo',
+			'vscode-remote://ssh-remote%2Bhost/workspace/my%20repo',
+			'vscode-remote://ssh-remote%2Bhost/repo',
+			'file:///repo',
+		]);
+		assert.strictEqual(resolveGitCommitHref('https://example.com/resource?path=../repo', vscode.Uri.file('note.md')), 'https://example.com/resource?path=../repo');
+		assert.strictEqual(resolveGitCommitHref(href), href);
+	});
+
+	test('canonicalizes Windows repository hints without losing query or fragment', () => {
+		const href = 'commit:1234567?path=D%3A%5Crepos%5Cmy%20repo&other=value#details';
+		const resolved = new URL(resolveGitCommitHref(href));
+		assert.strictEqual(vscode.Uri.parse(resolved.searchParams.get('path')!).fsPath, 'd:\\repos\\my repo');
+		assert.strictEqual(resolved.searchParams.get('other'), 'value');
+		assert.strictEqual(resolved.hash, '#details');
+	});
+
 	test('normalizes common Git remote URL formats', () => {
 		assert.deepStrictEqual([
 			normalizeGitRemoteUrl('https://github.com/microsoft/vscode.git'),
@@ -65,10 +94,74 @@ suite('Markdown editor rich links', () => {
 			},
 		}), {
 			kind: 'commit',
-			detail: 'Refactor rich-link resolvers',
+			title: 'Refactor rich-link resolvers',
+			changes: { insertions: 20, deletions: 5 },
 			tooltip: '1234567 · Refactor rich-link resolvers · 20 insertions, 5 deletions',
 			ariaLabel: 'Commit 1234567, 20 insertions and 5 deletions: Refactor rich-link resolvers',
 		});
+
+	});
+
+	test('opens a hinted repository for metadata and never falls back to a different repository', async () => {
+		const refresh = new vscode.EventEmitter<void>();
+		const rootUri = vscode.Uri.file('D:\\repos\\hinted');
+		const opened: vscode.Uri[] = [];
+		let unrelatedLookups = 0;
+		const repository = {
+			rootUri,
+			state: { remotes: [{ fetchUrl: 'https://github.com/owner/repo.git' }] },
+			getCommit: async (ref: string) => ({ hash: ref, message: 'Hinted commit', shortStat: { insertions: 3, deletions: 2 } }),
+		};
+		const repositoriesChanged = new vscode.EventEmitter<typeof repository>();
+		const resolver = new GitLinkPresentationResolver(new ImmutableLinkPresentationCache(), async () => ({
+			enabled: true,
+			getAPI: () => ({
+				repositories: [{
+					...repository,
+					rootUri: vscode.Uri.file('D:\\repos\\other'),
+					getCommit: async (ref: string) => {
+						unrelatedLookups++;
+						return { hash: ref, message: 'Wrong commit' };
+					},
+				}],
+				onDidOpenRepository: repositoriesChanged.event,
+				onDidCloseRepository: repositoriesChanged.event,
+				getRepository: () => null,
+				getRepositoryRoot: async uri => uri.toString() === rootUri.toString() ? rootUri : null,
+				openRepository: async uri => { opened.push(uri); return repository; },
+			}),
+		}));
+		const read = async (href: string) => {
+			const value = resolver.resolve(href, { onDidRequestRefresh: refresh.event, logger: { trace: () => { } } })!;
+			let complete!: () => void;
+			const loaded = new Promise<void>(resolve => { complete = resolve; });
+			const subscription = autorun(reader => {
+				const presentation = value.read(reader);
+				if (presentation.status?.kind !== 'pending') {
+					complete();
+				}
+			});
+			try {
+				await loaded;
+				return value.get();
+			} finally {
+				subscription.dispose();
+			}
+		};
+		try {
+			const hinted = `commit:1234567?path=${encodeURIComponent(rootUri.toString())}`;
+			const presentation = await read(hinted);
+			assert.deepStrictEqual(presentation.changes, { insertions: 3, deletions: 2 }, JSON.stringify(presentation));
+			const missing = await read('commit:1234567?path=file%3A%2F%2F%2FD%3A%2Frepos%2Fmissing');
+			assert.strictEqual(missing.status?.kind, 'error');
+			assert.match(missing.tooltip!, /No Git repository was found/);
+			assert.strictEqual(unrelatedLookups, 0);
+			assert.deepStrictEqual(opened.map(uri => uri.toString()), [rootUri.toString()]);
+		} finally {
+			resolver.dispose();
+			repositoriesChanged.dispose();
+			refresh.dispose();
+		}
 	});
 
 	test('owns async resolution through observable lifetime', () => {
@@ -158,19 +251,22 @@ suite('Markdown editor rich links', () => {
 		}, {
 			first: {
 				kind: 'commit',
-				detail: 'Cached commit',
+				title: 'Cached commit',
+				changes: { insertions: 1, deletions: 0 },
 				tooltip: '1234567 · Cached commit · 1 insertions, 0 deletions',
 				ariaLabel: 'Commit 1234567, 1 insertions and 0 deletions: Cached commit',
 			},
 			second: {
 				kind: 'commit',
-				detail: 'Cached commit',
+				title: 'Cached commit',
+				changes: { insertions: 1, deletions: 0 },
 				tooltip: '1234567 · Cached commit · 1 insertions, 0 deletions',
 				ariaLabel: 'Commit 1234567, 1 insertions and 0 deletions: Cached commit',
 			},
 			third: {
 				kind: 'commit',
-				detail: 'Cached commit',
+				title: 'Cached commit',
+				changes: { insertions: 1, deletions: 0 },
 				tooltip: '1234567 · Cached commit · 1 insertions, 0 deletions',
 				ariaLabel: 'Commit 1234567, 1 insertions and 0 deletions: Cached commit',
 			},

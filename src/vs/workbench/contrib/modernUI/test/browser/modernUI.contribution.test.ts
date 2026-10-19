@@ -419,6 +419,46 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('insets multi diff file rows like Explorer rows in both layout densities', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench';
+		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const panes = appendElement(root, 'monaco-pane-view');
+		const pane = appendElement(panes, 'pane-body explorer-folders-view');
+		const explorerRow = appendElement(pane, 'monaco-list-row');
+		const files = appendElement(root, 'multi-diff-editor-with-file-list-files');
+		const fileRow = appendElement(files, 'monaco-list-row');
+		const read = (row: HTMLElement) => {
+			const style = getWindow(row).getComputedStyle(row);
+			return { left: style.left, right: style.right };
+		};
+		const state = (classes: string) => {
+			root.className = `monaco-workbench ${classes}`;
+			return { explorer: read(explorerRow), files: read(fileRow) };
+		};
+		assert.deepStrictEqual({
+			standard: state(''),
+			modern: state('modern-ui'),
+			compact: state('modern-ui modern-ui-compact'),
+		}, {
+			standard: {
+				explorer: { left: '0px', right: '0px' },
+				files: { left: '0px', right: '0px' },
+			},
+			modern: {
+				explorer: { left: '4px', right: '4px' },
+				files: { left: '4px', right: '4px' },
+			},
+			compact: {
+				explorer: { left: '2px', right: '2px' },
+				files: { left: '2px', right: '2px' },
+			},
+		});
+	});
+
 	test('supports isolated notification and dialog presentation', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-notifications-dialogs';
@@ -1254,22 +1294,15 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('centers status bar items within the floating bottom rail', () => {
-		const measure = (className: string, statusbarHeight: number, railGap: number) => {
+	test('centers status bar items within the status bar background', () => {
+		const measure = (className: string, statusbarHeight: number) => {
 			const root = document.createElement('div');
 			root.className = className;
-			root.style.display = 'inline-flex';
-			root.style.flexDirection = 'column';
 			root.style.setProperty('--vscode-spacing-size20', '2px');
 			root.style.setProperty('--vscode-spacing-size40', '4px');
 			root.style.setProperty('--vscode-spacing-size60', '6px');
 			document.body.appendChild(root);
 			store.add(toDisposable(() => root.remove()));
-
-			const surface = appendElement(root, 'part editor');
-			surface.style.width = '240px';
-			surface.style.height = '20px';
-			surface.style.marginBottom = `${railGap}px`;
 
 			const statusbar = appendElement(root, 'part statusbar');
 			statusbar.style.width = '240px';
@@ -1278,7 +1311,6 @@ suite('ModernUIContribution', () => {
 			const item = appendElement(items, 'statusbar-item left');
 			const label = appendElement(item, 'statusbar-item-label');
 
-			const surfaceBounds = surface.getBoundingClientRect();
 			const statusbarBounds = statusbar.getBoundingClientRect();
 			const itemBounds = item.getBoundingClientRect();
 			const labelBounds = label.getBoundingClientRect();
@@ -1289,16 +1321,16 @@ suite('ModernUIContribution', () => {
 				paddingBottom: statusbarStyle.paddingBottom,
 				itemHeight: itemBounds.height,
 				labelHeight: labelBounds.height,
-				centerOffset: itemBounds.top + itemBounds.height / 2 - (surfaceBounds.bottom + statusbarBounds.bottom) / 2,
+				centerOffset: itemBounds.top + itemBounds.height / 2 - (statusbarBounds.top + statusbarBounds.bottom) / 2,
 			};
 		};
 
 		assert.deepStrictEqual({
-			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28, 4),
-			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26, 0),
-			classic: measure('monaco-workbench', 22, 0),
+			defaultDensity: measure('monaco-workbench modern-ui floating-panels', 28),
+			compactDensity: measure('monaco-workbench modern-ui modern-ui-compact floating-panels', 26),
+			classic: measure('monaco-workbench', 22),
 		}, {
-			defaultDensity: { paddingTop: '0px', paddingBottom: '4px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
+			defaultDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 24, labelHeight: 24, centerOffset: 0 },
 			compactDensity: { paddingTop: '2px', paddingBottom: '2px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 			classic: { paddingTop: '0px', paddingBottom: '0px', itemHeight: 22, labelHeight: 22, centerOffset: 0 },
 		});
@@ -2645,15 +2677,20 @@ suite('ModernUIContribution', () => {
 				style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
 				action.focus();
 				const highContrast = themeId.startsWith('hc-');
-				assert.deepStrictEqual({
-					strip: [row, stickyMask, addTab].map(element => targetWindow.getComputedStyle(element).backgroundColor),
-					fill: targetWindow.getComputedStyle(fill).backgroundColor,
-					actionMask: highContrast ? targetWindow.getComputedStyle(actions).backgroundColor : undefined,
-				}, {
-					strip: [expected, expected, expected],
-					fill: highContrast ? 'rgba(0, 0, 0, 0)' : expected,
-					actionMask: highContrast ? 'rgba(0, 0, 0, 0)' : undefined,
-				}, `${themeId}, ${strip}`);
+				for (const wrapped of [false, true]) {
+					row.classList.toggle('wrapping', wrapped);
+					assert.deepStrictEqual({
+						strip: [row, stickyMask, addTab].map(element => targetWindow.getComputedStyle(element).backgroundColor),
+						addBacking: targetWindow.getComputedStyle(addTab, '::before').backgroundColor,
+						fill: targetWindow.getComputedStyle(fill).backgroundColor,
+						actionMask: highContrast ? targetWindow.getComputedStyle(actions).backgroundColor : undefined,
+					}, {
+						strip: [expected, expected, 'rgba(0, 0, 0, 0)'],
+						addBacking: expected,
+						fill: highContrast ? 'rgba(0, 0, 0, 0)' : expected,
+						actionMask: highContrast ? 'rgba(0, 0, 0, 0)' : undefined,
+					}, `${themeId}, ${strip}, wrapped: ${wrapped}`);
+				}
 			}
 		}
 	});
@@ -2932,6 +2969,8 @@ suite('ModernUIContribution', () => {
 		root.style.setProperty('--vscode-spacing-size20', '2px');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size60', '6px');
+		root.style.setProperty('--vscode-spacing-size200', '20px');
+		root.style.setProperty('--vscode-spacing-size240', '24px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-strokeThickness', '1px');
 		root.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
@@ -2950,12 +2989,19 @@ suite('ModernUIContribution', () => {
 		const fill = appendElement(tab, 'tab-fill');
 		const { label, name } = createEditorTabLabel(tab);
 		name.textContent = 'main.ts';
+		const actionInsetProbe = appendElement(tab, 'action-inset-probe');
+		actionInsetProbe.style.position = 'absolute';
+		actionInsetProbe.style.width = 'var(--modern-ui-connected-tab-action-inset, 0px)';
+		const actionPaddingProbe = appendElement(tab, 'action-padding-probe');
+		actionPaddingProbe.style.position = 'absolute';
+		actionPaddingProbe.style.width = 'var(--modern-ui-tab-action-padding, 0px)';
 		const targetWindow = getWindow(root);
 
 		for (const classes of ['', 'modern-ui', 'modern-ui modern-ui-connected-editor-tabs', 'modern-ui-connected-editor-tabs']) {
 			for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
 				root.className = `monaco-workbench modern-ui-tabs ${classes} ${theme}`;
 				const connected = classes.includes('modern-ui-connected-editor-tabs');
+				const sharesEditorFrame = connected && classes.split(' ').includes('modern-ui');
 				for (const activeGroup of [true, false]) {
 					group.classList.toggle('active', activeGroup);
 					for (const compact of [true, false]) {
@@ -2978,12 +3024,16 @@ suite('ModernUIContribution', () => {
 								fillBounds.left - activeFillBounds.left,
 								activeFillBounds.right - fillBounds.right,
 							],
+							actionInset: actionInsetProbe.getBoundingClientRect().width,
+							actionPadding: actionPaddingProbe.getBoundingClientRect().width,
 							marginRight: activeTabStyle.marginRight,
 							topRadius: activeFillStyle.borderTopLeftRadius,
 						}, {
 							tabBounds: tabBounds.toJSON(),
 							labelBounds: labelBounds.toJSON(),
-							fillExpansion: connected ? [0, 2, 2] : [0, 0, 0],
+							fillExpansion: connected ? [sharesEditorFrame ? 4.5 : 3.5, 2, 2] : [0, 0, 0],
+							actionInset: connected ? (compact ? sharesEditorFrame ? 4.5 : 4 : sharesEditorFrame ? 6.5 : 6) : 0,
+							actionPadding: connected ? (compact ? sharesEditorFrame ? 28.5 : 28 : sharesEditorFrame ? 30.5 : 30) : 0,
 							marginRight: connected ? `${Number.parseFloat(shoulderWidth) + 1}px` : '0px',
 							topRadius: connected ? '0px' : '4px',
 						}, JSON.stringify({ classes, theme, activeGroup, compact }));
@@ -3090,10 +3140,11 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('shares connected geometry between single-row and bottom wrapped tabs', () => {
+	test('aligns single-row connected caps while retaining wrapped gutters', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs';
 		root.style.setProperty('--vscode-spacing-size20', '2px');
+		root.style.setProperty('--vscode-spacing-size40', '4px');
 		root.style.setProperty('--vscode-spacing-size200', '20px');
 		root.style.setProperty('--vscode-cornerRadius-small', '4px');
 		root.style.setProperty('--vscode-cornerRadius-medium', '6px');
@@ -3168,11 +3219,11 @@ suite('ModernUIContribution', () => {
 			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '4px', borderWidths: ['1px', '1px'] },
 			upper: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			inactive: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['3.5px', '3.5px'], fillInlineStart: '2px' },
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '2px'], fillInlineStart: '2px' },
 			},
 			active: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '-1px'], fillInlineStart: '0px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['-1px', '-1px'], fillInlineStart: '0px' },
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['2px', '-1px'], fillInlineStart: '0px' },
 			},
 		});

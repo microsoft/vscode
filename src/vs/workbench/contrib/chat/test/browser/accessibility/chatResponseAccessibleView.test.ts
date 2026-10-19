@@ -16,7 +16,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { Response, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
@@ -479,7 +479,7 @@ suite('ChatResponseAccessibleView', () => {
 		});
 
 		test('describes a created session using its full title when available', () => {
-			const sessionData: IChatSessionCreatedData = {
+			const sessionData: IChatSessionTargetData = {
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://local/session',
 				label: 'Implement issue',

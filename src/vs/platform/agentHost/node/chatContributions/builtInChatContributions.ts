@@ -7,10 +7,12 @@ import { DisposableStore, type IDisposable } from '../../../../base/common/lifec
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
+import { ChatConfigContribution } from './chatConfig/chatConfigContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatInputContribution } from './chatInput/chatInputContribution.js';
 import { ChatReadContribution } from './chatRead/chatReadContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
+import { ChatUsageContribution } from './chatUsage/chatUsageContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
@@ -47,6 +49,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatInputContribution));
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
+	registrations.add(contributions.registerContribution(ChatUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
@@ -58,6 +61,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(SessionTitleContribution));
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
+	registrations.add(contributions.registerContribution(ChatConfigContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));

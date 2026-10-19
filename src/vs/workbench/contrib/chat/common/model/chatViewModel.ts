@@ -93,7 +93,7 @@ export interface IChatViewModel {
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
+	getItems(): readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
@@ -276,6 +276,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
+
+	/** Result of {@link getItems}, rebuilt lazily after any model or view-model change. */
+	private _visibleItemsCache: readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] | undefined;
 	private readonly _responseDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _inputPlaceholder: string | undefined = undefined;
@@ -308,6 +311,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	) {
 		super();
 
+		// Registered first so the cache is dropped before any other change listener reads items.
+		this._register(this._onDidChange.event(() => this._visibleItemsCache = undefined));
+
 		_model.getRequests().forEach((request, i) => {
 			const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, request);
 			this._items.push(requestModel);
@@ -330,6 +336,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 					throw new BugIndicatingError('Chat request insertion anchor is missing from the view');
 				}
 				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
+				this._visibleItemsCache = undefined;
 				this._items.splice(index, 0, requestModel);
 
 				if (e.request.response) {
@@ -351,6 +358,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	private removeRequest(requestId: string, responseId: string | undefined): void {
+		this._visibleItemsCache = undefined;
 		const requestIndex = this._items.findIndex(item => isRequestVM(item) && item.id === requestId);
 		if (requestIndex >= 0) {
 			this._items.splice(requestIndex, 1);
@@ -371,12 +379,23 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		store.add(response.onDidChange(() => {
 			return this._onDidChange.fire(null);
 		}));
+		this._visibleItemsCache = undefined;
 		this._items.splice(index, 0, response);
 	}
 
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+	getItems(): readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
+		return this._visibleItemsCache ??= this.computeItems();
+	}
+
+	private computeItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item, index) => {
 			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
+				return false;
+			}
+			if (isResponseVM(item) && index < this._items.length - 1
+				&& item.isComplete && !item.isCanceled && !item.errorDetails
+				&& item.response.value.length === 0 && item.contentReferences.length === 0 && item.codeCitations.length === 0
+				&& !item.replyFollowups?.length && !item.result?.details) {
 				return false;
 			}
 			return true;
@@ -431,6 +450,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	override dispose() {
 		super.dispose();
+		this._visibleItemsCache = undefined;
 		this._items.length = 0;
 	}
 }
@@ -588,8 +608,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get dataId() {
 		return this._model.id +
-			`_${this._modelChangeCount}` +
-			(this.isLast ? '_last' : '');
+			`_${this._modelChangeCount}`;
 	}
 
 	get sessionResource(): URI {
@@ -694,11 +713,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get isLast(): boolean {
-		// NOTE: this is used in `dataId` to force a re-render when the response transitions
-		// between being the last row and not, e.g. when a queued/steering row is added below
-		// it. It must reflect the actual last row so the row re-renders and drops the
-		// reserved-space filler class. Progressive rendering targets the streaming response
-		// separately (see `getStickyScrollTargetItem`).
+		// NOTE: this scans the whole transcript, so it must not be part of `dataId`. The list widget
+		// re-renders the old and new tail rows through its own last-item identity suffix.
 		return this.session.getItems().at(-1) === this;
 	}
 

@@ -5,8 +5,8 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -19,6 +19,8 @@ import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { GitHubCommit } from '../../../../platform/github/common/githubQueryService.js';
 import { parseGitHubCommitTarget, type IGitHubCommitTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -28,10 +30,13 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillLocationHover, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { downloadFile } from '../../../../workbench/browser/download.js';
 import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatImageCarouselService } from '../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { getChatImageResourceComparisonKey, getGeneratedImageResources } from '../../../../workbench/contrib/chat/common/chatImageExtraction.js';
+import type { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
@@ -74,6 +79,7 @@ export interface ISessionArtifactActions {
 	openExternal(link: URI): void;
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
+	downloadImage(uri: URI, name: string): Promise<void>;
 	copy(text: string): void;
 	/**
 	 * Deletes the session's record of an artifact or reference by its stable id.
@@ -263,7 +269,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			...(createHover && !commitHoverCache ? createChatPillHover({ fallback: label, createContent: createHover }) : {}),
 			open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 		}, actions);
-		return commitHoverCache ? { ...entry, ...commitHoverCache.get(artifact.id, entry, createHover) } : entry;
+		return commitHoverCache ? { ...entry, ...commitHoverCache.get(artifact.id, entry, createHover, target ? 'preview' : 'content') } : entry;
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
@@ -397,6 +403,11 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 					label,
 					resource: uri,
 					toolbarActions: [toAction({
+						id: `sessions.artifacts.downloadImage.${artifact.id}`,
+						label: localize('sessionArtifacts.downloadImage', "Download Image"),
+						class: ThemeIcon.asClassName(Codicon.cloudDownload),
+						run: () => actions.downloadImage(uri, label),
+					}), toAction({
 						id: `sessions.artifacts.copyFilePath.${artifact.id}`,
 						label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
 						class: ThemeIcon.asClassName(Codicon.copy),
@@ -533,6 +544,9 @@ export class SessionArtifacts extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatService chatService: IChatService,
 		@IChatImageCarouselService private readonly _chatImageCarouselService: IChatImageCarouselService,
+		@IFileService private readonly _fileService: IFileService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 
@@ -555,20 +569,55 @@ export class SessionArtifacts extends Disposable {
 			commitResolver.retain(commitTargets);
 		}));
 		const imageCarouselEnabled = observableConfigValue<boolean>(ChatConfiguration.ImageCarouselEnabled, true, this._configurationService);
-		const generatedImages = derived(this, reader => {
+		const generatedImageModel = derived(this, reader => {
 			const resource = chat.read(reader)?.resource;
-			const model = resource && [...chatService.chatModels.read(reader)].find(model => isEqual(model.sessionResource, resource));
+			return resource && [...chatService.chatModels.read(reader)].find(model => isEqual(model.sessionResource, resource));
+		});
+		// Restored history mutates the model and its responses synchronously and repeatedly; coalesce
+		// those bursts so the transcript is scanned once afterwards rather than once per mutation.
+		const generatedImageChanges = derived(this, reader => {
+			const model = generatedImageModel.read(reader);
+			if (!model) {
+				return undefined;
+			}
+			const store = reader.store;
+			const raw = store.add(new Emitter<void>());
+			const responseListeners = store.add(new DisposableMap<IChatResponseModel, IDisposable>());
+			const track = () => {
+				const current = new Set<IChatResponseModel>();
+				for (const request of model.getRequests()) {
+					if (request.response) {
+						current.add(request.response);
+						if (!responseListeners.has(request.response)) {
+							responseListeners.set(request.response, request.response.onDidChange(() => raw.fire()));
+						}
+					}
+				}
+				for (const response of [...responseListeners.keys()]) {
+					if (!current.has(response)) {
+						responseListeners.deleteAndDispose(response);
+					}
+				}
+			};
+			track();
+			store.add(model.onDidChange(() => raw.fire()));
+			const coalesced = Event.map(Event.accumulate(raw.event, 0, false, store), () => {
+				track();
+			});
+			return observableSignalFromEvent(this, coalesced);
+		});
+		const generatedImages = derived(this, reader => {
+			const model = generatedImageModel.read(reader);
 			if (!model) {
 				return [];
 			}
-			observableSignalFromEvent(this, model.onDidChange).read(reader);
+			generatedImageChanges.read(reader)?.read(reader);
 			const images: ISessionArtifactPresentation[] = [];
 			for (const request of model.getRequests().slice().reverse()) {
 				const response = request.response;
 				if (!response) {
 					continue;
 				}
-				observableSignalFromEvent(this, response.onDidChange).read(reader);
 				for (const image of getGeneratedImageResources(response.response, model.sessionResource, reader)) {
 					images.push({
 						id: `generated-image:${getChatImageResourceComparisonKey(image.uri)}`,
@@ -653,6 +702,13 @@ export class SessionArtifacts extends Disposable {
 				}).catch(error => {
 					this._notificationService.error(localize('sessionArtifacts.openImageFailed', "Could not open image: {0}", toErrorMessage(error)));
 				});
+			},
+			downloadImage: async (uri, name) => {
+				try {
+					await downloadFile(uri, name, this._fileService, this._fileDialogService, this._webContentExtractorService);
+				} catch (error) {
+					this._notificationService.error(localize('sessionArtifacts.downloadImageFailed', "Failed to download {0}: {1}", name, toErrorMessage(error)));
+				}
 			},
 			copy: text => { void this._clipboardService.writeText(text); },
 			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {

@@ -291,17 +291,17 @@ suite('Sessions - View Menu', () => {
 			harnesses: snapshot(Menus.SessionsViewHarness),
 		}, {
 			environments: [
-				{ title: 'Local', group: '2_environments', checked: true },
+				{ title: 'This Computer', group: '2_environments', checked: true },
 				{ title: 'Cloud', group: '2_environments', checked: true },
 				{ title: 'A Host', group: '2_environments', checked: true },
 				{ title: 'Z Host', group: '2_environments', checked: true },
 			],
 			sources: [
-				{ title: 'Claude (Local)', group: '3_applications_000000', checked: false },
-				{ title: 'Codex (Local)', group: '3_applications_000000', checked: false },
-				{ title: 'Copilot CLI (Local)', group: '3_applications_000000', checked: false },
-				{ title: 'Third-party (Local)', group: '3_applications_000000', checked: false },
-				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
+				{ title: 'Claude (This Computer)', group: '3_applications_000000', checked: false },
+				{ title: 'Codex (This Computer)', group: '3_applications_000000', checked: false },
+				{ title: 'Copilot CLI (This Computer)', group: '3_applications_000000', checked: false },
+				{ title: 'Third-party (This Computer)', group: '3_applications_000000', checked: false },
+				{ title: 'VS Code (This Computer)', group: '3_applications_000000', checked: true },
 				{ title: 'Copilot App (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'Copilot CLI (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'Slack (Cloud)', group: '3_applications_000001', checked: false },
@@ -342,11 +342,11 @@ suite('Sessions - View Menu', () => {
 		assert.deepStrictEqual({ defaults, optedIn, reset: state() }, {
 			defaults: {
 				visible: ['cloud-codex', 'first-vscode', 'second-vscode'],
-				sources: [['Codex (Local)', false], ['VS Code (Local)', true], ['Codex (Cloud)', true], ['VS Code (Cloud)', true], ['Codex (First Host)', false], ['VS Code (First Host)', true], ['Codex (Second Host)', false], ['VS Code (Second Host)', true]],
+				sources: [['Codex (This Computer)', false], ['VS Code (This Computer)', true], ['Codex (Cloud)', true], ['VS Code (Cloud)', true], ['Codex (First Host)', false], ['VS Code (First Host)', true], ['Codex (Second Host)', false], ['VS Code (Second Host)', true]],
 			},
 			optedIn: {
 				visible: ['cloud-codex', 'first-vscode', 'first-codex', 'second-vscode'],
-				sources: [['Codex (Local)', false], ['VS Code (Local)', true], ['Codex (Cloud)', true], ['VS Code (Cloud)', true], ['Codex (First Host)', true], ['VS Code (First Host)', true], ['Codex (Second Host)', false], ['VS Code (Second Host)', true]],
+				sources: [['Codex (This Computer)', false], ['VS Code (This Computer)', true], ['Codex (Cloud)', true], ['VS Code (Cloud)', true], ['Codex (First Host)', true], ['VS Code (First Host)', true], ['Codex (Second Host)', false], ['VS Code (Second Host)', true]],
 			},
 			reset: defaults,
 		});
@@ -383,11 +383,11 @@ suite('Sessions - View Menu', () => {
 				cloud: true,
 				archived: true,
 				sources: [
-					{ title: 'VS Code (Local)', group: '3_applications_000000', checked: false },
+					{ title: 'VS Code (This Computer)', group: '3_applications_000000', checked: false },
 					{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
 				],
 				environments: [
-					{ title: 'Local', group: '2_environments', checked: true },
+					{ title: 'This Computer', group: '2_environments', checked: true },
 					{ title: 'Cloud', group: '2_environments', checked: true },
 				],
 			},
@@ -424,7 +424,7 @@ suite('Sessions - View Menu', () => {
 			excluded: {
 				title: 'Environment',
 				sources: [
-					{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
+					{ title: 'VS Code (This Computer)', group: '3_applications_000000', checked: true },
 					{ title: 'VS Code (Build Server)', group: '3_applications_000002', checked: true },
 				],
 				visible: ['local', 'remote'],
@@ -447,11 +447,11 @@ suite('Sessions - View Menu', () => {
 			visible: false,
 			excludeArchived: true,
 			sources: [
-				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: false },
+				{ title: 'VS Code (This Computer)', group: '3_applications_000000', checked: false },
 				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
 			],
 			environments: [
-				{ title: 'Local', group: '2_environments', checked: true },
+				{ title: 'This Computer', group: '2_environments', checked: true },
 				{ title: 'Cloud', group: '2_environments', checked: true },
 			],
 		});
@@ -470,7 +470,7 @@ suite('Sessions - View Menu', () => {
 		const none = state();
 		filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
 		const cloud = state();
-		const localApplication = { title: 'VS Code (Local)', group: '3_applications_000000', checked: true };
+		const localApplication = { title: 'VS Code (This Computer)', group: '3_applications_000000', checked: true };
 		const cloudApplication = { title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true };
 		assert.deepStrictEqual({ empty, local, none, cloud }, {
 			empty: { title: 'Environment', sources: [localApplication, cloudApplication] },
@@ -493,12 +493,12 @@ suite('Sessions - View Menu', () => {
 		setSessions([remote]);
 		assert.deepStrictEqual({ before, after: snapshot(Menus.SessionsViewSource), visible: filters.matches(remote) }, {
 			before: [
-				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
+				{ title: 'VS Code (This Computer)', group: '3_applications_000000', checked: true },
 				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'VS Code (Build Server)', group: '3_applications_000002', checked: true },
 			],
 			after: [
-				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
+				{ title: 'VS Code (This Computer)', group: '3_applications_000000', checked: true },
 				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'VS Code (Build Server)', group: '3_applications_000002', checked: false },
 			],
@@ -532,7 +532,7 @@ suite('Sessions - View Menu', () => {
 		const expectedCached = {
 			title: 'Environment',
 			environments: [
-				{ title: 'Local', group: '2_environments', checked: false },
+				{ title: 'This Computer', group: '2_environments', checked: false },
 				{ title: 'Cloud', group: '2_environments', checked: false },
 			],
 			sources: [{ title: 'VS Code (Renamed Server)', group: '3_applications_000002', checked: false }],

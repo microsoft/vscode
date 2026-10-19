@@ -923,7 +923,7 @@ export class AgentsWindow {
 
 	/**
 	 * Open the selected model's details page, which holds its configuration
-	 * (Thinking Effort / Context Size), by clicking the active session model
+	 * (Effort Level / Context Size), by clicking the active session model
 	 * picker's configuration readout. The readout is only visible when the
 	 * selected model advertises configurable options, so this waits for it before
 	 * clicking.

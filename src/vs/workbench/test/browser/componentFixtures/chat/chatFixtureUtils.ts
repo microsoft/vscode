@@ -20,6 +20,7 @@ import { MockChatModelFeedbackSurveyService } from '../../../../contrib/chat/tes
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -56,7 +57,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { TestPathService, TestRemoteAgentService } from '../../workbenchTestServices.js';
+import { TestPathService, TestProgressService, TestRemoteAgentService } from '../../workbenchTestServices.js';
 import { IAgentSdkSetupService } from '../../../../services/agentHost/browser/agentSdkSetupService.js';
 import { ICodexAccountService } from '../../../../services/agentHost/browser/codexAccountService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
@@ -65,6 +66,7 @@ import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../.
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { ChatPetWidgetService, IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../contrib/chat/common/chatOpenDiagnosticsService.js';
 import { IChatOutputRendererService } from '../../../../contrib/chat/browser/chatOutputItemRenderer.js';
 import { IAiEditTelemetryService } from '../../../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
@@ -94,6 +96,7 @@ import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tool
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
+import { IChatUtilityModelService } from '../../../../contrib/chat/common/chatUtilityModelService.js';
 import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { ServiceRegistration, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IActionViewItemFactory, IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -224,6 +227,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly repositoryCount = 0;
 	}());
 	reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
+	reg.defineInstance(IProgressService, new TestProgressService());
 	reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 	reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
 	reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
@@ -282,6 +286,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override register() { return { dispose() { } }; }
 	}());
 	reg.define(IChatPetWidgetService, ChatPetWidgetService);
+	reg.define(IChatOpenDiagnosticsService, ChatOpenDiagnosticsService);
 	reg.defineInstance(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 		override acceptRequest() { }
 		override disposeRequest() { }
@@ -365,6 +370,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override isEnabled() { return false; }
 		override getCached() { return undefined; }
 		override async assess() { return undefined; }
+	}());
+	reg.defineInstance(IChatUtilityModelService, new class extends mock<IChatUtilityModelService>() {
+		override async sendRequest() { return undefined; }
 	}());
 	reg.defineInstance(IChatContextService, new class extends mock<IChatContextService>() { }());
 	reg.defineInstance(IChatContextPickService, new class extends mock<IChatContextPickService>() { }());
