@@ -1711,6 +1711,7 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(testAccessibilitySignalService.signalPlayedCalls.length, 1, 'accessibility signal should have been played once');
 		const signalCall = testAccessibilitySignalService.signalPlayedCalls[0];
 		assert.strictEqual(signalCall.signal, AccessibilitySignal.chatUserActionRequired, 'correct signal should be played');
+		assert.strictEqual(signalCall.options?.allowManyInParallel, true, 'overlapping approval signals should be allowed');
 		assert.ok(signalCall.options?.customAlertMessage.includes('Accessibility Test'), 'alert message should include tool title');
 		assert.ok(signalCall.options?.customAlertMessage.includes('Chat confirmation required'), 'alert message should include confirmation text');
 
