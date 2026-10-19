@@ -457,26 +457,30 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			preferredHomeCalls: 1,
 			statUris: [configuredDirectory.toString(), missingDirectory.toString()],
 		});
+	});
 
-		test('returns partial-export status when a remote directory-artifact read fails', async () => {
-			const logService = new NullLogService();
-			const fileService = disposables.add(new FileService(logService));
-			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-			const instantiation = disposables.add(new TestInstantiationService());
-			instantiation.stub(IFileService, fileService);
-			instantiation.stub(ILogService, logService);
-			instantiation.stub(IConfigurationService, new TestConfigurationService());
-			instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
-			const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
-			const destination = URI.file('/exports/logs');
-			const result = await service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], {
-				artifact: { ...artifactOfSize(10), kind: 'directory' },
-				readChunk: async () => { throw new Error('Remote log read failed'); },
-			});
-			assert.deepStrictEqual({
-				result,
-				clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
-			}, { result: { hostSaveError: 'Remote log read failed' }, clientLog: 'client' });
+	test('returns partial-export status when a remote directory-artifact read fails', async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IFileService, fileService);
+		instantiation.stub(ILogService, logService);
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.file('/exports/logs');
+		const result = await service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], {
+			artifact: { ...artifactOfSize(10), kind: 'directory' },
+			readChunk: async () => { throw new Error('Remote log read failed'); },
+		});
+		assert.deepStrictEqual({
+			// The failing write targets a staging folder named with a random id, and the path separator is platform specific.
+			result: { hostSaveError: result.hostSaveError?.replace(/\\/g, '/').replace(/\.agent-host-debug-logs-[0-9a-f-]+/, '.agent-host-debug-logs-<id>') },
+			clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
+		}, {
+			result: { hostSaveError: `Unable to write file '/exports/.agent-host-debug-logs-<id>/agenthost.log' (Error: Remote log read failed)` },
+			clientLog: 'client',
 		});
 	});
 });

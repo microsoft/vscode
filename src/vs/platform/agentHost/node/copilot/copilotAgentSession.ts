@@ -38,10 +38,10 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, isCopilotHydraFusionModelId } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import { isAutoModeRoutingTier, type AutoModeRoutingTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, isSupportedAutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -95,6 +95,7 @@ import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { NonPtyShellTerminalStreams, parseSpilledShellCompletion, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { CopilotSessionSandbox } from './copilotSessionSandbox.js';
+import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
@@ -166,8 +167,8 @@ function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource
 }
 
 /** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. */
-function getCommittedAutoTier(model: string | undefined, autoTier: unknown): AutoModeRoutingTier | undefined {
-	return isAutoModel(model) && isAutoModeRoutingTier(autoTier) ? autoTier : undefined;
+function getCommittedAutoTier(model: string | undefined, autoTier: unknown): string | undefined {
+	return isAutoModel(model) && (isAutoModeRoutingTier(autoTier) || isSupportedAutoModeTier(autoTier)) ? autoTier : undefined;
 }
 
 /** How the runtime settled an Auto resolution, for the info log: identifiers, flags and numbers only; `''` when none were reported. */
@@ -184,7 +185,7 @@ function formatAutoModeRoutingForLog(data: { readonly routingMethod?: string; re
 }
 
 /** A known tier, or the pending runtime read for the configuration in effect when it was captured. */
-type AutoTierSnapshot = AutoModeRoutingTier | undefined | Promise<AutoModeRoutingTier | undefined>;
+type AutoTierSnapshot = string | undefined | Promise<string | undefined>;
 
 const AUTO_TIER_READ_TIMEOUT = 5_000;
 
@@ -588,6 +589,8 @@ const realpath = promisify(fsRealpath);
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
+/** The longest a `tasks.readOutput` call may wait for a detached shell to write more output. */
+const DETACHED_SHELL_OUTPUT_WAIT_MS = 30_000;
 /** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 /** Type of the `session.info` event sent when plugins required by the organization are ready. */
@@ -632,6 +635,7 @@ export interface ICopilotAgentSessionOptions {
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
 	readonly sessionLauncher: ICopilotSessionLauncher;
 	readonly launchPlan: CopilotSessionLaunchPlan;
+	readonly sandboxCertificate: CopilotSandboxCertificate;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
@@ -1018,6 +1022,10 @@ class CopilotTurn extends Disposable {
 interface IPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly sender: IAgentPendingMessageSender | undefined;
+	/** Set once the message is handed to the SDK; identifies it for withdrawal. */
+	sdkSend?: { readonly prompt: string; readonly messageId: Promise<string> };
+	/** The SDK's id for the message once `send` returns; its `user.message` echo carries the same id. */
+	sdkMessageId?: string;
 }
 
 /** Where a transient chat activity comes from; see `CopilotAgentSession._publishActivity` for the precedence. */
@@ -1149,7 +1157,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private _committedAutoTier: AutoTierSnapshot;
-	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, AutoModeRoutingTier>();
+	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, string>();
 	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _pendingSubagentLifecycleCompletions = new Map<string, { readonly toolCallId: string; readonly activityRevision: number | undefined; readonly outcome?: SubagentTurnOutcome }>();
 	private readonly _subagentTaskCompletionDelay: number;
@@ -1282,6 +1290,23 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get hasActiveSubagents(): boolean { return this._subagents.hasActiveAgents; }
 	get usesStaticGitHubToken(): boolean { return this._launchPlan.githubCredentials.usesStaticToken; }
+
+	installSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.installCertificate(scopeId);
+	}
+
+	rotateSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.rotateCertificate(scopeId);
+	}
+
+	removeSandboxCertificate(scopeId: string): Promise<void> {
+		return this._sandbox.removeCertificate(scopeId);
+	}
+
+	refreshSandboxCertificate(): Promise<void> {
+		return this._sandbox.refreshCertificateDiagnostics();
+	}
+
 	get usesScopedGitHubCredentials(): boolean { return this._launchPlan.githubCredentials.usesScopedCredential; }
 
 	assertScopedCredential(credential: IAgentHostScopedCredential): void {
@@ -1760,7 +1785,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
-	private _hydraFusionV2ExperimentTriggerPending = false;
+	private readonly _pendingSettingExperimentTriggers = new Set<string>();
 	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<CopilotActivitySource, string | undefined> = { intent: undefined, command: undefined, fusion: undefined, localModel: undefined };
 	private _publishedActivity: string | undefined;
@@ -1881,6 +1906,10 @@ export class CopilotAgentSession extends Disposable {
 			platform: options.platform ?? process.platform,
 			getSession: () => this._wrapper.session,
 			getHostSupport: () => this._launchPlan.client.rpc.sandbox.getHostSupport(),
+			getCertificateStatus: config => options.sandboxCertificate.getStatus(this._launchPlan.client.rpc.sandbox.proxyCa, config),
+			installCertificate: (getConfig, scopeId) => options.sandboxCertificate.install(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			rotateCertificate: (getConfig, scopeId) => options.sandboxCertificate.rotate(this._launchPlan.client.rpc.sandbox.proxyCa, getConfig, scopeId),
+			removeCertificate: async (scopeId, validate) => { await options.sandboxCertificate.remove(this._launchPlan.client.rpc.sandbox.proxyCa, scopeId, validate); },
 			getShellInitDirectory: () => this._shellInitScriptMaterialized ? this._shellInitScriptDirectory() : undefined,
 			shellManager: options.shellManager,
 		}));
@@ -2284,20 +2313,34 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Pops the buffered steering message whose text is contained in the SDK
-	 * `user.message` content we just observed. Matching by content (rather
-	 * than just popping FIFO) keeps us robust against the SDK reordering
-	 * or coalescing entries — concurrent steering messages with different
-	 * texts are still matched to the correct one. Returns `undefined` if
-	 * no buffered entry matches; the caller treats the `user.message` as
-	 * an ordinary echo and skips the turn flip.
+	 * Pops the buffered steering message delivered by the SDK `user.message`
+	 * we just observed. The echo carries the id `send` returned, so an exact
+	 * id match wins; that keeps identical texts apart, e.g. one being
+	 * withdrawn while the other is delivered. Otherwise matches by content,
+	 * skipping entries the SDK already identified as a different message.
+	 * Matching by content (rather than just popping FIFO) keeps us robust
+	 * against the SDK reordering or coalescing entries — concurrent steering
+	 * messages with different texts are still matched to the correct one.
+	 * Returns `undefined` if no buffered entry matches; the caller treats the
+	 * `user.message` as an ordinary echo and skips the turn flip.
 	 */
-	private _takeMatchingPendingSteering(content: string): IPendingSteering | undefined {
+	private _takeMatchingPendingSteering(content: string, messageId: string | undefined): IPendingSteering | undefined {
 		if (this._pendingSteeringFlips.size === 0) {
 			return undefined;
 		}
+		if (messageId) {
+			for (const [id, pending] of this._pendingSteeringFlips) {
+				if (pending.sdkMessageId === messageId) {
+					this._pendingSteeringFlips.delete(id);
+					return pending;
+				}
+			}
+		}
 		let substringMatch: [string, IPendingSteering] | undefined;
 		for (const [id, pending] of this._pendingSteeringFlips) {
+			if (messageId && pending.sdkMessageId) {
+				continue;
+			}
 			if (pending.pendingMessage.message.text === content) {
 				this._pendingSteeringFlips.delete(id);
 				return pending;
@@ -2654,6 +2697,40 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reconcile background task status: ${getErrorMessage(err)}`);
 			if (!this._store.isDisposed && this._backgroundWorkObservers > 0) {
 				this._backgroundShellRefresh.schedule();
+			}
+		});
+	}
+
+	/**
+	 * Streams a detached shell's output into the terminal of the tool call
+	 * that started it. A detached shell sends no `tool.shell_output`, so each
+	 * read continues from the previous read's cursor and waits for more output
+	 * until it reaches the end of the log of the exited shell.
+	 */
+	private _readDetachedShellOutput(toolCallId: string, shellId: string): void {
+		const read = async () => {
+			let cursor: string | undefined;
+			while (this._nonPtyShellTerminals.isReadingDetachedShell(toolCallId)) {
+				const page = await this._wrapper.session.rpc.tasks.readOutput({ id: shellId, cursor, waitMs: DETACHED_SHELL_OUTPUT_WAIT_MS });
+				if (this._store.isDisposed) {
+					return;
+				}
+				cursor = page.cursor;
+				if (page.text) {
+					this._nonPtyShellTerminals.appendDetachedShellOutput(toolCallId, page.text);
+				}
+				if (page.exit) {
+					this._nonPtyShellTerminals.completeDetachedShell(toolCallId, page.exit.exitCode);
+					// Remove the shell from the chat's background work without waiting for the next task read.
+					this._refreshBackgroundTasks();
+					return;
+				}
+			}
+		};
+		void read().catch(err => {
+			if (!this._store.isDisposed) {
+				this._logService.warn(`[Copilot:${this.sessionId}] Stopped reading detached shell ${shellId} output: ${getErrorMessage(err)}`);
+				this._nonPtyShellTerminals.stopReadingDetachedShell(toolCallId);
 			}
 		});
 	}
@@ -3642,7 +3719,7 @@ export class CopilotAgentSession extends Disposable {
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			defer: def.deferLoading && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
+			defer: def.deferLoading !== false && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
 			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
@@ -5531,8 +5608,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const steeringTurn = this._currentTurn.value;
 		const abortToken = this._abortToken;
+		const pending: IPendingSteering = { pendingMessage: steeringMessage, sender };
 		this._steeringMessagesInFlight.add(steeringMessage.id);
-		this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
+		this._pendingSteeringFlips.set(steeringMessage.id, pending);
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
@@ -5547,15 +5625,25 @@ export class CopilotAgentSession extends Disposable {
 				: steeringMessage.message.text;
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
-					prompt: steeringPrompt,
-					attachments: sdkAttachments?.length ? sdkAttachments : undefined,
-					mode: 'immediate',
-				})),
+				async () => {
+					if (this._pendingSteeringFlips.get(steeringMessage.id) !== pending) {
+						this._logService.info(`[Copilot:${this.sessionId}] Steering message was withdrawn or cleared before it was sent: id=${steeringMessage.id}`);
+						return undefined;
+					}
+					const messageId = this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
+						prompt: steeringPrompt,
+						attachments: sdkAttachments?.length ? sdkAttachments : undefined,
+						mode: 'immediate',
+					}));
+					pending.sdkSend = { prompt: steeringPrompt, messageId };
+					return messageId;
+				},
 				steeringTurn, abortToken,
 			);
 			if (execution.kind === 'skipped' && this._pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(steeringMessage.id);
+			} else if (execution.kind === 'executed' && execution.value !== undefined) {
+				pending.sdkMessageId = execution.value;
 			}
 		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
@@ -5564,6 +5652,37 @@ export class CopilotAgentSession extends Disposable {
 			}
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
+		}
+	}
+
+	/**
+	 * Withdraws a steering message the user removed. A message still being prepared is never sent; one
+	 * the SDK holds is withdrawn from its steering queue. If the SDK already delivered it to the model,
+	 * the entry is kept so its `user.message` echo still shows it as its own turn.
+	 */
+	async withdrawSteering(id: string): Promise<void> {
+		const pending = this._pendingSteeringFlips.get(id);
+		if (!pending) {
+			return;
+		}
+		if (!pending.sdkSend) {
+			this._pendingSteeringFlips.delete(id);
+			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message before sending it: id=${id}`);
+			return;
+		}
+		try {
+			const messageId = await pending.sdkSend.messageId;
+			const result = await this._wrapper.session.rpc.queue.withdrawMessage({ messageId, expectedPrompt: pending.sdkSend.prompt });
+			if (!result.removed) {
+				this._logService.info(`[Copilot:${this.sessionId}] Steering message was already delivered and could not be withdrawn: id=${id}`);
+				return;
+			}
+			if (this._pendingSteeringFlips.get(id) === pending) {
+				this._pendingSteeringFlips.delete(id);
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message: id=${id}`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to withdraw steering message: id=${id}: ${getErrorMessage(err)}`);
 		}
 	}
 
@@ -6806,14 +6925,24 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Marks where HydraFusion starts routing as v1 or v2, in every arm of a HydraFusion version
-	 * experiment. Held until the workbench forwards its assignment context, because
+	 * Holds setting exposure until the workbench forwards its assignment context, because
 	 * agent host telemetry cannot be attributed to an experiment before then.
 	 */
-	private _reportHydraFusionV2ExperimentTrigger(): void {
-		this._hydraFusionV2ExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._hydraFusionV2ExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostHydraFusionEnabledSettingId);
+	private _reportSettingExperimentTrigger(settingId: string): void {
+		const defaultControlledKey = settingId === AgentHostCopilotExecutionSubagentEnabledSettingId
+			? CopilotCliConfigKey.ExecutionSubagentDefaultControlled
+			: settingId === AgentHostCopilotExecutionSubagentModelSettingId
+				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
+				: undefined;
+		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			return;
+		}
+		if (typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string') {
+			this._pendingSettingExperimentTriggers.add(settingId);
+		} else {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			logSettingExperimentTrigger(this._telemetryService, settingId);
 		}
 	}
 
@@ -6823,11 +6952,13 @@ export class CopilotAgentSession extends Disposable {
 			void this._syncImageGenerationAfterConfigChange();
 			// The forwarded shell init setting lives in root config.
 			void this._syncShellInitScript();
-			if (this._hydraFusionV2ExperimentTriggerPending) {
+			if (this._pendingSettingExperimentTriggers.size > 0) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._hydraFusionV2ExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportHydraFusionV2ExperimentTrigger();
+					if (!this._store.isDisposed) {
+						for (const settingId of this._pendingSettingExperimentTriggers) {
+							this._reportSettingExperimentTrigger(settingId);
+						}
 					}
 				});
 			}
@@ -7779,7 +7910,7 @@ export class CopilotAgentSession extends Disposable {
 			this._currentTurn.value?.markRunning();
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
-			const steering = this._takeMatchingPendingSteering(e.data.content);
+			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
 			if (steering) {
 				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
@@ -8361,6 +8492,9 @@ export class CopilotAgentSession extends Disposable {
 			if (isShellCommandTool && !ptyTerminalUri) {
 				nonPtyCompletion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
 				if (nonPtyCompletion?.backgroundShellId !== undefined) {
+					if (nonPtyCompletion.detached) {
+						this._readDetachedShellOutput(e.data.toolCallId, nonPtyCompletion.backgroundShellId);
+					}
 					// Republish background work so the shell's entry points at this call's live terminal.
 					this._refreshBackgroundTasks();
 				}
@@ -10316,7 +10450,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (event.type === 'session.fusion_route_started') {
-			this._reportHydraFusionV2ExperimentTrigger();
+			this._reportSettingExperimentTrigger(AgentHostHydraFusionEnabledSettingId);
 		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {
@@ -10376,11 +10510,11 @@ export class CopilotAgentSession extends Disposable {
 
 	/** `session.start`/`session.resume` fire before this session subscribes. A result superseded by a later model change resolves as unknown. */
 	private _readCommittedAutoTier(wrapper: CopilotSessionWrapper): void {
-		const result = new DeferredPromise<AutoModeRoutingTier | undefined>();
+		const result = new DeferredPromise<string | undefined>();
 		const read = result.p;
 		this._committedAutoTier = read;
 		void (async () => {
-			let tier: AutoModeRoutingTier | undefined;
+			let tier: string | undefined;
 			try {
 				const current = await raceTimeout(wrapper.session.rpc.model.getCurrent(), AUTO_TIER_READ_TIMEOUT);
 				tier = current && this._committedAutoTier === read && this._wrapper === wrapper ? getCommittedAutoTier(current.modelId, current.autoTier) : undefined;
@@ -10640,6 +10774,10 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
 				if (this._currentTurn.value) {
+					// Runtime assignments can override the enablement default. Include both
+					// setting experiments without excluding unavailable-model treatments.
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentEnabledSettingId);
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentModelSettingId);
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					this._hasFusionRootTurnBoundary = true;

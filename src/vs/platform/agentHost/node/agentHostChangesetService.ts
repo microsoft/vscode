@@ -46,12 +46,12 @@ import {
 	withSessionGitState,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentConfigurationService, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedSessionDatabases, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -406,23 +406,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _getSessionSummaryWorkingDirectories(session: ProtocolURI): readonly ProtocolURI[] | undefined {
-		const state = this._stateManager.getSessionState(session);
-		if (!state) {
-			return undefined;
-		}
-
-		const workingDirectories: ProtocolURI[] = [];
-		const seen = new Set<ProtocolURI>();
-		for (const owner of [session, ...state.chats.map(chat => chat.resource)]) {
-			for (const workingDirectory of this._configurationService.getEffectiveWorkingDirectories(owner) ?? []) {
-				if (!seen.has(workingDirectory)) {
-					seen.add(workingDirectory);
-					workingDirectories.push(workingDirectory);
-				}
-			}
-		}
-
-		return workingDirectories.length ? workingDirectories : undefined;
+		return getSessionSummaryWorkingDirectories(this._stateManager, session);
 	}
 
 	private _getBranchSummaryOwners(session: ProtocolURI): readonly ProtocolURI[] {
@@ -1445,6 +1429,48 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		};
 	}
 
+	openTrackedSessionDatabases(owner: ProtocolURI): ITrackedSessionDatabases {
+		// Mirrors the `fileEditTracker` Session Changes computation in
+		// `_doComputeStaticChangeset`: same databases, directories, and scope.
+		const isChat = isAhpChatChannel(owner);
+		const workingDirectories = isChat
+			? this._getEffectiveWorkingDirectories(owner)
+			: this._getSessionSummaryWorkingDirectories(owner);
+		const storage = this._getTrackedDatabaseUri(owner);
+		const ref = this._sessionDataService.openDatabase(URI.parse(storage));
+		let peers: { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
+		let others: ReturnType<ISessionDataService['openDatabase']>[] = [];
+		try {
+			if (isChat) {
+				others = this._openOtherSessionChangesSources(owner, storage);
+			} else {
+				peers = this._openPeerChatSources(owner, true);
+			}
+		} catch (err) {
+			ref.dispose();
+			throw err;
+		}
+		return {
+			sources: [
+				// Databases are keyed by storage, which differs from the chat once it moves between sessions.
+				{ chat: isChat ? owner : this._chatOwnership.getDefaultChat(owner) ?? owner, db: ref.object },
+				...peers.map(peer => ({ chat: peer.chat, db: peer.ref.object })),
+			],
+			otherChatDatabases: others.map(other => other.object),
+			workingDirectories,
+			folderScope: this._getTrackedEditFolderScope(owner, workingDirectories),
+			dispose: () => {
+				for (const peer of peers) {
+					peer.ref.dispose();
+				}
+				for (const other of others) {
+					other.dispose();
+				}
+				ref.dispose();
+			},
+		};
+	}
+
 	/**
 	 * Opens the databases whose edits the containing session's Session Changes
 	 * combine with those in `storage`: the session's own and each peer chat's.
@@ -2148,9 +2174,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * databases with the session DB. Returns an empty array for single-chat
 	 * sessions. Callers MUST dispose every returned `ref`.
 	 */
-	private _openPeerChatSources(session: ProtocolURI, requireAllSources = false): { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
+	private _openPeerChatSources(session: ProtocolURI, requireAllSources = false): { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] {
 		const chats = this._stateManager.getSessionState(session)?.chats ?? [];
-		const sources: { sessionUri: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
+		const sources: { sessionUri: ProtocolURI; chat: ProtocolURI; ref: ReturnType<ISessionDataService['openDatabase']> }[] = [];
 		for (const chat of chats) {
 			if (this._chatOwnership.isDefaultChat(session, chat.resource)) {
 				continue;
@@ -2158,7 +2184,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			try {
 				const storage = this._getTrackedDatabaseUri(chat.resource);
 				const ref = this._sessionDataService.openDatabase(URI.parse(storage));
-				sources.push({ sessionUri: storage, ref });
+				sources.push({ sessionUri: storage, chat: chat.resource, ref });
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Failed to open peer chat database for session changes: ${chat.resource}`, err);
 				if (requireAllSources) {

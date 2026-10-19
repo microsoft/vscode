@@ -268,6 +268,9 @@ export class MockAgent implements IAgent {
 		return this.setPendingMessages(chat, message, [], sender);
 	}
 
+	/** Assign to model a provider that can withdraw steering it was already handed. */
+	withdrawSteeringMessage?: (chat: URI, messageId: string) => void;
+
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {

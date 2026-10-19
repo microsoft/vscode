@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import type { IAgentPermissionResponseContext } from '../../common/agent.js';
+import type { IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
@@ -28,6 +29,7 @@ import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import type { ActionOrigin } from '../../common/state/sessionActions.js';
 import { attributePermissionResult } from './copilotPermissionAttribution.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
+import { CopilotSandboxCertificateDiagnostics } from './copilotSandboxCertificateDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
@@ -49,6 +51,10 @@ interface ICopilotSessionSandboxOptions {
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
+	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
+	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
+	readonly rotateCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
+	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
 	readonly shellManager: ShellManager | undefined;
 }
@@ -59,6 +65,7 @@ export class CopilotSessionSandbox extends Disposable {
 	private readonly _pendingPathGrants = new Map<string, ISandboxPathGrant>();
 	private readonly _configSequencer = new Sequencer();
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
+	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
 	private _configUpdateDeferred = false;
 	private _disabledForSession = false;
 
@@ -70,7 +77,8 @@ export class CopilotSessionSandbox extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport));
+		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
+		this._certificateDiagnostics = this._register(instantiationService.createInstance(CopilotSandboxCertificateDiagnostics, _options.getConfigWriteTarget, _options.getCertificateStatus));
 	}
 
 	setPendingRequest(toolCallId: string, requestId: string): void {
@@ -190,7 +198,38 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {
-		return this._diagnostics.update(this.isCustomTerminalToolEnabled() ? { enabled: false } : config ?? this._computeConfig() ?? { enabled: false });
+		const effectiveConfig = this.isCustomTerminalToolEnabled() ? { enabled: false } : config ?? this._computeConfig() ?? { enabled: false };
+		this._certificateDiagnostics.update(effectiveConfig);
+		return this._diagnostics.update(effectiveConfig);
+	}
+
+	/** Resolves the live chat's effective configuration when its queued certificate operation starts. */
+	installCertificate(scopeId: string): Promise<void> {
+		return this._options.installCertificate(() => this._certificateConfig(), scopeId);
+	}
+
+	rotateCertificate(scopeId: string): Promise<void> {
+		return this._options.rotateCertificate(() => this._certificateConfig(), scopeId);
+	}
+
+	removeCertificate(scopeId: string): Promise<void> {
+		return this._options.removeCertificate(scopeId, () => this._requireLiveCertificateSession());
+	}
+
+	private _requireLiveCertificateSession(): void {
+		if (this._store.isDisposed) {
+			throw new Error(localize('copilot.sandboxCertificate.chatUnavailable', "The chat is no longer running. Reopen it before changing sandbox certificate trust."));
+		}
+	}
+
+	private _certificateConfig(): SandboxConfig {
+		this._requireLiveCertificateSession();
+		return this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
+	}
+
+	refreshCertificateDiagnostics(): Promise<void> {
+		const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
+		return this._certificateDiagnostics.update(config);
 	}
 
 	/** Serializes configuration pushes with request-bound grants and session opt-outs. */

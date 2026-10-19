@@ -25,11 +25,11 @@ import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.
 
 /**
  * Whether operations on a changeset of `kind` wait for the session's Git
- * state. A Turn changeset can offer discarding the last turn's changes
+ * state. Turn and Session changesets can offer discarding their changes
  * without it, because that reverts tracked edits rather than using Git.
  */
 function requiresGitState(kind: ChangesetKind | undefined): boolean {
-	return kind !== ChangesetKind.Turn;
+	return kind !== ChangesetKind.Turn && kind !== ChangesetKind.Session;
 }
 
 /** Whether `operation` can be advertised before the Git state is known, or in a folder without Git. */

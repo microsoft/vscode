@@ -28,10 +28,11 @@ import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { COPILOT_DEFAULT_AVAILABLE_TOOLS } from '../../node/copilot/copilotBuiltinToolAllowlist.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -1404,7 +1405,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			coauthor: undefined, builtinSkills: undefined, localAgents: undefined,
 			environment: undefined,
 			sessionStore: true, oauthStorage: 'in-memory', remoteSession: 'export',
-			tools: undefined,
+			tools: [...COPILOT_DEFAULT_AVAILABLE_TOOLS],
 			excludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 			providers: [], models: [], managedSettings: { permissions },
 			pluginDirectories: [pluginDirectory.fsPath],
@@ -2305,6 +2306,135 @@ suite('CopilotSessionLauncher resume fallback', () => {
 	});
 });
 
+suite('CopilotSessionLauncher execution subagent', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup(kind: 'create' | 'resume', defaultEnabled: boolean, runtimeAvailable: boolean, hasClientTool = true, setToolsError?: Error, catalogError?: Error) {
+		const toolUpdates: string[][] = [];
+		const logService = new CapturingLogService();
+		let descriptorRequests = 0;
+		let disconnects = 0;
+		const session = {
+			sessionId: 'execution-session',
+			on: () => () => { },
+			disconnect: async () => { disconnects++; },
+			setTools: async (tools: Parameters<CopilotSession['setTools']>[0]) => {
+				if (setToolsError) {
+					throw setToolsError;
+				}
+				toolUpdates.push(tools.map(tool => tool.name));
+			},
+			rpc: {
+				options: { update: async () => ({ success: true }) },
+				tools: {
+					getBuiltinDescriptors: async () => {
+						descriptorRequests++;
+						if (catalogError) {
+							throw catalogError;
+						}
+						return { tools: runtimeAvailable ? [{ name: 'execution_subagent' }] : [] };
+					},
+				},
+			},
+		} as unknown as CopilotSession;
+		const launcher = createTestLauncher(undefined, {
+			[CopilotCliConfigKey.ExecutionSubagent]: defaultEnabled,
+			[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+				'*': { availableTools: ['builtin:*', 'custom:*'], excludedTools: ['mcp:*'] },
+			},
+		}, logService);
+		const base = {
+			client: returningSession(session),
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: session.sessionId,
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: hasClientTool ? [{ name: 'executionSubagent' }, { name: 'clientRead' }] : [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+		};
+		const plan: CopilotSessionLaunchPlan = kind === 'create'
+			? { ...base, kind, model: undefined }
+			: { ...base, kind, fallback: { model: undefined } };
+		const runtime: ICopilotSessionRuntime = {
+			...testRuntime,
+			createClientSdkTools: () => base.snapshot.tools.map(tool => ({
+				name: tool.name,
+				description: tool.name,
+				handler: () => 'done',
+			})),
+		};
+		return { launch: () => launcher.launch(plan, runtime), toolUpdates, logService, descriptorRequests: () => descriptorRequests, disconnects: () => disconnects };
+	}
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const defaultEnabled of [false, true]) {
+			for (const runtimeAvailable of [false, true]) {
+				test(`${kind}: runtime execution availability=${runtimeAvailable} controls client tool suppression with VS Code default=${defaultEnabled}`, async () => {
+					const fixture = setup(kind, defaultEnabled, runtimeAvailable);
+					const launched = await fixture.launch();
+					try {
+						assert.deepStrictEqual({
+							descriptorRequests: fixture.descriptorRequests(),
+							toolUpdates: fixture.toolUpdates,
+						}, {
+							descriptorRequests: 1,
+							toolUpdates: runtimeAvailable ? [['clientRead']] : [],
+						});
+					} finally {
+						launched.dispose();
+					}
+				});
+			}
+		}
+		for (const message of ['Method not found: tools.getBuiltinDescriptors', 'Runtime tool catalog RPC failed']) {
+			test(`${kind}: keeps the extension execution tool when the runtime catalog fails with ${message}`, async () => {
+				const error = new Error(message);
+				const fixture = setup(kind, false, false, true, undefined, error);
+				const launched = await fixture.launch();
+				try {
+					assert.deepStrictEqual({
+						descriptorRequests: fixture.descriptorRequests(),
+						toolUpdates: fixture.toolUpdates,
+						disconnects: fixture.disconnects(),
+						warnings: fixture.logService.warnings,
+					}, {
+						descriptorRequests: 1,
+						toolUpdates: [],
+						disconnects: 0,
+						warnings: [{
+							message: '[Copilot:execution-session] Could not resolve runtime tool catalog; keeping extension execution tool',
+							args: [error],
+						}],
+					});
+				} finally {
+					launched.dispose();
+				}
+			});
+		}
+	}
+
+	test('does not resolve the runtime tool catalog when the extension execution tool is absent', async () => {
+		const fixture = setup('create', true, true, false);
+		const launched = await fixture.launch();
+		try {
+			assert.deepStrictEqual({ descriptorRequests: fixture.descriptorRequests(), toolUpdates: fixture.toolUpdates }, {
+				descriptorRequests: 0, toolUpdates: [],
+			});
+		} finally {
+			launched.dispose();
+		}
+	});
+
+	test('disconnects and surfaces a failure to remove the competing extension execution tool', async () => {
+		const error = new Error('setTools failed');
+		const fixture = setup('resume', false, true, true, error);
+		await assert.rejects(fixture.launch(), failure => failure === error);
+		assert.strictEqual(fixture.disconnects(), 1);
+	});
+});
+
 suite('CopilotSessionLauncher verbosity', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -2656,6 +2786,54 @@ suite('getCopilotAutoTier', () => {
 			autoModeTiers.map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } })),
 			[...autoModeTiers]
 		);
+	});
+
+	test('accepts exactly the provider-advertised tiers while the provider sends Auto metadata', () => {
+		const tiersOf = () => ['balance', 'hydrafusion', 'efficiency', 'premium-v2'].map(tier => getCopilotAutoTier({ id: 'auto', config: { tier } }));
+		let advertised, noneRunnable;
+		try {
+			setAdvertisedAutoModeTiers(['balance', 'hydrafusion', 'premium-v2']);
+			advertised = tiersOf();
+			setAdvertisedAutoModeTiers([]);
+			noneRunnable = tiersOf();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual({ advertised, noneRunnable, noMetadata: tiersOf() }, {
+			advertised: ['balance', 'hydrafusion', undefined, 'premium-v2'],
+			noneRunnable: [undefined, undefined, undefined, undefined],
+			noMetadata: ['balance', undefined, 'efficiency', undefined],
+		});
+	});
+
+	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
+		const log = new NullLogService();
+		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
+		let withBalance, withoutBalance;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'balance']);
+			withBalance = resolve();
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			withoutBalance = resolve();
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'balance' });
+	});
+
+	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
+		const configurationService = {
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
+		} as Parameters<typeof resolveCopilotAutoTier>[1];
+		let tier;
+		try {
+			setAdvertisedAutoModeTiers(['efficiency', 'hydrafusion']);
+			tier = resolveCopilotAutoTier({ id: 'auto', config: { tier: 'hydrafusion' } }, configurationService, new NullLogService(), 'session');
+		} finally {
+			setAdvertisedAutoModeTiers(undefined);
+		}
+		assert.strictEqual(tier, undefined);
 	});
 
 	test('resolves the override before picker preferences', () => {
@@ -3045,7 +3223,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			searchSubagent: true,
 			modelCapabilityOverrides: { '*': { excludedTools: ['builtin:search_code_subagent'] } },
 		}), { id: 'gpt-5' });
-		assert.deepStrictEqual(config.excludedTools, ['builtin:search_code_subagent', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]);
+		assert.deepStrictEqual(config.excludedTools, ['builtin:search_code_subagent', ...alwaysDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]);
 	});
 
 	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {

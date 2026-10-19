@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
@@ -54,7 +55,7 @@ export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly priority = 119;
 	readonly name = 'editsView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeyExprs.inEditingMode, ChatContextKeys.inChatInput);
+	readonly when = ContextKeyExpr.and(ChatContextKeyExprs.inEditingMode, ContextKeyExpr.or(ChatContextKeys.inChatInput, ChatContextKeys.inChatSessionWorkingSet));
 	getProvider(accessor: ServicesAccessor) {
 		return getChatAccessibilityHelpProvider(accessor, undefined, 'editsView');
 	}
@@ -64,14 +65,18 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly priority = 120;
 	readonly name = 'agentView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.inChatInput);
+	readonly when = ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ContextKeyExpr.or(ChatContextKeys.inChatInput, ChatContextKeys.inChatSessionWorkingSet));
 	getProvider(accessor: ServicesAccessor) {
 		return getChatAccessibilityHelpProvider(accessor, undefined, 'agentView');
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported()): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false): string {
 	const content = [];
+	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
+	if (hasSessionWorkingSet) {
+		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open its diff. Each file announces its path and added and removed line counts."));
+	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.historyRefresh', "Cloud sandbox conversations can show previously loaded messages while refreshing silently. If recent messages cannot be loaded, use Tab to reach Refresh in the banner and press Enter or Space. Refresh retries recorded history without restarting the session, waking its environment, or sending your draft."));
 		content.push(localize('chat.remoteConnections.help', "On desktop, Allow Remote Connections is available in the local Agent Host chat toolbar or the Agents window title bar. Use Tab to reach the toggle in chat, or arrow keys in the title bar, and Enter or Space to enable or disable sharing. The preview setting chat.agentHost.remoteConnections selects the connection method. In VS Code Insiders and Code - OSS, the adjacent Select Remote Connection Method dropdown chooses Dev Tunnels or GitHub Environments and updates that setting. Use Tab to reach the dropdown in chat or the right arrow key from the title bar toggle, Enter or Space to open it, Up and Down Arrow to choose a method, Enter to select, and Escape to close. Selecting a method does not enable sharing; changing it turns sharing off. With GitHub environment selected, enabling the toggle registers your local environment for remote owner access. Local sessions continue using local IPC."));
@@ -108,7 +113,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.modelPicker.detailsPage', "In the model picker, effort level and context appear as a configuration button on the hovered, selected, or keyboard-focused model. Use Up and Down Arrow to focus a model and Enter to select it. To open its information and configuration page without selecting it, press Right Arrow, or use Tab to reach its configuration button and press Enter or Space. The button shows Details when no readout is available. Models without configurable settings still open their information page. The effort level and context readout beside the model name in the chat input opens the same page for the current model. Opening the page focuses its configuration controls when available. Known values are shown even at their defaults. The Back to Models arrow is beside the model name; navigation and model actions stay at the top while details scroll. Back to Models, or {0}, returns to the previous provider, search, and model list with focus on that model. Escape closes the picker from any page and restores focus.", tabbedPickerKeys.back));
 		content.push(localize('chat.modelPicker.optimizeFor', "Auto's details hold its \"Optimize for\" preference: Efficiency, Balance, or Intelligence. Open them from Auto like any model's details, then use arrow keys to move between preferences and Enter or Space to choose one. Choosing a preference selects Auto and keeps its details open. When Auto has a discount, it is described below the preferences. The preference readout beside Auto in the chat input opens the same details."));
 		content.push(localize('chat.modelPicker.hydraFusion', "HydraFusion, a research preview, is listed after Auto as a model of its own. When HydraFusion Max is available, HydraFusion's details offer two tiers, Default and Max, along with a Learn more link. Choosing one selects it and keeps HydraFusion's details open. HydraFusion stays in the model list with that tier as its readout, and the readout beside HydraFusion in the chat input opens the same details."));
-		content.push(localize('chat.modelPicker.fusion', "When Auto is presented as Fusion, its details hold an \"Effort Level\" setting instead: Lite and Balance, followed by Max when HydraFusion is available. Max uses HydraFusion Max, and Balance can use HydraFusion; choosing either keeps Fusion checked with that effort level."));
+		content.push(localize('chat.modelPicker.fusion', "When Auto is presented as Fusion, its details hold an \"Effort Level\" setting instead: Standard and High, followed by Max when HydraFusion is available. Max uses HydraFusion Max, and High can use HydraFusion; choosing either keeps Fusion checked with that effort level."));
+		content.push(localize('chat.modelPicker.fusionInline', "When Fusion tiers are listed directly in the model picker, use Up and Down Arrow to focus Standard, High, or Max and Enter to select it. Each tier includes a description. A tier that is unavailable cannot be selected, and its description gives the reason. The chat input shows Fusion and the selected tier in a single model button, without a separate effort level button."));
 		content.push(localize('chat.modelPicker.resetToDefault', "In a model's details, use Tab to reach effort level, context, and model actions. Use arrow keys to move between options, then Enter or Space to choose one. Reset to Default appears beside Pin Model when effort level or context has been changed. It restores both settings to the model's defaults without changing its pinned state. Choosing an option or resetting the settings selects that model and keeps its details open. Pinning or unpinning updates the model list without moving its details or keyboard focus. Back does not undo saved settings, but a save that finishes after leaving details does not override a newer model selection."));
 		content.push(localize('chat.modelPicker.pricingDetails', "Pricing Details expands in place without moving the model's controls. Expansion and collapse are immediate when reduced motion is enabled. If the details exceed the available space, use Page Up or Page Down while the model details have focus to scroll."));
 		content.push(localize('chat.modelPicker.search', "Type while the model list is focused to search across all providers. In the search field, use Up and Down Arrow to navigate results, Enter to select a model, and Escape to close the picker. Left and Right Arrow move the text cursor."));
@@ -219,6 +225,11 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			content.push(localize('chat.remoteByokNotification', "If you have bring your own key (BYOK) models configured and select Copilot on a connected remote host, the first eligible chat input in this editor window shows a warning that these models are not supported. The warning does not repeat in other chats in the same window. Use Tab to reach Dismiss notification or Don't Show Again, then Enter or Space to activate it. Dismiss notification hides the warning until the window reloads. Don't Show Again permanently hides this warning for your profile, including when new models are added."));
 		}
 		content.push(localize('chat.sandboxUnavailable', "If the agent host cannot support the configured sandbox, a notification above the input explains why. You can select and copy the warning text. Use Tab to reach support links or Dismiss notification, and Enter to open a focused link. Dismissing hides the warning for this session until the window reloads, without changing sandboxing or preventing messages."));
+		content.push(localize('chat.sandboxCertificateMissing', "If the agent host reports a missing sandbox certificate that it can install, an informational notice appears above the focused chat input. Installation is optional and chatting is not blocked. Dependency warnings take priority over this notice. Use Tab to reach Dismiss notification and Enter or Space to hide certificate notices for that host runtime in this window."));
+		content.push(localize('chat.sandboxCertificateCommands', "Open the Command Palette{0} and run Sandbox: Manage Trusted CA for the last-focused chat. Use Up and Down Arrow to choose Install, Rotate, or Remove, then Enter to continue or Escape to cancel. If there is no agent-host target for the last-focused chat, a dialog says No agent host detected.", '<keybinding:workbench.action.showCommands>'));
+		content.push(localize('chat.sandboxCertificateInstall', "When the host supports certificate installation, use Tab to reach the Install link and Enter to activate it. You can also choose Install in Manage Trusted CA after dismissing the notice. A confirmation names the host. Install creates and trusts the certificate, replacing it if needed. Running tools may need to restart. Progress appears in the notice; failures are shown in a dialog."));
+		content.push(localize('chat.sandboxCertificateRotate', "Choose Rotate in Manage Trusted CA to replace the installed sandbox CA and private key. A confirmation explains that the CA is shared and running tools may need to restart. Progress appears in the notice; completion and failures are shown in a dialog."));
+		content.push(localize('chat.sandboxCertificateRemove', "Choose Remove in Manage Trusted CA to remove OS trust. The stored certificate authority is kept. A confirmation explains that tools relying on OS trust may stop working. Progress appears in the notice; completion and failures are shown in a dialog."));
 		if (isSessionsWindow) {
 			if (responseSelectionSupported) {
 				content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
@@ -279,6 +290,10 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
 		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
 	}
+	if (type === 'panelChat' || type === 'editsView' || type === 'agentView') {
+		content.push(localize('chat.forkSession', "In an Agent Host chat that supports forking, type /fork to create a forked chat beside the current one. Add a title after /fork to name it, or type /fork prompt followed by a prompt to also send that prompt in the new chat."));
+		content.push(localize('chat.forkSession.completions', "Selecting the /fork title or /fork prompt completion inserts the command without submitting it. The title and prompt hints shown after the command are suggestions and are not part of your input."));
+	}
 	if (type !== 'inlineChat') {
 		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
 	}
@@ -308,14 +323,20 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	}
 
 	const cachedPosition = inputEditor.getPosition();
+	const focusedElement = getActiveElement();
+	const workingSetFocus = isHTMLElement(focusedElement) && focusedElement.closest('.chat-session-working-set') ? focusedElement : undefined;
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true);
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet);
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => {
+			if (workingSetFocus?.isConnected) {
+				workingSetFocus.focus();
+				return;
+			}
 			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat') {
 				if (cachedPosition) {
 					inputEditor.setPosition(cachedPosition);

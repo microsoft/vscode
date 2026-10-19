@@ -80,6 +80,9 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 				...(observed.credentials ? { credentials: observed.credentials } : {}),
 			}, undefined);
 		}
+		if (action.type === ActionType.ChatPendingMessageRemoved && action.kind === PendingMessageKind.Steering) {
+			this._withdrawSubmittedSteering(observed.channel, action.id);
+		}
 		if (this._handlePendingMessageAction(observed.channel, action)) {
 			this._tryConsumeNextQueuedMessage(observed.channel);
 		}
@@ -156,6 +159,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		const state = this._stateManager.getChatState(channel);
 		return action.kind === PendingMessageKind.Steering && !!state
 			&& getPendingSteeringMessages(state).some(message => message.id === action.id);
+	}
+
+	/** A client removed steering that was already handed to the provider, which would otherwise still deliver it. */
+	private _withdrawSubmittedSteering(channel: ProtocolURI, id: string): void {
+		if (!this._context.memento(SubmittedSteering, channel).get().has(id)) {
+			return;
+		}
+		const session = this._chatOwnership.getChatOwner(channel);
+		const provider = session !== undefined ? this._providerService.getProviderForSession(session) : undefined;
+		provider?.withdrawSteeringMessage?.(URI.parse(channel), id);
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {
