@@ -1880,8 +1880,8 @@ export class AgentService extends Disposable implements IAgentService {
 			}),
 			isChatMoveEnabled: () => this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true,
 			supportsChatMoves: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleChats,
-			checkChatMove: move => this._checkServerToolMove(move),
-			applyChatMove: move => this._applyServerToolMove(move),
+			checkChatMove: move => this._logRefusedServerToolMove(this._checkServerToolMove(move)),
+			applyChatMove: move => this._logRefusedServerToolMove(this._applyServerToolMove(move)),
 		};
 	}
 
@@ -6741,6 +6741,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return this.moveChat(move.session, move.chat, destination);
 		}
 		return this.moveChat(move.session, move.chat, { kind: 'session', session: destination.session, after: await this._resolveServerToolMoveAnchor(destination.session, destination.after, move.chat) });
+	}
+
+	/** Logs why the host refused a `move_session` move: the agent gets only the refusal's actionable sentence. */
+	private async _logRefusedServerToolMove<T>(move: Promise<T>): Promise<T> {
+		try {
+			return await move;
+		} catch (error) {
+			if (error instanceof AgentChatMoveRefusedError) {
+				this._logService.info(`[AgentService] move_session refused (${error.reason}): ${error.message}`);
+			}
+			throw error;
+		}
 	}
 
 	/** The chat a moved chat is placed after: the given one, or for `end` the destination's last visible chat other than the moved one. */
