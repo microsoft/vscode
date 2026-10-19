@@ -28,7 +28,7 @@ import { authenticationAccountMeta } from '../../common/meta/agentAuthentication
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
-import { ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -4288,6 +4288,61 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		/**
+		 * Connects a client whose host's `multipleChatProviders` gate is off at the handshake (no capability), then turns
+		 * the gate on through a root config action, as this client's own mirror does. Returns the requests each transport sent.
+		 */
+		async function connectWithHostGateTurningOn(clientSetting: boolean) {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, clientSetting);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: false } } } }] },
+			});
+			await connecting;
+			transports[0].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+				},
+			});
+			await flushMicrotasks();
+			return { client, transports };
+		}
+
+		test('re-initializes once when the host enables chats with their own agents after the handshake', async () => {
+			const { client, transports } = await connectWithHostGateTurningOn(true);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, multipleChatProviders: {}, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await waitForConnectedWithin(client);
+			// Another config change on the re-initialized connection does not re-initialize again.
+			replacement.fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { other: 1 } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				transports: transports.length,
+				replacementMethods: replacement.sentMessages.filter((message): message is JsonRpcRequest => 'id' in message && 'method' in message).map(message => message.method).filter(method => method === 'initialize' || method === 'reconnect'),
+				capability: client.initializeResult.get()?.multipleChatProviders,
+			}, { transports: 2, replacementMethods: ['initialize'], capability: {} });
+		});
+
+		test('does not re-initialize for chats with their own agents with the setting off', async () => {
+			const { transports } = await connectWithHostGateTurningOn(false);
+			await timeout(10);
+			assert.strictEqual(transports.length, 1);
+		});
 
 		test('refreshes the brokered ticket before opening a replacement transport', async () => {
 			const prepared = new DeferredPromise<void>();
