@@ -661,7 +661,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 
 class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 	readonly id: string;
-	readonly label = localize('lastTurnChanges', "Last Turn Changes");
+	readonly label = localize('lastTurnChanges', "Last Turn");
 	readonly description = localize('lastTurnChangesDescription', "Show only changes made in the last turn");
 
 	readonly isDefault = observableValue(this, false);
