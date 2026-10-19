@@ -124,11 +124,11 @@ export class AgentHostSessionPrewarmer extends Disposable {
 			return;
 		}
 		if (this._enablementService.getWorkingDirectoryState(sessionKey).kind === 'pending') {
-			this._logService.info(`[AgentHostSessionPrewarmer] [warm] Not pre-warming ${sessionKey}: customization enablement is pending`);
+			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: customization enablement is pending`);
 			return;
 		}
 		if (candidate.workingDirectories?.some(folder => !this._isTrusted(folder))) {
-			this._logService.info(`[AgentHostSessionPrewarmer] [warm] Not pre-warming ${sessionKey}: one of its folders is not trusted`);
+			this._logService.trace(`[AgentHostSessionPrewarmer] Not pre-warming ${sessionKey}: one of its folders is not trusted`);
 			return;
 		}
 		// Copilot's runtime ships with the host and its client was already
