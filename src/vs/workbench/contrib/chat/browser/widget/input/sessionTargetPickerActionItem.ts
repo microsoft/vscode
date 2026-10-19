@@ -7,7 +7,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { autorun } from '../../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -265,16 +264,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			}
 		}));
 
-		// The managed sandbox floor is delivered by managed settings, not configuration, so it needs
-		// its own subscription to keep the visible harness list in sync.
-		this._register(autorun(reader => {
-			this.agentHostEnablementService.managedSandboxEnforced.read(reader);
-			this._updateAgentSessionItems();
-			if (this.element) {
-				this.renderLabel(this.element);
-			}
-		}));
-
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateAgentSessionItems()));
 		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => {
 			this._updateAgentSessionItems();
@@ -427,11 +416,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	 * {@link AgentSessionProviders.Local}.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) as AgentSessionTarget;
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, requiresCopilotAgentHost(this.managedSettingsService)) as AgentSessionTarget;
 	}
 
 	protected _isVisible(type: AgentSessionTarget): boolean {
-		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.managedSandboxEnforced.get(), this.agentHostEnablementService.enabled.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+		return isVisibleEditorChatSessionType(type, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), requiresCopilotAgentHost(this.managedSettingsService));
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
