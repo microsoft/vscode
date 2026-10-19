@@ -30,6 +30,7 @@ import { IChatWidgetService, isIChatResourceViewContext, isResponseSelectionSupp
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
 import { getModePickerAccessibilityHelp } from '../agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../sessionBackgroundShellsControl.js';
+import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
@@ -71,11 +72,17 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false): string {
 	const content = [];
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
-		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open its diff. Each file announces its path and added and removed line counts."));
+		const headingActions = sessionWorkingSetUndo
+			? localize('chat.sessionWorkingSet.headingKeepUndo', "The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor.")
+			: localize('chat.sessionWorkingSet.headingKeep', "The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor.");
+		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. {0} Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open its diff. Each file announces its path and added and removed line counts.", headingActions));
+		content.push(sessionWorkingSetUndo
+			? localize('chat.sessionWorkingSet.fileActions', "To keep or undo the session's changes to the chosen file, press Tab to reach its Keep button, Left and Right Arrow to move between Keep and Undo, and Enter or Space to activate one. Keep removes files from the working set until the session changes them again. Undo reverts the session's changes after any confirmation the session asks for. Undo is available only when the session supports it, and is unavailable while a request is running. The accessibility.signals.editsKept and accessibility.signals.editsUndone settings control the signals played when changes are kept or undone.")
+			: localize('chat.sessionWorkingSet.fileKeep', "To keep the session's changes to the chosen file, press Tab to reach its Keep button, and Enter or Space to activate it. Keep removes files from the working set until the session changes them again. The accessibility.signals.editsKept setting controls the signal played when changes are kept."));
 	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.historyRefresh', "Cloud sandbox conversations can show previously loaded messages while refreshing silently. If recent messages cannot be loaded, use Tab to reach Refresh in the banner and press Enter or Space. Refresh retries recorded history without restarting the session, waking its environment, or sending your draft."));
@@ -290,6 +297,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
 		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
+		content.push(localize('chat.markSessionsRead', "When the Sessions list has focus, mark the focused session or selected sessions as read{0} or unread{1} without opening them. These shortcuts do not apply while typing in an input.", `<keybinding:${AGENT_SESSION_MARK_READ_ACTION_ID}>`, `<keybinding:${AGENT_SESSION_MARK_UNREAD_ACTION_ID}>`));
+		content.push(localize('chat.markNestedSessionRead', "The same read and unread shortcuts work on nested sessions and change only the targeted nested sessions, not their parent."));
 	}
 	if (type === 'panelChat' || type === 'editsView' || type === 'agentView') {
 		content.push(localize('chat.forkSession', "In an Agent Host chat that supports forking, type /fork to create a forked chat beside the current one. Add a title after /fork to name it, or type /fork prompt followed by a prompt to also send that prompt in the new chat."));
@@ -328,7 +337,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const workingSetFocus = isHTMLElement(focusedElement) && focusedElement.closest('.chat-session-working-set') ? focusedElement : undefined;
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet);
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(LocalModelEnabledSettingId) === true, undefined, widget.inputPart.hasSessionWorkingSet, widget.inputPart.hasSessionWorkingSetUndo);
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

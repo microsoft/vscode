@@ -18,7 +18,7 @@ import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, Dispos
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
@@ -27,6 +27,7 @@ import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { getTelemetryChatId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
@@ -70,7 +71,7 @@ import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrim
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -137,7 +138,7 @@ import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessio
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
-import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
+import { AgentHostResponseFileChangesProvider, resolveTurnChangesetUri } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
 import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
 import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
@@ -1416,6 +1417,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 		this._config = config;
@@ -1489,6 +1491,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						AgentHostSnapshotController,
 						chatSessionResource,
 						config.connectionAuthority,
+						config.provider === CODEX_AGENT_PROVIDER_ID ? {
+							getChanges: requestId => this._chatResponseFileChangesService.getChangesForRequest(chatSessionResource, requestId),
+							resolve: requestId => this._resolveTurnFileEdits(chatSessionResource, requestId),
+						} : undefined,
 					);
 				},
 			},
@@ -3821,6 +3827,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 	}
 
+	private _signalToolConfirmation(): void {
+		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, {
+			allowManyInParallel: true,
+			userGesture: true,
+		});
+	}
+
 	// ---- Per-turn observable graph ------------------------------------------
 
 	/**
@@ -4356,6 +4369,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private async _autoAuthenticateMcpServer(sessionResource: URI, server: IChatMcpAuthenticationRequiredServer): Promise<boolean> {
+		if (this._customizationService.getMcpServers(sessionResource).some(candidate => candidate.name === server.name && candidate.connectorName !== undefined)) {
+			// Connector-owned servers use the session credential; only an explicit Connector authorization helps.
+			return false;
+		}
 		const key = JSON.stringify([
 			extUriBiasedIgnorePathCase.getComparisonKey(sessionResource),
 			agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
@@ -4642,6 +4659,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Hook up a tool first observed after it already entered confirmation.
 		if (initial.status === ToolCallStatus.PendingConfirmation && !IChatToolInvocation.isComplete(invocation)) {
+			this._signalToolConfirmation();
 			this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, getPendingCall, opts.chatURI);
 		}
 		this._trackSubagentToolCall(initial, invocation, opts, subagentContext);
@@ -4683,6 +4701,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (!IChatToolInvocation.isComplete(invocation)) {
 					const prepared = toolCallStateToPreparedInvocation(tc, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris);
 					invocation.requestConfirmation(prepared);
+					this._signalToolConfirmation();
 					this._awaitToolConfirmation(invocation, toolCallId, opts.backendSession, opts.turnId, opts.cancellationToken, getPendingCall, opts.chatURI);
 				}
 			} else if (status === ToolCallStatus.PendingConfirmation) {
@@ -6035,6 +6054,39 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	// ---- File edit routing ---------------------------------------------------
+
+	/** Reads immutable turn edits for checkpoint restore, without requiring edit-tool presentation. */
+	private async _resolveTurnFileEdits(sessionResource: URI, requestId: string): Promise<readonly ISessionFileDiff[] | undefined> {
+		const session = this._resolveSessionUri(sessionResource);
+		const chat = this._getChatURIOrDefault(sessionResource, session);
+		const sessionState = this._getRawSessionState(session.toString());
+		if (!chat || !sessionState) {
+			return undefined;
+		}
+		const chatState = chat === sessionState.defaultChat ? this._getDefaultChatState(session.toString()) : this._getAdditionalChatState(chat);
+		const resource = resolveTurnChangesetUri(session, URI.parse(chat), sessionState, chatState?.changesets, requestId);
+		if (!resource) {
+			return undefined;
+		}
+		const reference = this._config.connection.getSubscription(StateComponents.Changeset, resource, 'AgentHostSnapshotController');
+		const cts = new CancellationTokenSource();
+		const timeout = disposableTimeout(() => cts.cancel(), 30_000);
+		try {
+			// A subscription opened mid-turn may still hold a Ready, empty result from before native persistence.
+			await raceCancellationError(this._config.connection.refreshSubscription?.(resource) ?? Promise.resolve(), cts.token);
+			const state = await waitForState(observableFromEvent(this, reference.object.onDidChange, () => reference.object.value),
+				value => value !== undefined && !(value instanceof Error) && (value.status === ChangesetStatus.Ready || value.status === ChangesetStatus.Error),
+				value => value instanceof Error ? value : undefined, cts.token);
+			if (!state || state instanceof Error || state.status !== ChangesetStatus.Ready) {
+				throw new Error(localize('agentHost.snapshotUnavailable', "The turn's file changes could not be loaded."));
+			}
+			return state.files.map(file => file.edit);
+		} finally {
+			timeout.dispose();
+			cts.dispose();
+			reference.dispose();
+		}
+	}
 
 	/**
 	 * Ensures the chat model has a snapshot controller bound (creating one

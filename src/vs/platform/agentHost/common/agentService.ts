@@ -1204,6 +1204,9 @@ export interface IAgentService {
 	 */
 	resourceList(uri: URI): Promise<ResourceListResult>;
 
+	/** Estimates reclaimable regular-file allocation using the host-wide scan budget across all protocol endpoints. */
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined>;
+
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
 	 * or reading files from the remote filesystem).
@@ -1358,6 +1361,12 @@ export interface IAgentConnection {
 	 * when the host doesn't advertise `vscode.sessionMove`.
 	 */
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
+	/**
+	 * Moves `chat` (AHP `moveChat`) within its session, into another session, or into a new session, and resolves to
+	 * its owning session after the move. A host refusal rejects with a `ProtocolError` whose `data.reason` is an
+	 * `AgentChatMoveRefusal`.
+	 */
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
@@ -1452,6 +1461,8 @@ export interface IAgentConnection {
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
+	/** Estimates reclaimable regular-file allocation on local or remote hosts. Unsupported hosts must not fall back to per-file RPCs. */
+	measureWorktreeDiskUsage?(root: URI, token: CancellationToken): Promise<number | undefined>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
