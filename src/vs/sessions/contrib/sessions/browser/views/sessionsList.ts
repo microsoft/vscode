@@ -103,7 +103,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { canMoveIntoSession, getSessionsListChatDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop } from './sessionsListChatMove.js';
+import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -3156,10 +3156,18 @@ interface ISessionsListDndDelegate {
 	canMoveSessionUnder(session: ISession): boolean;
 	/** Move the chat of `session` as the drop says. */
 	moveChat(session: ISession, chat: IChat, drop: SessionsListChatDrop): void;
-	/** Move `session` under `target`. */
-	moveSessionUnder(session: ISession, target: ISession): void;
-	/** Shows the drop feedback for moving a chat or session, rather than the list's other drags', while `on`. */
-	setMoveDropFeedback(on: boolean): void;
+	/** Move `session` under `target`, after its chat `after` (`undefined`: first). */
+	moveSessionUnder(session: ISession, target: ISession, after: IChat | undefined): void;
+	/** Whether the session is in a section the user orders by hand: Pinned or a custom group. */
+	isInManuallyOrderedSection(session: ISession): boolean;
+	/** Whether the row is the last one its section shows: its last session's row, or that session's last chat row. */
+	isLastRowOfSection(element: ISession | ISessionChatItem): boolean;
+	/**
+	 * Shows the drop feedback for moving a chat or session rather than the list's other drags: `'move'` for a drop into
+	 * a session, a new session, or a placement between sessions; `'nested'` for an insertion line among a session's
+	 * nested rows, drawn at their indent; `'none'` for the list's other drags.
+	 */
+	setMoveDropFeedback(kind: 'none' | 'move' | 'nested'): void;
 }
 
 interface ISessionDropTargetHeader {
@@ -3268,32 +3276,45 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
 		this._draggedChat = undefined;
 		this.delegate.setDropTargetHeader(undefined);
-		this.delegate.setMoveDropFeedback(false);
+		this.delegate.setMoveDropFeedback('none');
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, listTargetSector: ListViewTargetSector | undefined, originalEvent?: DragEvent): boolean | ITreeDragOverReaction {
+		const targetSector = getRowSector(originalEvent, listTargetSector);
 		const draggedChat = this.draggedChat(data);
 		if (draggedChat) {
 			this.delegate.setDropTargetHeader(undefined);
 			const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
-			this.delegate.setMoveDropFeedback(!!chatDrop);
+			this.delegate.setMoveDropFeedback(!chatDrop ? 'none' : chatDrop.drop.kind === 'session' && chatDrop.drop.position !== 'over' ? 'nested' : 'move');
 			return chatDrop ? this.toChatDropReaction(chatDrop.drop) : false;
 		}
 
 		const draggedHeader = this.draggedHeader(data);
 		if (draggedHeader) {
 			this.delegate.setDropTargetHeader(undefined);
-			this.delegate.setMoveDropFeedback(false);
+			this.delegate.setMoveDropFeedback('none');
 			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
 		}
 
-		const sessionMove = this.resolveSessionMoveTarget(data, targetElement);
-		this.delegate.setMoveDropFeedback(!!sessionMove);
-		if (sessionMove) {
+		const sessionDrop = this.resolveSessionDrop(data, targetElement, targetSector);
+		if (sessionDrop?.drop.kind === 'nest') {
 			this.delegate.setDropTargetHeader(undefined);
-			return intoSessionDropReaction();
+			const position = sessionDrop.drop.position;
+			this.delegate.setMoveDropFeedback(position === 'over' ? 'move' : 'nested');
+			return position === 'over'
+				? intoSessionDropReaction()
+				: { accept: true, effect: { type: ListDragOverEffectType.Move, position: position === 'after' ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before } };
 		}
+		const placement = sessionDrop?.drop.kind === 'place' ? sessionDrop.drop : undefined;
+		const reaction = placement
+			? this.onSessionDragOver(data, placement.session, placement.position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM)
+			: this.onSessionDragOver(data, targetElement, targetSector);
+		this.delegate.setMoveDropFeedback(placement && (typeof reaction === 'boolean' ? reaction : reaction.accept) ? 'move' : 'none');
+		return reaction;
+	}
 
+	/** The list's own handling of dragged sessions: pinning, grouping, ungrouping and reordering them. */
+	private onSessionDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
 		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
 		if (pinTarget) {
 			this.delegate.setDropTargetHeader(pinTarget.header);
@@ -3327,9 +3348,10 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		};
 	}
 
-	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
+	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, listTargetSector: ListViewTargetSector | undefined, originalEvent?: DragEvent): void {
+		const targetSector = getRowSector(originalEvent, listTargetSector);
 		this.delegate.setDropTargetHeader(undefined);
-		this.delegate.setMoveDropFeedback(false);
+		this.delegate.setMoveDropFeedback('none');
 		// Check the targets in the order `onDragOver` does, so the result matches the feedback.
 		try {
 			const draggedChat = this.draggedChat(data);
@@ -3352,37 +3374,45 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 				return;
 			}
 
-			const sessionMove = this.resolveSessionMoveTarget(data, targetElement);
-			if (sessionMove) {
-				this.delegate.moveSessionUnder(sessionMove.session, sessionMove.target);
+			const sessionDrop = this.resolveSessionDrop(data, targetElement, targetSector);
+			if (sessionDrop?.drop.kind === 'nest') {
+				this.delegate.moveSessionUnder(sessionDrop.session, sessionDrop.drop.session, sessionDrop.drop.after);
 				return;
 			}
-
-			const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
-			if (pinTarget) {
-				this.delegate.pinSessions(pinTarget.sessions, pinTarget.target, pinTarget.position);
-				return;
+			const placement = sessionDrop?.drop.kind === 'place' ? sessionDrop.drop : undefined;
+			if (placement) {
+				this.dropSessions(data, placement.session, placement.position === 'before' ? ListViewTargetSector.TOP : ListViewTargetSector.BOTTOM);
+			} else {
+				this.dropSessions(data, targetElement, targetSector);
 			}
-
-			const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
-			if (addToGroupTarget) {
-				this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
-				return;
-			}
-
-			const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
-			if (removeFromGroupTarget) {
-				this.delegate.removeSessionsFromGroup(removeFromGroupTarget.sessions, removeFromGroupTarget.target, removeFromGroupTarget.position);
-				return;
-			}
-
-			const target = this.resolveReorderTarget(data, targetElement);
-			if (!target) {
-				return;
-			}
-			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
 		} finally {
 			this.delegate.setDropTargetHeader(undefined);
+		}
+	}
+
+	/** Pins, groups, ungroups or reorders the dragged sessions, as {@link onSessionDragOver} shows. */
+	private dropSessions(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): void {
+		const pinTarget = this.resolvePinTarget(data, targetElement, targetSector);
+		if (pinTarget) {
+			this.delegate.pinSessions(pinTarget.sessions, pinTarget.target, pinTarget.position);
+			return;
+		}
+
+		const addToGroupTarget = this.resolveAddToGroupTarget(data, targetElement, targetSector);
+		if (addToGroupTarget) {
+			this.delegate.addSessionsToGroup(addToGroupTarget.sessions, addToGroupTarget.groupId, addToGroupTarget.target, addToGroupTarget.position);
+			return;
+		}
+
+		const removeFromGroupTarget = this.resolveRemoveFromGroupTarget(data, targetElement, targetSector);
+		if (removeFromGroupTarget) {
+			this.delegate.removeSessionsFromGroup(removeFromGroupTarget.sessions, removeFromGroupTarget.target, removeFromGroupTarget.position);
+			return;
+		}
+
+		const target = this.resolveReorderTarget(data, targetElement);
+		if (target) {
+			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
 		}
 	}
 
@@ -3417,19 +3447,28 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	}
 
 	/**
-	 * The session a single dragged session moves under when dropped anywhere on that session's row, like into a folder
-	 * in the Explorer, also when the row is pinned or grouped. Where it can't move under it, the row keeps reordering,
-	 * pinning and grouping sessions.
+	 * What a single dragged session that can move under another session does here (see
+	 * {@link getSessionsListSessionDrop}), or `undefined` when the list handles it as any dragged session.
 	 */
-	private resolveSessionMoveTarget(data: IDragAndDropData, targetElement: SessionListItem | undefined): { readonly session: ISession; readonly target: ISession } | undefined {
-		if (!targetElement || !isSessionItem(targetElement)) {
-			return undefined;
-		}
+	private resolveSessionDrop(data: IDragAndDropData, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly drop: SessionsListSessionDrop } | undefined {
 		const dragged = this.draggedSessions(data);
-		if (dragged.length !== 1 || !this.delegate.canMoveSessionUnder(dragged[0]) || !canMoveIntoSession(dragged[0], targetElement)) {
+		if (dragged.length !== 1 || !targetElement || targetSector === undefined || !this.delegate.canMoveSessionUnder(dragged[0])) {
 			return undefined;
 		}
-		return { session: dragged[0], target: targetElement };
+		const chatItem = isSessionChatItem(targetElement) ? targetElement : undefined;
+		const session = chatItem ? chatItem.session : isSessionItem(targetElement) ? targetElement : undefined;
+		if (!session || (!chatItem && session.sessionId === dragged[0].sessionId)) {
+			return undefined;
+		}
+		const drop = getSessionsListSessionDrop(dragged[0], {
+			session,
+			chat: chatItem?.chat,
+			chatRows: this.delegate.getChatRows(session),
+			quarter: targetSector,
+			manuallyOrdered: this.delegate.isInManuallyOrderedSection(session),
+			lastInSection: this.delegate.isLastRowOfSection(chatItem ?? session),
+		});
+		return drop ? { session: dragged[0], drop } : undefined;
 	}
 
 	private onHeaderDragOver(draggedHeader: IDraggedHeader, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
@@ -3638,6 +3677,19 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 function sectorToPosition(sector: ListViewTargetSector | undefined): 'before' | 'after' {
 	return sector !== undefined && sector >= ListViewTargetSector.CENTER_BOTTOM ? 'after' : 'before';
+}
+
+/**
+ * The quarter of the row under the pointer. The list computes it from `offsetY`, which is relative to the element under
+ * the pointer (e.g. a row's title or description), not to the row: a pointer low on a row's title reads as its top.
+ */
+function getRowSector(e: DragEvent | undefined, listSector: ListViewTargetSector | undefined): ListViewTargetSector | undefined {
+	const row = listSector !== undefined && e && DOM.isHTMLElement(e.target) ? e.target.closest<HTMLElement>('.monaco-list-row') : null;
+	const bounds = row?.getBoundingClientRect();
+	if (!e || !bounds?.height) {
+		return listSector;
+	}
+	return Math.min(Math.max(Math.floor((e.clientY - bounds.top) / bounds.height * 4), ListViewTargetSector.TOP), ListViewTargetSector.BOTTOM);
 }
 
 /**
@@ -4223,8 +4275,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getChatRows: session => this.getDisplayedChatRows(session),
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
-					moveSessionUnder: (session, target) => this.moveSessionUnderByDrop(session, target),
-					setMoveDropFeedback: on => this.listContainer.classList.toggle('move-drag', on),
+					moveSessionUnder: (session, target, after) => this.moveSessionUnderByDrop(session, target, after),
+					isInManuallyOrderedSection: session => this.isSessionPinned(session) || this._sessionGroupsService.getGroupOfSession(session.sessionId) !== undefined,
+					isLastRowOfSection: element => this.isLastRowOfSection(element),
+					setMoveDropFeedback: kind => {
+						this.listContainer.classList.toggle('move-drag', kind !== 'none');
+						this.listContainer.classList.toggle('move-drag-nested', kind === 'nested');
+					},
 				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
@@ -5512,6 +5569,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return session && chat && this._sessionsManagementService.canMoveChat(session, chat) ? { session, chat } : undefined;
 	}
 
+	/** Whether `element` is the last row its section shows: its last session's row, or that session's last chat row. */
+	private isLastRowOfSection(element: ISession | ISessionChatItem): boolean {
+		const session = isSessionChatItem(element) ? element.session : element;
+		if (!this.tree.hasElement(session)) {
+			return false;
+		}
+		const siblings = this.tree.getNode(this.tree.getParentElement(session)).children.map(child => child.element).filter((candidate): candidate is ISession => !!candidate && isSessionItem(candidate));
+		if (siblings.at(-1)?.sessionId !== session.sessionId) {
+			return false;
+		}
+		const rows = this.getDisplayedChatRows(session);
+		return isSessionChatItem(element) ? rows.at(-1)?.resource.toString() === element.chat.resource.toString() : rows.length === 0;
+	}
+
 	/** The chats the list shows as rows under `session`, in order; none while it's collapsed. */
 	private getDisplayedChatRows(session: ISession): readonly IChat[] {
 		if (!this.tree.hasElement(session) || this.tree.isCollapsed(session)) {
@@ -5525,8 +5596,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		runSessionsListMove({ kind: 'chat', session, chat, destination }, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService).catch(onUnexpectedError);
 	}
 
-	private moveSessionUnderByDrop(session: ISession, target: ISession): void {
-		runSessionsListMove({ kind: 'session', session, destination: target }, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService).catch(onUnexpectedError);
+	private moveSessionUnderByDrop(session: ISession, target: ISession, after: IChat | undefined): void {
+		runSessionsListMove({ kind: 'session', session, destination: target, after }, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService).catch(onUnexpectedError);
 	}
 
 	/**

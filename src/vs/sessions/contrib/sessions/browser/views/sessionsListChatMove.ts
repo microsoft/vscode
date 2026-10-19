@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
@@ -164,10 +165,66 @@ export function getSessionsListChatDrop(source: ISession, chat: IChat, target: I
 	return { kind: 'session', session, after, position: target.position };
 }
 
+/**
+ * Where the pointer is in the sessions list while dragging a whole session that can move under another session: over
+ * the row of `session` (`chat` undefined) or over its nested chat row `chat`, in quarter `quarter` of the row.
+ */
+export interface ISessionsListSessionDropTarget {
+	readonly session: ISession;
+	readonly chat: IChat | undefined;
+	/** The chat rows `session` shows under its row, in order; empty when collapsed. Its main chat is its own row. */
+	readonly chatRows: readonly IChat[];
+	readonly quarter: ListViewTargetSector;
+	/** Whether `session` is in a section the user orders by hand: Pinned or a custom group. */
+	readonly manuallyOrdered: boolean;
+	/** Whether the row is the last one its section shows: its last session's row, or that session's last chat row. */
+	readonly lastInSection: boolean;
+}
+
+/**
+ * What a whole session dropped in the sessions list does: moves under `session` after `after` (`undefined`: first),
+ * either at its end (`position` `'over'`) or before or after a nested chat row; or is placed before or after `session`
+ * as the list's own reordering, pinning and grouping of sessions does.
+ */
+export type SessionsListSessionDrop =
+	| { readonly kind: 'nest'; readonly session: ISession; readonly after: IChat | undefined; readonly position: 'before' | 'after' | 'over' }
+	| { readonly kind: 'place'; readonly session: ISession; readonly position: 'before' | 'after' };
+
+/**
+ * What `source`, a session that can move under another session, does when dropped on `target`, or `undefined` when it
+ * can't move there (the list then handles the drop as it does for any session). Like a folder in the Explorer:
+ * - anywhere on a session's row: under that session, at its end;
+ * - on the top or bottom half of a session's nested chat row: under that session, before or after that row.
+ * In Pinned and custom groups, whose sessions the user orders by hand, the top quarter of a session's row places it
+ * before that session, and the bottom quarter of the section's last row places it after the section's last session.
+ */
+export function getSessionsListSessionDrop(source: ISession, target: ISessionsListSessionDropTarget): SessionsListSessionDrop | undefined {
+	const { session, chat, quarter } = target;
+	if (target.manuallyOrdered && !chat && quarter === ListViewTargetSector.TOP) {
+		return { kind: 'place', session, position: 'before' };
+	}
+	if (target.manuallyOrdered && target.lastInSection && quarter === ListViewTargetSector.BOTTOM) {
+		return { kind: 'place', session, position: 'after' };
+	}
+	if (!canMoveIntoSession(source, session)) {
+		return undefined;
+	}
+	if (!chat) {
+		return { kind: 'nest', session, after: getChatMoveAppendAnchor(session), position: 'over' };
+	}
+	const rows = [session.mainChat.get(), ...target.chatRows];
+	const index = rows.findIndex(row => row.resource.toString() === chat.resource.toString());
+	if (index <= 0) {
+		return undefined;
+	}
+	const position = quarter === ListViewTargetSector.TOP || quarter === ListViewTargetSector.CENTER_TOP ? 'before' : 'after';
+	return { kind: 'nest', session, after: rows[position === 'before' ? index - 1 : index], position };
+}
+
 /** A move started by dropping in the sessions list: a chat to another place, or a single-chat session under another session. */
 export type SessionsListMove =
 	| { readonly kind: 'chat'; readonly session: ISession; readonly chat: IChat; readonly destination: ISessionChatMoveTarget }
-	| { readonly kind: 'session'; readonly session: ISession; readonly destination: ISession };
+	| { readonly kind: 'session'; readonly session: ISession; readonly destination: ISession; readonly after: IChat | undefined };
 
 /** Whether `move` reorders a chat within its own session, which needs no confirmation. */
 function isReorder(move: SessionsListMove): boolean {
@@ -245,7 +302,7 @@ export async function runSessionsListMove(
 	}
 	try {
 		if (move.kind === 'session') {
-			await sessionsManagementService.moveSessionUnder(move.session, move.destination, getChatMoveAppendAnchor(move.destination));
+			await sessionsManagementService.moveSessionUnder(move.session, move.destination, move.after);
 		} else {
 			await sessionsManagementService.moveChat(move.session, move.chat, move.destination);
 		}

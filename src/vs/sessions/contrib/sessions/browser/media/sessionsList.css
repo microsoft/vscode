@@ -1407,12 +1407,19 @@
 	display: block;
 }
 
-/* Feedback while moving a chat or session: an insertion line between rows, and an outlined list for a new session. Moving into a session highlights its rows with the list's drop background, as in the Explorer. */
+/* Feedback while moving a chat or session: a clear insertion line between rows (also when placing a session between sessions of Pinned or a custom group), and an outlined list for a new session. Moving into a session highlights its rows with the list's drop background, as in the Explorer. */
 .sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
 .sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
 	height: calc(2 * var(--vscode-strokeThickness));
 	background-color: var(--vscode-focusBorder);
 	z-index: 1;
+}
+
+/* Among a session's nested rows, the line starts at their indent, unlike a line placing a session between sessions. */
+.sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	left: var(--vscode-spacing-size360);
+	width: calc(100% - var(--vscode-spacing-size360));
 }
 
 .sessions-list-control.move-drag .monaco-list.drop-target {

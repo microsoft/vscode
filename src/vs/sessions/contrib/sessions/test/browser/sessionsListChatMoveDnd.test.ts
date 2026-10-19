@@ -251,7 +251,7 @@ suite('Move Chats Drag and Drop', () => {
 		const reorder: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'session', session: own, after: undefined } };
 		const moveInto: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'session', session: target, after: undefined } };
 		const promote: SessionsListMove = { kind: 'chat', session: own, chat: moved, destination: { kind: 'newSession' } };
-		const moveSession: SessionsListMove = { kind: 'session', session: single, destination: target };
+		const moveSession: SessionsListMove = { kind: 'session', session: single, destination: target, after: target.chats.get()[0] };
 
 		test('confirms moves into another session, promotions and session moves, but not reorders within a session', async () => {
 			assert.deepStrictEqual(await run([reorder, moveInto, promote, moveSession]), {
@@ -381,7 +381,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	}
 
 	/** Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[] }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly confirm?: boolean }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
@@ -389,7 +389,13 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			groups: options?.grouped ? [group] : [],
 			memberships: new Map(options?.grouped?.map(sessionId => [sessionId, group.id])),
 		});
-		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true, [ChatMoveSettingId.ConfirmDragAndDrop]: false });
+		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true, [ChatMoveSettingId.ConfirmDragAndDrop]: !!options?.confirm });
+		harness.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				moves.push(`confirm: ${confirmation.message}`);
+				return { confirmed: true };
+			}
+		}());
 		harness.instantiationService.stub(IConfigurationService, configurationService);
 		harness.instantiationService.stub(IContextKeyService, new class extends MockContextKeyService {
 			override contextMatchesRules(rules: ContextKeyExpression): boolean { return rules === ChatContextKeys.enabled || super.contextMatchesRules(rules); }
@@ -400,8 +406,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			override async moveChat(_session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 				moves.push(`${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
 			}
-			override async moveSessionUnder(session: ISession, destination: ISession): Promise<void> {
-				moves.push(`session ${session.title.get()} -> ${destination.title.get()}`);
+			override async moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void> {
+				moves.push(`session ${session.title.get()} -> ${destination.title.get()} after ${after?.title.get() ?? '(first)'}`);
 			}
 		}(sessions));
 		const container = harness.createContainer(300, 600);
@@ -464,7 +470,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 				rowOf(label).querySelector<HTMLElement>('.session-section')!.click();
 			}
 		};
-		return { moves, setExpanded, expandSection, dragOver, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
+		const nestedFeedback = () => container.querySelector('.sessions-list-control')?.classList.contains('move-drag-nested') ?? false;
+		return { moves, setExpanded, expandSection, dragOver, nestedFeedback, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
@@ -548,26 +555,109 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
-	test('a session dropped anywhere on a session row nests in it, also on pinned and grouped rows', async () => {
-		const results: Record<string, unknown> = {};
-		for (const kind of ['normal', 'pinned', 'grouped'] as const) {
-			const target = listSession('Target', []);
-			const single = createTestSession('Single').session;
-			const ids = [target.sessionId, single.sessionId];
-			const list = render([target, single], { pinned: kind === 'pinned' ? ids : undefined, grouped: kind === 'grouped' ? ids : undefined });
-			if (kind !== 'normal') {
-				list.expandSection(kind === 'pinned' ? 'Pinned' : 'Move Demo');
-			}
-			const feedback: string[] = [];
-			for (const fraction of [0.1, 0.5, 0.9]) {
-				const drag = list.dragOver('Single', 'Target', fraction);
-				feedback.push(`${drag.feedback.moveDrag ? 'move' : 'main'} ${drag.feedback.rows.join(', ')}`);
-				await drag.drop();
-			}
-			results[kind] = { feedback, moves: list.moves, reordered: list.sortChanges.length };
+	/** Renders `Single` (a session that can nest) above `Tree` (with nested rows) and `Last`, all in `section`. */
+	function renderSection(section: 'pinned' | 'grouped' | 'none', options?: { readonly lastRows?: readonly string[]; readonly confirm?: boolean }) {
+		const single = listSession('Single', []);
+		const tree = listSession('Tree', ['t1', 't2']);
+		const last = listSession('Last', options?.lastRows ?? []);
+		const ids = [single, tree, last].map(session => session.sessionId);
+		const list = render([single, tree, last], { pinned: section === 'pinned' ? ids : undefined, grouped: section === 'grouped' ? ids : undefined, confirm: options?.confirm });
+		if (section !== 'none') {
+			list.expandSection(section === 'pinned' ? 'Pinned' : 'Move Demo');
 		}
-		const nests = { feedback: ['move Target: drop-target', 'move Target: drop-target', 'move Target: drop-target'], moves: ['session Single -> Target', 'session Single -> Target', 'session Single -> Target'], reordered: 0 };
-		assert.deepStrictEqual(results, { normal: nests, pinned: nests, grouped: nests });
+		list.setExpanded('Tree', true);
+		if (options?.lastRows?.length) {
+			list.setExpanded('Last', true);
+		}
+		return list;
+	}
+
+	/** Drags `Single` over `target` at each of `fractions` of its height, recording the feedback and dropping it. */
+	async function dragSingle(list: ReturnType<typeof render>, target: string, fractions: readonly number[]) {
+		const feedback: string[] = [];
+		for (const fraction of fractions) {
+			const drag = list.dragOver('Single', target, fraction);
+			// `nested`: a line among a session's nested rows, at their indent; `move`: a block, or a line between sessions.
+			feedback.push(`${!drag.feedback.moveDrag ? 'main' : list.nestedFeedback() ? 'nested' : 'move'} ${drag.feedback.rows.join(', ')}`);
+			await drag.drop();
+		}
+		return { feedback, moves: list.moves, reordered: list.sortChanges.length };
+	}
+
+	test('in Pinned and custom groups, the top quarter of a session row places a session before it; the rest of the row nests', async () => {
+		const results: Record<string, unknown> = {};
+		for (const section of ['pinned', 'grouped'] as const) {
+			results[section] = await dragSingle(renderSection(section), 'Tree', [0.1, 0.4, 0.6, 0.9]);
+		}
+		const expected = {
+			feedback: ['move Tree: drop-target-before', 'move Tree: drop-target, t1: drop-target, t2: drop-target', 'move Tree: drop-target, t1: drop-target, t2: drop-target', 'move Tree: drop-target, t1: drop-target, t2: drop-target'],
+			// The top quarter reorders without asking; the rest moves the session into Tree, at its end.
+			moves: ['session Single -> Tree after t2', 'session Single -> Tree after t2', 'session Single -> Tree after t2'],
+			reordered: 1,
+		};
+		assert.deepStrictEqual(results, { pinned: expected, grouped: expected });
+	});
+
+	test('in Pinned and custom groups, the bottom quarter of the section\'s last row places a session after its last session', async () => {
+		const collapsed = await dragSingle(renderSection('grouped'), 'Last', [0.9, 0.6]);
+		const expanded = await dragSingle(renderSection('pinned', { lastRows: ['l1'] }), 'l1', [0.9, 0.6]);
+		const notLast = await dragSingle(renderSection('grouped'), 't2', [0.9]);
+		assert.deepStrictEqual({ collapsed, expanded, notLast }, {
+			collapsed: { feedback: ['move Last: drop-target-after', 'move Last: drop-target'], moves: ['session Single -> Last after Last main'], reordered: 1 },
+			// Below the last tree: a line at the sessions' indent; above that, the nested row's bottom half nests.
+			expanded: { feedback: ['move l1: drop-target-after', 'nested l1: drop-target-after'], moves: ['session Single -> Last after l1'], reordered: 1 },
+			// The bottom of another tree's last nested row nests after it.
+			notLast: { feedback: ['nested Last: drop-target-before'], moves: ['session Single -> Tree after t2'], reordered: 0 },
+		});
+	});
+
+	test('a session dropped on another session\'s nested row moves into it before or after that row, after confirming', async () => {
+		const list = renderSection('grouped', { confirm: true });
+		const result = await dragSingle(list, 't1', [0.3, 0.7]);
+		assert.deepStrictEqual(result, {
+			feedback: ['nested t1: drop-target-before', 'nested t2: drop-target-before'],
+			moves: [
+				'confirm: Are you sure you want to move session \'Single\' into \'Tree\'?',
+				'session Single -> Tree after Tree main',
+				'confirm: Are you sure you want to move session \'Single\' into \'Tree\'?',
+				'session Single -> Tree after t1',
+			],
+			reordered: 0,
+		});
+	});
+
+	test('outside Pinned and custom groups, a session row only nests, at every edge', async () => {
+		const list = renderSection('none');
+		const row = await dragSingle(list, 'Tree', [0.1, 0.9]);
+		const lastRow = await dragSingle(list, 'Last', [0.9]);
+		assert.deepStrictEqual({ row: row.feedback, lastRow: lastRow.feedback, moves: list.moves, reordered: list.sortChanges.length }, {
+			row: ['move Tree: drop-target, t1: drop-target, t2: drop-target', 'move Tree: drop-target, t1: drop-target, t2: drop-target'],
+			lastRow: ['move Last: drop-target'],
+			moves: ['session Single -> Tree after t2', 'session Single -> Tree after t2', 'session Single -> Last after Last main'],
+			reordered: 0,
+		});
+	});
+
+	test('places by the pointer\'s position in the row, not in the element under it (e.g. the row\'s title)', async () => {
+		const list = renderSection('grouped');
+		const row = list.rowOf('t1');
+		const title = row.querySelector<HTMLElement>('.session-chat-title')!;
+		const bounds = row.getBoundingClientRect();
+		const dataTransfer = new DataTransfer();
+		list.rowOf('Single').dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+		const init = { bubbles: true, cancelable: true, dataTransfer, clientX: bounds.left + 10, clientY: bounds.top + bounds.height * 0.7 };
+		// Low in the row but at the top of the title, the element under the pointer.
+		const event = (type: string) => {
+			const dragEvent = new DragEvent(type, init);
+			Object.defineProperty(dragEvent, 'offsetY', { value: 1 });
+			return dragEvent;
+		};
+		title.dispatchEvent(event('dragover'));
+		title.dispatchEvent(event('drop'));
+		list.rowOf('Single').dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		await timeout(0);
+
+		assert.deepStrictEqual(list.moves, ['session Single -> Tree after t1']);
 	});
 
 	test('a session that can\'t nest keeps main\'s reordering on a pinned row', async () => {
