@@ -186,6 +186,20 @@ interface IPeerChatDeletionStorage {
 	readonly movedFrom: readonly string[];
 }
 
+/** What a chat move validates against and plans its worktrees by (see `_readChatMoveInputs`). */
+interface IChatMoveInputs {
+	/** The chat and its host-managed descendants. */
+	readonly moved: readonly string[];
+	/** The chat's entry in its source's catalog. */
+	readonly sourceSummary: ChatSummary | undefined;
+	/** The folders the chat works in. */
+	readonly chatFolders: readonly string[];
+	/** The folders the chat and its moved descendants work in. */
+	readonly subtreeFolders: readonly string[];
+	readonly sourceWorktrees: ISessionWorktreeRecords;
+	readonly targetPrimaryWorktree: string | undefined;
+}
+
 /** How often a move stages and converts a new session's chat catalog while concurrent writes dirty it (see `_normalizeCatalogForMove`). */
 const CHAT_MOVE_CONVERSION_ATTEMPTS = 3;
 /** Deferrals in a row, waiting for a session's re-projection, after which a chat catalog conversion is reported at warn. */
@@ -6697,17 +6711,22 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
-		return this._chatMoveSequencer.queue(async () => {
-			const sourceKey = session.toString();
-			this._assertChatMovesEnabled();
-			// The host knows a session's default chat only once it has loaded the session.
-			await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable);
-			const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
-			if (defaultChat === undefined) {
-				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
-			}
-			return this._moveChat(session, URI.parse(defaultChat), { kind: 'session', session: destination, after }, true);
-		});
+		return this._chatMoveSequencer.queue(async () => this._moveChat(session, await this._movedSessionChat(session), { kind: 'session', session: destination, after }, true));
+	}
+
+	/**
+	 * The chat a session that moves under another session takes along: its default chat, which must be its only one.
+	 * The host knows a session's default chat only once it has loaded the session, so it restores one it hasn't.
+	 */
+	private async _movedSessionChat(session: URI): Promise<URI> {
+		const sourceKey = session.toString();
+		this._assertChatMovesEnabled();
+		await this._restoreForMove(session, AgentChatMoveRefusal.NotMovable);
+		const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
+		if (defaultChat === undefined) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
+		}
+		return URI.parse(defaultChat);
 	}
 
 	private _assertChatMovesEnabled(): void {
@@ -6777,65 +6796,115 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Refuses a `move_session` move the host would refuse now, without changing anything: the checks {@link _moveChat}
-	 * and {@link _promoteChat} make before they prepare any catalog. A move of the calling chat runs them when it is
-	 * requested, so most refusals reach its agent then; the move checks everything again when it is applied.
+	 * Refuses a `move_session` move the host would refuse now, without changing anything. It runs the same checks as
+	 * {@link _moveChat} and {@link _promoteChat} ({@link _checkChatMoveRequest}, {@link _checkPromotable} and
+	 * {@link _validateChatMoveInputs}), short of preparing catalogs and committing. A move of the calling chat runs them
+	 * when it is requested, so its refusals reach its agent then; the move checks everything again when it is applied.
 	 */
 	private async _checkServerToolMove(move: ISessionServerToolMove): Promise<void> {
+		const sessionMove = move.kind === 'session';
+		const chat = move.kind === 'session' ? await this._movedSessionChat(move.session) : move.chat;
+		const requested = move.kind === 'session' ? { kind: 'session' as const, session: move.destination, after: move.after } : move.destination;
+		// An anchor `move_session` places at the end is resolved when the move is applied; any anchor is valid until then.
+		const destination: AgentChatMoveDestination = requested.kind === 'newSession'
+			? requested
+			: { kind: 'session', session: requested.session, after: requested.after === 'end' ? undefined : requested.after };
+		const sourceKey = move.session.toString();
+		const chatKey = chat.toString();
+		const request = await this._checkChatMoveRequest(move.session, chatKey, destination, sessionMove);
+		if (request.kind === 'reorder') {
+			return;
+		}
+		if (request.kind === 'promote') {
+			await this._checkPromotable(chatKey);
+		}
+		const target = destination.kind === 'session' ? destination.session : undefined;
+		const inputs = await this._readChatMoveInputs(move.session, chatKey, target);
+		this._validateChatMoveInputs(sourceKey, target?.toString(), chatKey, inputs, destination.kind === 'session' ? destination.after?.toString() : undefined, sessionMove);
+	}
+
+	/**
+	 * The checks every move, reorder, promotion and session move makes before it prepares any catalog, in this order.
+	 * Shared by {@link _moveChat}, {@link _promoteChat} and the `move_session` pre-check ({@link _checkServerToolMove}),
+	 * so they can't drift apart. Opens a destination that isn't loaded.
+	 */
+	private async _checkChatMoveRequest(session: URI, chat: string, destination: AgentChatMoveDestination, sessionMove: boolean): Promise<{ readonly kind: 'reorder' | 'move' } | { readonly kind: 'promote'; readonly provider: IAgent }> {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
-		if (this._configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) !== true) {
-			refuse(AgentChatMoveRefusal.Disabled, 'Moving chats is not enabled.');
-		}
-		const session = move.session;
+		this._assertChatMovesEnabled();
 		const sourceKey = session.toString();
-		const sessionMove = move.kind === 'session';
-		let chatKey: string;
-		if (move.kind === 'session') {
-			const defaultChat = this._stateManager.getSessionState(sourceKey)?.defaultChat ?? this._defaultChat(sourceKey);
-			if (defaultChat === undefined) {
-				return refuse(AgentChatMoveRefusal.NotMovable, `Session ${sourceKey} is not available.`);
+		if (destination.kind === 'newSession') {
+			this._checkMovedChat(sourceKey, chat);
+			const provider = this._providerService.getProviderForSession(session);
+			if (!provider) {
+				return refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${sourceKey} has no agent.`);
 			}
-			chatKey = defaultChat;
-			this._checkMovedSession(sourceKey, chatKey);
-		} else {
-			chatKey = move.chat.toString();
-			this._checkMovedChat(sourceKey, chatKey);
+			return { kind: 'promote', provider };
 		}
-		const target = move.kind === 'session' ? move.destination : move.destination.kind === 'session' ? move.destination.session : undefined;
-		const after = move.kind === 'session' ? move.after : move.destination.kind === 'session' ? move.destination.after : 'end';
-		const anchor = after === 'end' ? undefined : after.toString();
-		const targetKey = target?.toString();
-		if (anchor === chatKey) {
+		// A session the host hasn't loaded since it started: its chats aren't registered until it is restored.
+		await this._restoreForMove(session, AgentChatMoveRefusal.SessionNotReady);
+		if (sessionMove) {
+			this._checkMovedSession(sourceKey, chat);
+		} else {
+			this._checkMovedChat(sourceKey, chat);
+		}
+		const after = destination.after?.toString();
+		if (after === chat) {
 			refuse(AgentChatMoveRefusal.InvalidAnchor, 'A chat can\'t be placed after itself.');
 		}
+		const target = destination.session;
+		const targetKey = target.toString();
 		if (targetKey === sourceKey) {
 			if (sessionMove) {
 				refuse(AgentChatMoveRefusal.DestinationNotFound, 'A session can\'t move under itself.');
 			}
-			if (anchor !== undefined && !this._stateManager.getSessionState(sourceKey)?.chats.some(candidate => candidate.resource === anchor && candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity !== ChatInteractivity.Hidden)) {
-				refuse(AgentChatMoveRefusal.InvalidAnchor, `Chat ${anchor} is not a visible chat of ${sourceKey}.`);
-			}
-			return;
+			this._checkReorderAnchor(sourceKey, after);
+			return { kind: 'reorder' };
 		}
-		if (target && targetKey !== undefined && !this._stateManager.getSessionState(targetKey)) {
-			try {
-				await this.restoreSession(target);
-			} catch (error) {
-				refuse(AgentChatMoveRefusal.DestinationNotFound, `Session ${targetKey} can't be opened: ${toErrorMessage(error)}`);
-			}
+		const listedTarget = this._stateManager.getSessionSummary(targetKey) ?? this._stateManager.getSurfacedSessionSummary(targetKey);
+		if (listedTarget && isSessionStatusArchived(listedTarget.status)) {
+			refuse(AgentChatMoveRefusal.SessionArchived, `Session ${targetKey} is archived.`);
 		}
-		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
-		const chatFolders = await this._movedChatFolders(session, chatKey);
-		this._validateChatMove(sourceKey, targetKey, chatKey, moved, anchor, chatFolders, sessionMove);
-		const subtreeFolders = await this._movedSubtreeFolders(sourceKey, chatKey, moved, chatFolders);
+		await this._restoreForMove(target, AgentChatMoveRefusal.DestinationNotFound);
+		return { kind: 'move' };
+	}
+
+	/**
+	 * Refuses promoting a chat without a conversation of its own: one with no recorded backing, or whose first turn
+	 * hasn't started. Like a brand-new session, a chat is durable as a session only once its conversation exists: no
+	 * agent persists one before the chat's first turn starts, and a session whose default chat has none can't be restored.
+	 */
+	private async _checkPromotable(chat: string): Promise<void> {
+		if ((await this._orchestratorDatabase.getChatV2ProviderDetail(chat))?.providerData === undefined) {
+			// Without its own backing, a session's default chat names the session's conversation, which the new session has none of.
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.Unsupported, `Chat ${chat} has no recorded conversation of its own to take into a new session.`);
+		}
+		const started = this._hasStartedTurn(await this._resolveChatForMove(chat));
+		if (!started) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.NotStarted, `Chat ${chat} has no turns yet; send a message before moving it to its own session.`);
+		}
+	}
+
+	/** What a move validates against and plans its worktrees by, read before validating; `target` is `undefined` for a promotion. */
+	private async _readChatMoveInputs(session: URI, chat: string, target: URI | undefined): Promise<IChatMoveInputs> {
+		const sourceKey = session.toString();
+		const moved = chatSubtree(this._stateManager, sourceKey, chat);
+		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chat);
+		const chatFolders = await this._movedChatFolders(session, chat);
+		const subtreeFolders = await this._movedSubtreeFolders(sourceKey, chat, moved, chatFolders);
 		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
 		const targetPrimaryWorktree = target ? await this._worktreeCoOwnership.readPrimaryWorktree(target) : undefined;
-		this._planMoveWorktrees(sourceKey, chatKey, moved, subtreeFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove, targetKey !== undefined && this._hasOlderBuildSessionCopy(targetKey));
-		if (target === undefined && !this._hasStartedTurn(await this._stateManager.resolveChatState(chatKey))) {
-			refuse(AgentChatMoveRefusal.NotStarted, `Chat ${chatKey} has no turns yet; send a message before moving it to its own session.`);
-		}
+		return { moved, sourceSummary, chatFolders, subtreeFolders, sourceWorktrees, targetPrimaryWorktree };
+	}
+
+	/**
+	 * Validates a move against the current state ({@link _validateChatMove}) and plans its worktrees; `target` is
+	 * `undefined` for a promotion, whose new session has no older-build copy of its session values.
+	 */
+	private _validateChatMoveInputs(source: string, target: string | undefined, chat: string, inputs: IChatMoveInputs, after: string | undefined, sessionMove: boolean): IWorktreeMoveDecisions {
+		this._validateChatMove(source, target, chat, inputs.moved, after, inputs.chatFolders, sessionMove);
+		return this._planMoveWorktrees(source, chat, inputs.moved, inputs.subtreeFolders, inputs.sourceWorktrees, inputs.targetPrimaryWorktree, sessionMove, target !== undefined && this._hasOlderBuildSessionCopy(target));
 	}
 
 	/**
@@ -6846,50 +6915,34 @@ export class AgentService extends Disposable implements IAgentService {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
-		this._assertChatMovesEnabled();
-		if (destination.kind === 'newSession') {
-			return this._promoteChat(session, chat);
-		}
 		const sourceKey = session.toString();
 		const chatKey = chat.toString();
+		const request = await this._checkChatMoveRequest(session, chatKey, destination, sessionMove);
+		if (request.kind === 'promote') {
+			return this._promoteChat(session, chat, request.provider);
+		}
+		if (destination.kind !== 'session') {
+			throw new Error(`A ${request.kind} needs a session destination.`);
+		}
 		const target = destination.session;
 		const targetKey = target.toString();
 		const after = destination.after?.toString();
-		const checkMoved = () => sessionMove ? this._checkMovedSession(sourceKey, chatKey) : this._checkMovedChat(sourceKey, chatKey);
-		// A session the host hasn't loaded since it started: its chats aren't registered until it is restored.
-		await this._restoreForMove(session, AgentChatMoveRefusal.SessionNotReady);
-		checkMoved();
-		if (after === chatKey) {
-			refuse(AgentChatMoveRefusal.InvalidAnchor, 'A chat can\'t be placed after itself.');
-		}
-		if (targetKey === sourceKey) {
-			if (sessionMove) {
-				refuse(AgentChatMoveRefusal.DestinationNotFound, 'A session can\'t move under itself.');
-			}
+		if (request.kind === 'reorder') {
 			await this._reorderChat(session, chatKey, after);
 			return session;
 		}
-		const listedTarget = this._stateManager.getSessionSummary(targetKey) ?? this._stateManager.getSurfacedSessionSummary(targetKey);
-		if (listedTarget && isSessionStatusArchived(listedTarget.status)) {
-			refuse(AgentChatMoveRefusal.SessionArchived, `Session ${targetKey} is archived.`);
-		}
-		await this._restoreForMove(target, AgentChatMoveRefusal.DestinationNotFound);
+		const checkMoved = () => sessionMove ? this._checkMovedSession(sourceKey, chatKey) : this._checkMovedChat(sourceKey, chatKey);
 		await this._prepareCatalogsForMove([sourceKey, targetKey]);
 		// Read before validating: the database refuses the move if either catalog changes after this point.
 		const catalogs = new Map((await this._orchestratorDatabase.readCatalogSnapshot([sourceKey, targetKey])).map(entry => [entry.session, entry.header?.revision ?? 0]));
 		if (!this._stateManager.getSessionState(sourceKey) || !this._stateManager.getSessionState(targetKey)) {
 			return refuse(AgentChatMoveRefusal.DestinationNotFound, `Session ${this._stateManager.getSessionState(sourceKey) ? targetKey : sourceKey} is not available.`);
 		}
-		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
-		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
-		const chatFolders = await this._movedChatFolders(session, chatKey);
-		const subtreeFolders = await this._movedSubtreeFolders(sourceKey, chatKey, moved, chatFolders);
-		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
-		const targetPrimaryWorktree = await this._worktreeCoOwnership.readPrimaryWorktree(target);
+		const inputs = await this._readChatMoveInputs(session, chatKey, target);
+		const { moved, sourceSummary, chatFolders, targetPrimaryWorktree } = inputs;
 		const validate = () => {
 			checkMoved();
-			this._validateChatMove(sourceKey, targetKey, chatKey, moved, after, chatFolders, sessionMove);
-			return this._planMoveWorktrees(sourceKey, chatKey, moved, subtreeFolders, sourceWorktrees, targetPrimaryWorktree, sessionMove, this._hasOlderBuildSessionCopy(targetKey));
+			return this._validateChatMoveInputs(sourceKey, targetKey, chatKey, inputs, after, sessionMove);
 		};
 		validate();
 		const targetFolders = this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? [];
@@ -7192,41 +7245,22 @@ export class AgentService extends Disposable implements IAgentService {
 	 * configuration at its next turn (3c). The new session starts with the source's config and the chat's own values
 	 * over it, the chat's folders and the folder state it carries.
 	 */
-	private async _promoteChat(session: URI, chat: URI): Promise<URI> {
+	/** Promotes `chat` to a new session of `provider`, once {@link _checkChatMoveRequest} accepted the request. */
+	private async _promoteChat(session: URI, chat: URI, provider: IAgent): Promise<URI> {
 		const refuse = (reason: AgentChatMoveRefusal, message: string): never => {
 			throw new AgentChatMoveRefusedError(reason, message);
 		};
 		const sourceKey = session.toString();
 		const chatKey = chat.toString();
-		this._checkMovedChat(sourceKey, chatKey);
-		const provider = this._providerService.getProviderForSession(session);
-		if (!provider) {
-			return refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${sourceKey} has no agent.`);
-		}
 		await this._prepareCatalogsForMove([sourceKey]);
-		if ((await this._orchestratorDatabase.getChatV2ProviderDetail(chatKey))?.providerData === undefined) {
-			// Without its own backing, a session's default chat names the session's conversation, which the new session has none of.
-			refuse(AgentChatMoveRefusal.Unsupported, `Chat ${chatKey} has no recorded conversation of its own to take into a new session.`);
-		}
-		// Like a brand-new session, a chat is durable as a session only once its conversation exists: no agent persists one
-		// before the chat's first turn starts, and a session whose default chat has none can't be restored.
-		const started = this._hasStartedTurn(await this._resolveChatForMove(chatKey));
-		if (!started) {
-			refuse(AgentChatMoveRefusal.NotStarted, `Chat ${chatKey} has no turns yet; send a message before moving it to its own session.`);
-		}
+		await this._checkPromotable(chatKey);
 		// Read before validating: the database refuses the promotion if the catalog changes after this point.
 		const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sourceKey]);
 		let expectedSourceCatalogRevision = catalog?.header?.revision ?? 0;
-		const moved = chatSubtree(this._stateManager, sourceKey, chatKey);
-		const sourceSummary = this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chatKey);
-		const chatFolders = await this._movedChatFolders(session, chatKey);
-		const subtreeFolders = await this._movedSubtreeFolders(sourceKey, chatKey, moved, chatFolders);
-		const sourceWorktrees = await this._worktreeCoOwnership.readSessionWorktrees(session);
-		const validate = () => {
-			this._validateChatMove(sourceKey, undefined, chatKey, moved, undefined, chatFolders);
-			// A promoted chat's session has no older-build copy of its session values: its default chat keeps its own storage.
-			return this._planMoveWorktrees(sourceKey, chatKey, moved, subtreeFolders, sourceWorktrees, undefined, false, false);
-		};
+		const inputs = await this._readChatMoveInputs(session, chatKey, undefined);
+		const { moved, sourceSummary, chatFolders } = inputs;
+		// A promoted chat's session has no older-build copy of its session values: its default chat keeps its own storage.
+		const validate = () => this._validateChatMoveInputs(sourceKey, undefined, chatKey, inputs, undefined, false);
 		// The new session is a worktree session when its primary folder is a worktree the promotion shares or transfers (Block 5).
 		const promotedWorktreeFolders = withSessionWorktreeFolders(undefined, presentedWorktreeFolders(validate().presented, undefined));
 		const promotedRepository = sessionWorktreeFolderRepositoryRoot(promotedWorktreeFolders ?? undefined, chatFolders[0]);
@@ -7717,16 +7751,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Places a chat after `after` (first when `undefined`) within its own session. */
+	/** Refuses placing a chat after `after` in `session` unless `after` is a visible chat of it (`undefined` places it first). */
+	private _checkReorderAnchor(session: string, after: string | undefined): void {
+		const state = this._stateManager.getSessionState(session);
+		if (after !== undefined && !state?.chats.some(candidate => candidate.resource === after && candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity !== ChatInteractivity.Hidden)) {
+			throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.InvalidAnchor, `Chat ${after} is not a visible chat of ${session}.`);
+		}
+	}
+
+	/** Places a chat after `after` (first when `undefined`) within its own session; {@link _checkChatMoveRequest} checked the anchor. */
 	private async _reorderChat(session: URI, chat: string, after: string | undefined): Promise<void> {
 		const sessionKey = session.toString();
-		const checkAnchor = () => {
-			const state = this._stateManager.getSessionState(sessionKey);
-			if (after !== undefined && !state?.chats.some(candidate => candidate.resource === after && candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity !== ChatInteractivity.Hidden)) {
-				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.InvalidAnchor, `Chat ${after} is not a visible chat of ${sessionKey}.`);
-			}
-		};
-		checkAnchor();
+		const checkAnchor = () => this._checkReorderAnchor(sessionKey, after);
 		const reorder = async () => {
 			await this._prepareCatalogsForMove([sessionKey]);
 			// Importing older-build edits may have removed the anchor: an invalid anchor, not a conflict to retry.

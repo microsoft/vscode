@@ -36656,6 +36656,50 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a move of the calling chat is checked like the host move: an archived destination and a chat without a conversation of its own are refused (M1)', async () => {
+					const { service, source, target, peer } = await setupMove();
+					const stateManager = getStateManager(service);
+					await service.restoreSession(target);
+					stateManager.dispatchServerAction(target.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+					const archived = {
+						check: await refusalOf(moveToolAccessor(service).checkChatMove({ kind: 'chat', session: source, chat: peer, destination: { kind: 'session', session: target, after: 'end' } })),
+						host: await refusalOf(service.moveChat(source, peer, { kind: 'session', session: target, after: undefined })),
+					};
+
+					const unbacked = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					registerTestAgentProvider(unbacked, disposables.add(new class extends MovingAgent {
+						override async createChat(_session: URI, _chat: URI): Promise<{ providerData?: string }> {
+							return {};
+						}
+					}('copilot')));
+					getConfigurationService(unbacked).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const unbackedSource = await unbacked.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const unbackedPeer = URI.parse(buildChatUri(unbackedSource, 'unbacked'));
+					await unbacked.createChat(unbackedSource, unbackedPeer);
+					await timeout(0);
+					const unsupported = {
+						check: await refusalOf(moveToolAccessor(unbacked).checkChatMove({ kind: 'chat', session: unbackedSource, chat: unbackedPeer, destination: { kind: 'newSession' } })),
+						host: await refusalOf(unbacked.moveChat(unbackedSource, unbackedPeer, { kind: 'newSession' })),
+					};
+
+					assert.deepStrictEqual({ archived, unsupported, owner: stateManager.getChatOwner(peer.toString()) }, {
+						archived: { check: AgentChatMoveRefusal.SessionArchived, host: AgentChatMoveRefusal.SessionArchived },
+						unsupported: { check: AgentChatMoveRefusal.Unsupported, host: AgentChatMoveRefusal.Unsupported },
+						owner: source.toString(),
+					});
+				});
+
+				test('sessions advertise move_session only while moving chats is enabled, following the setting without reconnecting', async () => {
+					const { service, source } = await setupMove(false);
+					const stateManager = getStateManager(service);
+					const offered = () => stateManager.getSessionState(source.toString())?.serverTools?.some(tool => tool.name === SessionServerToolName.MoveSession) ?? false;
+					const before = offered();
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const enabled = offered();
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: false });
+					assert.deepStrictEqual({ before, enabled, disabled: offered() }, { before: false, enabled: true, disabled: false });
+				});
+
 				test('moves another chat while its turn waits for a confirmation: the turn, its question and the session status go along (D4)', async () => {
 					const { service, agent, source, target, peer } = await setupMove();
 					const stateManager = getStateManager(service);
