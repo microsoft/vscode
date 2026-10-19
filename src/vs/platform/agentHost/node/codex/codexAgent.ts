@@ -32,7 +32,7 @@ import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBill
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
-import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
@@ -113,7 +113,7 @@ import { codexAccountRateLimitsFromResponse, codexAccountStateFromResponse, type
 import { getCodexAccountTelemetryContext } from './codexAccountTelemetry.js';
 import type { IAgentProviderTurnTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { CodexProfileImageStore, fetchCodexProfileImage } from './codexProfileImage.js';
-import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, CODEX_DEFAULT_PERMISSIONS_PRESET, CODEX_PERMISSIONS_PRESETS, CODEX_PERMISSIONS_PRESET_LABELS, collaborationModeKind, getCodexAutonomousSessionConfig, migrateCodexPermissionValues, narrowAdditionalDirectories, narrowBoolean, narrowPersonality, narrowReasoningEffort, narrowReasoningSummary, narrowWebSearchMode, resolveCodexPermissions, type CodexApprovalPolicy, type CodexPermissionsPreset, type ICodexResolvedPermissions } from './codexSessionConfigKeys.js';
 import type { ReasoningEffort } from './protocol/generated/ReasoningEffort.js';
 import type { ReasoningSummary } from './protocol/generated/ReasoningSummary.js';
 import type { Personality } from './protocol/generated/Personality.js';
@@ -166,6 +166,7 @@ import type { ItemGuardianApprovalReviewCompletedNotification } from './protocol
 import type { GuardianWarningNotification } from './protocol/generated/v2/GuardianWarningNotification.js';
 import type { ThreadApproveGuardianDeniedActionResponse } from './protocol/generated/v2/ThreadApproveGuardianDeniedActionResponse.js';
 import type { ConfigReadResponse } from './protocol/generated/v2/ConfigReadResponse.js';
+import type { TurnSettingsUpdateResponse } from './protocol/generated/v2/TurnSettingsUpdateResponse.js';
 import type { ConfigWriteResponse } from './protocol/generated/v2/ConfigWriteResponse.js';
 import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.js';
 import { parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
@@ -388,11 +389,7 @@ const codexSessionConfigSchema = createSchema({
 		title: localize('codex.sessionConfig.permissionsPreset', "Approvals"),
 		description: localize('codex.sessionConfig.permissionsPresetDescription', "How much Codex can do on its own before asking for approval."),
 		enum: [...CODEX_PERMISSIONS_PRESETS],
-		enumLabels: [
-			localize('codex.sessionConfig.permissionsPreset.default', "Default Permissions"),
-			localize('codex.sessionConfig.permissionsPreset.autoReview', "Auto-Review"),
-			localize('codex.sessionConfig.permissionsPreset.fullAccess', "Full Access"),
-		],
+		enumLabels: CODEX_PERMISSIONS_PRESETS.map(preset => CODEX_PERMISSIONS_PRESET_LABELS[preset]),
 		enumDescriptions: [
 			localize('codex.sessionConfig.permissionsPreset.defaultDescription', "Codex can read and edit workspace files and run routine local commands under the platform sandbox. It asks before using the internet or requesting broader access."),
 			localize('codex.sessionConfig.permissionsPreset.autoReviewDescription', "Same sandboxed access as Default, but approval requests are routed through the auto-reviewer instead of prompting you."),
@@ -814,6 +811,14 @@ interface ICodexSession {
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
 	currentAppTurnId: string | undefined;
+	/** Applied permissions stay with this turn when the saved preset changes. */
+	turnPermissions?: {
+		readonly turnId: string;
+		applied: Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer'>;
+		readonly updates: Sequencer;
+	};
+	/** Request settings awaiting the native turn-start notification. */
+	pendingTurnPermissions?: Pick<TurnStartParams, 'approvalPolicy' | 'permissions' | 'approvalsReviewer'>;
 	/** Codex app-server turn id -> workbench-facing turn id. */
 	readonly hostTurnIdByAppTurnId: Map<string, string>;
 	/**
@@ -1328,6 +1333,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}));
 		this._register(this._gitHubEndpointService.onDidChange(() => this._handleGitHubEndpointChange()));
+		this._register(this._configurationService.onDidChatConfigChange(event => {
+			if (![CodexSessionConfigKey.PermissionsPreset, CodexSessionConfigKey.ApprovalPolicy, CodexSessionConfigKey.SandboxMode].some(key => Object.hasOwn(event.config, key))) {
+				return;
+			}
+			const sessionId = this._sessionIdByChatUri.get(event.chat);
+			const session = sessionId ? this._sessions.get(sessionId) : undefined;
+			if (session?.chatChannel?.toString() === event.chat) {
+				this._updateTurnReviewer(session);
+			}
+		}));
 		this._register(this._customizationEnablementService.onDidChange(event => {
 			const affectedConfigurations = new Map<string, URI>();
 			for (const session of this._sessions.values()) {
@@ -1970,6 +1985,58 @@ export class CodexAgent extends Disposable implements IAgent {
 			collaborationMode,
 			...(runtimeWorkspaceRoots ? { runtimeWorkspaceRoots } : {}),
 		};
+	}
+
+	private _updateTurnReviewer(session: ICodexSession): void {
+		const turn = session.turnPermissions;
+		const turnId = turn?.turnId;
+		const threadId = session.threadId;
+		const connection = this._connection;
+		if (!turn || !turnId || !threadId || connection.kind !== 'ready') {
+			return;
+		}
+		const owner = session.owner.get();
+		const resolved = this._resolveSessionPermissions(owner, session.chatChannel);
+		const requested = {
+			approvalPolicy: resolved.approvalPolicy,
+			permissions: this._permissionProfile(this._readSessionConfig(owner, session.chatChannel), resolved.sandboxMode, session.agentMergeTurn ? false : undefined),
+			approvalsReviewer: resolved.approvalsReviewer,
+		};
+		const isCurrent = () => !session.disposed && session.turnPermissions === turn
+			&& session.currentAppTurnId === turnId
+			&& session.threadId === threadId && this._isCurrentConnection(connection);
+		void turn.updates.queue(async () => {
+			if (!isCurrent() || requested.approvalPolicy !== turn.applied.approvalPolicy
+				|| requested.permissions !== turn.applied.permissions
+				|| requested.approvalsReviewer === turn.applied.approvalsReviewer) {
+				return;
+			}
+			// The live API changes only the reviewer for subsequent steps. Sandbox
+			// and approval-policy changes wait for the next turn; pending approvals
+			// retain the reviewer that originally handled them.
+			const result = await connection.client.request<'turn/settings/update', TurnSettingsUpdateResponse>('turn/settings/update', {
+				threadId,
+				turnId,
+				approvalsReviewer: requested.approvalsReviewer,
+			});
+			if (result.status === 'applied' && isCurrent()) {
+				turn.applied = requested;
+			}
+		}).catch(error => {
+			this._logService.warn(`[Codex:${session.sessionId}] Failed to update the active turn's approvals`, error);
+			const hostTurnId = session.currentTurnId;
+			if (isCurrent() && hostTurnId) {
+				this._fire(session.sessionUri, {
+					type: ActionType.ChatResponsePart,
+					turnId: hostTurnId,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: localize('codex.turnApprovalsUpdateFailed', "Could not change approvals for the current turn. It will keep its previous permissions. {0}", error instanceof Error ? error.message : String(error)),
+						_meta: toAgentSystemNotificationMeta({ severity: AgentSystemNotificationSeverity.Warning }),
+					},
+				});
+			}
+		});
 	}
 
 	private _workingDirectories(session: ICodexSession): readonly URI[] {
@@ -2910,8 +2977,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				if (!chatChannel) {
 					return { result: this._toolFailure(`No chat channel for server tool ${params.tool}`) };
 				}
-				const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
-				const fullAccess = !session.agentMergeTurn && approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
+				const turnPermissions = session.turnPermissions;
+				let fullAccess: boolean;
+				if (turnPermissions) {
+					fullAccess = turnPermissions.turnId === params.turnId && turnPermissions.applied.approvalPolicy === 'never' && turnPermissions.applied.permissions === ':danger-full-access';
+				} else {
+					const { approvalPolicy, sandboxMode } = this._resolveSessionPermissions(session.owner.get(), session.chatChannel);
+					fullAccess = approvalPolicy === 'never' && sandboxMode === 'danger-full-access';
+				}
+				fullAccess &&= !session.agentMergeTurn;
 				if (host.requiresConfirmation(chatChannel, params.tool) && !fullAccess) {
 					const entry = session.mapState.itemToToolCall.get(params.callId);
 					if (!entry) {
@@ -3096,6 +3170,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		const appTurnId = params.turn.id;
 		session.hostTurnIdByAppTurnId.set(appTurnId, session.currentTurnId ?? this._hostTurnId(session, appTurnId));
 		session.currentAppTurnId = appTurnId;
+		if (session.pendingTurnPermissions) {
+			session.turnPermissions = { turnId: appTurnId, applied: session.pendingTurnPermissions, updates: new Sequencer() };
+			session.pendingTurnPermissions = undefined;
+		}
+		this._updateTurnReviewer(session);
 		const mapped = this._withHostTurn(session, params);
 		this._persistTurnEventId(session, mapped.turn.id, appTurnId);
 		mapTurnStarted(session.mapState, mapped, session.lastPromptText);
@@ -3136,6 +3215,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (session.currentAppTurnId === appTurnId) {
 			session.currentAppTurnId = undefined;
+		}
+		if (session.turnPermissions?.turnId === appTurnId) {
+			session.turnPermissions = undefined;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
 		// Any steering still buffered was never echoed as a `userMessage`
@@ -4196,6 +4278,8 @@ export class CodexAgent extends Disposable implements IAgent {
 				session.unsubscribeBeforeResume = false;
 			}
 			// Unpark any pending approvals so awaiters unwind.
+			session.turnPermissions = undefined;
+			session.pendingTurnPermissions = undefined;
 			session.pendingCommandApprovals.denyAll('decline');
 			// Reject in-flight client tool calls so their handlers unwind.
 			session.pendingClientToolCalls.rejectAll(new CancellationError());
@@ -6200,6 +6284,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const hostInstructions = resolveAgentHostInstructions(operationContext);
 			session.lastPromptText = prompt;
 			session.currentTurnId = effectiveTurnId;
+			session.pendingTurnPermissions = turnOptions;
 			session.modifiedTime = Date.now();
 			this._startTurnStopWatch(session);
 			turnRequestStarted = true;
@@ -6236,6 +6321,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (turnRequestStarted) {
 				session.currentTurnId = undefined;
 				session.currentAppTurnId = undefined;
+				session.pendingTurnPermissions = undefined;
 			}
 			if (err instanceof CancellationError) {
 				this._fire(sessionUri, { type: ActionType.ChatTurnCancelled, turnId: effectiveTurnId, duration: this._clearTurnStopWatch(session) });

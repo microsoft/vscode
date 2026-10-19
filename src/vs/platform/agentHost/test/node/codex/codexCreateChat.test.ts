@@ -27,11 +27,11 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent, fixedChatOwnerRef } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
-import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
+import { CodexSessionConfigKey, type CodexPermissionsPreset } from '../../../common/codexSessionConfigKeys.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ISessionDataService, type ISessionDatabase } from '../../../common/sessionDataService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -90,6 +90,9 @@ interface ITestWireRequest {
 		readonly additionalContext?: Readonly<Record<string, { readonly kind: string; readonly value: string }>>;
 		readonly dynamicTools?: readonly { readonly name: string; readonly deferLoading?: boolean }[];
 		readonly approvalPolicy?: string;
+		readonly approvalsReviewer?: string;
+		readonly permissions?: string;
+		readonly turnId?: string;
 	};
 }
 
@@ -183,6 +186,7 @@ interface ICreateAgentOptions {
 	 */
 	readonly otelService?: Pick<IAgentHostOTelService, 'getSessionTraceContext' | 'releaseSessionTraceContext'>;
 	readonly logService?: ILogService;
+	readonly stateManager?: AgentHostStateManager;
 }
 
 /**
@@ -228,7 +232,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	const logService = options.logService ?? new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-	const stateManager = disposables.add(new AgentHostStateManager(logService));
+	const stateManager = options.stateManager ?? disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	instantiationService.stub(IAgentHostStateManager, stateManager);
 	instantiationService.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
@@ -5278,5 +5282,238 @@ suite('CodexAgent chat backing durability', () => {
 		} finally {
 			peer.dispose();
 		}
+	});
+});
+
+suite('CodexAgent live approvals', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function setup(preset: CodexPermissionsPreset = 'default', id = 'live-approvals', existing?: { agent: CodexAgent; peer: ITestPeer; stateManager: AgentHostStateManager }) {
+		const stateManager = existing?.stateManager ?? disposables.add(new AgentHostStateManager(new NullLogService()));
+		const agent = existing?.agent ?? await createAgent(disposables, { stateManager });
+		const peer = existing?.peer ?? disposables.add(createTestPeer());
+		if (!existing) {
+			connectPeer(agent, peer);
+			agent['_refreshMcpInventory'] = async () => { };
+			const connection = agent['_connection'];
+			assert.ok(connection.kind === 'ready');
+			peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+			peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+			peer.disposables.add(connection.client.onNotification('item/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleItemStarted'](session, params))));
+		}
+		const session = AgentSession.uri('codex', id);
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const folder = URI.file(`/workspace/${id}`);
+		const threadId = `thread-${id}`;
+		const owner = disposables.add(new TestChatOwnerRef(session));
+		const context = { ...hostChatContext(session, chat), owner };
+		stateManager.createSession({ resource: session.toString(), provider: 'codex', title: id, status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat.toString() });
+		const config = { [CodexSessionConfigKey.PermissionsPreset]: preset };
+		stateManager.setSessionConfig(session.toString(), await agent.resolveChatConfig({ config }));
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL }, config });
+		let sequence = 0;
+		let appTurnId = '';
+		const select = (value: CodexPermissionsPreset) => stateManager.dispatchClientAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { [CodexSessionConfigKey.PermissionsPreset]: value } }, { clientId: 'test-client', clientSeq: ++sequence });
+		const notifyTurn = (status: 'inProgress' | 'completed') => peer.push({ method: status === 'inProgress' ? 'turn/started' : 'turn/completed', params: { threadId, turn: { id: appTurnId, items: [], itemsView: 'full', status, error: null, startedAt: 1, completedAt: status === 'completed' ? 2 : null, durationMs: null } } });
+		const start = async (suffix: string, { notify = true, agentMergeTurn = false }: { notify?: boolean; agentMergeTurn?: boolean } = {}) => {
+			appTurnId = `app-${suffix}`;
+			const sending = agent.chats.sendMessage(chat, 'Continue', [folder], undefined, `host-${suffix}`, undefined, undefined, { ...context, agentMergeTurn });
+			for (; ;) {
+				const request = await readNextRequest(peer.outbound);
+				peer.push({ id: request.id, result: request.method === 'thread/start' || request.method === 'thread/resume' ? { thread: { id: threadId, cwd: folder.fsPath } } : {} });
+				if (request.method === 'turn/start') {
+					await sending;
+					if (notify) {
+						notifyTurn('inProgress');
+					}
+					return request;
+				}
+			}
+		};
+		const steer = async () => {
+			const pending = readNextRequest(peer.outbound);
+			assert.ok(agent.setPendingMessages(chat, { id: 'steering-message', message: { text: 'Keep going', origin: { kind: MessageKind.User } } }, []));
+			const request = await pending;
+			peer.push({ id: request.id, result: { turnId: appTurnId } });
+			peer.push({ method: 'item/started', params: { threadId, turnId: appTurnId, item: { id: 'steering-message', type: 'userMessage', clientId: 'steering-message', content: [{ type: 'text', text: 'Keep going', text_elements: [] }] } } });
+			await timeout(0);
+		};
+		return { agent, peer, stateManager, chat, session, owner, threadId, start, select, notifyTurn, steer };
+	}
+
+	for (const [initial, selected, reviewer] of [['default', 'auto-review', 'auto_review'], ['auto-review', 'default', 'user']] as const) {
+		for (const agentMergeTurn of [false, true]) {
+			test(`changes ${initial} to ${selected} ${agentMergeTurn ? 'during Agent Merge with networking enabled' : 'on the active native turn'}`, async () => {
+				const harness = await setup(initial);
+				if (agentMergeTurn) {
+					const config = { [CodexSessionConfigKey.PermissionsPreset]: initial, [CodexSessionConfigKey.NetworkAccessEnabled]: true };
+					harness.stateManager.setSessionConfig(harness.session.toString(), await harness.agent.resolveChatConfig({ config }));
+				}
+				const turn = await harness.start('first', { agentMergeTurn });
+				const next = readNextRequest(harness.peer.outbound);
+				harness.select(selected);
+				const request = await next;
+				harness.peer.push({ id: request.id, result: { status: 'applied' } });
+				assert.deepStrictEqual({ permissions: turn.params.permissions, method: request.method, params: request.params }, {
+					permissions: 'vscode-workspace',
+					method: 'turn/settings/update',
+					params: { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: reviewer },
+				});
+			});
+		}
+	}
+
+	test('applies a selection made before the native turn-start notification', async () => {
+		const harness = await setup();
+		await harness.start('first', { notify: false });
+		harness.select('auto-review');
+		const next = readNextRequest(harness.peer.outbound);
+		harness.notifyTurn('inProgress');
+		const request = await next;
+		harness.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
+	});
+
+	test('serializes rapid changes without losing a switch back to the original reviewer', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const firstUpdate = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const first = await firstUpdate;
+		harness.select('default');
+		const secondUpdate = readNextRequest(harness.peer.outbound);
+		harness.peer.push({ id: first.id, result: { status: 'applied' } });
+		const second = await secondUpdate;
+		harness.peer.push({ id: second.id, result: { status: 'applied' } });
+		assert.deepStrictEqual([first.params, second.params], [
+			{ threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' },
+			{ threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'user' },
+		]);
+	});
+
+	test('keeps live reviewer updates on the same native turn after steering', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		await harness.steer();
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: harness.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
+	});
+
+	for (const [initial, selected, approvalPolicy, fullAccess, approvalsReviewer] of [
+		['default', 'full-access', 'never', true, 'user'],
+		['full-access', 'auto-review', 'on-request', false, 'auto_review'],
+	] as const) {
+		test(`defers ${initial} to ${selected} until the next turn`, async () => {
+			const harness = await setup(initial);
+			await harness.start('first');
+			const duringTurn: string[] = [];
+			const record = (chunk: Buffer) => duringTurn.push(chunk.toString());
+			harness.peer.outbound.on('data', record);
+			harness.select(selected);
+			await timeout(0);
+			harness.peer.outbound.off('data', record);
+			harness.notifyTurn('completed');
+			const next = await harness.start('second');
+			assert.deepStrictEqual({ duringTurn, approvalPolicy: next.params.approvalPolicy, fullAccess: next.params.permissions === ':danger-full-access', approvalsReviewer: next.params.approvalsReviewer }, { duringTurn: [], approvalPolicy, fullAccess, approvalsReviewer });
+		});
+	}
+
+	test('does not send a queued update to a replacement turn', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.select('default');
+		harness.notifyTurn('completed');
+		const next = await harness.start('second');
+		const extra: string[] = [];
+		const record = (chunk: Buffer) => extra.push(chunk.toString());
+		harness.peer.outbound.on('data', record);
+		harness.peer.push({ id: request.id, result: { status: 'applied' } });
+		await timeout(0);
+		harness.peer.outbound.off('data', record);
+		assert.deepStrictEqual({ extra, nextReviewer: next.params.approvalsReviewer }, { extra: [], nextReviewer: 'user' });
+	});
+
+	test('does not retry a turn that is no longer available', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.peer.push({ id: request.id, result: { status: 'targetUnavailable' } });
+		await timeout(0);
+		harness.notifyTurn('completed');
+		const next = await harness.start('second');
+		assert.deepStrictEqual({ method: next.method, reviewer: next.params.approvalsReviewer }, { method: 'turn/start', reviewer: 'auto_review' });
+	});
+
+	for (const [initial, selected, allowed] of [['default', 'full-access', false], ['full-access', 'default', true]] as const) {
+		test(`keeps host tools on ${initial} permissions after steering and selecting ${selected}`, async () => {
+			const harness = await setup(initial);
+			const definitions = [{ name: PEER_TEST_TOOL_NAME, description: 'test', inputSchema: { type: 'object' as const } }];
+			let executions = 0;
+			harness.agent.setServerToolHost({
+				...createRecordingServerToolHost([]),
+				definitions,
+				toolNames: [PEER_TEST_TOOL_NAME],
+				getDefinitionsForSession: () => definitions,
+				requiresConfirmation: () => true,
+				executeTool: () => { executions++; return 'tool result'; },
+			});
+			await harness.start('first');
+			await harness.steer();
+			harness.select(selected);
+			const response = readNextMessage(harness.peer.outbound);
+			harness.peer.push({ id: 9000, method: 'item/tool/call', params: { threadId: harness.threadId, turnId: 'app-first', callId: 'unapproved-call', namespace: null, tool: PEER_TEST_TOOL_NAME, arguments: {} } });
+			const result = await response;
+			assert.deepStrictEqual({ executions, allowed: result.result?.success }, { executions: allowed ? 1 : 0, allowed });
+		});
+	}
+
+	test('reports a rejected live update without completing the turn', async () => {
+		const harness = await setup();
+		await harness.start('first');
+		const notifications: string[] = [];
+		disposables.add(harness.agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.SystemNotification) {
+				notifications.push(typeof signal.action.part.content === 'string' ? signal.action.part.content : signal.action.part.content.markdown);
+			}
+		}));
+		const pending = readNextRequest(harness.peer.outbound);
+		harness.select('auto-review');
+		const request = await pending;
+		harness.peer.push({ id: request.id, error: { code: -32602, message: 'Reviewer is not allowed' } });
+		await timeout(0);
+		assert.deepStrictEqual(notifications, ['Could not change approvals for the current turn. It will keep its previous permissions. Reviewer is not allowed']);
+	});
+
+	test('targets only the chat whose configuration changed on a shared connection', async () => {
+		const first = await setup();
+		await first.start('first');
+		const second = await setup('default', 'other-chat', first);
+		await second.start('second');
+		const pending = readNextRequest(first.peer.outbound);
+		first.select('auto-review');
+		const request = await pending;
+		first.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: first.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
+	});
+
+	test('reads permission changes from the current owner after moving a running session', async () => {
+		const moved = await setup();
+		await moved.start('first');
+		const target = await setup('default', 'target', moved);
+		moved.owner.set(target.session);
+		moved.stateManager.transferSession(moved.session.toString(), target.session.toString(), [moved.chat.toString()], undefined, true);
+		const pending = readNextRequest(moved.peer.outbound);
+		moved.select('auto-review');
+		const request = await pending;
+		moved.peer.push({ id: request.id, result: { status: 'applied' } });
+		assert.deepStrictEqual(request.params, { threadId: moved.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
 	});
 });
