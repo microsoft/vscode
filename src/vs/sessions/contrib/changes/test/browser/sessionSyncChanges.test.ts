@@ -27,7 +27,7 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
-import { SessionIdContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../common/contextkeys.js';
 import { ISessionContext, SessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -75,6 +75,7 @@ suite('Session Sync Changes', () => {
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', createWorkspace(0, 2));
 		const worktreePending = observableValue('worktreePending', false);
 		const activeChat = upcastPartial<IChat>({
+			resource: URI.parse(`test-chat:/${id}`),
 			changesets,
 			workspace,
 		});
@@ -93,6 +94,7 @@ suite('Session Sync Changes', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', sessions[0]);
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = visibleSessions;
+			override readonly visibleSessionPanes = visibleSessions;
 			override readonly activeSession = activeSession;
 		}();
 		let factory: IActionViewItemFactory | undefined;
@@ -122,6 +124,7 @@ suite('Session Sync Changes', () => {
 	function getVisibleEntries(session: IActiveSession, aiEnabled = true) {
 		const context = new Context(1, null);
 		context.setValue(SessionIdContext.key, session.sessionId);
+		context.setValue(SessionActiveChatResourceContext.key, session.activeChat.get().resource.toString());
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(ChatContextKeys.enabled.key, aiEnabled);
 		return getEntries().filter(item => item.when?.evaluate(context));
@@ -157,6 +160,24 @@ suite('Session Sync Changes', () => {
 		counts.push(getEntries().length);
 
 		assert.deepStrictEqual(counts, [0, 0, 1, 0]);
+	});
+
+	test('standalone children retain independently scoped sync entries after their parent pane closes', () => {
+		const parent = createSession('parent');
+		const first = createSession('first-child');
+		const second = createSession('second-child');
+		const childPane = (session: IActiveSession): IActiveSession => ({
+			...session, sessionId: parent.session.sessionId, resource: parent.session.resource, scopedChatResource: session.activeChat.get().resource,
+		});
+		const children = [childPane(first.session), childPane(second.session)];
+		second.operations.set([{ ...second.operation, status: SessionChangesetOperationStatus.Disabled }], undefined);
+		const { visibleSessions } = setup([parent.session, ...children]);
+		const snapshot = () => [parent.session, ...children].map(session => getVisibleEntries(session).map(entry => entry.command.precondition === undefined));
+		const before = snapshot();
+		visibleSessions.set(children, undefined);
+		assert.deepStrictEqual({ before, afterParentClose: snapshot() }, {
+			before: [[true], [true], [false]], afterParentClose: [[], [true], [false]],
+		});
 	});
 
 	test('only contributes a sync action for folder sessions', () => {
@@ -218,6 +239,7 @@ suite('Session Sync Changes', () => {
 		setup([data.session]);
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		SessionIdContext.bindTo(contextKeyService).set(data.session.sessionId);
+		SessionActiveChatResourceContext.bindTo(contextKeyService).set(data.session.activeChat.get().resource.toString());
 		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		const menuService = store.add(new MenuService(new class extends mock<ICommandService>() { }(), new MockKeybindingService(), store.add(new TestStorageService())));
@@ -378,6 +400,7 @@ suite('Session Sync Changes', () => {
 		}();
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		SessionIdContext.bindTo(contextKeyService).set(second.session.sessionId);
+		SessionActiveChatResourceContext.bindTo(contextKeyService).set(second.session.activeChat.get().resource.toString());
 		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		const menuService = store.add(new MenuService(commandService, new MockKeybindingService(), store.add(new TestStorageService())));

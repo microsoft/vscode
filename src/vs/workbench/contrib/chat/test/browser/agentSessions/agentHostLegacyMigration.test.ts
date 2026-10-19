@@ -146,6 +146,48 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		});
 	});
 
+	test('suppresses escaped and truncated invalid-path errors rather than retaining identifier fragments', () => {
+		const messages = [
+			'The argument \'path\' must be a string, Uint8Array, or URL without null bytes. Received \'/.copilot/session-state/private-prefix\\x00...\'',
+			'The "path" argument must be of type string. Received "C:\\\\private-prefix\\\\..."',
+			'Restore failed: The argument \'path\' is invalid. Received "/private-prefix..."',
+		];
+		const invalidArguments = ['ERR_INVALID_ARG_VALUE', 'ERR_INVALID_ARG_TYPE'].map(code =>
+			Object.assign(new Error('Received an escaped, truncated private-prefix\\x00...'), { code }));
+		const malformedIds = ['private-prefix\0suffix', 'private-prefix\nsuffix', 'private-prefix\uD800suffix', 'private-prefix\uDC00suffix', ''];
+		assert.deepStrictEqual([
+			...messages.flatMap(message => [message, new Error(message), { detail: { error: new Error(message) } }])
+				.map(error => getTelemetryMigrationErrorMessage(error, backendChannel)),
+			...invalidArguments.map(error => getTelemetryMigrationErrorMessage(error, backendChannel)),
+			...malformedIds.map(id => getTelemetryMigrationErrorMessage(new Error('private-prefix...'), URI.from({ scheme: 'copilotcli', path: `/${id}` }))),
+		], Array(messages.length * 3 + invalidArguments.length + malformedIds.length).fill('Migration error details redacted: invalid session identifier or argument.'));
+	});
+
+	test('preserves ordinary error context for well-formed Unicode identifiers', () => {
+		const id = 'private-\u00E9-\u{1F600}';
+		const resource = URI.from({ scheme: 'copilotcli', path: `/${id}` });
+		assert.deepStrictEqual({
+			message: getTelemetryMigrationErrorMessage(new Error(`ENOENT: ${resource}; id=${id}`), resource),
+			noError: getTelemetryMigrationErrorMessage(undefined, URI.from({ scheme: 'copilotcli', path: '/\uD800' })),
+		}, {
+			message: 'ENOENT: [REDACTED: session]; id=[REDACTED: session]',
+			noError: undefined,
+		});
+	});
+
+	test('suppresses malformed-path messages in probe and open telemetry while preserving error codes', async () => {
+		const message = 'The argument \'path\' must be a string, Uint8Array, or URL without null bytes. Received \'/private-prefix\\x00...\'';
+		const { connection } = createConnection('initialError', message);
+		await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
+		reportLegacyMigrationOpen(telemetry, 'restore', twinResource, false, new ProtocolError(-32603, message));
+		assert.deepStrictEqual(events.map(({ name, data }) => ({
+			name, reason: data.reason, errorCode: data.errorCode, errorMessage: data.errorMessage,
+		})), [
+			{ name: 'agentHost.legacyCopilotCliMigrationProbe', reason: 'initialStateError', errorCode: '-32001', errorMessage: 'Migration error details redacted: invalid session identifier or argument.' },
+			{ name: 'agentHost.legacyCopilotCliMigrationOpen', reason: 'resolveFailed', errorCode: '-32603', errorMessage: 'Migration error details redacted: invalid session identifier or argument.' },
+		]);
+	});
+
 	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
 

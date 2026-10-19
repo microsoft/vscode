@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { structuralEquals } from '../../../base/common/equals.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
@@ -14,12 +15,13 @@ import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
-import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, hasSessionPullRequestForBranch, isSessionStatusArchived, parseChatUri, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { getSessionRelatedPullRequestUrls, isAhpChatChannel, hasSessionPullRequestForBranch, isSessionStatusArchived, readFolderGitHubState, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -88,14 +90,14 @@ export interface IAgentHostPullRequestStatusService extends IDisposable {
 	 * bypassing cached fragments. Used after a mutation so the advertised
 	 * operations reflect the new state without waiting for the next poll.
 	 */
-	refresh(key: string): Promise<void>;
+	refresh(key: string, source?: IAgentHostCredentialSource): Promise<void>;
 
 	/**
 	 * Resolves an authoritative pull request status for a background lifecycle
 	 * check without requiring a client changeset subscription. A supplied pull
 	 * request URL lets cleanup check a cold session without restoring it first.
 	 */
-	resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined>;
+	resolveForLifecycle(sessionKey: string, pullRequestUrl: string, source?: IAgentHostCredentialSource): Promise<IAgentHostPullRequestStatus | undefined>;
 }
 
 interface IWatch extends IDisposable {
@@ -131,10 +133,11 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
-		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(containingSession(owner))));
-		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(containingSession(key))));
+		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(this._containingSession(owner))));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(this._containingSession(key))));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopSessionWatches(session)));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -151,6 +154,11 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		this._register(this._gitHubService.onDidChangeRepositoryClient(() => this._handleClientChange()));
 	}
 
+
+	/** The session a session, chat channel or folder changeset owner URI belongs to; an unregistered chat stands for itself. */
+	private _containingSession(key: ProtocolURI): ProtocolURI {
+		return parseFolderChangesetOwnerUri(key)?.sessionUri ?? (isAhpChatChannel(key) ? this._chatOwnership.getChatOwner(key) : undefined) ?? key;
+	}
 	private _handleClientChange(): void {
 		for (const key of [...this._watches.keys()]) {
 			this._stopWatch(key, 'the authorized GitHub client changed');
@@ -196,7 +204,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		});
 	}
 
-	async refresh(key: string): Promise<void> {
+	async refresh(key: string, source?: IAgentHostCredentialSource): Promise<void> {
 		const folder = this._resolveFolder(key);
 		const watch = folder ? this._watches.get(watchKey(folder)) : undefined;
 		if (!watch) {
@@ -205,13 +213,29 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		try {
 			this._logService.trace(`[AgentHostPullRequestStatusService] Refreshing pull request: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}`);
-			await watch.subscription.refresh(undefined, undefined, { authoritative: true });
+			if (source) {
+				const store = new DisposableStore();
+				try {
+					const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, watch.sessionUri)).object;
+					const { account } = await client.credentials.getCredential(this._abortController.signal);
+					if (account.host !== watch.ref.host || account.accountId !== watch.ref.accountId) {
+						return;
+					}
+					const subscription = store.add(client.pullRequests.subscribePullRequest(watch.ref, this._getSubscriptionOptions(watch.folder)));
+					await subscription.refresh(undefined, undefined, { authoritative: true });
+					this._updateStatus(watchKey(watch.folder), watch, subscription.resource.snapshot.get());
+				} finally {
+					store.dispose();
+				}
+			} else {
+				await watch.subscription.refresh(undefined, undefined, { authoritative: true });
+			}
 		} catch (error) {
 			this._logService.warn(`[AgentHostPullRequestStatusService] Refresh failed: session=${watch.sessionUri}, pr=${describeRef(watch.ref)}, error=${error}`);
 		}
 	}
 
-	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string): Promise<IAgentHostPullRequestStatus | undefined> {
+	async resolveForLifecycle(sessionKey: string, pullRequestUrl: string, source?: IAgentHostCredentialSource): Promise<IAgentHostPullRequestStatus | undefined> {
 		const parsed = parsePullRequestUrl(pullRequestUrl);
 		if (!parsed) {
 			this._logService.debug(`[AgentHostPullRequestStatusService] Lifecycle refresh skipped because the pull request URL could not be parsed: session=${sessionKey}, pr=${pullRequestUrl}`);
@@ -219,7 +243,8 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			source = this._gitHubService.captureSessionCredentialSource(sessionKey, source);
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? sessionKey : undefined)).object;
 			const credential = await client.credentials.getCredential(this._abortController.signal);
 			if (this._abortController.signal.aborted || credential.account.host.toLowerCase() !== parsed.apiHost.toLowerCase()) {
 				return undefined;
@@ -265,26 +290,39 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			this._staleSyncs.add(sessionKey);
 			return;
 		}
-		this._runSync(sessionKey);
+		try {
+			const source = this._gitHubService.captureSessionCredentialSource(sessionKey);
+			this._runSync(sessionKey, source);
+		} catch (error) {
+			this._logSyncError(sessionKey, error);
+		}
 	}
 
-	private _runSync(sessionKey: string): void {
+	private _logSyncError(sessionKey: string, error: unknown): void {
+		if (isAuthRequiredError(error)) {
+			this._logService.info(`[AgentHostPullRequestStatusService] Sync skipped: sponsor authentication required, session=${sessionKey}`);
+		} else {
+			this._logService.error(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}`, error);
+		}
+	}
+
+	private _runSync(sessionKey: string, source: IAgentHostCredentialSource | undefined): void {
 		this._staleSyncs.delete(sessionKey);
-		const run = this._doSync(sessionKey).catch(error => {
-			this._logService.debug(`[AgentHostPullRequestStatusService] Sync failed: session=${sessionKey}, error=${error}`);
+		const run = this._doSync(sessionKey, source).catch(error => {
+			this._logSyncError(sessionKey, error);
 		}).finally(() => {
 			if (this._pendingSyncs.get(sessionKey) !== run) {
 				return;
 			}
 			this._pendingSyncs.delete(sessionKey);
 			if (this._staleSyncs.delete(sessionKey) && !this._abortController.signal.aborted) {
-				this._runSync(sessionKey);
+				this._runSync(sessionKey, source);
 			}
 		});
 		this._pendingSyncs.set(sessionKey, run);
 	}
 
-	private async _doSync(sessionKey: string): Promise<void> {
+	private async _doSync(sessionKey: string, source: IAgentHostCredentialSource | undefined): Promise<void> {
 		if (this._abortController.signal.aborted) {
 			return;
 		}
@@ -297,7 +335,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			}
 		}
 		for (const folder of folders) {
-			await this._syncFolder(folder);
+			await this._syncFolder(folder, source);
 			if (this._abortController.signal.aborted || this._staleSyncs.has(sessionKey)) {
 				return;
 			}
@@ -311,7 +349,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 			return [];
 		}
 		const folders = new Map<string, IGitHubStateFolder>();
-		const defaultChat = buildDefaultChatUri(sessionKey);
+		const defaultChat = this._chatOwnership.getDefaultChat(sessionKey);
 		for (const source of [sessionKey, ...state.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat)]) {
 			const folder = this._resolveFolder(source);
 			if (folder && !folders.has(watchKey(folder))) {
@@ -321,7 +359,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		return [...folders.values()];
 	}
 
-	private async _syncFolder(folder: IGitHubStateFolder): Promise<void> {
+	private async _syncFolder(folder: IGitHubStateFolder, source: IAgentHostCredentialSource | undefined): Promise<void> {
 		const key = watchKey(folder);
 		const target = this._getWatchTarget(folder);
 		if (target.kind === 'skip') {
@@ -346,7 +384,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		const store = new DisposableStore();
 		let installed = false;
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal)).object;
+			const client = store.add(this._gitHubService.acquireRepositoryClient(this._abortController.signal, source, source ? folder.sessionUri : undefined)).object;
 			const credential = await client.credentials.getCredential(this._abortController.signal);
 			if (this._abortController.signal.aborted) {
 				return;
@@ -545,10 +583,6 @@ function watchKey(folder: IGitHubStateFolder): string {
 	return `${folder.sessionUri}\u0001${folder.folderKey}`;
 }
 
-/** The session a session, chat channel or folder changeset owner URI belongs to. */
-function containingSession(key: ProtocolURI): ProtocolURI {
-	return parseFolderChangesetOwnerUri(key)?.sessionUri ?? parseChatUri(key)?.session ?? key;
-}
 
 /** Compact `owner/repo#number` form used in every log line. */
 function describeRef(ref: PullRequestRef): string {

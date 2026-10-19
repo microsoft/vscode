@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IBuffer, IBufferCell, IBufferLine, IMarker, Terminal } from '@xterm/headless';
-import { throttle } from '../../../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../log/common/log.js';
@@ -270,7 +269,6 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._onDidChangeInput.fire(this._createStateObject());
 	}
 
-	@throttle(0)
 	private _sync() {
 		try {
 			this._doSync();

@@ -15,7 +15,7 @@ import { setup as setupDevTunnelTests } from './devTunnel.test.js';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality', 'screenshots-dir', 'crash-dumps-dir', 'artifacts-dir'],
-	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection', 'setuid-sandbox'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v', 'screenshots-dir': 's', 'crash-dumps-dir': 'd' },
 	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
 });
@@ -39,6 +39,7 @@ const context = new TestContext({
 	screenshotsDir: options['screenshots-dir'],
 	crashDumpsDir: options['crash-dumps-dir'],
 	artifactsDir: options['artifacts-dir'],
+	setuidSandbox: options['setuid-sandbox'],
 });
 
 context.log(`Arguments: ${process.argv.slice(2).join(' ')}`);

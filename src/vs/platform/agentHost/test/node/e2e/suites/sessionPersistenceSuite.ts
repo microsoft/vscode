@@ -9,20 +9,21 @@ import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { parseSessionDbUri } from '../../../../common/sessionDbUri.js';
 import { ChatSourceKind, type ListSessionsResult, type ResourceReadResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import type { SessionSummaryChangedParams } from '../../../../common/state/protocol/channels-root/notifications.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, type ChatState, type SessionState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, type ChatState, type SessionState, type ToolResultFileEditContent } from '../../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
-import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
+import { createTestDirectory, ownCodexProtectedDirectories } from '../harness/testDirectories.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const RUN_KNOWN_ISSUES = process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1';
@@ -77,7 +78,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		for (const chat of additionalChats) {
 			context.client.notify('unsubscribe', { channel: chat });
 		}
-		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		context.client.notify('unsubscribe', { channel: defaultChatChannel(sessionUri) });
 		context.client.notify('unsubscribe', { channel: sessionUri });
 	}
 
@@ -110,7 +111,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 	test('session metadata history and provider context survive a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
+		const workspace = createTestDirectory(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `persistence-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1, { expectUnread: false });
@@ -149,7 +150,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	if (config.provider === 'codex') {
 		test('Codex image attachments remain readable after a host restart', async function () {
 			this.timeout(240_000);
-			const workspace = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'ahp-codex-image-restore-')));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-codex-image-restore-'));
 			tempDirs.push(workspace);
 			const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
 			const sessionUri = await createRealSession(context.client, config, 'codex-image-restore', createdSessions, URI.file(workspace));
@@ -190,7 +191,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	if (config.provider === 'copilotcli') {
 		(RUN_KNOWN_ISSUES ? test : test.skip)('file edit metadata survives a host restart', async function () {
 			this.timeout(240_000);
-			const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-file-edit-`);
+			const workspace = createTestDirectory(`${tmpdir()}/ahp-persistence-file-edit-`);
 			tempDirs.push(workspace);
 			const filePath = join(workspace, 'stored-edit.txt');
 			fs.writeFileSync(filePath, 'BEFORE_RESTART');
@@ -199,7 +200,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 			await restartAndInitialize('persistence-file-edit', workspace);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-			await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+			await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 			context.client.dispatch({
 				channel: sessionUri,
 				clientSeq: 1,
@@ -224,7 +225,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 			const edit = context.client.receivedNotifications(n =>
 				isActionNotification(n, 'chat/toolCallComplete')
-				&& getActionEnvelope(n).channel === buildDefaultChatUri(sessionUri)
+				&& getActionEnvelope(n).channel === defaultChatChannel(sessionUri)
 				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).turnId === turnId,
 			).flatMap(n => (getActionEnvelope(n).action as ChatToolCallCompleteAction).result.content ?? [])
 				.find((content): content is ToolResultFileEditContent =>
@@ -258,7 +259,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 
 	test('archiving a never-restored session survives a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-archive-unrestored-`);
+		const workspace = createTestDirectory(`${tmpdir()}/ahp-archive-unrestored-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `archive-unrestored-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-archive-unrestored-seed', 'Reply exactly "READY".', 1);
@@ -318,11 +319,11 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		&& (!(context.isWindows && config.provider === 'copilotcli') || context.runKnownIssueTests);
 	(peerChatPersistenceEnabled ? test : test.skip)('peer chat catalog and transcript survive a host restart', async function () {
 		this.timeout(240_000);
-		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-peer-persistence-`);
+		const workspace = createTestDirectory(`${tmpdir()}/ahp-peer-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `peer-persistence-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-peer-persistence-seed', 'Reply exactly "READY".', 1);
-		const peerUri = buildChatUri(sessionUri, generateUuid());
+		const peerUri = newTestChatUri();
 		await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Persisted Peer' }, 30_000);
 		await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
 		context.client.clearReceived();
@@ -375,16 +376,11 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	});
 
 	async function createPersistenceSession(prefix: string): Promise<{ sessionUri: string; chatUri: string; workspace: string }> {
-		const workspace = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), `ahp-history-${prefix}-`)));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-history-${prefix}-`));
 		tempDirs.push(workspace);
-		// Keep Codex's protected mount directories stable across sibling-chat startup (KNOWN_ISSUES.md).
-		if (config.provider === 'codex' && context.isLinux) {
-			for (const directory of ['.git', '.agents', '.codex']) {
-				fs.mkdirSync(join(workspace, directory));
-			}
-		}
+		ownCodexProtectedDirectories(workspace, config.provider, context.isLinux);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
-		return { sessionUri, chatUri: buildDefaultChatUri(sessionUri), workspace };
+		return { sessionUri, chatUri: defaultChatChannel(sessionUri), workspace };
 	}
 
 	async function readChat(chat: string): Promise<ChatState> {
@@ -397,7 +393,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 	}
 
 	async function createHistoryPeer(session: string, source?: { chat: string; turnId: string }): Promise<string> {
-		const chat = buildChatUri(session, generateUuid());
+		const chat = newTestChatUri();
 		await context.client.call('createChat', {
 			channel: session,
 			chat,

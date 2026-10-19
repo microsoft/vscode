@@ -37,9 +37,9 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -500,6 +500,26 @@ registerAction2(class MoveChatToNextGroupAction extends Action2 {
 	}
 });
 
+registerAction2(class DetachChatAction extends Action2 {
+	constructor() {
+		super({
+			id: DETACH_CHAT_COMMAND_ID,
+			title: localize2('detachChat', "Detach Chat into New Pane"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIsCreatedContext, SessionActiveChatIsClosableContext),
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const service = accessor.get(ISessionsService);
+		const session = service.activeSession.get();
+		if (session) {
+			await service.detachChat(session, session.activeChat.get().resource);
+		}
+	}
+});
+
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
 // Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
 // and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
@@ -528,13 +548,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsService = accessor.get(ISessionsService);
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
-			const visible = sessionsService.visibleSessions.get();
-			const targetIndex = isLast ? visible.length - 1 : index;
-			if (targetIndex < 0 || targetIndex >= visible.length) {
+			const target = sessionsPartService.getSessionAtPosition(isLast ? -1 : index);
+			if (target === undefined) {
 				return;
 			}
 
-			const session = visible[targetIndex];
+			const session = target ?? undefined;
 			sessionsService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}
@@ -938,7 +957,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 		id: CLOSE_CHAT_COMMAND_ID,
 		title: localize('closeChatGroup', "Close"),
 		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
-		icon: Codicon.closeCompact,
+		icon: Codicon.closeSmall,
 	},
 	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
 	group: 'navigation',
@@ -1311,8 +1330,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 /**
  * Base class for the compact pill button rendered in the sessions UI (e.g. the "New" session/chat
- * buttons, the empty file editor's "Search Files" button). Subclasses provide the command id,
- * label and hover/aria text.
+ * buttons and the empty file editor actions). Subclasses provide the command id,
+ * label, optional icon and hover/aria text.
  */
 export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
@@ -1330,6 +1349,11 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 
 	/** Visible pill label (e.g. "New", "New Chat"). */
 	protected abstract get label(): string;
+
+	/** Optional leading icon for the pill. */
+	protected get icon(): ThemeIcon | undefined {
+		return undefined;
+	}
 
 	/** Hover text; receives the resolved keybinding label, if any. */
 	protected abstract getHoverContent(keybindingLabel: string | undefined): string;
@@ -1391,6 +1415,13 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		}));
 
 		const buttonLabel = $('span.new-session-button-label', undefined, this.label);
+		const icon = this.icon;
+		if (icon) {
+			const iconElement = $('span.new-session-button-icon');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
+			iconElement.setAttribute('aria-hidden', 'true');
+			buttonLabel.prepend(iconElement);
+		}
 		const keybindingHint = $('span.new-session-keybinding-hint');
 		const keybindingHintLabel = this.showKeybindingHint
 			? this._register(new KeybindingLabel(keybindingHint, OS, {
@@ -1632,9 +1663,9 @@ export class SessionListActionsExperimentContribution extends Disposable impleme
 	}
 
 	private async resolveTreatment(token: CancellationToken): Promise<void> {
-		let enabled = false;
+		let enabled = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
 		try {
-			enabled = await raceCancellationError(this.assignmentService.getTreatment<boolean>(SessionListActionsExperimentContribution.PROMOTE_NEW_CHAT_ACTION_TREATMENT), token) ?? false;
+			enabled = await raceCancellationError(this.assignmentService.getTreatment<boolean>(SessionListActionsExperimentContribution.PROMOTE_NEW_CHAT_ACTION_TREATMENT), token) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return;
@@ -1660,8 +1691,10 @@ export class SessionConversationActionsContribution extends Disposable implement
 	) {
 		super();
 		this._register(autorun(reader => {
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session) {
+			const owners = new Set<string>();
+			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+				if (session && !owners.has(session.sessionId)) {
+					owners.add(session.sessionId);
 					reader.store.add(this._registerSessionConversationActions(session, reader));
 				}
 			}
@@ -1939,7 +1972,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
 			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
-			icon: Codicon.closeCompact,
+			icon: Codicon.closeSmall,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(

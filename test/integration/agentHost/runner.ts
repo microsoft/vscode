@@ -21,6 +21,8 @@ const incompatibleFlags = [
 	'AGENT_HOST_UPDATE_SNAPSHOTS',
 ];
 type StorageMode = 'disk' | 'tmpfs' | 'split';
+// Keep in sync with CLEANUP_FAILED_STATUS in tmpfs.sh.
+const tmpfsCleanupFailedStatus = 3;
 const diskLifecyclePattern = [
 	'session metadata history and provider context survive a host restart',
 	'archiving a never-restored session survives a host restart',
@@ -89,6 +91,8 @@ const suites: readonly ISuite[] = [
 
 async function main(): Promise<void> {
 	validateEnvironment();
+	const { getAgentHostTestProfile } = await import('../../../src/vs/platform/agentHost/test/node/agentHostTestProfile.ts');
+	console.log(`Agent Host test profile: ${getAgentHostTestProfile()} (${process.env['AGENT_HOST_TEST_PROFILE_REASON'] ?? 'default'})`);
 	const { jobs, storage, forwardedArgs } = parseArguments(process.argv.slice(2));
 	await prepareTestRuntime();
 	if (storage !== 'disk') {
@@ -143,9 +147,10 @@ async function main(): Promise<void> {
 }
 
 function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readonly string[]): void {
-	const environment = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
+	const environment: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	delete environment.ELECTRON_RUN_AS_NODE;
 	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
+	const failedPasses: string[] = [];
 	const tmpfs = spawnSync('bash', [
 		join(__dirname, 'tmpfs.sh'),
 		process.execPath, ...runnerArgs, ...args,
@@ -153,8 +158,10 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 	if (tmpfs.error) {
 		throw tmpfs.error;
 	}
-	if (tmpfs.status !== 0) {
-		process.exitCode = 1;
+	if (tmpfs.status === tmpfsCleanupFailedStatus) {
+		failedPasses.push('RAM-backed (tmpfs) pass: every suite passed, but the test tmpfs could not be cleaned up. See the "Failed to unmount" holder diagnostics above.');
+	} else if (tmpfs.status !== 0) {
+		failedPasses.push(`RAM-backed (tmpfs) pass: exited with ${describeExit(tmpfs.status, tmpfs.signal)}. See the failure details above.`);
 	}
 	if (storage === 'split') {
 		const diskArgs = args.filter((argument, index) =>
@@ -176,7 +183,25 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 			throw disk.error;
 		}
 		if (disk.status !== 0) {
-			process.exitCode = 1;
+			failedPasses.push(`Disk-backed lifecycle pass: exited with ${describeExit(disk.status, disk.signal)}. See the failure details above.`);
+		}
+	}
+	if (failedPasses.length > 0) {
+		reportFailedStoragePasses(failedPasses);
+		process.exitCode = 1;
+	}
+}
+
+function describeExit(status: number | null, signal: NodeJS.Signals | null): string {
+	return signal ? `signal ${signal}` : `code ${status}`;
+}
+
+function reportFailedStoragePasses(failedPasses: readonly string[]): void {
+	console.log('\nAgent Host E2E storage passes failed:');
+	for (const failedPass of failedPasses) {
+		console.log(`  ${failedPass}`);
+		if (process.env['GITHUB_ACTIONS'] === 'true') {
+			console.log(`::error title=Agent Host E2E failed::${failedPass}`);
 		}
 	}
 }
@@ -295,7 +320,7 @@ function runSync(command: string, args: readonly string[], environment: NodeJS.P
 async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surfaceOutput: string | undefined): Promise<IRunResult> {
 	console.log(`Starting Agent Host E2E — ${suite.label}`);
 	const startedAt = process.hrtime.bigint();
-	const environment = {
+	const environment: NodeJS.ProcessEnv = {
 		...process.env,
 		VSCODE_SKIP_PRELAUNCH: '1',
 		...(surfaceOutput ? { AGENT_HOST_PROTOCOL_SURFACE_OUT: surfaceOutput } : {}),
@@ -385,7 +410,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
 		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
-		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}${storage ? ` ${storage}` : ''}`;
+		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label} ${process.env['AGENT_HOST_TEST_PROFILE'] ?? 'full'}${storage ? ` ${storage}` : ''}`;
 	}
 	return result;
 }

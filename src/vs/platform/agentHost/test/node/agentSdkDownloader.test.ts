@@ -286,6 +286,25 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(root, '/path/to/dev/sdk');
 	});
 
+	test('resolveInstalledSdkRoot never downloads on a cold or removed cache', async () => {
+		const downloader = makeDownloader();
+		const cold = await downloader.resolveInstalledSdkRoot(ClaudeSdkPackage);
+		const coldRequests = server.requestCount;
+		const installed = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		const cached = await downloader.resolveInstalledSdkRoot(ClaudeSdkPackage);
+		await fsp.unlink(path.join(installed, '.complete'));
+		const removed = await downloader.resolveInstalledSdkRoot(ClaudeSdkPackage);
+		assert.deepStrictEqual({ cold, coldRequests, cached, removed, requests: server.requestCount }, {
+			cold: undefined, coldRequests: 0, cached: installed, removed: undefined, requests: 1,
+		});
+	});
+
+	test('resolveInstalledSdkRoot uses the configured local SDK', async () => {
+		process.env[AgentHostClaudeSdkRootEnvVar] = '/local/history-reader';
+		const root = await makeDownloader(null).resolveInstalledSdkRoot(ClaudeSdkPackage);
+		assert.deepStrictEqual({ root, requests: server.requestCount }, { root: '/local/history-reader', requests: 0 });
+	});
+
 	test('loadSdkRoot: substitutes {sdkTarget} into urlTemplate', async () => {
 		await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
 		assert.strictEqual(server.lastPath, `/sdk-${hostSdkTarget}.tgz`);

@@ -27,6 +27,7 @@ import { NullHoverService } from '../../../../../../../platform/hover/test/brows
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatResourceGroupWidget } from '../../../../browser/widget/chatContentParts/chatResourceGroupWidget.js';
+import { getGeneratedImageResultParts } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { IChatCollapsibleIODataPart } from '../../../../browser/widget/chatContentParts/chatToolInputOutputContentPart.js';
 import '../../../../browser/widget/media/chat.css';
 
@@ -49,6 +50,39 @@ suite('ChatResourceGroupWidget', () => {
 				}
 				return Disposable.None;
 			},
+		});
+	});
+
+	test('saving separate generated images uses hashed names without changing their resource URIs', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const destination = URI.from({ scheme: Schemas.inMemory, path: '/saved' });
+		await fileService.createFolder(destination);
+		const suggested: string[] = [];
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+			override async defaultFilePath() { return destination; }
+			override async pickFileToSave(resource: URI) { suggested.push(resource.path); return resource; }
+		}());
+		const command = CommandsRegistry.getCommand('chat.toolOutput.save')!;
+		for (const [index, toolCallId] of ['image-call-1', 'image-call-2'].entries()) {
+			const uri = URI.from({ scheme: Schemas.inMemory, path: `/source-${index}/generated-image.png` });
+			await fileService.createFolder(dirname(uri));
+			await fileService.writeFile(uri, VSBuffer.fromString(`image-${index}`));
+			const parts = getGeneratedImageResultParts({ input: '', output: [{ type: 'ref', uri, mimeType: 'image/png' }] }, URI.parse('agent-host://local/session'), toolCallId);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, { parts }));
+		}
+		const saved = await fileService.resolve(destination);
+		const contents = await Promise.all((saved.children ?? []).map(async file => ({
+			name: file.name,
+			value: (await fileService.readFile(file.resource)).value.toString(),
+		})));
+		assert.deepStrictEqual({ suggested, contents: contents.sort((a, b) => a.name.localeCompare(b.name)) }, {
+			suggested: ['/saved/generated-image-3c41e71d9ac9.png', '/saved/generated-image-dc4b1335ceec.png'],
+			contents: [
+				{ name: 'generated-image-3c41e71d9ac9.png', value: 'image-0' },
+				{ name: 'generated-image-dc4b1335ceec.png', value: 'image-1' },
+			],
 		});
 	});
 
@@ -115,6 +149,25 @@ suite('ChatResourceGroupWidget', () => {
 		}());
 		instantiationService.stub(IFileService, fileService);
 		return { content, fileService };
+	}
+
+	/** Resolves with the first element in `container` that matches `selector`, waiting for the DOM mutation that adds it. */
+	function waitForElement<T extends Element>(container: HTMLElement, selector: string): Promise<T> {
+		const existing = container.querySelector<T>(selector);
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+		return new Promise(resolve => {
+			const observer = new MutationObserver(() => {
+				const element = container.querySelector<T>(selector);
+				if (element) {
+					observer.disconnect();
+					resolve(element);
+				}
+			});
+			observer.observe(container, { childList: true, subtree: true });
+			store.add(toDisposable(() => observer.disconnect()));
+		});
 	}
 
 	function snapshot(widget: ChatResourceGroupWidget) {
@@ -437,16 +490,17 @@ suite('ChatResourceGroupWidget', () => {
 	test('ordinary tool resources keep their deferred attachment thumbnails', async () => {
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value: imageData }], false);
 		const initial = snapshot(widget);
-		await retry(async () => {
-			const image = widget.domNode.querySelector<HTMLImageElement>('img');
-			assert.ok(image?.complete && image.naturalWidth > 0);
-		}, 20, 50);
+		// The thumbnail replaces the placeholder only after a decode delay and an asynchronous canvas
+		// encode whose duration depends on renderer load, so wait for it instead of polling on a budget.
+		const image = await waitForElement<HTMLImageElement>(widget.domNode, 'img.chat-attached-context-pill-image');
+		await image.decode();
 
 		assert.deepStrictEqual({
 			initialFilePills: initial.filePills,
 			initialImages: initial.images,
 			finalImages: snapshot(widget).images,
+			decoded: image.naturalWidth > 0,
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
-		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, hoverImages: 1 });
+		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
 	});
 });

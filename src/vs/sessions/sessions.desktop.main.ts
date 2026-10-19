@@ -52,7 +52,7 @@ import '../workbench/services/host/electron-browser/nativeHostService.js';
 import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
-import '../platform/github/electron-browser/githubService.js';
+import '../workbench/services/github/electron-browser/githubService.js';
 import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
 import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
@@ -102,6 +102,7 @@ import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowSe
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import '../platform/agentHost/electron-browser/agentHostMcpOAuthMetadataService.js';
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
