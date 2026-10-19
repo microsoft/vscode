@@ -287,6 +287,23 @@ suite('SearchModel', () => {
 		};
 	}
 
+	test('Search Model: cleared AI folder roots are not disposed again with the model', () => {
+		const model = store.add(instantiationService.createInstance(SearchModelImpl));
+		const heading = model.searchResult.aiTextSearchResult;
+		const disposals: sinon.SinonSpy[] = [];
+
+		for (let i = 0; i < 3; i++) {
+			heading.query = { contentPattern: 'sample', type: QueryType.aiText, folderQueries };
+			const folder = heading.folderMatches()[0];
+			const dispose = sinon.spy(folder, 'dispose');
+			heading.clear(true);
+			disposals.push(dispose);
+		}
+
+		model.dispose();
+		assert.deepStrictEqual(disposals.map(dispose => dispose.callCount), [1, 1, 1]);
+	});
+
 	test('Search Model: Search adds to results', async () => {
 		const results = [
 			aRawMatch('/1',
