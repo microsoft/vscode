@@ -1752,6 +1752,38 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
+		test('checking connector connections does not depend on Marketplace visibility', async () => {
+			const fixture = await createFixture();
+			const candidate = connectorResource();
+			await fixture.service.install(candidate);
+			fixture.connectorsService.connectionStateKnownOverride = false;
+			fixture.connectorsService.statusOverride = 'unknown';
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+			fixture.connectorsService.onCheckConnection = async () => {
+				fixture.connectorsService.connectionStateKnownOverride = true;
+				fixture.connectorsService.statusOverride = undefined;
+				fixture.connectorChanges.fire();
+			};
+
+			await fixture.service.checkConnectorConnections();
+			const checks = fixture.connectorsService.checkConnectionCalls;
+			fixture.entitlementService.sentiment.hidden = true;
+			await assert.rejects(fixture.service.checkConnectorConnections(), isCancellationError);
+
+			assert.deepStrictEqual({
+				checks,
+				checksWhileAIHidden: fixture.connectorsService.checkConnectionCalls - checks,
+				states: fixture.service.installations.get().installations.map(installation => installation.state.kind),
+			}, {
+				checks: 1,
+				checksWhileAIHidden: 0,
+				states: ['installed'],
+			});
+		});
+
 		test('records a connector that was already connected outside this workbench', async () => {
 			const fixture = await createFixture();
 			const recorded = Event.toPromise(Event.filter(fixture.service.onDidChange, () => recordedResources(fixture.service).some(resource => resource.identifier === 'mail')));

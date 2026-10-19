@@ -44,6 +44,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		let installCount = 0;
 		let repairCount = 0;
 		let uninstallCount = 0;
+		let checkCount = 0;
 		const openedExternal: Array<URI | string> = [];
 		const queryHovers: string[] = [];
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
@@ -71,6 +72,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 				}
 			}
 			override async uninstall() { uninstallCount++; }
+			override async checkConnectorConnections() { checkCount++; }
 		}());
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 			override async request(): Promise<IRequestContext> {
@@ -100,6 +102,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			fireInstallChange: () => installChangeEmitter.fire(),
 			getRequestCount: () => requestCount,
 			getActionCounts: () => ({ installCount, repairCount, uninstallCount }),
+			getCheckCount: () => checkCount,
 			getOpenedExternal: () => openedExternal.map(resource => typeof resource === 'string' ? resource : resource.toString()),
 			getErrors: () => errors,
 			getQueryHovers: () => queryHovers,
@@ -296,6 +299,37 @@ suite('EmbeddedMarketplaceDetail', () => {
 			installedAction: 'Disconnect',
 			availableCounts: { installCount: 1, repairCount: 0, uninstallCount: 0 },
 			installedCounts: { installCount: 0, repairCount: 0, uninstallCount: 1 },
+		});
+	});
+
+	test('an unverified Copilot connector offers Check Connection and Disconnect', async () => {
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'connectors',
+			identifier: 'mail',
+			displayName: 'Mail',
+			description: 'Search mail.',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			publisher: 'GitHub Copilot',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		};
+		const unverified = render(resource, undefined, { installState: { kind: 'unverified', target: { kind: 'copilotConnector', name: 'mail' } } });
+		const buttons = [...unverified.parent.querySelectorAll<HTMLElement>('.embedded-detail-title-actions .monaco-button')];
+		for (const button of buttons) {
+			button.click();
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			actions: buttons.map(button => ({ label: button.textContent, disabled: button.classList.contains('disabled') })),
+			checks: unverified.getCheckCount(),
+			counts: unverified.getActionCounts(),
+		}, {
+			actions: [{ label: 'Check Connection', disabled: false }, { label: 'Disconnect', disabled: false }],
+			checks: 1,
+			counts: { installCount: 0, repairCount: 0, uninstallCount: 1 },
 		});
 	});
 

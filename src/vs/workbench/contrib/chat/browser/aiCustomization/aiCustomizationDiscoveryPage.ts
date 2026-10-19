@@ -1910,7 +1910,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const connector = isCopilotConnectorResource(resource);
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
 		const state = this.installService.getInstallState(resource);
-		if (this.pendingUninstalls.has(resourceKey) || state.kind !== 'installed' && state.kind !== 'missing') {
+		if (this.pendingUninstalls.has(resourceKey) || state.kind !== 'installed' && state.kind !== 'missing' && state.kind !== 'unverified') {
 			return;
 		}
 		const query = this.query;

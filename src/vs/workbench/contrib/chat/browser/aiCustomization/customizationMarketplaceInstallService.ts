@@ -972,11 +972,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (this.pendingConnectorCheck) {
 			return this.pendingConnectorCheck;
 		}
-		const sourceId = CustomizationMarketplaceSources.CopilotConnectors.id;
-		const operation = (async () => {
-			await this.runConnectorOperation(sourceId, token => this.copilotConnectorsService.checkConnection(token), this.lifetimeToken);
-			await this.reconcileRecords(this.getApplicableConnectorRecords());
-		})();
+		const operation = this.runConnectorCheck();
 		this.pendingConnectorCheck = operation;
 		this.emitChange();
 		try {
@@ -985,6 +981,40 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.pendingConnectorCheck = undefined;
 			this.emitChange();
 		}
+	}
+
+	/**
+	 * Connector MCP servers are available whenever connectors are enabled, independent of Marketplace
+	 * visibility, so recovering their connection status must not depend on Marketplace visibility either.
+	 */
+	private async runConnectorCheck(): Promise<void> {
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(this.lifetimeToken));
+		const cancelIfNotAllowed = () => {
+			if (!this.isConnectorCheckAllowed()) {
+				cancellation.cancel();
+			}
+		};
+		store.add(this.entitlementService.onDidChangeSentiment(cancelIfNotAllowed));
+		store.add(this.configurationService.onDidChangeConfiguration(cancelIfNotAllowed));
+		const throwIfCancelled = () => {
+			if (cancellation.token.isCancellationRequested || !this.isConnectorCheckAllowed()) {
+				throw new CancellationError();
+			}
+		};
+		try {
+			throwIfCancelled();
+			await this.copilotConnectorsService.checkConnection(cancellation.token);
+			throwIfCancelled();
+			await this.reconcileRecords(this.getApplicableConnectorRecords());
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private isConnectorCheckAllowed(): boolean {
+		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true
+			&& !this.entitlementService.sentiment.hidden;
 	}
 
 	cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {

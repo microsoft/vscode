@@ -473,6 +473,27 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 				this.notificationService.error(message);
 			}
 		}));
+		if (state.kind === 'unverified') {
+			this.renderConnectorDisconnectAction(resource);
+		}
+	}
+
+	private renderConnectorDisconnectAction(resource: ICustomizationMarketplaceResource): void {
+		const label = getConnectorActionLabel('disconnect');
+		const button = this.installActionDisposables.add(new Button(this.titleActionsEl, {
+			...defaultButtonStyles,
+			secondary: true,
+			ariaLabel: localize('marketplaceDetail.actionAria', "{0} {1}", label, resource.displayName),
+		}));
+		button.label = label;
+		this.installActionDisposables.add(button.onDidClick(async () => {
+			try {
+				await this.installService.uninstall(resource);
+				status(localize('marketplaceDetail.disconnectedStatus', "Disconnected {0}.", resource.displayName));
+			} catch (error) {
+				this.notificationService.error(localize('marketplaceDetail.disconnectError', "Could not disconnect {0}. {1}", resource.displayName, getErrorMessage(error)));
+			}
+		}));
 	}
 
 	private appendFact(label: string, value: string | HTMLElement): HTMLElement {

@@ -1328,6 +1328,14 @@ suite('AICustomizationDiscoveryPage', () => {
 			};
 		};
 		const unverified = describeRow();
+		const disconnectButton = [...getConnectorRow()!.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Disconnect');
+		assert.ok(disconnectButton);
+		disconnectButton.click();
+		await timeout(0);
+		const uninstalls = [...fixture.uninstalls];
+		fixture.setInstallState(candidate, { kind: 'unverified', target });
+		fixture.notifyInstallChange();
+		await timeout(0);
 
 		const check = new DeferredPromise<void>();
 		fixture.setCheckConnectorConnectionsHandler(async () => {
@@ -1345,11 +1353,12 @@ suite('AICustomizationDiscoveryPage', () => {
 		check.complete();
 		await timeout(0);
 
-		assert.deepStrictEqual({ unverified, checking, checks: fixture.getConnectorChecks(), repairs: fixture.repairs }, {
+		assert.deepStrictEqual({ unverified, uninstalls, checking, checks: fixture.getConnectorChecks(), repairs: fixture.repairs }, {
 			unverified: {
 				detail: 'MCP server · Copilot Connectors · Connection status not checked',
 				actions: [{ label: 'Check Connection', disabled: false }, { label: 'Disconnect', disabled: false }],
 			},
+			uninstalls: ['mail'],
 			checking: {
 				detail: 'MCP server · Copilot Connectors · Checking connection',
 				actions: [{ label: 'Checking...', disabled: true }],
