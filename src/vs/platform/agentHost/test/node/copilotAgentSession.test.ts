@@ -13695,6 +13695,124 @@ Use the attached image as context.
 			await steeringPromise;
 		});
 
+		test('starts steering sent before the SDK idled as its own turn without waiting for the echo', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const sendGate = new DeferredPromise<string>();
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				return sendGate.p;
+			};
+			const turnActions = () => getActions(signals)
+				.filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnStarted)
+				.map(action => action.type === ActionType.ChatTurnComplete
+					? { type: action.type, turnId: action.turnId }
+					: { type: action.type, message: action.message, queuedMessageId: action.queuedMessageId });
+
+			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const beforeEcho = turnActions();
+			const promotedTurn = session['_currentTurn'].value;
+
+			sendGate.complete('message-1');
+			await steeringPromise;
+			mockSession.fire('user.message', {
+				content: 'focus on tests',
+				messageId: 'message-1',
+				interactionId: 'interaction-steer',
+			} as SessionEventPayload<'user.message'>['data']);
+
+			const expectedActions = [
+				{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+				{
+					type: ActionType.ChatTurnStarted,
+					message: { text: 'focus on tests', origin: { kind: MessageKind.User } },
+					queuedMessageId: 'steer-1',
+				},
+			];
+			assert.deepStrictEqual({
+				beforeEcho,
+				afterEcho: turnActions(),
+				active: session.hasActiveTurn,
+				sameTurn: session['_currentTurn'].value === promotedTurn,
+			}, {
+				beforeEcho: expectedActions,
+				afterEcho: expectedActions,
+				active: true,
+				sameTurn: true,
+			});
+		});
+
+		test('surfaces an error on steering that the SDK accepted after the turn ended but failed before echoing', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+
+			await session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const steeringTurnId = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.turnId;
+			mockSession.fire('session.error', {
+				errorType: 'runtime',
+				message: 'boom',
+			} as SessionEventPayload<'session.error'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				startedTurns: startedTurns(signals),
+				terminalActions: getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError ? [{
+					type: action.type,
+					turnId: action.turnId,
+					...(action.type === ActionType.ChatError ? { error: action.part.error.message } : {}),
+				}] : []),
+				consumed: signals.flatMap(signal => signal.kind === 'steering_consumed' ? [signal.id] : []),
+				active: session.hasActiveTurn,
+			}, {
+				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-1' }],
+				terminalActions: [
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+					{ type: ActionType.ChatError, turnId: steeringTurnId, error: 'boom' },
+				],
+				consumed: [],
+				active: false,
+			});
+		});
+
+		test('fails the promoted steering turn when send rejects after the SDK idled', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-original');
+			const sendGate = new DeferredPromise<string>();
+			mockSession.send = async request => {
+				mockSession.sendRequests.push(request);
+				return sendGate.p;
+			};
+
+			const steeringPromise = session.sendSteering({ id: 'steer-1', message: { text: 'focus on tests', origin: { kind: MessageKind.User } } });
+			await timeout(0);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const steeringTurnId = getActions(signals).find(action => action.type === ActionType.ChatTurnStarted)?.turnId;
+			sendGate.error(new Error('send failed'));
+			await steeringPromise;
+
+			assert.deepStrictEqual({
+				startedTurns: startedTurns(signals),
+				terminalActions: getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError ? [{
+					type: action.type,
+					turnId: action.turnId,
+					...(action.type === ActionType.ChatError ? { error: action.part.error.message } : {}),
+				}] : []),
+				consumed: signals.flatMap(signal => signal.kind === 'steering_consumed' ? [signal.id] : []),
+				active: session.hasActiveTurn,
+			}, {
+				startedTurns: [{ text: 'focus on tests', queuedMessageId: 'steer-1' }],
+				terminalActions: [
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-original' },
+					{ type: ActionType.ChatError, turnId: steeringTurnId, error: 'Failed to send the steering message: send failed' },
+				],
+				consumed: [],
+				active: false,
+			});
+		});
+
 		test('routes subsequent SDK events into the steering turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-original');
