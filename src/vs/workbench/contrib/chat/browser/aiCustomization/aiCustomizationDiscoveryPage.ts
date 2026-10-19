@@ -1219,8 +1219,16 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private getFilteredInstalledItems(): readonly IInstalledDiscoveryItem[] {
 		const text = normalizedName(this.query.text);
 		const items = [...this.installedItems, ...this.providerPlugins];
+		const marketplaceInstallations = this.installService.installations.get();
 		return items
 			.filter(item => this.matchesType(item.type))
+			.filter(item => {
+				if (!this.selectedSourceId) {
+					return true;
+				}
+				const marketplace = item.catalogResource ?? getInstalledItemMarketplaceRecord(item, marketplaceInstallations)?.resource;
+				return marketplace?.sourceId === this.selectedSourceId;
+			})
 			.filter(item => !text || [item.name, item.description, item.sourceLabel, getTypeLabel(item.type)].some(value => value && normalizedName(value).includes(text)))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}

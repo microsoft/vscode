@@ -1422,6 +1422,31 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, { queries: 2, available: false, installed: true });
 	});
 
+	test('source picker limits installed results to the selected source', async () => {
+		const fixture = createPage(['agentFinder', 'other']);
+		const candidate = resource('mail-skill', {
+			displayName: 'Marketplace mail skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+		});
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+
+		const getRows = () => [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent);
+		const allSources = getRows();
+		await fixture.selectSource('other');
+		const otherSource = getRows();
+		await fixture.selectSource('agentFinder');
+		const matchingSource = getRows();
+
+		assert.deepStrictEqual({ allSources, otherSource, matchingSource }, {
+			allSources: ['Local mail skill'],
+			otherSource: [],
+			matchingSource: ['Local mail skill'],
+		});
+	});
+
 	test('plugin-only source picker and accessible results keep configured provenance', async () => {
 		const fixture = createPage([configuredMarketplaceSourceId]);
 		fixture.page.setSearchQuery('@type:plugin review');
