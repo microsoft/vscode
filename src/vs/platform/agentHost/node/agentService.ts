@@ -7204,6 +7204,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._reloadAfterFailedMove([sourceKey, targetKey]);
 			}
 			await this._persistPromotedSessionTitle(target, chatKey, renamed);
+			await this._mirrorPromotedCredentialPrincipal(targetKey);
 			await this._completeMovedWorktrees(session, target, worktreePlan, undefined, false);
 			// The new session is created with the chat's folders, so none were in transit; the source lets go of those no other chat uses.
 			await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
@@ -7230,6 +7231,27 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private _allocatePromotedSession(provider: IAgent): Promise<URI> {
 		return this._mintSessionUri(provider, undefined);
+	}
+
+	/**
+	 * The promote commit already holds the new session's principal centrally; this writes the same value again so its
+	 * session.db copy, which older builds read, exists now: the store's own mirror of a promotion lags until the session loads. Never fails the promotion.
+	 */
+	private async _mirrorPromotedCredentialPrincipal(target: string): Promise<void> {
+		const principal = this._authService.getSessionCredentialPrincipal(target);
+		if (!principal) {
+			return;
+		}
+		try {
+			const reference = await this._sessionDataService.openDatabase(URI.parse(target));
+			try {
+				await reference.object.setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify(principal) });
+			} finally {
+				reference.dispose();
+			}
+		} catch (error) {
+			this._logService.error(error, `[AgentService] The credential owner of ${target} couldn't be mirrored for older builds`);
+		}
 	}
 
 	/**
@@ -7788,8 +7810,19 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _restoreCredentialPrincipal(session: string): Promise<void> {
-		// Through the state store: a principal inherited at promotion lives centrally until its mirror reaches session.db.
-		const serialized = (await this._sessionStateStore.readWithoutImport(URI.parse(session), [SESSION_CREDENTIAL_PRINCIPAL_KEY])).get(SESSION_CREDENTIAL_PRINCIPAL_KEY);
+		// A principal inherited at promotion lives centrally until its mirror reaches session.db; one written by an older
+		// build (or before the session was imported) exists in session.db only, so that is the fallback.
+		let serialized = (await this._sessionStateStore.readWithoutImport(URI.parse(session), [SESSION_CREDENTIAL_PRINCIPAL_KEY])).get(SESSION_CREDENTIAL_PRINCIPAL_KEY);
+		if (serialized === undefined) {
+			const reference = await this._sessionDataService.tryOpenDatabase(URI.parse(session));
+			if (reference) {
+				try {
+					serialized = (await reference.object.getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true }))[SESSION_CREDENTIAL_PRINCIPAL_KEY];
+				} finally {
+					reference.dispose();
+				}
+			}
+		}
 		if (serialized !== undefined) {
 			this._authService.restoreSessionCredentialPrincipal(session, parseCredentialPrincipal(serialized));
 		}

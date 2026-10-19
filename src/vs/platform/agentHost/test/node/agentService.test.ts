@@ -35053,7 +35053,8 @@ suite('AgentService (node dispatcher)', () => {
 					const data = createPerSessionDataService();
 					const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestrator));
-					registerTestAgentProvider(service, disposables.add(new SponsoredAgent('copilot')));
+					const agent = disposables.add(new SponsoredAgent('copilot'));
+					registerTestAgentProvider(service, agent);
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 					const sponsor = async (userId: string | undefined, token: string) => {
 						if (userId === undefined) {
@@ -35081,7 +35082,7 @@ suite('AgentService (node dispatcher)', () => {
 					const principal = (session: URI | string) => authentication.getSessionCredentialPrincipal(session.toString())?.userId;
 					const owner = (chat: URI | string) => getStateManager(service).getChatOwner(chat.toString());
 					const defaultChat = (session: URI) => getStateManager(service).getDefaultChat(session.toString())!;
-					return { data, orchestrator, service, source, target, peer, token, principal, owner, defaultChat, authentication };
+					return { data, orchestrator, agent, service, source, target, peer, token, principal, owner, defaultChat, authentication };
 				}
 
 				for (const [name, owners] of [
@@ -35131,6 +35132,46 @@ suite('AgentService (node dispatcher)', () => {
 					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
 					getStateManager(env.service).removeSession(env.source.toString());
 					assert.deepStrictEqual({ owner: env.owner(env.peer), principal: env.principal(promoted), peer: env.principal(env.peer) }, { owner: promoted.toString(), principal: '1', peer: '1' });
+				});
+
+				const restartedHost = (env: Awaited<ReturnType<typeof setupCredentials>>, orchestrator: AgentHostDatabase) => {
+					const restarted = disposables.add(createTestAgentService(new NullLogService(), fileService, env.data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestrator));
+					registerTestAgentProvider(restarted, env.agent);
+					return restarted;
+				};
+				const resolveAfterRestore = async (restarted: AgentService, session: URI, chat: string) => {
+					await restarted.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'ambient' });
+					await restarted.restoreSession(session);
+					const authentication = getTestAgentServiceComposition(restarted).authenticationService;
+					let resolved: string | number | undefined;
+					try {
+						resolved = authentication.getAuthToken({ session: chat, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource });
+					} catch (error) {
+						resolved = (error as ProtocolError).code;
+					}
+					return { principal: authentication.getSessionCredentialPrincipal(session.toString())?.userId, resolved };
+				};
+
+				test('upgrade: an imported session whose principal only exists in session.db (written by an older build) keeps it after a restart', async () => {
+					const env = await setupCredentials({ source: undefined, target: undefined });
+					await env.data.database(env.source).setMetadataValues({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: JSON.stringify({ apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' }) });
+					const restarted = restartedHost(env, env.orchestrator);
+					assert.deepStrictEqual(await resolveAfterRestore(restarted, env.source, env.defaultChat(env.source)), { principal: '1', resolved: AhpErrorCodes.AuthRequired });
+				});
+
+				test('upgrade: a session that was never imported centrally keeps the principal of its session.db after a restart', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					const restarted = restartedHost(env, disposables.add(new AgentHostDatabase(':memory:')));
+					assert.deepStrictEqual(await resolveAfterRestore(restarted, env.source, env.defaultChat(env.source)), { principal: '1', resolved: AhpErrorCodes.AuthRequired });
+				});
+
+				test('downgrade: a promoted session mirrors its principal to its session.db for older builds', async () => {
+					const env = await setupCredentials({ source: '1', target: undefined });
+					completeTurn(env.service, env.peer);
+					const promoted = await env.service.moveChat(env.source, env.peer, { kind: 'newSession' });
+					await (env.service as unknown as { _sessionStateStore: { whenIdle(session: URI | undefined): Promise<void> } })._sessionStateStore.whenIdle(undefined);
+					const stored = await env.data.database(promoted).getMetadata(SESSION_CREDENTIAL_PRINCIPAL_KEY);
+					assert.deepStrictEqual(stored && JSON.parse(stored), { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' });
 				});
 
 				test('a promoted session gets its credential owner in the promote commit, so a restarted host never falls back to the ambient token', async () => {
