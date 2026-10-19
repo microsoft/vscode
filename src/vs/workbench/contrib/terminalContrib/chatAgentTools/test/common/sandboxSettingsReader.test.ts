@@ -49,7 +49,7 @@ suite('sandboxSettingsReader', () => {
 
 	for (const [settingId, key, defaultValue] of [
 		[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentHostSandboxKey.AllowUnsandboxedCommands, true],
-		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers, true],
+		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers, false],
 		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers, true],
 		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, AgentHostSandboxKey.AuthenticateGit, true],
 		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, AgentHostSandboxKey.AuthenticateGh, true],
