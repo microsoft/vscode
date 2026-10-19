@@ -190,6 +190,7 @@ export const completeSavedChatContinuationParamsValidator = vObj({ session: vStr
 export interface IAgentHostExtensionCommandMap {
 	[MeasureWorktreeDiskUsageExtensionMethod]: {
 		params: ValidatorType<typeof measureWorktreeDiskUsageParamsValidator>;
+		/** Allocated regular-file bytes on the root volume, excluding files with links outside the measured worktree. */
 		result: { sizeBytes?: number };
 	};
 	[CancelWorktreeDiskUsageExtensionMethod]: {

@@ -6,7 +6,7 @@
 import { createChatUriError } from '../common/agentHostChatMinting.js';
 import { sandboxCertificateInstallationCapability, sandboxCertificateRemovalCapability, sandboxCertificateRotationCapability } from '../common/meta/agentSandboxCertificate.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
-import { disposableTimeout, Limiter, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
@@ -85,7 +85,6 @@ import type { IProtocolServer, IProtocolTransport } from '../common/state/sessio
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
-import { measureWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import {
 	buildOtlpLogsChannelUri,
 	extractLevelFromOtlpLogsUri,
@@ -3252,7 +3251,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _debugLogCollectionOwners = new Map<string, string>();
 	private readonly _worktreeMeasurements = new Map<IConnectedClient, Map<string, CancellationTokenSource>>();
-	private readonly _worktreeMeasurementLimiter = this._register(new Limiter<number | undefined>(2));
 
 	private async _handleWorktreeDiskUsageRequest(client: IConnectedClient, params: unknown): Promise<{ sizeBytes?: number }> {
 		const validated = measureWorktreeDiskUsageParamsValidator.validate(params);
@@ -3284,7 +3282,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		disposables.add(disposableTimeout(() => cancellation.cancel(), 10_000));
 		try {
 			const sizeBytes = await raceCancellationError(
-				this._worktreeMeasurementLimiter.queue(() => measureWorktreeDiskUsage(root, cancellation.token)),
+				this._agentService.measureWorktreeDiskUsage(root, cancellation.token),
 				cancellation.token,
 			);
 			return { sizeBytes };
