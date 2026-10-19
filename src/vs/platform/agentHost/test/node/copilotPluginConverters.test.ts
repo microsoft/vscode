@@ -718,6 +718,81 @@ suite('copilotPluginConverters', () => {
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
 		});
 
+		function relocatedPlugin(path: string) {
+			const pluginDir = URI.file(path);
+			const resource = (name: string) => ({ uri: URI.joinPath(pluginDir, name), name });
+			return {
+				...makePlugin(),
+				pluginDir,
+				nonce: 'same-content',
+				hooks: [{
+					type: 'SessionStart',
+					uri: URI.joinPath(pluginDir, 'hooks.json'),
+					originalId: 'SessionStart',
+					customization: stubHookCustomization('SessionStart'),
+					commands: [{
+						command: `node "${pluginDir.fsPath}/hook.cjs"`,
+						windows: `node "${pluginDir.fsPath}/hook.cjs"`,
+						linux: `node "${pluginDir.fsPath}/hook.cjs"`,
+						osx: `node "${pluginDir.fsPath}/hook.cjs"`,
+						cwd: pluginDir,
+						env: { PLUGIN_ROOT: pluginDir.fsPath },
+					}],
+				}],
+				mcpServers: [{
+					name: 'server',
+					uri: URI.joinPath(pluginDir, '.mcp.json'),
+					defaultCwd: pluginDir,
+					configuration: {
+						type: McpServerType.LOCAL as const,
+						command: 'node',
+						args: [URI.joinPath(pluginDir, 'server.cjs').fsPath],
+						env: { PLUGIN_ROOT: pluginDir.fsPath },
+						envFile: URI.joinPath(pluginDir, '.env').fsPath,
+						cwd: pluginDir.fsPath,
+					},
+					customization: stubMcpCustomization('server'),
+				}],
+				skills: [{ ...resource('skills/a/SKILL.md'), customization: stubSkillCustomization('a') }],
+				agents: [{ ...resource('agents/a.agent.md'), customization: { type: CustomizationType.Agent, id: 'agent:a', uri: 'file:///agent', name: 'a' } }],
+				instructions: [{ ...resource('rules/a.instructions.md'), customization: { type: CustomizationType.Rule, id: 'rule:a', uri: 'file:///rule', name: 'a' } }],
+			} satisfies IParsedPlugin & { pluginDir: URI; nonce: string };
+		}
+
+		test('compares identical plugin content relative to each materialized root', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual({
+				plugin: parsedPluginsEqual([a], [b]),
+				standalone: parsedPluginsEqual([{ ...a, pluginDir: undefined, resourceDir: a.pluginDir }], [{ ...b, pluginDir: undefined, resourceDir: b.pluginDir }]),
+			}, { plugin: true, standalone: true });
+		});
+
+		test('preserves content changes when plugin roots differ', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual([
+				parsedPluginsEqual([a], [{ ...b, nonce: 'changed-resource-body' }]),
+				parsedPluginsEqual([a], [{ ...b, skills: [] }]),
+				parsedPluginsEqual([a], [{ ...b, agents: [] }]),
+				parsedPluginsEqual([a], [{ ...b, instructions: [] }]),
+				parsedPluginsEqual([a], [{ ...b, hooks: [{ ...b.hooks[0], commands: [{ command: 'different' }] }] }]),
+				parsedPluginsEqual([a], [{ ...b, mcpServers: [{ ...b.mcpServers[0], configuration: { type: McpServerType.LOCAL, command: 'different' } }] }]),
+			], [false, false, false, false, false, false]);
+		});
+
+		test('compares relative resource paths within their own plugin, not across plugins', () => {
+			const a = relocatedPlugin('/cache/first');
+			const b = relocatedPlugin('/cache/second');
+			const first = { ...a, skills: [] };
+			const second = { ...b, skills: [] };
+			assert.deepStrictEqual([
+				parsedPluginsEqual([a, second], [first, b]),
+				parsedPluginsEqual([a], [{ ...b, skills: a.skills }]),
+				parsedPluginsEqual([a], [{ ...b, skills: [{ ...b.skills[0], uri: URI.file('/cache/second-extra/skills/a/SKILL.md') }] }]),
+			], [false, false, false]);
+		});
+
 		test('returns false for different skill invocation metadata', () => {
 			const makeSkill = (flags: Pick<IParsedSkill, 'disableModelInvocation' | 'disableUserInvocation'>): IParsedSkill => ({
 				uri: URI.file('/a/SKILL.md'),

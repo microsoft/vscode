@@ -1312,7 +1312,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 */
 	async startNewLocalSession(sessionTypeSelectionReason: SessionTypeSelectionReason = 'explicitOverride'): Promise<IChatModel | undefined> {
 		await whenAccountPolicySettled(this.accountPolicyGateService);
-		if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+		if (requiresCopilotAgentHost(this.managedSettingsService)) {
 			return this.showModel(CancellationToken.None, undefined, true, true);
 		}
 		// Preempt any in-flight initial session resolution (e.g. the computed
@@ -1333,14 +1333,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatSessionAcquisitionResult> {
 		await whenAccountPolicySettled(this.accountPolicyGateService);
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, requiresCopilotAgentHost(this.managedSettingsService));
 		if (defaultTypeAndReason.sessionType === localChatSessionType) {
 			return { modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#acquireDefaultNewSession', sessionTypeSelectionReason: localFallbackSelectionReason ?? defaultTypeAndReason.selectionReason }) };
 		}
 		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 		try {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
-			if (!modelRef && requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+			if (!modelRef && requiresCopilotAgentHost(this.managedSettingsService)) {
 				throw new Error(managedPolicyRequiresAgentHostMessage());
 			}
 			return {
@@ -1354,7 +1354,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+			if (requiresCopilotAgentHost(this.managedSettingsService)) {
 				this.notificationService.error(managedPolicyRequiresAgentHostMessage());
 				throw error;
 			}
@@ -1390,7 +1390,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService));
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, requiresCopilotAgentHost(this.managedSettingsService));
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;

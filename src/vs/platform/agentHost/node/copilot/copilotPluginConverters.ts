@@ -5,8 +5,10 @@
 
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -466,26 +468,44 @@ export function toSdkHooks(
 }
 
 /**
- * Checks whether two sets of parsed plugins produce equivalent SDK config.
- * Used to determine if a session needs to be refreshed.
+ * Compares SDK configuration relative to each plugin's own materialized root, preserving plugin order.
+ * Client nonces retain resource-body revisions that are not represented in parsed metadata.
  */
-export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IParsedPlugin[]): boolean {
-	// Simple structural comparison via JSON serialization.
-	// We serialize only the essential fields, replacing URIs with strings.
-	const serialize = (plugins: readonly IParsedPlugin[]) => {
-		return JSON.stringify(plugins.map(p => ({
-			format: p.format,
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
-			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
-			skills: p.skills.map(s => ({
-				uri: s.uri.toString(),
-				name: s.name,
-				disableModelInvocation: s.disableModelInvocation,
-				disableUserInvocation: s.disableUserInvocation,
-			})),
-			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
-		})));
+export function parsedPluginsEqual(
+	a: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
+	b: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
+): boolean {
+	const serialize = (plugins: typeof a) => {
+		return JSON.stringify(plugins.map(p => {
+			const root = p.pluginDir ?? p.resourceDir;
+			const roots = root ? [...new Set([root.toString(), ...(root.scheme === Schemas.file ? [root.fsPath] : [])])] : [];
+			const rootPattern = roots.length
+				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
+				: undefined;
+			return JSON.stringify({
+				format: p.format,
+				nonce: p.nonce,
+				hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+				mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
+				skills: p.skills.map(s => ({
+					uri: s.uri.toString(),
+					name: s.name,
+					disableModelInvocation: s.disableModelInvocation,
+					disableUserInvocation: s.disableUserInvocation,
+				})),
+				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+			}, (_key, value) => {
+				// Tagged segments distinguish a relocated root from literal placeholder text.
+				if (rootPattern && typeof value === 'string') {
+					const segments = value.split(rootPattern);
+					if (segments.length > 1) {
+						return { pluginRootRelative: segments };
+					}
+				}
+				return value;
+			});
+		}));
 	};
 	return serialize(a) === serialize(b);
 }

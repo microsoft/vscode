@@ -23,34 +23,51 @@ import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, DesktopLayoutC
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../common/sessionConfig.js';
 
-for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
-	MenuRegistry.appendMenuItem(menu, {
-		title: localize('layoutDensity', "Layout Density"),
-		submenu: LayoutDensityMenu,
-		group: '2_configuration',
-		order: 8,
-		when: IsPhoneLayoutContext.negate(),
-	});
-}
+MenuRegistry.appendMenuItem(Menus.TitleBarContext, {
+	title: localize('layoutDensity', "Layout Density"),
+	submenu: LayoutDensityMenu,
+	group: '2_configuration',
+	order: 8,
+	when: IsPhoneLayoutContext.negate(),
+});
 
 export const TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID = 'workbench.action.agentSessions.toggleSessionActivityBar';
 
+// The Agents window shows the shared View > Appearance menu. Entries that do not
+// apply here are hidden with `IsSessionsWindowContext` where they are contributed.
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
-	submenu: Menus.ViewAppearance,
+	submenu: MenuId.MenubarAppearanceMenu,
 	group: '2_appearance',
 	order: 1,
 	when: DesktopLayoutContext,
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	title: localize({ key: 'miLayoutDensity', comment: ['&& denotes a mnemonic'] }, "Layout &&Density"),
+	submenu: LayoutDensityMenu,
+	group: '3_workbench_layout_move',
+	order: 6,
 });
 
 registerAction2(class ToggleSessionActivityBarAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
-			title: localize2('toggleSessionActivityBar', "Toggle Session Activity Bar"),
+			title: {
+				...localize2('toggleSessionActivityBar', "Toggle Session Activity Bar"),
+				mnemonicTitle: localize({ key: 'miSessionActivityBar', comment: ['&& denotes a mnemonic'] }, "Session &&Activity Bar"),
+			},
 			category: Categories.View,
 			f1: true,
 			precondition: DesktopLayoutContext,
+			toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 4,
+				when: DesktopLayoutContext,
+			},
 		});
 	}
 
@@ -58,17 +75,6 @@ registerAction2(class ToggleSessionActivityBarAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		return configurationService.updateValue(SESSION_ACTIVITY_BAR_SETTING, !configurationService.getValue<boolean>(SESSION_ACTIVITY_BAR_SETTING));
 	}
-});
-
-MenuRegistry.appendMenuItem(Menus.ViewAppearance, {
-	command: {
-		id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
-		title: localize({ key: 'miSessionActivityBar', comment: ['&& denotes a mnemonic'] }, "Session &&Activity Bar"),
-		toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
-	},
-	group: '1_workbench_layout',
-	order: 1,
-	when: DesktopLayoutContext,
 });
 
 // The activity bar is only shown while enabled, so toggling from its own context menu hides it.
@@ -123,7 +129,10 @@ class ToggleSidebarVisibilityAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSidebarVisibilityAction.ID,
-			title: localize2('toggleSidebar', 'Toggle Side Bar'),
+			title: {
+				...localize2('toggleSidebar', 'Toggle Side Bar'),
+				mnemonicTitle: localize({ key: 'miPrimarySideBar', comment: ['&& denotes a mnemonic'] }, "Primary &&Side Bar"),
+			},
 			icon: sidebarToggleClosedIcon,
 			toggled: {
 				condition: SideBarVisibleContext,
@@ -144,6 +153,11 @@ class ToggleSidebarVisibilityAction extends Action2 {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				},
+				{
+					id: MenuId.MenubarAppearanceMenu,
+					group: '2_workbench_layout',
+					order: 1,
 				}
 			]
 		});
