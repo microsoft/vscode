@@ -16,7 +16,8 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { getMacOSWindowControlsPosition } from '../../../platform/window/common/window.js';
 import { INativeWorkbenchEnvironmentService } from '../../../workbench/services/environment/electron-browser/environmentService.js';
 import { LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { TestNativeHostService, workbenchInstantiationService } from '../../../workbench/test/electron-browser/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
+import { TestNativeHostService } from '../../../workbench/test/electron-browser/workbenchTestServices.js';
 import { NativeTitlebarPart } from '../../electron-browser/parts/titlebarPart.js';
 
 suite('Sessions - Native Titlebar Part', () => {
