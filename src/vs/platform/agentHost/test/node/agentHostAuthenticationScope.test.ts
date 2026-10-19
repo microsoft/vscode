@@ -229,6 +229,14 @@ suite('AgentHostAuthenticationScope', () => {
 		assert.deepStrictEqual(service.getSessionCredentialPrincipal('restored'), principal);
 	});
 
+	test('a chat without a recorded credential owner follows its session when it moves, and keeps the principal after the source is released', () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		service.restoreSessionCredentialPrincipal('source', principal);
+		service.moveChatCredentials('chat', 'source', 'target');
+		service.releaseSessionCredentials('source');
+		assert.deepStrictEqual({ principal: service.getSessionCredentialPrincipal('chat'), target: service.getSessionCredentialPrincipal('target') }, { principal, target: principal });
+	});
+
 	test('explicit local continuation validates the owner and captures only the desktop credential', async () => {
 		const calls: string[] = [];
 		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async (_url, init) => {

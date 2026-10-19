@@ -35,6 +35,7 @@ export interface IAgentHostAuthenticationService {
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined;
 	bindSessionCredentials(session: string, source: IAgentHostCredentialSource | undefined, chat?: string, usage?: 'execution' | 'agentMerge'): void;
 	restoreSessionCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal, chat?: string): void;
+	restorePersistedCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal): void;
 	releaseSessionCredentials(session: string): void;
 	hasSameCredentialOwner(first: string, second: string): boolean;
 	holdSessionCredentialOwners(sessions: readonly string[]): IDisposable;
@@ -308,17 +309,25 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	restoreSessionCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal, chat?: string): void {
-		const previous = this._sessionPrincipals.get(session);
-		if (!previous && this._heldOwners.has(session)) {
+		if (!this._sessionPrincipals.has(session) && this._heldOwners.has(session)) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'The session credential owner cannot be set while chats move into or out of the session');
 		}
+		this.restorePersistedCredentialPrincipal(session, principal);
+		if (chat !== undefined) {
+			this._credentialOwners.set(chat, session);
+		}
+	}
+
+	/**
+	 * Restores a principal that was already persisted for the session. Unlike binding a new one it isn't blocked while the
+	 * session is held by a move: a principal it reveals is caught by the move's re-check of the credential owners before it transfers anything.
+	 */
+	restorePersistedCredentialPrincipal(session: string, principal: IAgentHostCredentialPrincipal): void {
+		const previous = this._sessionPrincipals.get(session);
 		if (previous && (previous.apiOrigin !== principal.apiOrigin || previous.userId !== principal.userId)) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'The session credential owner cannot change');
 		}
 		this._sessionPrincipals.set(session, principal);
-		if (chat !== undefined) {
-			this._credentialOwners.set(chat, session);
-		}
 	}
 
 	/**
@@ -358,7 +367,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	 * and it resolves under its new owner, never to the ambient token.
 	 */
 	moveChatCredentials(chat: string, previous: string, current: string): void {
-		if (this._credentialOwners.get(chat) !== previous) {
+		// A chat whose context hasn't been created yet has no recorded owner: it belongs to the previous one.
+		if ((this._credentialOwners.get(chat) ?? previous) !== previous) {
 			return;
 		}
 		const principal = this._sessionPrincipals.get(previous);

@@ -7140,8 +7140,8 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				// The new session inherits the chat's credential owner. It is written to the session's own database before the commit
 				// creates the session, so a committed promotion always has it on disk (for older builds too) and a failed write
-				// refuses the promotion with nothing changed; the orphan left by a failed commit belongs to no session.
-				const credentialPrincipal = this._authService.getSessionCredentialPrincipal(chatKey);
+				// refuses the promotion with nothing changed; the orphan left by a failed commit belongs to no session (this path does not remove it; no session lists it).
+				const credentialPrincipal = this._authService.getSessionCredentialPrincipal(sourceKey);
 				if (credentialPrincipal) {
 					try {
 						// Straight to the session's own database: the state store would create central state for a session that doesn't exist yet.
@@ -7809,7 +7809,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const metadata = await reference.object.getMetadataObject({ [SESSION_CREDENTIAL_PRINCIPAL_KEY]: true });
 			const serialized = metadata[SESSION_CREDENTIAL_PRINCIPAL_KEY];
 			if (serialized !== undefined) {
-				this._authService.restoreSessionCredentialPrincipal(session, parseCredentialPrincipal(serialized));
+				this._authService.restorePersistedCredentialPrincipal(session, parseCredentialPrincipal(serialized));
 			}
 		} finally {
 			reference.dispose();
