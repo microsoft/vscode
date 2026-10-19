@@ -703,6 +703,8 @@ All three harnesses use the single `createChat` operation for fresh, fork, impor
 
 Provider-native external-chat discovery is pushed through `onDidDiscoverChats`; one-time registry migration is through `listChatsToMigrate`; direct metadata lookup uses `getChatMetadata`. Conversation history, provisioning, restoration, and teardown are all exact-chat-addressed.
 
+When `getChatMetadata` misses for a registered chat, restore treats the miss as retryable unless the provider's optional `isChatBackingMissing` positively confirms that the backing no longer exists (for Copilot: a connected SDK has no such session and the chat is not awaiting its first run). Only then does restore report a permanent `AHP_SESSION_NOT_FOUND` with a user-facing message; an unavailable or starting provider must return `false` (#331721).
+
 ---
 
 ## 8. Host Seams (what a provider is given, and what it must not read)

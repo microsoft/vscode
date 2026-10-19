@@ -24822,6 +24822,68 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			/** A provider that can positively report a chat's backing as gone (e.g. its data was deleted from disk). */
+			class BackingProbeAgent extends StartupRaceAgent {
+				backingMissing: boolean | Error = true;
+				readonly probedChats: string[] = [];
+
+				async isChatBackingMissing(chat: URI): Promise<boolean> {
+					this.probedChats.push(chat.toString());
+					if (this.backingMissing instanceof Error) {
+						throw this.backingMissing;
+					}
+					return this.backingMissing;
+				}
+			}
+
+			async function restoreRegisteredSessionWithProbe(id: string, configure: (agent: BackingProbeAgent) => void, catalogBackfilled = true): Promise<{ readonly code: number | undefined; readonly message: string | undefined; readonly probes: number; readonly hydrated: boolean }> {
+				const db = new TransientRegistryWriteDatabase();
+				const session = AgentSession.uri('copilot', id);
+				await db.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: false });
+				if (catalogBackfilled) {
+					await db.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				}
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db));
+				const agent = disposables.add(new BackingProbeAgent('copilot'));
+				configure(agent);
+				agent.migrationGate.complete();
+				registerTestAgentProvider(svc, agent);
+
+				let rejected: unknown;
+				await svc.restoreSession(session).catch(err => { rejected = err; });
+				return {
+					code: rejected instanceof ProtocolError ? rejected.code : undefined,
+					message: rejected instanceof ProtocolError && rejected.code === AHP_SESSION_NOT_FOUND ? rejected.message : undefined,
+					probes: agent.probedChats.length,
+					hydrated: !!getStateManager(svc).getSessionState(session.toString()),
+				};
+			}
+
+			test('reports a known session whose provider confirms the backing is gone as permanently not found', async () => {
+				assert.deepStrictEqual(await restoreRegisteredSessionWithProbe('backing-deleted', () => { }), {
+					code: AHP_SESSION_NOT_FOUND,
+					message: 'This session can\'t be opened because its conversation history no longer exists. It may have been deleted from disk. Delete the session to remove it from the list.',
+					probes: 1,
+					hydrated: false,
+				});
+			});
+
+			test('keeps a known session retryable when its provider cannot confirm the backing is gone', async () => {
+				const results = {
+					present: await restoreRegisteredSessionWithProbe('backing-present', agent => { agent.backingMissing = false; }),
+					probeFailed: await restoreRegisteredSessionWithProbe('backing-probe-failed', agent => { agent.backingMissing = new Error('SDK unavailable'); }),
+					catalogUnavailable: await restoreRegisteredSessionWithProbe('backing-catalog-unavailable', agent => { agent.catalogAvailable = false; }, false),
+				};
+
+				const retryable = { code: JSON_RPC_INTERNAL_ERROR, message: undefined, hydrated: false };
+				assert.deepStrictEqual(results, {
+					present: { ...retryable, probes: 1 },
+					probeFailed: { ...retryable, probes: 1 },
+					// An unreadable catalog says nothing about the session, so the provider is not even asked.
+					catalogUnavailable: { ...retryable, probes: 0 },
+				});
+			});
+
 			test('a stalled provider migration does not block restoring a ready provider', async () => {
 				const svc = makeService();
 				const stalled = disposables.add(new StartupRaceAgent('copilot'));

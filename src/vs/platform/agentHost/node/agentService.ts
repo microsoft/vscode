@@ -12071,9 +12071,17 @@ export class AgentService extends Disposable implements IAgentService {
 				// the registry has no record of the session; a miss for a known
 				// (registered) session, or while the catalog was unavailable, is
 				// transient — e.g. a provider whose SDK is not downloaded yet (#331648).
-				throw catalogReadable && !knownToRegistry
-					? new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`)
-					: new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} is not ready to open ${sessionStr}; it may still be starting, so try again shortly`);
+				if (catalogReadable && !knownToRegistry) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
+				}
+				// A known session is permanently unopenable only once its provider positively
+				// reports that the backing is gone (e.g. its data was deleted from disk); waiting
+				// cannot bring it back, so do not tell the user to retry.
+				if (catalogReadable && await this._isDefaultChatBackingMissing(agent, session)) {
+					this._logService.info(`[AgentService] restore: provider ${agent.id} reports the backing of ${sessionStr} no longer exists`);
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, localize('agentHost.sessionBackingMissing', "This session can't be opened because its conversation history no longer exists. It may have been deleted from disk. Delete the session to remove it from the list."));
+				}
+				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Provider ${agent.id} is not ready to open ${sessionStr}; it may still be starting, so try again shortly`);
 			}
 		}
 		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
@@ -13307,6 +13315,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _clearChatDraft(session: URI, chatUri: URI): Promise<void> {
 		return this._sessionStateStore.chatRows.setDraft(session, chatUri, undefined);
+	}
+
+	/** Whether the provider positively reports that a session's default chat backing no longer exists; any failure is inconclusive. */
+	private async _isDefaultChatBackingMissing(agent: IAgent, session: URI): Promise<boolean> {
+		if (!agent.isChatBackingMissing) {
+			return false;
+		}
+		try {
+			const backing = await this._readDefaultChatBacking(session);
+			const chat = URI.parse(backing.chat);
+			return await agent.isChatBackingMissing(chat, this._chatContext(session, chat, backing.storage), backing.providerData);
+		} catch (err) {
+			this._logService.warn(`[AgentService] restore: could not establish whether the backing of ${session.toString()} still exists: ${toErrorMessage(err)}`);
+			return false;
+		}
 	}
 
 	private async _getSessionMetadataForRestore(agent: IAgent, session: URI, external: boolean): Promise<IAgentSessionMetadata | undefined> {

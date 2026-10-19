@@ -1880,6 +1880,14 @@ export interface IAgent {
 	/** Retrieve metadata for an exact registered chat. Ambient catalogue reads never set {@link IAgentChatMetadataOptions.activation}. */
 	getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined>;
 
+	/**
+	 * Optionally reports that a chat's provider-side backing positively no longer exists, for example because its
+	 * data was deleted from disk. The host asks only after {@link getChatMetadata} returned `undefined` for a
+	 * registered chat, and then reports the session as permanently not found instead of retryable. Return `false`
+	 * whenever absence cannot be established, such as while the provider is unavailable or still starting.
+	 */
+	isChatBackingMissing?(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<boolean>;
+
 	// ---- Authentication and diagnostics ------------------------------------
 
 	getProtectedResources(): ProtectedResourceMetadata[];

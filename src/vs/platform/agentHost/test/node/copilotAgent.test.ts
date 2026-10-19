@@ -15951,6 +15951,41 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('isChatBackingMissing confirms only an SDK session that the connected client no longer has', async () => {
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const neverRun = AgentSession.uri('copilotcli', 'never-run');
+		// Created but never run: the SDK has no session for it yet by design.
+		await deferCopilotSdkExecution(sessionDataService, neverRun, 'never-run', new NullLogService());
+		const client = new TestCopilotClient([sdkSession('live')]);
+		const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const probe = (session: URI) => agent.isChatBackingMissing(defaultChatUri(session), exactChatContext(session, defaultChatUri(session), session));
+			const owner = AgentSession.uri('copilotcli', 'owner');
+			const peerWithoutBacking = URI.parse(buildChatUri(owner, 'peer-without-backing'));
+
+			const results = {
+				live: await probe(AgentSession.uri('copilotcli', 'live')),
+				deleted: await probe(AgentSession.uri('copilotcli', 'deleted')),
+				neverRun: await probe(neverRun),
+				unnamed: await agent.isChatBackingMissing(peerWithoutBacking, exactChatContext(owner, peerWithoutBacking)),
+				unreachable: false,
+			};
+			client.getSessionMetadata = async () => { throw new Error('Client not connected'); };
+			results.unreachable = await probe(AgentSession.uri('copilotcli', 'deleted'));
+
+			assert.deepStrictEqual(results, {
+				live: false,
+				deleted: true,
+				neverRun: false,
+				unnamed: false,
+				unreachable: false,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	for (const metadataKind of ['empty', 'project', 'native'] as const) {
 		test(`legacy archive metadata remains authoritative with ${metadataKind} Agent Host metadata until adoption`, async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/legacy-archive-metadata-`));
