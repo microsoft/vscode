@@ -24,7 +24,7 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { AgentHostPrewarmSessionsSettingId, IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -3597,47 +3597,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
 
 		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
-	});
-
-	test('a pre-warmed draft on a remote host is created with its picked immutable isolation', async () => {
-		// No capability tells the client that a remote host takes the isolation on Send, so the draft keeps it.
-		const configurationService = new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 300 });
-		await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, true);
-		connection.resolveSessionConfigResult = {
-			schema: {
-				type: 'object', properties: {
-					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: false },
-					branch: { type: 'string', title: 'Branch', sessionMutable: false },
-				}
-			},
-			values: { isolation: 'worktree', branch: 'origin/main' },
-		};
-		const sendOptions: IChatSendRequestOptions[] = [];
-		const provider = createProvider(disposables, connection, {
-			configurationService,
-			openSession: true,
-			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
-				if (options) {
-					sendOptions.push(options);
-				}
-				connection.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
-				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
-			},
-		});
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
-		provider.setAuthenticationPending(false);
-		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
-
-		const chat = await provider.createNewChat(session.sessionId);
-		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
-
-		assert.deepStrictEqual({
-			created: connection.createdSessionConfigs.map(created => created?.config),
-			sent: sendOptions.map(options => options.agentHostSessionConfig),
-		}, {
-			created: [{ isolation: 'worktree', branch: 'origin/main' }],
-			sent: [{ isolation: 'worktree', branch: 'origin/main' }],
-		});
 	});
 
 	// ---- Session data adapter -------

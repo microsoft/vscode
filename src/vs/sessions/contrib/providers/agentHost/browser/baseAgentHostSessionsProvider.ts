@@ -3064,13 +3064,6 @@ interface INewSessionConstructionContext {
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
 	readonly onSessionCreated: (backendSession: URI) => void;
 	readonly activeClientScope: IAgentCustomizationScope;
-	/**
-	 * `true` when the host accepts the picked isolation from the first
-	 * request while the session is still being created, so a pre-warmed
-	 * draft may be created in the picked folder. See
-	 * {@link BaseAgentHostSessionsProvider._supportsDeferredIsolation}.
-	 */
-	readonly supportsDeferredIsolation: boolean;
 }
 
 /**
@@ -3214,7 +3207,6 @@ class NewSession extends Disposable {
 	private readonly _resolveInitialPermissionConfig: INewSessionConstructionContext['resolveInitialPermissionConfig'];
 	private readonly _initialModeId: string | undefined;
 	private readonly _initialPullRequestUrl: string | undefined;
-	private readonly _supportsDeferredIsolation: boolean;
 	readonly modelConfiguration: AutomationModelConfiguration;
 	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
@@ -3260,7 +3252,6 @@ class NewSession extends Disposable {
 		this._resolveInitialPermissionConfig = ctx.resolveInitialPermissionConfig;
 		this._initialModeId = ctx.initialModeId;
 		this._initialPullRequestUrl = ctx.initialPullRequestUrl;
-		this._supportsDeferredIsolation = ctx.supportsDeferredIsolation;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -3475,13 +3466,9 @@ class NewSession extends Disposable {
 	}
 	getConfigValues(): Record<string, unknown> | undefined { return this._config && filterSessionConfigValues(this._config.schema, this._config.values); }
 
-	/**
-	 * Only pre-warming benefits from a folder draft, so other drafts keep the
-	 * picked isolation. A host that cannot take the isolation on Send also
-	 * keeps it, since its created session may no longer accept the change.
-	 */
+	/** Only pre-warming benefits from a folder draft, so other drafts keep the picked isolation. */
 	private _createsInPickedFolder(): boolean {
-		return this._supportsDeferredIsolation && !!this.workspaceUri && this._configurationService.getValue<boolean>(AgentHostPrewarmSessionsSettingId) === true;
+		return !!this.workspaceUri && this._configurationService.getValue<boolean>(AgentHostPrewarmSessionsSettingId) === true;
 	}
 
 	private _getIsolationProperty() {
@@ -4593,17 +4580,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return newAgentHostSessionUri(agentProvider, '', this.connection?.initializeResult.get()).scheme;
 	}
 
-	/**
-	 * Whether this provider's host accepts a draft's picked isolation from its
-	 * first request while the session is still being created. Only then can a
-	 * pre-warmed draft be created in the picked folder and keep the isolation
-	 * local until Send. No protocol capability advertises this, so it defaults
-	 * to `false` and is enabled only for hosts known to support it.
-	 */
-	protected get _supportsDeferredIsolation(): boolean {
-		return false;
-	}
-
 	protected _logicalSessionTypeForBackendScheme(backendScheme: string): string {
 		return backendScheme;
 	}
@@ -5320,7 +5296,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					? this._handleNewSessionStateGone(id)
 					: this._handleNewSessionStateUpdate(id, state),
 				activeClientScope,
-				supportsDeferredIsolation: this._supportsDeferredIsolation,
 			}, {
 				icon: this.iconForAgentProvider(sessionType.id) ?? this.icon,
 				environment: this.environment.id,
