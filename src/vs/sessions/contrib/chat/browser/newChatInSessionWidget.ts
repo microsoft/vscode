@@ -21,6 +21,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { ChatHarnessPicker } from './chatHarnessPicker.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
@@ -113,11 +114,25 @@ export class NewChatInSessionWidget extends Disposable {
 		}));
 
 		this._newChatInput.render(chatWidgetContent, parent);
+		this._renderHarnessPicker();
 		// Rendered after the composer: the tip docks inside the composer's stack,
 		// so the pet stands on it rather than on the composer boundary.
 		this._renderSubSessionTip();
 
 		chatWidgetContainer.classList.add('revealed');
+	}
+
+	private _renderHarnessPicker(): void {
+		const container = this._newChatInput.sessionControlsElement;
+		if (!container) {
+			return;
+		}
+		const picker = this._register(this.instantiationService.createInstance(ChatHarnessPicker, this._session));
+		picker.render(container);
+		const slot = container.lastElementChild;
+		if (slot) {
+			container.prepend(slot);
+		}
 	}
 
 	private _renderSubSessionTip(): void {

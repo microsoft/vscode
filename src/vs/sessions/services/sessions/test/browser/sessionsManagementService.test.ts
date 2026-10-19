@@ -46,7 +46,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChatMovedEvent, type IForkChatOptions, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { IChatMovedEvent, type ICreateNewChatOptions, type IForkChatOptions, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
@@ -7262,6 +7262,34 @@ suite('SessionsManagementService', () => {
 			}, {
 				reused: true,
 				createNewChatCalls: 0,
+			});
+		});
+
+		test('reuses an untitled chat only when it uses the requested harness', async () => {
+			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created'), harness: 'other' };
+			const session = stubSession({ sessionId: 'harness-reuse', providerId: 'test', harness: 'main', chats: constObservable([untitledChat]) });
+			const requests: (string | undefined)[] = [];
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(session); }
+				override async createNewChat(_sessionId?: string, _prompt?: string, options?: ICreateNewChatOptions): Promise<IChat> {
+					requests.push(options?.harness);
+					return createdChat;
+				}
+			};
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const sameHarness = await service.createNewChatInSession(session, { harness: 'main' });
+			const otherHarness = await service.createNewChatInSession(session, { harness: 'other' });
+
+			assert.deepStrictEqual({
+				sameHarnessReused: sameHarness === untitledChat,
+				otherHarness: otherHarness?.resource.toString(),
+				requests,
+			}, {
+				sameHarnessReused: true,
+				otherHarness: createdChat.resource.toString(),
+				requests: ['other'],
 			});
 		});
 

@@ -2297,6 +2297,14 @@ suite('AgentHostChatContribution', () => {
 			await finish();
 			assert.deepStrictEqual(sent.action.message.model, { id: 'auto' });
 		});
+		test('a model of another agent on the same host is sent by its raw id', async () => {
+			const models = new Map([['agent-host-otheragent:other-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'other-model', name: 'Other', targetChatSessionType: 'agent-host-otheragent' })]]);
+			const { startRequest } = await openWireSession({ languageModels: models });
+			const { sent, finish } = await startRequest({ userSelectedModelId: 'agent-host-otheragent:other-model' });
+			assert.ok(sent.action.type === ActionType.ChatTurnStarted);
+			await finish();
+			assert.deepStrictEqual(sent.action.message.model, { id: 'other-model' });
+		});
 	});
 
 	suite('response resource links', () => {

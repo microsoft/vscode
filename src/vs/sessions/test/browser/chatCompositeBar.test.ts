@@ -128,10 +128,11 @@ class TestEditorGroupsService extends mock<IEditorGroupsService>() {
 	}
 }
 
-function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed, options?: { readonly isArchived?: boolean; readonly isRead?: boolean; readonly canArchive?: boolean }): IChat {
+function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed, options?: { readonly isArchived?: boolean; readonly isRead?: boolean; readonly canArchive?: boolean; readonly harness?: string }): IChat {
 	const resource = URI.parse(`test-chat://${id}`);
 	return new class extends mock<IChat>() {
 		override readonly resource = resource;
+		override readonly harness = options?.harness;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly status: IObservable<SessionStatus> = constObservable(status);
 		override readonly isArchived: IObservable<boolean> = constObservable(options?.isArchived ?? false);
@@ -145,6 +146,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat =
 	const resource = URI.parse('test-session://session');
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'session';
+		override readonly harness = 'copilot';
 		override readonly resource = resource;
 		override readonly providerId = 'test';
 		override readonly title = observableValue(this, 'Parent Session');
@@ -179,7 +181,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly secondaryHarness?: string }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -187,7 +189,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const sessionsService = new TestSessionsService();
 	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
-	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive });
+	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive, harness: options?.secondaryHarness });
 	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
 	const session = options?.standaloneChat ? { ...baseSession, scopedChatResource: secondaryChat.resource } : baseSession;
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
@@ -197,6 +199,9 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const showSessionActions = observableValue('test.showSessionActions', true);
 	const provider = options?.isAgentHost ? new class extends mock<ISessionsProvider>() {
 		override readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+		override getHarnessPresentation(harness: string) {
+			return harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined;
+		}
 	}() : undefined;
 
 	instantiationService.stub(ICommandService, commandService);
@@ -966,6 +971,18 @@ suite('Sessions - ChatCompositeBar', () => {
 			],
 			hasMetadataRow: false,
 		});
+	});
+
+	test('marks a chat whose harness differs from the main chat\'s with that harness\'s icon and label', () => {
+		const { tabs } = createHarness(disposables, { isAgentHost: true, secondaryHarness: 'claude' });
+
+		assert.deepStrictEqual(tabs.map(tab => ({
+			harnessIcon: tab.querySelector('.chat-composite-bar-tab-harness')?.classList.contains('codicon-claude') ?? false,
+			ariaLabel: tab.getAttribute('aria-label'),
+		})), [
+			{ harnessIcon: false, ariaLabel: 'Main Chat, State: Completed' },
+			{ harnessIcon: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
+		]);
 	});
 
 	test('renders unread state from each chat', () => {

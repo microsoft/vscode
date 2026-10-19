@@ -431,6 +431,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this._hostNoticeContainer;
 	}
 
+	/** The input toolbar's session controls, where a host can place a picker of its own. */
+	get sessionControlsElement(): HTMLElement | undefined {
+		return this._sessionControlsContainer;
+	}
+
 
 	// IHistoryNavigationWidget
 	private readonly _onDidFocus = this._register(new Emitter<void>());

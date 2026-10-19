@@ -25,6 +25,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { ChatProvidersSettingId } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -270,11 +271,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const key = session.toString();
 		const existing = this._sessionStateValues.get(key) as SessionState | undefined;
 		if (existing && Array.isArray(existing.chats)) {
+			const requestedProvider = (options as { readonly provider?: string } | undefined)?.provider;
+			const source = (options?.fork?.source ?? options?.sideChat?.source)?.toString();
+			const provider = requestedProvider ?? existing.chats.find(summary => summary.resource === source)?.provider;
 			const newChat: ChatSummary = {
 				resource: chat.toString(),
 				title: options?.title ?? '',
 				status: ProtocolSessionStatus.Idle,
 				modifiedAt: new Date(0).toISOString(),
+				...(provider !== undefined ? { provider } : {}),
 			};
 			this.setSessionState(AgentSession.id(session), AgentSession.provider(session)!, {
 				...existing,
@@ -11998,6 +12003,116 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		suite('chats backed by different agents', () => {
+			const otherAgent = { provider: 'otheragent', displayName: 'Other', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo;
+			const copilotAgent = { provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo;
+
+			function enableChatProviders(options: { setting?: boolean; hostCapability?: boolean } = {}): TestConfigurationService {
+				agentHost.setAgents([copilotAgent, otherAgent, { provider: 'singlechat', displayName: 'Single', description: '', models: [], capabilities: {} } as AgentInfo]);
+				if (options.hostCapability !== false) {
+					agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), multipleChatProviders: {} }, undefined);
+				}
+				return new TestConfigurationService({ [ChatProvidersSettingId.Enabled]: options.setting !== false });
+			}
+
+			function setupCatalog(rawId: string, chats: ChatSummary[]): string {
+				const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', rawId).toString());
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(defaultChat, ''), ...chats], { defaultChat }));
+				return defaultChat;
+			}
+
+			test('advertises chat harnesses only with the setting, the host capability, and a multi-chat session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const harnesses = (configurationService: TestConfigurationService, rawId: string) => {
+					const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+					return setupMultiChatSession(provider, rawId).capabilities.get().supportsChatHarnesses;
+				};
+				const enabled = harnesses(enableChatProviders(), 'harness-enabled');
+				const settingOff = harnesses(enableChatProviders({ setting: false }), 'harness-setting-off');
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), multipleChatProviders: undefined }, undefined);
+				const hostWithout = harnesses(enableChatProviders({ hostCapability: false }), 'harness-host-without');
+
+				agentHost.addSession(createSession('harness-quick', { summary: 'Quick Chat', workingDirectory: URI.file('/tmp/copilot-scratch/harness-quick'), quickChat: true }));
+				const quickProvider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				quickProvider.getSessions();
+				await timeout(0);
+				const quick = quickProvider.getSessions().find(session => session.title.get() === 'Quick Chat');
+
+				assert.deepStrictEqual({ enabled, settingOff, hostWithout, quick: quick?.capabilities.get().supportsChatHarnesses }, {
+					enabled: ['copilot', 'otheragent'],
+					settingOff: undefined,
+					hostWithout: undefined,
+					quick: undefined,
+				});
+			}));
+
+			test('maps each chat\'s reported agent to its harness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				const session = setupMultiChatSession(provider, 'harness-mapping');
+				const sessionUri = AgentSession.uri('copilotcli', 'harness-mapping').toString();
+				setupCatalog('harness-mapping', [
+					{ ...makeChatSummary(buildChatUri(sessionUri, 'same'), 'Same') },
+					{ ...makeChatSummary(buildChatUri(sessionUri, 'other'), 'Other'), provider: 'otheragent' },
+				]);
+
+				assert.deepStrictEqual(session.chats.get().map(chat => [chat.resource.fragment, chat.harness]), [
+					['', 'copilot'],
+					['same', 'copilot'],
+					['other', 'otheragent'],
+				]);
+			}));
+
+			test('createNewChat names an agent only when the harness differs from the session\'s', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				const session = setupMultiChatSession(provider, 'harness-create');
+				setupCatalog('harness-create', []);
+
+				const sameHarness = await provider.createNewChat(session.sessionId, undefined, { harness: 'copilot' });
+				const noHarness = await provider.createNewChat(session.sessionId);
+				const otherHarness = await provider.createNewChat(session.sessionId, undefined, { harness: 'otheragent' });
+
+				assert.deepStrictEqual({
+					providers: agentHost.createdChats.map(call => (call.options as { readonly provider?: string } | undefined)?.provider),
+					harnesses: [sameHarness.harness, noHarness.harness, otherHarness.harness],
+					otherModel: agentHost.createdChats.at(-1)?.options?.model,
+				}, {
+					providers: [undefined, undefined, 'otheragent'],
+					harnesses: ['copilot', 'copilot', 'otheragent'],
+					otherModel: undefined,
+				});
+				await assert.rejects(provider.createNewChat(session.sessionId, undefined, { harness: 'singlechat' }), /does not support chats using harness/);
+			}));
+
+			test('createNewChat rejects another harness when the host does not advertise it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), multipleChatProviders: undefined }, undefined);
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders({ hostCapability: false }) });
+				const session = setupMultiChatSession(provider, 'harness-old-host');
+				setupCatalog('harness-old-host', []);
+
+				await assert.rejects(provider.createNewChat(session.sessionId, undefined, { harness: 'otheragent' }), /does not support chats using harness/);
+				assert.deepStrictEqual(agentHost.createdChats, []);
+			}));
+
+			test('fork and side chat never name an agent and keep the source chat\'s harness', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: enableChatProviders() });
+				const session = setupMultiChatSession(provider, 'harness-fork');
+				const sessionUri = AgentSession.uri('copilotcli', 'harness-fork').toString();
+				setupCatalog('harness-fork', [{ ...makeChatSummary(buildChatUri(sessionUri, 'other'), 'Other'), provider: 'otheragent' }]);
+				const source = session.chats.get().find(chat => chat.resource.fragment === 'other');
+				assert.ok(source);
+
+				const forked = await provider.forkChat(session.sessionId, source.resource, 'turn-1');
+				const side = await provider.createSideChat(session.sessionId, source.resource, 'turn-1');
+
+				assert.deepStrictEqual({
+					providers: agentHost.createdChats.map(call => (call.options as { readonly provider?: string } | undefined)?.provider),
+					harnesses: [forked.harness, side.harness],
+				}, {
+					providers: [undefined, undefined],
+					harnesses: ['otheragent', 'otheragent'],
+				});
+			}));
+		});
+
 		test('forkChat sends an optional title with only fork support and returns the host-published named peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
@@ -15054,6 +15169,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			undefined);
 		return { provider, chat, peer, summary, peerSummary, state, setChatState, show, visibleSessions, sessionUri: AgentSession.uri('copilotcli', rawId).toString() };
 	}
+
+	test('a chat backed by another agent renders and writes its config against its own schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, peer, peerSummary, state, show } = perChatSession('own-schema', true, { withoutChatState: true });
+		const otherPeerSummary: ChatSummary = { ...peerSummary, provider: 'otheragent' };
+		const sessionState = state();
+		agentHost.setSessionState('own-schema', 'copilotcli', { ...sessionState, chats: sessionState.chats.map(summary => summary.resource === peer ? otherPeerSummary : summary) });
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'own-schema')!;
+		await waitForSessionConfig(provider, session, c => !!c);
+		const peerResource = session.chats.get().find(chat => chat.harness === 'otheragent')!.resource;
+		show(session, peerResource);
+		const resolvingBefore = provider.isSessionConfigResolving(session.sessionId, peerResource).get();
+		const ownSchema: SessionConfigState['schema'] = {
+			type: 'object',
+			properties: {
+				effort: { type: 'string', title: 'Effort', enum: ['low', 'medium', 'high'], default: 'medium', chatMutable: true },
+				verbose: { type: 'boolean', title: 'Verbose', default: false, chatMutable: true },
+			},
+		};
+		agentHost.setChatState(peer, { ...otherPeerSummary, turns: [], config: { schema: ownSchema, values: { effort: 'high' } } });
+
+		const config = provider.getSessionConfig(session.sessionId, peerResource);
+		await assert.rejects(provider.setSessionConfigValue(session.sessionId, peerResource, 'isolation', 'folder'), /not writable/);
+		agentHost.dispatchedActions.length = 0;
+		await provider.setSessionConfigValue(session.sessionId, peerResource, 'effort', 'low');
+
+		assert.deepStrictEqual({
+			resolvingBefore,
+			resolvingAfter: provider.isSessionConfigResolving(session.sessionId, peerResource).get(),
+			config,
+			dispatched: agentHost.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			resolvingBefore: true,
+			resolvingAfter: false,
+			config: { schema: ownSchema, values: { effort: 'high', verbose: false } },
+			dispatched: [{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { effort: 'low' } } }],
+		});
+	}));
 
 	test('a visible session\'s active chat keeps its config subscription until it is no longer visible, and held resolving observables follow it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);

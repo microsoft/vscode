@@ -201,6 +201,12 @@ export interface ISessionsProviderAutomations extends IAutomationStore {
 	readonly unavailableMessage?: string;
 }
 
+/** How a harness is shown to the user. */
+export interface IHarnessPresentation {
+	readonly label: string;
+	readonly icon: ThemeIcon;
+}
+
 /**
  * Options for {@link ISessionsProvider.createNewChat}.
  */
@@ -470,8 +476,9 @@ export interface ISessionsProvider {
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
+	 * @param chat The chat whose models to resolve, when its harness may differ from the session's ({@link IChat.harness}).
 	 */
-	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
+	getModelsSnapshot(sessionId: string, desiredModelId?: string, chat?: URI): ISessionModelsSnapshot;
 
 	/**
 	 * Get selectable models before creating a session.
@@ -485,8 +492,9 @@ export interface ISessionsProvider {
 	 * are presented (grouping, featured models, whether the manage-models action
 	 * is offered), so provider-specific behavior is not hardcoded in core.
 	 * @param sessionId The ID of the session.
+	 * @param chat The chat the picker selects for, when its harness may differ from the session's.
 	 */
-	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
+	getModelPickerOptions(sessionId: string, chat?: URI): ISessionModelPickerOptions;
 
 	/**
 	 * Event that fires when the snapshot returned by {@link getModelsSnapshot}
@@ -620,6 +628,12 @@ export interface ISessionsProvider {
 	 * confirmation dialog).
 	 */
 	deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
+
+	/**
+	 * Presentation of a harness this provider serves, in the identity space of
+	 * {@link ISession.harness}, for surfaces that show or pick a chat's harness.
+	 */
+	getHarnessPresentation?(harness: string): IHarnessPresentation | undefined;
 
 	/**
 	 * Create a new chat in the given session and return it.
