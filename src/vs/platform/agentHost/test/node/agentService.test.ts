@@ -109,7 +109,7 @@ import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import { getWorktreesRoot, SessionWorkingDirectoryMissingError, WorktreeIsolation, WORKTREE_META_PATH, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionStateMirror.js';
 import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
@@ -35559,6 +35559,34 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual({ reasons, loaded: [missing, source, target].map(session => stateManager.getSessionState(session.toString()) !== undefined) }, {
 						reasons: [AgentChatMoveRefusal.NotMovable, AgentChatMoveRefusal.SessionNotReady],
 						loaded: [false, false, false],
+					});
+				});
+
+				test('a nested session whose working directory is gone is refused as not ready before anything changes, like promoting it', async () => {
+					const { createService, agent, service, source, target } = await setupSessionMove();
+					const peer = URI.parse(buildChatUri(source, 'peer'));
+					await service.createChat(source, peer);
+					completeTurn(service, peer);
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+
+					agent.sessionMetadataOverrides = { workingDirectories: [URI.file('/repo')] };
+					const getSessionMessages = agent.getSessionMessages.bind(agent);
+					agent.getSessionMessages = async chat => {
+						if (chat.toString() === peer.toString()) {
+							throw new SessionWorkingDirectoryMissingError(URI.file('/gone'));
+						}
+						return getSessionMessages(chat);
+					};
+					const restarted = createService();
+					const reasons = [
+						await refusalOf(restarted.moveChat(source, peer, { kind: 'session', session: target, after: undefined })),
+						await refusalOf(restarted.moveChat(source, peer, { kind: 'newSession' })),
+					];
+
+					assert.deepStrictEqual({ reasons, owner: getStateManager(restarted).getChatOwner(peer.toString()) }, {
+						reasons: [AgentChatMoveRefusal.SessionNotReady, AgentChatMoveRefusal.SessionNotReady],
+						owner: source.toString(),
 					});
 				});
 
