@@ -163,7 +163,7 @@ export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentO
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
 /** Configuration key gating Copilot extensions in agent-host sessions. */
-export const AgentHostCopilotExtensionsEnabledSettingId = 'chat.agentHost.copilot.extensions.enabled';
+export const CopilotExtensionsEnabledSettingId = 'chat.copilotExtensions.enabled';
 
 /** Configuration key gating Canvas presentation in agent-host sessions. */
 export const CanvasesEnabledSettingId = 'chat.canvases.enabled';

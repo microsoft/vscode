@@ -16,7 +16,7 @@ import {
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
-	AgentHostCopilotExtensionsEnabledSettingId,
+	CopilotExtensionsEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
@@ -234,9 +234,9 @@ configurationRegistry.registerConfiguration({
 		},
 		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
-		[AgentHostCopilotExtensionsEnabledSettingId]: {
+		[CopilotExtensionsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.copilot.extensions.enabled', "Controls whether local Agent Host Copilot sessions can load Copilot Extensions. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.copilotExtensions.enabled', "Controls whether local Agent Host Copilot sessions can load Copilot Extensions. Newly created sessions pick up changes to this setting."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
