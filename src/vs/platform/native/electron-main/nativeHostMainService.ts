@@ -29,6 +29,7 @@ import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electro
 import { ILogService } from '../../log/common/log.js';
 import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { toShellExternalUrl } from '../common/externalUrl.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -777,7 +778,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenShellExternal(windowId: number | undefined, url: string): Promise<void> {
 		try {
-			await shell.openExternal(url);
+			await shell.openExternal(toShellExternalUrl(url));
 		} catch (error) {
 			let isLink: boolean;
 			let message: string;
