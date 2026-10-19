@@ -23,6 +23,8 @@ import { IContextKeyService, RawContextKey } from '../../../../../platform/conte
 import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import '../../../../browser/actions/layoutActions.js';
 
 suite('EditorGroupsService', () => {
 
@@ -1986,6 +1988,59 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rootGroup.isLocked, false);
 		part.removeGroup(leftGroup);
 		assert.strictEqual(rootGroup.isLocked, false);
+	});
+
+	for (const [suffix, direction] of [
+		['Left', GroupDirection.LEFT], ['Right', GroupDirection.RIGHT],
+		['Up', GroupDirection.UP], ['Down', GroupDirection.DOWN]
+	] as const) {
+		test(`resize editor ${suffix} command supports custom increments`, async () => {
+			const [part, instantiationService] = await createPart();
+			part.layout(1500, 1500, 0, 0);
+			const active = part.activeGroup;
+			const neighbor = part.addGroup(active, direction);
+			part.arrangeGroups(GroupsArrangement.EVEN);
+			const command = CommandsRegistry.getCommand(`workbench.action.resizeEditor${suffix}`)!;
+			const axis = direction === GroupDirection.LEFT || direction === GroupDirection.RIGHT ? 'width' : 'height';
+			const initial = part.getSize(active)[axis];
+
+			instantiationService.invokeFunction(command.handler);
+			assert.strictEqual(part.getSize(active)[axis], initial + 60);
+			instantiationService.invokeFunction(command.handler, { increment: -25 });
+			assert.strictEqual(part.getSize(active)[axis], initial + 35);
+			for (const increment of [0, NaN, Infinity, 'invalid']) {
+				instantiationService.invokeFunction(command.handler, { increment });
+			}
+			assert.deepStrictEqual({
+				size: part.getSize(active)[axis],
+				neighborSize: part.getSize(neighbor)[axis],
+				activeGroup: part.activeGroup.id
+			}, { size: initial + 35, neighborSize: initial - 35, activeGroup: active.id });
+		});
+	}
+
+	test('resize group towards a specific neighbor', async () => {
+		const [parts] = await createParts();
+		const part = parts.testMainPart;
+		part.layout(1500, 800, 0, 0);
+		const left = part.activeGroup;
+		const middle = part.addGroup(left, GroupDirection.RIGHT);
+		const right = part.addGroup(middle, GroupDirection.RIGHT);
+		part.arrangeGroups(GroupsArrangement.EVEN);
+		part.activateGroup(middle);
+		const groups = [left, middle, right];
+		const sizes = groups.map(group => part.getSize(group));
+
+		parts.resizeGroup(middle.id, GroupDirection.LEFT, 60);
+		assert.deepStrictEqual(groups.map(group => part.getSize(group)), [
+			{ ...sizes[0], width: sizes[0].width - 60 },
+			{ ...sizes[1], width: sizes[1].width + 60 },
+			sizes[2]
+		]);
+		assert.strictEqual(part.activeGroup, middle);
+
+		parts.resizeGroup(middle, GroupDirection.LEFT, -60);
+		assert.deepStrictEqual(groups.map(group => part.getSize(group)), sizes);
 	});
 
 	test('maximize editor group', async () => {
