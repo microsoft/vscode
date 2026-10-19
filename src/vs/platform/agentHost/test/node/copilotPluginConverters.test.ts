@@ -16,7 +16,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
@@ -787,6 +787,27 @@ suite('copilotPluginConverters', () => {
 				plugin: parsedPluginsEqual([a], [b]),
 				standalone: parsedPluginsEqual([{ ...a, pluginDir: undefined, resourceDir: a.pluginDir }], [{ ...b, pluginDir: undefined, resourceDir: b.pluginDir }]),
 			}, { plugin: true, standalone: true });
+		});
+
+		test('compares absolute roots when a plugin has no content nonce', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual([
+				parsedPluginsEqual([{ ...a, nonce: undefined }], [{ ...b, nonce: undefined }]),
+				parsedPluginsEqual([{ ...a, nonce: '' }], [{ ...b, nonce: '' }]),
+				parsedPluginsEqual([{ ...a, nonce: undefined }], [{ ...a, nonce: undefined }]),
+			], [false, false, true]);
+		});
+
+		test('resolves a published agent URI to the applied agent name only across an equivalent relocation', () => {
+			const applied = relocatedPlugin('/cache/old/revision');
+			const published = relocatedPlugin('/cache/new/revision');
+			const agentUri = published.agents[0].uri.toString();
+			assert.deepStrictEqual([
+				findRelocatedAgentName([applied], [published], agentUri),
+				findRelocatedAgentName([applied], [{ ...published, nonce: 'changed-resource-body' }], agentUri),
+				findRelocatedAgentName([applied], [published], 'file:///unknown.agent.md'),
+			], [applied.agents[0].name, undefined, undefined]);
 		});
 
 		test('preserves content changes when plugin roots differ', () => {

@@ -473,17 +473,16 @@ export function toSdkHooks(
 	return hooks;
 }
 
+type ComparablePlugin = IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+
 /**
- * Compares SDK configuration relative to each plugin's own materialized root, preserving plugin order.
- * Client nonces retain resource-body revisions that are not represented in parsed metadata.
+ * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
+ * materialized root, since the nonce covers resource bodies that parsed metadata does not; others compare by absolute path.
  */
-export function parsedPluginsEqual(
-	a: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
-	b: readonly (IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string })[],
-): boolean {
+export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly ComparablePlugin[]): boolean {
 	const serialize = (plugins: typeof a) => {
 		return JSON.stringify(plugins.map(p => {
-			const root = p.pluginDir ?? p.resourceDir;
+			const root = p.nonce ? p.pluginDir ?? p.resourceDir : undefined;
 			const roots = root ? [...new Set([root.toString(), ...(root.scheme === Schemas.file ? [root.fsPath] : [])])] : [];
 			const rootPattern = roots.length
 				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
@@ -514,4 +513,15 @@ export function parsedPluginsEqual(
 		}));
 	};
 	return serialize(a) === serialize(b);
+}
+
+/** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
+export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
+	for (let i = 0; i < published.length; i++) {
+		const index = published[i].agents.findIndex(agent => agent.uri.toString() === agentUri);
+		if (index >= 0 && applied[i] && parsedPluginsEqual([applied[i]], [published[i]])) {
+			return applied[i].agents[index]?.name;
+		}
+	}
+	return undefined;
 }
