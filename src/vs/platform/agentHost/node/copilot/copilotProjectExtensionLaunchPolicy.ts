@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs/promises';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -55,7 +56,7 @@ export class CopilotProjectExtensionLaunchPolicy {
 	constructor(
 		private readonly _configurationService: IAgentConfigurationService,
 		private readonly _logService: ILogService,
-		private readonly _realpath: (path: string) => Promise<string>,
+		private readonly _realpath: (path: string) => Promise<string> = fs.realpath,
 	) { }
 
 	async acquireAdmission(directories: readonly URI[], trustGrant: ICopilotProjectExtensionTrustGrant | undefined): Promise<IDisposable> {
