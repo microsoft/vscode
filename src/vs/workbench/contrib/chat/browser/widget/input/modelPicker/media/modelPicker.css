@@ -501,6 +501,16 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='comparison'] {
+	border: var(--vscode-strokeThickness) solid transparent;
+}
+
+.action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action[data-id='comparison'].checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background: var(--vscode-inputOption-activeBackground);
+	border-color: var(--vscode-inputOption-activeBorder);
+}
+
 .action-widget .chat-model-picker-tabbar .monaco-custom-radio .monaco-button:focus-visible,
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
