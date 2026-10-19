@@ -161,6 +161,10 @@ function createMockProvider(id: string, opts?: {
 		deleteSession: async () => { },
 		deleteSessions: async () => { },
 		deleteChat: async () => true,
+		canMoveChat: () => false,
+		moveChat: async () => { },
+		canMoveSessionUnder: () => false,
+		moveSessionUnder: async () => { },
 		createNewChat: async () => { throw new Error('Not implemented'); },
 		forkChat: async () => { throw new Error('Not implemented'); },
 		createSideChat: async () => { throw new Error('Not implemented'); },
@@ -1014,7 +1018,7 @@ suite('WorkspacePicker - Connection Status', () => {
 				submenuHoverDelay: undefined,
 			},
 			unifiedListOptions: {
-				submenuPointerIntent: undefined,
+				submenuPointerIntent: true,
 				submenuHoverDelay: 0,
 				preserveVerticalPosition: true,
 				alignToAnchorTop: true,
@@ -6457,35 +6461,41 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('opens Chat as a host submenu when targets are provided', async () => {
-		const selectedHosts: string[] = [];
-		const picker = createTestablePicker(disposables, providersService, true, {
-			getNoWorkspaceOption: () => ({
-				description: 'Start without a backing workspace',
-				isSelected: false,
-				select: () => selectedHosts.push('default'),
-				submenuActions: [
-					toAction({ id: 'quickChat.local', label: 'Local', run: () => selectedHosts.push('local') }),
-					toAction({ id: 'quickChat.remote', label: 'Test Remote', run: () => selectedHosts.push('remote') }),
-				],
-			}),
-		}, undefined, undefined, true);
-		const chatItem = picker.getItems().find(item => item.label === 'Chat');
+	for (const experimentalComposerLayout of [false, true]) {
+		test(`opens Chat as an anchored host submenu with pointer intent (experimental composer: ${experimentalComposerLayout})`, async () => {
+			const selectedHosts: string[] = [];
+			const picker = createTestablePicker(disposables, providersService, true, {
+				getNoWorkspaceOption: () => ({
+					description: 'Start without a backing workspace',
+					isSelected: false,
+					select: () => selectedHosts.push('default'),
+					submenuActions: [
+						toAction({ id: 'quickChat.local', label: 'Local', run: () => selectedHosts.push('local') }),
+						toAction({ id: 'quickChat.remote', label: 'Test Remote', run: () => selectedHosts.push('remote') }),
+					],
+				}),
+			}, undefined, undefined, true, undefined, experimentalComposerLayout);
+			const chatItem = picker.getItems().find(item => item.label === 'Chat');
 
-		await picker.selectSubmenu('Chat', 'Test Remote');
+			await picker.selectSubmenu('Chat', 'Test Remote');
 
-		assert.deepStrictEqual({
-			openSubmenuOnClick: chatItem?.openSubmenuOnClick,
-			ariaDescription: chatItem?.ariaDescription,
-			actions: chatItem?.submenuActions?.map(action => action.label),
-			selectedHosts,
-		}, {
-			openSubmenuOnClick: true,
-			ariaDescription: 'Start the session in a temporary directory.',
-			actions: ['Local', 'Test Remote'],
-			selectedHosts: ['remote'],
+			assert.deepStrictEqual({
+				openSubmenuOnClick: chatItem?.openSubmenuOnClick,
+				hover: chatItem?.hover,
+				submenuPointerIntent: picker.getListOptions().submenuPointerIntent,
+				ariaDescription: chatItem?.ariaDescription,
+				actions: chatItem?.submenuActions?.map(action => action.label),
+				selectedHosts,
+			}, {
+				openSubmenuOnClick: true,
+				hover: { preserveVerticalPosition: true, alignToAnchorTop: true },
+				submenuPointerIntent: true,
+				ariaDescription: 'Start the session in a temporary directory.',
+				actions: ['Local', 'Test Remote'],
+				selectedHosts: ['remote'],
+			});
 		});
-	});
+	}
 
 	test('persists Chat as the checked selection until a workspace is selected', () => {
 		const storage = disposables.add(new TestStorageService());

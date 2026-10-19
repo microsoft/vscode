@@ -30,6 +30,7 @@ import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSavedChatService, type IAgentHostSavedChatReader } from './agentHostSavedChatService.js';
+import { AgentHostWorktreeCoOwnership } from './agentHostWorktreeCoOwnership.js';
 import { ClaudeSavedChatReader } from './claude/claudeSavedChatReader.js';
 import { CodexSavedChatReader } from './codex/codexSavedChatReader.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
@@ -43,6 +44,7 @@ import { URI } from '../../../base/common/uri.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
@@ -127,7 +129,8 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
 		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
-		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore));
+		const worktreeCoOwnership = new AgentHostWorktreeCoOwnership(orchestratorDatabase, sessionStateStore, accessor.get(IAgentHostWorktreeIsolation), logService);
+		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore, worktreeCoOwnership));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -145,6 +148,7 @@ export function createAgentServiceComposition(
 				[CODEX_AGENT_PROVIDER_ID, instantiationService.createInstance(CodexSavedChatReader)],
 			]), orchestratorDatabase, sessionDataService, sessionStateStore, logService),
 			peerChatStore,
+			worktreeCoOwnership,
 			debugLogsCollector,
 			sessionRegistry,
 			stateManager,

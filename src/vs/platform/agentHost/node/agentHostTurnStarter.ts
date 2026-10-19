@@ -41,6 +41,14 @@ export interface ITurnStartRequest {
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly turnStopWatch: StopWatch;
+	/**
+	 * Whether the submitter still holds this message if admission rejects it.
+	 * Clients keep their composer draft, so this defaults to `true`; the host
+	 * must pass `false` when it submits a message the client has already let go.
+	 */
+	readonly recoverableRejection?: boolean;
+	/** Receives a definite admission rejection without changing queued callers' result contract. */
+	readonly onRejected?: (error: ErrorInfo) => void;
 }
 
 /**
@@ -95,9 +103,10 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			session: request.session,
 			channel: request.turnChannel,
 			turnId: request.turnId,
-			reason: { kind: 'rejected', error: disposition.error },
+			reason: { kind: 'rejected', error: disposition.error, recoverable: request.recoverableRejection !== false },
 			clientContext: request.clientContext,
 		});
+		request.onRejected?.(disposition.error);
 		return undefined;
 	}
 
@@ -120,9 +129,10 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			session: request.session,
 			channel: request.turnChannel,
 			turnId: request.turnId,
-			reason: { kind: 'rejected', error },
+			reason: { kind: 'rejected', error, recoverable: request.recoverableRejection !== false },
 			clientContext: request.clientContext,
 		});
+		request.onRejected?.(error);
 		return undefined;
 	}
 

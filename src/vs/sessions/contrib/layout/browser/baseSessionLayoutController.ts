@@ -16,7 +16,7 @@ import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -741,7 +741,10 @@ export abstract class BaseLayoutController extends Disposable {
 			constructor() {
 				super({
 					id: 'workbench.action.agentToggleSidePanel',
-					title: localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
+					title: {
+						...localize2('toggleSecondarySidebar', 'Toggle Side Panel'),
+						mnemonicTitle: localize({ key: 'miSidePanel', comment: ['&& denotes a mnemonic'] }, "Side Pa&&nel"),
+					},
 					icon: secondarySidebarToggleClosedIcon,
 					toggled: {
 						condition: ContextKeyExpr.or(AuxiliaryBarVisibleContext, MainEditorAreaVisibleContext)!,
@@ -773,6 +776,11 @@ export abstract class BaseLayoutController extends Disposable {
 							group: SessionActivityBarGroup.SidePanel,
 							order: 0,
 							when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext)
+						},
+						{
+							id: MenuId.MenubarAppearanceMenu,
+							group: '2_workbench_layout',
+							order: 2,
 						}
 					]
 				});

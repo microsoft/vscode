@@ -553,9 +553,15 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
-interface IAgentHostWorkspaceTrust {
+export interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
+	/** Whether the current Agent Host connection authority is explicitly trusted. */
+	readonly connectionAuthorityTrusted?: boolean;
+}
+
+export function areAllAgentHostWorkspaceResourcesTrusted(trust: IAgentHostWorkspaceTrust): boolean {
+	return !trust.enabled || trust.connectionAuthorityTrusted === true;
 }
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
@@ -674,25 +680,6 @@ export const AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey = 'autoArchive
 
 /** Root config key controlling permanent deletion of automatically archived sessions with merged pull requests. */
 export const AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey = 'autoDeleteArchivedMergedSessionsAfterDays';
-
-/**
- * Root config key forwarded from the renderer that gates multiple-working-directory
- * support for the Copilot provider. When `true`, the Copilot provider advertises
- * the `multipleWorkingDirectories` capability. Mirrors the hidden
- * `chat.agentHost.copilotAgent.multiRootEnabled` VS Code setting.
- */
-export const AgentHostCopilotMultiRootEnabledConfigKey = 'copilotMultiRootEnabled';
-
-/**
- * Root config key forwarded from the renderer that gates multiple-working-directory
- * support for the Claude provider. When `true`, the Claude provider advertises
- * the `multipleWorkingDirectories` capability. Mirrors the hidden
- * `chat.agentHost.claudeAgent.multiRootEnabled` VS Code setting.
- */
-export const AgentHostClaudeMultiRootEnabledConfigKey = 'claudeMultiRootEnabled';
-
-/** Root config key forwarded from the renderer that gates Codex multiple-working-directory support. */
-export const AgentHostCodexMultiRootEnabledConfigKey = 'codexMultiRootEnabled';
 
 /**
  * Root config key forwarded from the renderer when VS Code's
@@ -969,6 +956,7 @@ export const platformRootSchema = createSchema({
 				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
 				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
 			},
+			connectionAuthorityTrusted: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.connectionAuthorityTrusted', "Connection Authority Trusted") },
 		},
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
@@ -1118,24 +1106,6 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.title', "Auto-Delete Archived Merged Sessions"),
 		description: localize('agentHost.config.autoDeleteArchivedMergedSessionsAfterDays.description', "Number of days after automatic archival before a session with a merged pull request is permanently deleted. Zero disables permanent deletion."),
 		default: 0,
-	}),
-	[AgentHostCopilotMultiRootEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.copilotMultiRootEnabled.title', "Copilot Multiple Working Directories"),
-		description: localize('agentHost.config.copilotMultiRootEnabled.description', "Whether the Copilot provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
-		default: false,
-	}),
-	[AgentHostClaudeMultiRootEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.claudeMultiRootEnabled.title', "Claude Multiple Working Directories"),
-		description: localize('agentHost.config.claudeMultiRootEnabled.description', "Whether the Claude provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
-		default: false,
-	}),
-	[AgentHostCodexMultiRootEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.codexMultiRootEnabled.title', "Codex Multiple Working Directories"),
-		description: localize('agentHost.config.codexMultiRootEnabled.description', "Whether the Codex provider advertises support for multiple working directories, letting a session span every folder of a multi-root workspace."),
-		default: false,
 	}),
 	[AgentHostEditAutoApprovePatternsConfigKey]: schemaProperty<ChatEditAutoApprovePatterns>({
 		type: 'object',

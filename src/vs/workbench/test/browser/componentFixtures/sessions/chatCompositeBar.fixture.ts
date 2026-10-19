@@ -285,6 +285,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	CompactTabs: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Compact chat tabs preserve the same balanced horizontal label spacing and compact trailing Close gutter as default density.'],
 		render: ctx => {
 			const main = createMockChat({ title: 'Main chat' });
 			const second = createMockChat({ title: 'Fix login bug' });
@@ -303,6 +304,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	OverflowingTabs: defineComponentFixture({
 		deferPaint: true,
+		expectedVisualDescriptions: ['At narrow widths, the active chat tab keeps its balanced label spacing and visible Close action while the single-row strip overflows without wrapping.'],
 		render: ctx => {
 			const chats = Array.from({ length: 5 }, (_, index) => createMockChat({ title: `Investigate issue ${index + 1}` }));
 			renderBar(ctx, chats, chats[4], { width: 280 });

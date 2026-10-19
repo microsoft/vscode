@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -54,7 +55,6 @@ suite('AgentHostChatMovability', () => {
 			isPending: (chat: ProtocolURI, sessionWide?: boolean) => sessionWide ? this.quarantined.has(chat) : this.pending.has(chat),
 			onDidChangePending: this.onDidChangePendingEmitter.event,
 		};
-		readonly worktrees = { getResolvedWorktree: () => undefined };
 		readonly sessionState = {
 			peek: (resource: URI): ISessionStateSnapshot => ({ session: resource.toString(), authority: this.authority, revision: 1, values: this.values, folders: new Map(), chats: new Map() }),
 			onDidChangeLoadedState: this.onDidChangeLoadedStateEmitter.event,
@@ -63,8 +63,27 @@ suite('AgentHostChatMovability', () => {
 			isParked: (candidate: string) => this.parked.has(candidate),
 			onDidChangeParkedSessions: this.onDidChangeParkedSessionsEmitter.event,
 		};
-		sessionId(resource: URI): string {
-			return resource.path;
+	}
+
+	/** Counts the per-chat lookups a recompute makes, which a per-chat scan of the session's chats multiplies. */
+	class CountingStateManager extends AgentHostStateManager {
+		parentLookups = 0;
+		sessionLookups = 0;
+		override getChatParent(chat: ProtocolURI): string | undefined {
+			this.parentLookups++;
+			return super.getChatParent(chat);
+		}
+		override getSessionState(candidate: ProtocolURI) {
+			this.sessionLookups++;
+			return super.getSessionState(candidate);
+		}
+		/** The lookups since the last call, per registered chat of `session` (`perChat`) and beyond that (`overhead`). */
+		takeLookups(session: ProtocolURI): { readonly perChat: number; readonly overhead: number } {
+			const lookups = this.parentLookups + this.sessionLookups;
+			this.parentLookups = 0;
+			this.sessionLookups = 0;
+			const chats = super.getSessionState(session)!.chats.length;
+			return { perChat: Math.floor(lookups / chats), overhead: lookups % chats };
 		}
 	}
 
@@ -218,9 +237,7 @@ suite('AgentHostChatMovability', () => {
 		}, { converting: flipped, quarantined: flipped });
 	});
 
-	test('a chat working in a worktree of its session is not movable while the session records it', async () => {
-		const recorded = await setupStrict();
-		const additional = await setupStrict();
+	test('a chat in a worktree of its session stays movable, unless it is its own additional worktree a staying chat also uses (Block 5)', async () => {
 		const write = (sources: TestSources, key: string, value: string | undefined) => {
 			if (value === undefined) {
 				sources.values.delete(key);
@@ -229,12 +246,176 @@ suite('AgentHostChatMovability', () => {
 			}
 			sources.onDidChangeLoadedStateEmitter.fire({ session, values: [key], authority: false });
 		};
-		const worktree = JSON.stringify([{ handle: generateUuid(), workingDirectory: folder, repositoryRoot: URI.file('/elsewhere').toString() }]);
+		const additional = (chat: string | undefined, workingDirectory = folder) => JSON.stringify([{ handle: generateUuid(), workingDirectory, repositoryRoot: URI.file('/elsewhere').toString(), ...(chat ? { chat } : {}) }]);
+		const shared = { before: { summary: true, state: true }, refused: { summary: true, state: true }, allowed: { summary: true, state: true }, announced: [] };
+
+		// The peer inherits the session's folder, which is the session's own worktree: a move shares it.
+		const primary = await setupStrict();
+		// A session-level additional worktree: shared too.
+		const sessionLevel = await setupStrict();
+		// The peer's own additional worktree, which the default chat (staying) also uses: refused (D2).
+		const ownShared = await setupStrict();
+		// The peer's own additional worktree, which only the peer uses: it transfers with the peer.
+		const own = await setupStrict();
+		const ownFolder = URI.file('/repo.worktrees/peer').toString();
+		own.stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: own.peer, changes: { workingDirectories: [ownFolder] } });
+		await timeout(0);
+
 		assert.deepStrictEqual({
-			// The peer inherits the session's folder, which is the session's worktree.
-			recorded: await recorded.flip(() => write(recorded.sources, WORKTREE_META_PATH, folder), () => write(recorded.sources, WORKTREE_META_PATH, undefined)),
-			additional: await additional.flip(() => write(additional.sources, ADDITIONAL_WORKTREES_METADATA_KEY, worktree), () => write(additional.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
-		}, { recorded: flipped, additional: flipped });
+			primary: await primary.flip(() => write(primary.sources, WORKTREE_META_PATH, folder), () => write(primary.sources, WORKTREE_META_PATH, undefined)),
+			sessionLevel: await sessionLevel.flip(() => write(sessionLevel.sources, ADDITIONAL_WORKTREES_METADATA_KEY, additional(undefined)), () => write(sessionLevel.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
+			ownShared: await ownShared.flip(() => write(ownShared.sources, ADDITIONAL_WORKTREES_METADATA_KEY, additional(ownShared.peer)), () => write(ownShared.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
+			own: await own.flip(() => write(own.sources, ADDITIONAL_WORKTREES_METADATA_KEY, additional(own.peer, ownFolder)), () => write(own.sources, ADDITIONAL_WORKTREES_METADATA_KEY, undefined)),
+		}, { primary: shared, sessionLevel: shared, ownShared: flipped, own: shared });
+	});
+
+	test('a recompute of every chat is linear in the number of chats, with or without additional worktrees recorded for a chat (perf, Block 5)', async () => {
+		const pass = async (chats: number, ownWorktree: boolean) => {
+			const store = new DisposableStore();
+			try {
+				const stateManager = store.add(new CountingStateManager(new NullLogService()));
+				const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+				const sources = new TestSources();
+				store.add(new AgentHostChatMovability(stateManager, configuration, sources));
+				stateManager.createSession(summary(session));
+				const defaultChat = buildDefaultChatUri(session);
+				for (let i = 0; i < chats; i++) {
+					const peer = buildChatUri(session, `peer-${i}`);
+					stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat));
+					if (i % 10 === 0) {
+						const subagent = buildChatUri(session, `subagent-${i}`);
+						stateManager.addChat(session, subagent, subagent, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: `call-${i}` } });
+					}
+				}
+				if (ownWorktree) {
+					// The first peer's own worktree, which every other chat of the session also works in.
+					sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify([{ handle: generateUuid(), workingDirectory: folder, repositoryRoot: folder, chat: buildChatUri(session, 'peer-0') }]));
+				}
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				await timeout(0);
+				stateManager.parentLookups = 0;
+				stateManager.sessionLookups = 0;
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: false });
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				const registered = stateManager.getSessionState(session)!.chats.length;
+				const lookups = stateManager.parentLookups + stateManager.sessionLookups;
+				return {
+					perChat: Math.floor(lookups / registered),
+					overhead: lookups % registered,
+					refused: !(stateManager.getSessionState(session)!.chats.find(chat => chat.resource === buildChatUri(session, 'peer-0'))?.movable ?? false),
+				};
+			} finally {
+				store.dispose();
+			}
+		};
+
+		const results = { none: [await pass(100, false), await pass(400, false)], ownWorktree: [await pass(100, true), await pass(400, true)] };
+		const linear = { perChat: 1, overhead: 10 };
+		assert.deepStrictEqual(results, {
+			// Two passes: off looks up no chat's parent (no chat is eligible), on each chat's once; sessions a fixed number of times.
+			none: [{ ...linear, refused: false }, { ...linear, refused: false }],
+			// The first peer's own worktree, which staying chats use: refused (D2), at the same cost.
+			ownWorktree: [{ ...linear, refused: true }, { ...linear, refused: true }],
+		});
+	});
+
+	test('with an additional worktree for every chat, recomputing them costs a linear number of URI comparisons (PR review)', async () => {
+		/** Counts the comparisons of folders with recorded worktrees, the work a scan of every worktree per chat multiplies. */
+		const counted = ['isEqualOrParent', 'getComparisonKey', 'dirname'] as const;
+		const run = async (chats: number) => {
+			const store = new DisposableStore();
+			const originals = counted.map(name => extUriBiasedIgnorePathCase[name]);
+			let comparisons = 0;
+			try {
+				const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+				const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+				const sources = new TestSources();
+				store.add(new AgentHostChatMovability(stateManager, configuration, sources));
+				stateManager.createSession(summary(session));
+				const defaultChat = buildDefaultChatUri(session);
+				const own = (i: number) => URI.file(`/repo.worktrees/peer-${i}`).toString();
+				const worktrees = [];
+				for (let i = 0; i < chats; i++) {
+					const peer = buildChatUri(session, `peer-${i}`);
+					// Each chat works in its own worktree; the second one also in the first one's, which keeps the first (D2).
+					stateManager.addChat(session, peer, creationTimeChatStorageResource(session, peer, defaultChat), { workingDirectories: i === 1 ? [`${own(1)}/src`, own(0)] : [`${own(i)}/src`] });
+					worktrees.push({ handle: generateUuid(), workingDirectory: own(i), repositoryRoot: folder, chat: peer });
+				}
+				sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify(worktrees));
+				await timeout(0);
+				for (const [index, name] of counted.entries()) {
+					const original = originals[index] as (...args: unknown[]) => unknown;
+					(extUriBiasedIgnorePathCase as unknown as Record<string, unknown>)[name] = (...args: unknown[]) => {
+						comparisons++;
+						return original.apply(extUriBiasedIgnorePathCase, args);
+					};
+				}
+				configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				const recompute = comparisons;
+				comparisons = 0;
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+				const ready = comparisons;
+				const registered = stateManager.getSessionState(session)!.chats.length;
+				const movable = (i: number) => stateManager.getSessionState(session)!.chats.find(chat => chat.resource === buildChatUri(session, `peer-${i}`))?.movable;
+				return { recompute: Math.ceil(recompute / registered), ready: Math.ceil(ready / registered), refused: movable(0) !== true, othersMovable: movable(chats - 1) === true };
+			} finally {
+				for (const [index, name] of counted.entries()) {
+					delete (extUriBiasedIgnorePathCase as unknown as Record<string, unknown>)[name];
+					if (extUriBiasedIgnorePathCase[name] !== originals[index]) {
+						(extUriBiasedIgnorePathCase as unknown as Record<string, unknown>)[name] = originals[index];
+					}
+				}
+				store.dispose();
+			}
+		};
+
+		const results = [await run(100), await run(400)];
+		assert.deepStrictEqual(results[1], results[0], JSON.stringify(results));
+		assert.deepStrictEqual({ refused: results[0].refused, othersMovable: results[0].othersMovable }, { refused: true, othersMovable: true });
+	});
+
+	test('a session\'s chats published one by one, as a restore registers them or once the session is ready, cost a linear number of lookups, with moving chats off and on (perf, Block 5)', async () => {
+		const run = async (chats: number, enabled: boolean) => {
+			const store = new DisposableStore();
+			try {
+				const stateManager = store.add(new CountingStateManager(new NullLogService()));
+				const configuration = store.add(new AgentConfigurationService(stateManager, new NullLogService()));
+				const sources = new TestSources();
+				store.add(new AgentHostChatMovability(stateManager, configuration, sources));
+				stateManager.createSession(summary(session));
+				const firstPeer = buildChatUri(session, 'peer-0');
+				if (enabled) {
+					// The first peer's own worktree, which every other chat of the session also works in (D2).
+					sources.values.set(ADDITIONAL_WORKTREES_METADATA_KEY, JSON.stringify([{ handle: generateUuid(), workingDirectory: folder, repositoryRoot: folder, chat: firstPeer }]));
+					configuration.updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+				}
+				await timeout(0);
+				stateManager.takeLookups(session);
+				// A restore registers the chats its session lists one by one, and publishes each at once.
+				for (let i = 0; i < chats; i++) {
+					const peer = buildChatUri(session, `peer-${i}`);
+					stateManager.registerRestoredChatSummary(session, peer, { storageResource: peer });
+					if (i % 10 === 0) {
+						const subagent = buildChatUri(session, `subagent-${i}`);
+						stateManager.registerRestoredChatSummary(session, subagent, { storageResource: subagent, origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: `call-${i}` } });
+					}
+				}
+				const movable = (chat: string) => stateManager.getSessionState(session)!.chats.find(candidate => candidate.resource === chat)?.movable ?? false;
+				// Read without waiting, as a client of the session would right after the restore.
+				const restored = { ...stateManager.takeLookups(session), first: movable(firstPeer), last: movable(buildChatUri(session, `peer-${chats - 1}`)) };
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+				return { restored, ready: stateManager.takeLookups(session) };
+			} finally {
+				store.dispose();
+			}
+		};
+
+		const results = { off: [await run(100, false), await run(400, false)], onWithWorktree: [await run(100, true), await run(400, true)] };
+		// Off: a restored chat costs the lookup of its session's listing only, and a ready session builds nothing per chat.
+		const off = { restored: { perChat: 1, overhead: 0, first: false, last: false }, ready: { perChat: 0, overhead: 5 } };
+		// On: the restore and the ready session each share one index of the session's chats; the first peer is refused (D2) at once.
+		const onWithWorktree = { restored: { perChat: 2, overhead: 1, first: false, last: true }, ready: { perChat: 2, overhead: 9 } };
+		assert.deepStrictEqual(results, { off: [off, off], onWithWorktree: [onWithWorktree, onWithWorktree] });
 	});
 
 	test('a chat that runs Agent Merge for a folder of its session is not movable until it stops', async () => {

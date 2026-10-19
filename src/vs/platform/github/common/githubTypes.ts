@@ -45,6 +45,15 @@ export class GitHubRequestError extends RequestError {
 	}
 }
 
+/** GitHub REST reported that a commit reference could not be resolved. */
+export class MissingCommitError extends GitHubRequestError {
+	constructor(error: GitHubRequestError) {
+		super(error.message, error.kind, error.statusCode, error.responseBody, error.graphQLErrors, error.statusText, error.responseMetadata);
+		this.name = 'MissingCommitError';
+		this.cause = error;
+	}
+}
+
 /** GitHub deadline failure preserving whether the operation reached the network. */
 export class GitHubRequestTimeoutError extends GitHubRequestError {
 	constructor(readonly requestDispatched = false) {
@@ -93,6 +102,8 @@ export interface GitHubClientMetadata {
 export interface GitHubServiceOptions {
 	readonly credentialProvider?: IGitHubCredentialProvider;
 	readonly fetch?: RequestFetch;
+	/** Browser bindings may follow opaque redirects for bodyless repository reads. */
+	readonly useBrowserRedirects?: boolean;
 	readonly telemetrySource?: GitHubTelemetrySource;
 	readonly clientMetadata?: GitHubClientMetadata;
 	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;

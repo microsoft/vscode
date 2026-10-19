@@ -95,6 +95,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
 	openTrackedTurnDatabase(): undefined { return undefined; }
+	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
@@ -329,20 +330,18 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const provider of ['codex', 'copilot', 'claude']) {
-		test(`keeps immutable hang context scoped to Codex for ${provider}`, async () => {
+		const now = 1_000_000;
+		test(`keeps immutable hang context scoped to Codex for ${provider}`, () => runWithFakedTimers({ startTime: now }, async () => {
 			sinon.stub(agent, 'id').value(provider);
-			const now = 1_000_000;
 			const snapshot = getCodexAccountTelemetryContext(
 				{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' },
 				{ usedPercent: 42.4, windowDurationMins: 10080, resetsAt: now / 1000 + 1 }, now, now);
-			await runWithFakedTimers({ startTime: now }, async () => {
-				setupSession();
-				agent.captureTurnTelemetryContext = () => ({ codex: snapshot });
-				startTurn('turn');
-				agent.captureTurnTelemetryContext = () => { throw new Error('Unexpected context read after admission'); };
-				await timeout(TURN_HANG_THRESHOLD_MS + 1);
-				fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
-			});
+			setupSession();
+			agent.captureTurnTelemetryContext = () => ({ codex: snapshot });
+			startTurn('turn');
+			agent.captureTurnTelemetryContext = () => { throw new Error('Unexpected context read after admission'); };
+			await timeout(TURN_HANG_THRESHOLD_MS + 1);
+			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
 			const expected = provider === 'codex' ? snapshot : {};
 			assert.deepStrictEqual(telemetry.events.map(event => ({
 				name: event.eventName,
@@ -353,15 +352,13 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				{ name: 'agentHost.turnCompleted', context: expected },
 				{ name: 'agentHost.hungTurnCompleted', context: {} },
 			]);
-		});
+		}));
 	}
 
-	test('reports noProgress for a turn that starts and is never heard from again', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession(true);
-			startTurn('turn-lost');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-		});
+	test('reports noProgress for a turn that starts and is never heard from again', () => runWithFakedTimers({}, async () => {
+		setupSession(true);
+		startTurn('turn-lost');
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents(), [{
 			eventName: 'agentHost.turnHung',
@@ -390,16 +387,14 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				permissionLevel: undefined,
 			},
 		}]);
-	});
+	}));
 
-	test('reports stalledAfterProgress once a turn goes quiet after streaming', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-stalled');
-			responsePart('turn-stalled');
-			delta('turn-stalled', 'thinking');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-		});
+	test('reports stalledAfterProgress once a turn goes quiet after streaming', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-stalled');
+		responsePart('turn-stalled');
+		delta('turn-stalled', 'thinking');
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -412,44 +407,40 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			hadAnyProgress: true,
 			lastActivityKind: 'chat.delta',
 		}]);
-	});
+	}));
 
-	test('does not report while activity keeps arriving inside the threshold', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-busy');
-			responsePart('turn-busy');
-			// Ten windows' worth of elapsed time, but never a full quiet window.
-			for (let i = 0; i < 10; i++) {
-				await timeout(TURN_HANG_THRESHOLD_MS - 1000);
-				delta('turn-busy', `chunk-${i}`);
-			}
-			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-busy', duration: 1000 });
-		});
+	test('does not report while activity keeps arriving inside the threshold', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-busy');
+		responsePart('turn-busy');
+		// Ten windows' worth of elapsed time, but never a full quiet window.
+		for (let i = 0; i < 10; i++) {
+			await timeout(TURN_HANG_THRESHOLD_MS - 1000);
+			delta('turn-busy', `chunk-${i}`);
+		}
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-busy', duration: 1000 });
 
 		assert.deepStrictEqual({ hangs: hangEvents(), recoveries: hangRecoveryEvents() }, { hangs: [], recoveries: [] });
-	});
+	}));
 
-	test('tags a turn blocked on a tool confirmation as an expected wait on the user', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-confirm');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-confirm',
-				toolCallId: 'tc-confirm',
-				toolName: 'write',
-				displayName: 'write',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-confirm',
-				toolCallId: 'tc-confirm',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('tags a turn blocked on a tool confirmation as an expected wait on the user', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-confirm');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-confirm',
+			toolCallId: 'tc-confirm',
+			toolName: 'write',
+			displayName: 'write',
 		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-confirm',
+			toolCallId: 'tc-confirm',
+			invocationMessage: 'Write file',
+			confirmationTitle: 'Write file',
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -466,57 +457,53 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolSourceKind: 'agentHost',
 			inFlightToolCallCount: 1,
 		}]);
-	});
+	}));
 
-	test('Fusion phase progress does not count as an in-flight tool for hang classification', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-fusion');
-			fire({
-				type: ActionType.ChatToolCallStart, turnId: 'turn-fusion',
-				toolCallId: 'fusion:workflow:phase', toolName: 'hydrafusion_phase', displayName: 'Main pass',
-				_meta: { toolKind: 'fusionPhase' },
-			});
-			fire({
-				type: ActionType.ChatToolCallReady, turnId: 'turn-fusion', toolCallId: 'fusion:workflow:phase',
-				invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded,
-				_meta: { toolKind: 'fusionPhase' },
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('Fusion phase progress does not count as an in-flight tool for hang classification', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-fusion');
+		fire({
+			type: ActionType.ChatToolCallStart, turnId: 'turn-fusion',
+			toolCallId: 'fusion:workflow:phase', toolName: 'hydrafusion_phase', displayName: 'Main pass',
+			_meta: { toolKind: 'fusionPhase' },
 		});
+		fire({
+			type: ActionType.ChatToolCallReady, turnId: 'turn-fusion', toolCallId: 'fusion:workflow:phase',
+			invocationMessage: 'Main pass', confirmed: ToolCallConfirmationReason.NotNeeded,
+			_meta: { toolKind: 'fusionPhase' },
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(event => ({
 			hangReason: event.data.hangReason,
 			toolId: event.data.toolId,
 			inFlightToolCallCount: event.data.inFlightToolCallCount,
 		})), [{ hangReason: 'stalledAfterProgress', toolId: undefined, inFlightToolCallCount: 0 }]);
-	});
+	}));
 
-	test('tags a silent long-running tool call as runningTool, then reports a real stall once it completes', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-tool');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-tool',
-				toolCallId: 'tc-slow',
-				toolName: 'bash',
-				displayName: 'bash',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-tool',
-				toolCallId: 'tc-slow',
-				invocationMessage: 'Run build',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
-
-			// The tool finally returns, but the agent loop never picks the turn
-			// back up — the second report distinguishes that from the first.
-			fire({ type: ActionType.ChatToolCallComplete, turnId: 'turn-tool', toolCallId: 'tc-slow', result: { success: true, pastTenseMessage: 'built' } });
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('tags a silent long-running tool call as runningTool, then reports a real stall once it completes', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-tool');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-tool',
+			toolCallId: 'tc-slow',
+			toolName: 'bash',
+			displayName: 'bash',
 		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-tool',
+			toolCallId: 'tc-slow',
+			invocationMessage: 'Run build',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
+
+		// The tool finally returns, but the agent loop never picks the turn
+		// back up — the second report distinguishes that from the first.
+		fire({ type: ActionType.ChatToolCallComplete, turnId: 'turn-tool', toolCallId: 'tc-slow', result: { success: true, pastTenseMessage: 'built' } });
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -530,25 +517,21 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			{ hangReason: 'runningTool', isExpected: true, toolId: 'bash', toolSourceKind: 'agentHost', inFlightToolCallCount: 1 },
 			{ hangReason: 'stalledAfterProgress', isExpected: false, toolId: undefined, toolSourceKind: undefined, inFlightToolCallCount: 0 },
 		]);
-	});
+	}));
 
-	test('reports each hang reason at most once no matter how long the turn stays quiet', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-forever');
-			await timeout(10 * TURN_HANG_THRESHOLD_MS);
-		});
+	test('reports each hang reason at most once no matter how long the turn stays quiet', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-forever');
+		await timeout(10 * TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => e.data.hangReason), ['noProgress']);
-	});
+	}));
 
-	test('reports the paired recovery event when a hung turn later completes', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession(true);
-			startTurn('turn-recovered');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-recovered', duration: 1000 });
-		});
+	test('reports the paired recovery event when a hung turn later completes', () => runWithFakedTimers({}, async () => {
+		setupSession(true);
+		startTurn('turn-recovered');
+		await timeout(TURN_HANG_THRESHOLD_MS);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-recovered', duration: 1000 });
 
 		assert.deepStrictEqual(hangRecoveryEvents(), [{
 			eventName: 'agentHost.hungTurnCompleted',
@@ -566,22 +549,20 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				timeAfterHangMs: true,
 			},
 		}]);
-	});
+	}));
 
-	test('does not report a recovery event for a turn that never hung', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-quick');
-			responsePart('turn-quick');
-			delta('turn-quick', 'hi');
-			fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-quick', duration: 1000 });
-			await timeout(2 * TURN_HANG_THRESHOLD_MS);
-		});
+	test('does not report a recovery event for a turn that never hung', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-quick');
+		responsePart('turn-quick');
+		delta('turn-quick', 'hi');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-quick', duration: 1000 });
+		await timeout(2 * TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual({ hangs: hangEvents(), recoveries: hangRecoveryEvents() }, { hangs: [], recoveries: [] });
-	});
+	}));
 
-	test('reports the active stage', async () => {
+	test('reports the active stage', () => runWithFakedTimers({}, async () => {
 		const tracker = disposables.add(new AgentHostTurnTracker(
 			new AgentHostTelemetryReporter(telemetry),
 			disposables.add(new AgentHostClientConnectionService()),
@@ -595,16 +576,14 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			{ session: AgentSession.uri('mock', 'provider').toString(), stage: 'provider' },
 		] as const;
 
-		await runWithFakedTimers({}, async () => {
-			for (const item of cases) {
-				tracker.turnStarted(agent, item.session, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
-				tracker.setCurrentStage(item.session, 'turn', item.stage);
-			}
-			await timeout(TURN_HANG_THRESHOLD_MS);
-			for (const item of cases) {
-				tracker.turnCompleted(item.session, 'turn', 'cancelled');
-			}
-		});
+		for (const item of cases) {
+			tracker.turnStarted(agent, item.session, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.setCurrentStage(item.session, 'turn', item.stage);
+		}
+		await timeout(TURN_HANG_THRESHOLD_MS);
+		for (const item of cases) {
+			tracker.turnCompleted(item.session, 'turn', 'cancelled');
+		}
 
 		assert.deepStrictEqual({
 			stages: hangEvents().slice(-cases.length).map(e => e.data.currentStage),
@@ -621,9 +600,9 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				hangReportCount: 1,
 			})),
 		});
-	});
+	}));
 
-	test('reports provider lifecycle and initiating client connection snapshots', async () => {
+	test('reports provider lifecycle and initiating client connection snapshots', () => runWithFakedTimers({}, async () => {
 		const clientConnections = disposables.add(new AgentHostClientConnectionService());
 		disposables.add(clientConnections.registerSource({
 			hasSeenClient: clientId => clientId === 'connected-client',
@@ -648,23 +627,21 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		));
 		const session = AgentSession.uri('copilotcli', 'lifecycle').toString();
 
-		await runWithFakedTimers({}, async () => {
-			tracker.turnStarted(
-				diagnosticAgent,
-				session,
-				session,
-				'turn',
-				undefined,
-				undefined,
-				'default',
-				undefined,
-				undefined,
-				createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
-				'connected-client',
-			);
-			tracker.setCurrentStage(session, 'turn', 'provider');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-		});
+		tracker.turnStarted(
+			diagnosticAgent,
+			session,
+			session,
+			'turn',
+			undefined,
+			undefined,
+			'default',
+			undefined,
+			undefined,
+			createUnknownAgentHostClientTelemetryContext(AgentHostClientType.AgentsWindow),
+			'connected-client',
+		);
+		tracker.setCurrentStage(session, 'turn', 'provider');
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().at(-1)?.data, {
 			provider: 'copilotcli',
@@ -694,9 +671,9 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			modelSelectionKind: 'default',
 			permissionLevel: undefined,
 		});
-	});
+	}));
 
-	test('reports diagnostic errors without losing the hang event', async () => {
+	test('reports diagnostic errors without losing the hang event', () => runWithFakedTimers({}, async () => {
 		const diagnosticAgent = disposables.add(new MockAgent('copilotcli'));
 		diagnosticAgent.getTurnDiagnosticSnapshot = () => {
 			throw new Error('diagnostic failed');
@@ -708,11 +685,9 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		));
 		const session = AgentSession.uri('copilotcli', 'diagnostic-error').toString();
 
-		await runWithFakedTimers({}, async () => {
-			tracker.turnStarted(diagnosticAgent, session, session, 'turn', undefined, undefined, 'default', undefined, undefined);
-			tracker.setCurrentStage(session, 'turn', 'provider');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-		});
+		tracker.turnStarted(diagnosticAgent, session, session, 'turn', undefined, undefined, 'default', undefined, undefined);
+		tracker.setCurrentStage(session, 'turn', 'provider');
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual({
 			providerDiagnosticState: hangEvents().at(-1)?.data.providerDiagnosticState,
@@ -721,31 +696,29 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			providerDiagnosticState: 'error',
 			hangReason: 'noProgress',
 		});
-	});
+	}));
 
-	test('tracks pre-provider stages through the send pipeline', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
+	test('tracks pre-provider stages through the send pipeline', () => runWithFakedTimers({}, async () => {
+		setupSession();
 
-			workingDirectoryGate = new DeferredPromise();
-			startTurn('turn-working-directory');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-			workingDirectoryGate.complete(undefined);
-			await timeout(0);
+		workingDirectoryGate = new DeferredPromise();
+		startTurn('turn-working-directory');
+		await timeout(TURN_HANG_THRESHOLD_MS);
+		workingDirectoryGate.complete(undefined);
+		await timeout(0);
 
-			const modelGate = new DeferredPromise<void>();
-			agent.changeModel = async () => await modelGate.p;
-			startTurn('turn-model-selection', 'gpt-5');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-			modelGate.complete();
-			await timeout(0);
+		const modelGate = new DeferredPromise<void>();
+		agent.changeModel = async () => await modelGate.p;
+		startTurn('turn-model-selection', 'gpt-5');
+		await timeout(TURN_HANG_THRESHOLD_MS);
+		modelGate.complete();
+		await timeout(0);
 
-			checkpointGate = new DeferredPromise();
-			startTurn('turn-send-message');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-			checkpointGate.complete();
-			await timeout(0);
-		});
+		checkpointGate = new DeferredPromise();
+		startTurn('turn-send-message');
+		await timeout(TURN_HANG_THRESHOLD_MS);
+		checkpointGate.complete();
+		await timeout(0);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			turnId: e.data.turnId,
@@ -755,57 +728,55 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			{ turnId: 'turn-model-selection', currentStage: 'modelSelection' },
 			{ turnId: 'turn-send-message', currentStage: 'sendMessage' },
 		]);
-	});
+	}));
 
-	test('reports provider stage for new and resumed subagent turns', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-parent');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-parent',
-				toolCallId: 'tc-subagent',
-				toolName: 'task',
-				displayName: 'Task',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-parent',
-				toolCallId: 'tc-subagent',
-				invocationMessage: 'Exploring code',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
-			agent.fireProgress({
-				kind: 'subagent_started',
-				chat: URI.parse(defaultChatUri),
-				toolCallId: 'tc-subagent',
-				agentName: 'explore',
-				agentDisplayName: 'Explore',
-				agentDescription: 'Explores code',
-				taskPrompt: 'Find the implementation',
-			});
-			const subagentChat = buildSubagentChatUri(sessionKey, 'tc-subagent');
-			await timeout(TURN_HANG_THRESHOLD_MS);
-			const firstTurnId = hangEvents().find(e => e.data.isSubagentSession)?.data.turnId;
-			if (typeof firstTurnId !== 'string') {
-				assert.fail('Expected the first subagent turn to hang');
-			}
-			agent.fireProgress({
-				kind: 'action',
-				resource: URI.parse(subagentChat),
-				action: { type: ActionType.ChatTurnComplete, turnId: firstTurnId, duration: TURN_HANG_THRESHOLD_MS },
-			});
-			agent.fireProgress({
-				kind: 'subagent_started',
-				chat: URI.parse(defaultChatUri),
-				toolCallId: 'tc-subagent',
-				agentName: 'explore',
-				agentDisplayName: 'Explore',
-				agentDescription: 'Explores code',
-				taskPrompt: 'Continue the investigation',
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('reports provider stage for new and resumed subagent turns', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-parent');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-parent',
+			toolCallId: 'tc-subagent',
+			toolName: 'task',
+			displayName: 'Task',
 		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-parent',
+			toolCallId: 'tc-subagent',
+			invocationMessage: 'Exploring code',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		agent.fireProgress({
+			kind: 'subagent_started',
+			chat: URI.parse(defaultChatUri),
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explores code',
+			taskPrompt: 'Find the implementation',
+		});
+		const subagentChat = buildSubagentChatUri(sessionKey, 'tc-subagent');
+		await timeout(TURN_HANG_THRESHOLD_MS);
+		const firstTurnId = hangEvents().find(e => e.data.isSubagentSession)?.data.turnId;
+		if (typeof firstTurnId !== 'string') {
+			assert.fail('Expected the first subagent turn to hang');
+		}
+		agent.fireProgress({
+			kind: 'action',
+			resource: URI.parse(subagentChat),
+			action: { type: ActionType.ChatTurnComplete, turnId: firstTurnId, duration: TURN_HANG_THRESHOLD_MS },
+		});
+		agent.fireProgress({
+			kind: 'subagent_started',
+			chat: URI.parse(defaultChatUri),
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explores code',
+			taskPrompt: 'Continue the investigation',
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(
 			hangEvents()
@@ -816,90 +787,84 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 				{ hangReason: 'noProgress', currentStage: 'provider' },
 			],
 		);
-	});
+	}));
 
-	test('does not report a turn that a truncation removed from the chat', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-truncated');
+	test('does not report a turn that a truncation removed from the chat', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-truncated');
 
-			// Omitting `turnId` clears every turn including the active one.
-			const truncate: ChatAction = { type: ActionType.ChatTruncated };
-			stateManager.dispatchClientAction(defaultChatUri, truncate, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(defaultChatUri, truncate);
+		// Omitting `turnId` clears every turn including the active one.
+		const truncate: ChatAction = { type: ActionType.ChatTruncated };
+		stateManager.dispatchClientAction(defaultChatUri, truncate, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, truncate);
 
-			await timeout(10 * TURN_HANG_THRESHOLD_MS);
-		});
+		await timeout(10 * TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual({ hangs: hangEvents(), recoveries: hangRecoveryEvents() }, { hangs: [], recoveries: [] });
-	});
+	}));
 
-	test('keeps watching a turn after the user answers a confirmation it had hung on', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-answered');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-answered',
-				toolCallId: 'tc-answered',
-				toolName: 'write',
-				displayName: 'write',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-answered',
-				toolCallId: 'tc-answered',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
-
-			const confirmed: ChatAction = {
-				type: ActionType.ChatToolCallConfirmed,
-				turnId: 'turn-answered',
-				toolCallId: 'tc-answered',
-				approved: true,
-				confirmed: ToolCallConfirmationReason.UserAction,
-			};
-			stateManager.dispatchClientAction(defaultChatUri, confirmed, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(defaultChatUri, confirmed);
-			fire({ type: ActionType.ChatToolCallComplete, turnId: 'turn-answered', toolCallId: 'tc-answered', result: { success: true, pastTenseMessage: 'wrote file' } });
-
-			// The tool is done and nothing is blocking, but the agent loop
-			// never picks the turn back up.
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('keeps watching a turn after the user answers a confirmation it had hung on', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-answered');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-answered',
+			toolCallId: 'tc-answered',
+			toolName: 'write',
+			displayName: 'write',
 		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-answered',
+			toolCallId: 'tc-answered',
+			invocationMessage: 'Write file',
+			confirmationTitle: 'Write file',
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
+
+		const confirmed: ChatAction = {
+			type: ActionType.ChatToolCallConfirmed,
+			turnId: 'turn-answered',
+			toolCallId: 'tc-answered',
+			approved: true,
+			confirmed: ToolCallConfirmationReason.UserAction,
+		};
+		stateManager.dispatchClientAction(defaultChatUri, confirmed, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, confirmed);
+		fire({ type: ActionType.ChatToolCallComplete, turnId: 'turn-answered', toolCallId: 'tc-answered', result: { success: true, pastTenseMessage: 'wrote file' } });
+
+		// The tool is done and nothing is blocking, but the agent loop
+		// never picks the turn back up.
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({ hangReason: e.data.hangReason, isExpected: e.data.isExpected })), [
 			{ hangReason: 'waitingOnUser', isExpected: true },
 			{ hangReason: 'stalledAfterProgress', isExpected: false },
 		]);
-	});
+	}));
 
-	test('tags a client-executed tool as runningTool, not as a wait on the user', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-client');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-client',
-				toolCallId: 'tc-client',
-				toolName: 'run_tests',
-				displayName: 'run_tests',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
-			});
-			// Confirmation is not needed, so the call goes straight to running
-			// and is surfaced as a `toolClientExecution` input request. That is
-			// delegated work, not a prompt — the turn is not waiting on a human.
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-client',
-				toolCallId: 'tc-client',
-				invocationMessage: 'Run tests',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('tags a client-executed tool as runningTool, not as a wait on the user', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-client');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-client',
+			toolCallId: 'tc-client',
+			toolName: 'run_tests',
+			displayName: 'run_tests',
+			contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-1' },
 		});
+		// Confirmation is not needed, so the call goes straight to running
+		// and is surfaced as a `toolClientExecution` input request. That is
+		// delegated work, not a prompt — the turn is not waiting on a human.
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-client',
+			toolCallId: 'tc-client',
+			invocationMessage: 'Run tests',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -916,16 +881,14 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolSourceKind: 'client',
 			inFlightToolCallCount: 1,
 		}]);
-	});
+	}));
 
-	test('names the longest-running tool when several are in flight', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-parallel');
-			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-a', toolName: 'bash', displayName: 'bash' });
-			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-b', toolName: 'read_file', displayName: 'read_file' });
-			await timeout(TURN_HANG_THRESHOLD_MS);
-		});
+	test('names the longest-running tool when several are in flight', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-parallel');
+		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-a', toolName: 'bash', displayName: 'bash' });
+		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-parallel', toolCallId: 'tc-b', toolName: 'read_file', displayName: 'read_file' });
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		// `toolId` is a best guess among parallel calls; `inFlightToolCallCount`
 		// above one is the signal that attribution is ambiguous.
@@ -933,57 +896,53 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolId: e.data.toolId,
 			inFlightToolCallCount: e.data.inFlightToolCallCount,
 		})), [{ toolId: 'bash', inFlightToolCallCount: 2 }]);
-	});
+	}));
 
-	test('refines the tool source kind when tool metadata arrives after the start', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-refined');
-			// The start signal carries no contributor; `ready` supplies it.
-			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-refined', toolCallId: 'tc-refined', toolName: 'lookup', displayName: 'lookup' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-refined',
-				toolCallId: 'tc-refined',
-				invocationMessage: 'Look up metadata',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'c1' },
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('refines the tool source kind when tool metadata arrives after the start', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-refined');
+		// The start signal carries no contributor; `ready` supplies it.
+		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-refined', toolCallId: 'tc-refined', toolName: 'lookup', displayName: 'lookup' });
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-refined',
+			toolCallId: 'tc-refined',
+			invocationMessage: 'Look up metadata',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'c1' },
 		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			toolId: e.data.toolId,
 			toolSourceKind: e.data.toolSourceKind,
 		})), [{ toolId: 'lookup', toolSourceKind: 'mcp' }]);
-	});
+	}));
 
-	test('names the tool the blocker gates, not another tool that happens to be running', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-mixed');
-			// A long-running tool starts first, so it is the earliest entry in
-			// the in-flight set...
-			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-running', toolName: 'bash', displayName: 'bash' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-mixed',
-				toolCallId: 'tc-running',
-				invocationMessage: 'Run build',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
-			// ...but a second tool is what actually blocks on the user, so that
-			// is the one the report must name.
-			fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-gated', toolName: 'write', displayName: 'write' });
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-mixed',
-				toolCallId: 'tc-gated',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('names the tool the blocker gates, not another tool that happens to be running', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-mixed');
+		// A long-running tool starts first, so it is the earliest entry in
+		// the in-flight set...
+		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-running', toolName: 'bash', displayName: 'bash' });
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-mixed',
+			toolCallId: 'tc-running',
+			invocationMessage: 'Run build',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
 		});
+		// ...but a second tool is what actually blocks on the user, so that
+		// is the one the report must name.
+		fire({ type: ActionType.ChatToolCallStart, turnId: 'turn-mixed', toolCallId: 'tc-gated', toolName: 'write', displayName: 'write' });
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-mixed',
+			toolCallId: 'tc-gated',
+			invocationMessage: 'Write file',
+			confirmationTitle: 'Write file',
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -994,38 +953,36 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolId: 'write',
 			inFlightToolCallCount: 2,
 		}]);
-	});
+	}));
 
-	test('leaves the tool unnamed when the user is reviewing a completed result', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-result');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-result',
-				toolCallId: 'tc-result',
-				toolName: 'write',
-				displayName: 'write',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-result',
-				toolCallId: 'tc-result',
-				invocationMessage: 'Write file',
-				confirmed: ToolCallConfirmationReason.NotNeeded,
-			});
-			// The tool ran to completion and is now awaiting *result* review, so
-			// it has left the in-flight set. The turn waits on the user reading
-			// a result, not on a tool — `toolId` is deliberately undefined.
-			fire({
-				type: ActionType.ChatToolCallComplete,
-				turnId: 'turn-result',
-				toolCallId: 'tc-result',
-				result: { success: true, pastTenseMessage: 'wrote file' },
-				requiresResultConfirmation: true,
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('leaves the tool unnamed when the user is reviewing a completed result', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-result');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-result',
+			toolCallId: 'tc-result',
+			toolName: 'write',
+			displayName: 'write',
 		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-result',
+			toolCallId: 'tc-result',
+			invocationMessage: 'Write file',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		// The tool ran to completion and is now awaiting *result* review, so
+		// it has left the in-flight set. The turn waits on the user reading
+		// a result, not on a tool — `toolId` is deliberately undefined.
+		fire({
+			type: ActionType.ChatToolCallComplete,
+			turnId: 'turn-result',
+			toolCallId: 'tc-result',
+			result: { success: true, pastTenseMessage: 'wrote file' },
+			requiresResultConfirmation: true,
+		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -1040,25 +997,23 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolSourceKind: undefined,
 			inFlightToolCallCount: 0,
 		}]);
-	});
+	}));
 
-	test('leaves the tool unnamed when the turn is blocked on an elicitation', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-elicit');
-			// An elicitation is not attached to any tool call at all, and the
-			// action carries no `turnId` — the blocker resolves to the chat's
-			// active turn via the fallback in `_setSessionInputNeeded`.
-			fire({
-				type: ActionType.ChatInputRequested,
-				request: {
-					id: 'req-1',
-					message: 'Which environment should I deploy to?',
-					questions: [{ id: 'q1', kind: ChatInputQuestionKind.Text, message: 'Environment' }],
-				},
-			});
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('leaves the tool unnamed when the turn is blocked on an elicitation', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-elicit');
+		// An elicitation is not attached to any tool call at all, and the
+		// action carries no `turnId` — the blocker resolves to the chat's
+		// active turn via the fallback in `_setSessionInputNeeded`.
+		fire({
+			type: ActionType.ChatInputRequested,
+			request: {
+				id: 'req-1',
+				message: 'Which environment should I deploy to?',
+				questions: [{ id: 'q1', kind: ChatInputQuestionKind.Text, message: 'Environment' }],
+			},
 		});
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -1073,41 +1028,39 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			toolSourceKind: undefined,
 			inFlightToolCallCount: 0,
 		}]);
-	});
+	}));
 
-	test('reports a real stall when the agent goes quiet after a denied confirmation', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-denied');
-			fire({
-				type: ActionType.ChatToolCallStart,
-				turnId: 'turn-denied',
-				toolCallId: 'tc-denied',
-				toolName: 'write',
-				displayName: 'write',
-			});
-			fire({
-				type: ActionType.ChatToolCallReady,
-				turnId: 'turn-denied',
-				toolCallId: 'tc-denied',
-				invocationMessage: 'Write file',
-				confirmationTitle: 'Write file',
-			});
-
-			// Denial is terminal — no `ChatToolCallComplete` follows, so the
-			// tool must not stay in the turn's in-flight set.
-			const denied: ChatAction = {
-				type: ActionType.ChatToolCallConfirmed,
-				turnId: 'turn-denied',
-				toolCallId: 'tc-denied',
-				approved: false,
-				reason: ToolCallCancellationReason.Denied,
-			};
-			stateManager.dispatchClientAction(defaultChatUri, denied, { clientId: 'test', clientSeq: 2 });
-			sideEffects.handleAction(defaultChatUri, denied);
-
-			await timeout(TURN_HANG_THRESHOLD_MS);
+	test('reports a real stall when the agent goes quiet after a denied confirmation', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-denied');
+		fire({
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-denied',
+			toolCallId: 'tc-denied',
+			toolName: 'write',
+			displayName: 'write',
 		});
+		fire({
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-denied',
+			toolCallId: 'tc-denied',
+			invocationMessage: 'Write file',
+			confirmationTitle: 'Write file',
+		});
+
+		// Denial is terminal — no `ChatToolCallComplete` follows, so the
+		// tool must not stay in the turn's in-flight set.
+		const denied: ChatAction = {
+			type: ActionType.ChatToolCallConfirmed,
+			turnId: 'turn-denied',
+			toolCallId: 'tc-denied',
+			approved: false,
+			reason: ToolCallCancellationReason.Denied,
+		};
+		stateManager.dispatchClientAction(defaultChatUri, denied, { clientId: 'test', clientSeq: 2 });
+		sideEffects.handleAction(defaultChatUri, denied);
+
+		await timeout(TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual(hangEvents().map(e => ({
 			hangReason: e.data.hangReason,
@@ -1118,20 +1071,18 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			isExpected: false,
 			inFlightToolCallCount: 0,
 		}]);
-	});
+	}));
 
-	test('does not report after a turn is cancelled or its session is torn down', async () => {
-		await runWithFakedTimers({}, async () => {
-			setupSession();
-			startTurn('turn-cancelled');
-			fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-cancelled', duration: 1000 });
+	test('does not report after a turn is cancelled or its session is torn down', () => runWithFakedTimers({}, async () => {
+		setupSession();
+		startTurn('turn-cancelled');
+		fire({ type: ActionType.ChatTurnCancelled, turnId: 'turn-cancelled', duration: 1000 });
 
-			startTurn('turn-cleared');
-			sideEffects.clearChannelTelemetry(defaultChatUri);
+		startTurn('turn-cleared');
+		sideEffects.clearChannelTelemetry(defaultChatUri);
 
-			await timeout(10 * TURN_HANG_THRESHOLD_MS);
-		});
+		await timeout(10 * TURN_HANG_THRESHOLD_MS);
 
 		assert.deepStrictEqual({ hangs: hangEvents(), recoveries: hangRecoveryEvents() }, { hangs: [], recoveries: [] });
-	});
+	}));
 });

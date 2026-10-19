@@ -21,6 +21,8 @@ const incompatibleFlags = [
 	'AGENT_HOST_UPDATE_SNAPSHOTS',
 ];
 type StorageMode = 'disk' | 'tmpfs' | 'split';
+// Keep in sync with CLEANUP_FAILED_STATUS in tmpfs.sh.
+const tmpfsCleanupFailedStatus = 3;
 const diskLifecyclePattern = [
 	'session metadata history and provider context survive a host restart',
 	'archiving a never-restored session survives a host restart',
@@ -148,6 +150,7 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 	const environment: NodeJS.ProcessEnv = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
 	delete environment.ELECTRON_RUN_AS_NODE;
 	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
+	const failedPasses: string[] = [];
 	const tmpfs = spawnSync('bash', [
 		join(__dirname, 'tmpfs.sh'),
 		process.execPath, ...runnerArgs, ...args,
@@ -155,8 +158,10 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 	if (tmpfs.error) {
 		throw tmpfs.error;
 	}
-	if (tmpfs.status !== 0) {
-		process.exitCode = 1;
+	if (tmpfs.status === tmpfsCleanupFailedStatus) {
+		failedPasses.push('RAM-backed (tmpfs) pass: every suite passed, but the test tmpfs could not be cleaned up. See the "Failed to unmount" holder diagnostics above.');
+	} else if (tmpfs.status !== 0) {
+		failedPasses.push(`RAM-backed (tmpfs) pass: exited with ${describeExit(tmpfs.status, tmpfs.signal)}. See the failure details above.`);
 	}
 	if (storage === 'split') {
 		const diskArgs = args.filter((argument, index) =>
@@ -178,7 +183,25 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 			throw disk.error;
 		}
 		if (disk.status !== 0) {
-			process.exitCode = 1;
+			failedPasses.push(`Disk-backed lifecycle pass: exited with ${describeExit(disk.status, disk.signal)}. See the failure details above.`);
+		}
+	}
+	if (failedPasses.length > 0) {
+		reportFailedStoragePasses(failedPasses);
+		process.exitCode = 1;
+	}
+}
+
+function describeExit(status: number | null, signal: NodeJS.Signals | null): string {
+	return signal ? `signal ${signal}` : `code ${status}`;
+}
+
+function reportFailedStoragePasses(failedPasses: readonly string[]): void {
+	console.log('\nAgent Host E2E storage passes failed:');
+	for (const failedPass of failedPasses) {
+		console.log(`  ${failedPass}`);
+		if (process.env['GITHUB_ACTIONS'] === 'true') {
+			console.log(`::error title=Agent Host E2E failed::${failedPass}`);
 		}
 	}
 }

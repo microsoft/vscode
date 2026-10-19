@@ -17,7 +17,11 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	readonly enabledForEphemeralSessions?: boolean;
 	/** Available to owning chats, but not their native or protocol subagents. */
 	readonly topLevelChatOnly?: boolean;
-	/** Defers the tool behind discovery when supported; `false` keeps it eager. Omit to preserve provider defaults. */
+	/**
+	 * Defers the tool behind discovery when supported; `false` keeps it eager,
+	 * which sends its definition on every model request. When omitted, Copilot
+	 * sessions defer the tool and other providers keep their SDK defaults.
+	 */
 	readonly deferLoading?: boolean;
 }
 

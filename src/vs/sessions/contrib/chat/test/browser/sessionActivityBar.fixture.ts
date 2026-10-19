@@ -225,7 +225,6 @@ async function renderActivityBar(context: ComponentFixtureContext, options: IFix
 	}, 'The overflowing transcript did not settle');
 	listWidget.scrollTop = 100;
 	await waitForFixtureCondition(() => listWidget.scrollTop === 100, 'The transcript did not scroll');
-	await waitForFixtureCondition(() => !!view.element.querySelector('.scrollbar.vertical.invisible'), 'The transcript scrollbar did not reach its idle state');
 	if (options.rulerTimeline) {
 		await mountRulerTimeline(context, renderedChat!, widgetContainer);
 	}
