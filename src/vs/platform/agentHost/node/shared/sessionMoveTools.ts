@@ -408,23 +408,32 @@ export function createSessionMoveToolGroup(accessor: ISessionServerToolAccessor,
 			if (areAgentOrchestrationLimitsEnabled() && movedSessionCount >= maxMovedSessions) {
 				throw new Error(`Refusing to move more than ${maxMovedSessions} sessions from server tools in this process.`);
 			}
-			const currentChat = isAhpChatChannel(context.chatUri) ? context.chatUri : undefined;
-			const args = await getMoveSessionArgs(rawArgs, createMoveSessionLookup(() => accessor.listSessions()), currentChat, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
+			// Reserved before any await, so concurrent calls can't pass the limit together; released when the move doesn't happen.
+			movedSessionCount++;
+			let moved = false;
 			try {
-				if (args.self) {
-					if (!context.turnId) {
-						throw new Error(`${SessionServerToolName.MoveSession} must run from an active chat turn to move the chat it runs in.`);
+				const currentChat = isAhpChatChannel(context.chatUri) ? context.chatUri : undefined;
+				const args = await getMoveSessionArgs(rawArgs, createMoveSessionLookup(() => accessor.listSessions()), currentChat, chat => accessor.getChatOwner(chat), session => accessor.getDefaultChat(session));
+				try {
+					if (args.self) {
+						if (!context.turnId) {
+							throw new Error(`${SessionServerToolName.MoveSession} must run from an active chat turn to move the chat it runs in.`);
+						}
+						await accessor.checkChatMove(args.move);
+						accessor.scheduleChatMove(currentChat!, context.turnId, args.move);
+						moved = true;
+						return formatScheduledMoveSessionResult(args);
 					}
-					await accessor.checkChatMove(args.move);
-					accessor.scheduleChatMove(currentChat!, context.turnId, args.move);
-					movedSessionCount++;
-					return formatScheduledMoveSessionResult(args);
+					const session = await accessor.applyChatMove(args.move);
+					moved = true;
+					return formatMoveSessionResult(args, session);
+				} catch (error) {
+					throw toMoveToolError(error, args.move);
 				}
-				const session = await accessor.applyChatMove(args.move);
-				movedSessionCount++;
-				return formatMoveSessionResult(args, session);
-			} catch (error) {
-				throw toMoveToolError(error, args.move);
+			} finally {
+				if (!moved) {
+					movedSessionCount--;
+				}
 			}
 		},
 	};

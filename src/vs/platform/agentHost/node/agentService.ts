@@ -6854,6 +6854,8 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		this._assertChatMovesEnabled();
 		const sourceKey = session.toString();
+		// A session the host hasn't loaded since it started: its chats aren't registered until it is restored.
+		await this._restoreForMove(session, AgentChatMoveRefusal.SessionNotReady);
 		if (destination.kind === 'newSession') {
 			this._checkMovedChat(sourceKey, chat);
 			const provider = this._providerService.getProviderForSession(session);
@@ -6862,8 +6864,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return { kind: 'promote', provider };
 		}
-		// A session the host hasn't loaded since it started: its chats aren't registered until it is restored.
-		await this._restoreForMove(session, AgentChatMoveRefusal.SessionNotReady);
 		if (sessionMove) {
 			this._checkMovedSession(sourceKey, chat);
 		} else {

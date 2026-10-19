@@ -1976,7 +1976,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 		},
 		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
 			// Mentions `move_session` only while it is offered (`chatMoves.enabled`): with moves off, these read as before.
-			if ((definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) && accessor?.isChatMoveEnabled() === true) {
+			// Also only where its session's agent can move chats, as `move_session` itself.
+			if ((definition.name === SessionServerToolName.ListSessions || definition.name === SessionServerToolName.GetCurrentSession) && accessor?.isChatMoveEnabled() === true && accessor.supportsChatMoves(URI.parse(sessionUri))) {
 				const chatsSentence = sessionChatsSentences.get(definition.name)!;
 				return { ...definition, description: definition.description?.replace(chatsSentence, `${chatsSentence}${moveSessionLinksSentence}`) };
 			}
