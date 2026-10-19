@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { Account } from '../../../../../platform/github/common/core/core.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { PullRequest } from '../../../../../platform/github/common/core/pullRequests.js';
 import { Review, ReviewComment, ReviewThread, ThreadComment } from '../../../../../platform/github/common/core/reviews.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
@@ -24,14 +25,15 @@ import { GitHubApiClient } from '../githubApiClient.js';
 export class GitHubPRFetcher {
 	constructor(readonly client: GitHubApiClient) { }
 
-	getPullRequest(owner: string, repo: string, prNumber: number, token?: CancellationToken): Promise<IGitHubPullRequest> {
+	getPullRequest(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequest> {
 		return this.client.withClient(async (client, signal) =>
-			mapPullRequest(await client.pullRequests.get({ owner, name: repo }, prNumber, signal)), token);
+			mapPullRequest(await client.pullRequests.get({ owner, name: repo }, prNumber, signal, options)), token);
 	}
 
-	getReviews(owner: string, repo: string, prNumber: number, token?: CancellationToken): Promise<readonly IGitHubPullRequestReview[]> {
+	getReviews(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubPullRequestReview[]> {
 		return this.client.withClient(async (client, signal) => {
 			const reviews = await client.reviews.list({ owner, name: repo }, prNumber, signal, {
+				...options,
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
 			});
@@ -56,10 +58,11 @@ export class GitHubPRFetcher {
 		});
 	}
 
-	getReviewThreads(owner: string, repo: string, prNumber: number, token?: CancellationToken): Promise<IGitHubPullRequestReviewThread[]> {
+	getReviewThreads(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequestReviewThread[]> {
 		return this.client.withClient(async (client, signal) => {
-			const pullRequest = await client.pullRequests.get({ owner, name: repo }, prNumber, signal);
+			const pullRequest = await client.pullRequests.get({ owner, name: repo }, prNumber, signal, options);
 			const threads = await client.reviews.listThreads(pullRequest.node_id, signal, {
+				...options,
 				query: { first: 100, commentsFirst: 100 },
 				maxPages: 100,
 			});
@@ -75,6 +78,7 @@ export class GitHubPRFetcher {
 						throw new GitHubRequestError('Invalid GitHub pagination cursor', 'malformedResponse');
 					}
 					const remaining = await client.reviews.listThreadComments(thread.id, signal, {
+						...options,
 						query: { first: 100, after },
 						maxPages: 99, // The thread already includes the first page.
 					});

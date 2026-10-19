@@ -1719,6 +1719,60 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('compact editor tab strips meet the shared left border without an extra inset', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-tabs floating-panels');
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size40: 4px; --vscode-editor-border: #123456; --vscode-editorGroup-border: #123456;';
+		store.add(toDisposable(() => root.remove()));
+		const grid = appendElement(root, 'monaco-grid-view');
+		const editor = appendElement(grid, 'part editor editor-tabs-multiple');
+		editor.style.cssText = 'width: 500px; height: 300px;';
+		const content = appendElement(editor, 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		appendElement(title, 'tabs-and-actions-container');
+		const modalEditor = appendElement(grid, 'part editor modal-editor-part');
+		modalEditor.style.border = '1px solid';
+		const auxiliaryContainer = appendElement(root, 'auxiliary-container');
+		const auxiliaryEditor = appendElement(appendElement(auxiliaryContainer, 'monaco-grid-view'), 'part editor');
+		const targetWindow = getWindow(root);
+
+		for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const connected of [false, true]) {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const measure = (compact: boolean, outerLeft: boolean) => {
+					root.classList.toggle('modern-ui-compact', compact);
+					editor.classList.toggle('floating-editor-outer-left', outerLeft);
+					const style = targetWindow.getComputedStyle(editor);
+					return {
+						tabStripInset: title.getBoundingClientRect().left - editor.getBoundingClientRect().left,
+						borderWidths: [style.borderLeftWidth, style.borderRightWidth, style.borderTopWidth, style.borderBottomWidth],
+						modalLeftBorder: targetWindow.getComputedStyle(modalEditor).borderLeftWidth,
+						auxiliaryLeftBorder: targetWindow.getComputedStyle(auxiliaryEditor).borderLeftWidth,
+					};
+				};
+				const framed = {
+					tabStripInset: 1,
+					borderWidths: ['1px', '1px', '1px', '1px'],
+					modalLeftBorder: '1px',
+					auxiliaryLeftBorder: '1px',
+				};
+				assert.deepStrictEqual({
+					default: measure(false, false),
+					compactShared: measure(true, false),
+					compactOuter: measure(true, true),
+					restoredDefault: measure(false, false),
+				}, {
+					default: framed,
+					compactShared: { ...framed, tabStripInset: 0, borderWidths: ['0px', '1px', '1px', '1px'] },
+					compactOuter: framed,
+					restoredDefault: framed,
+				}, `${theme}, connected: ${connected}`);
+			}
+			root.classList.remove(theme);
+		}
+	});
+
 	test('uses the modern activity bar border color', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui floating-panels';

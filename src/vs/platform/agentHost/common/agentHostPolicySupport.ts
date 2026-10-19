@@ -137,10 +137,11 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	Codex3PIntegration: { status: 'notApplicable' },
 	// Directly controls Copilot's custom-shell creation.
 	ChatAgentHostCustomTerminalTool: { status: 'enforced' },
-	// Explicit false clears destinations initially, but separately configured destinations or the
-	// DB recorder can re-enable host telemetry in resolveAgentHostOTelConfig.
-	CopilotOtelEnabled: { status: 'partial' },
-	// Forwarded exporter type can be overridden by inherited OTLP protocol in the host consumer.
+	// For the local Copilot Agent Host, explicit false clears destinations and DB activation.
+	// This does not certify remote hosts or independently fetched runtime policy.
+	CopilotOtelEnabled: { status: 'enforced' },
+	// Managed file type plus outfile composition is enforced. Active collector configurations and
+	// file type without a managed outfile remain partial because inherited OTLP protocol can win.
 	CopilotOtelProtocol: { status: 'partial' },
 	// Policy-priority forwarding and host consumption; remote hosts do not receive them.
 	CopilotOtelEndpoint: { status: 'enforced' },

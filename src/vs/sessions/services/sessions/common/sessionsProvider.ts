@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatSessionInitialMessage } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -41,6 +42,20 @@ export interface IChatMoveEnd {
 export interface IChatMovedEvent {
 	readonly from: IChatMoveEnd;
 	readonly to: IChatMoveEnd;
+}
+
+/**
+ * A user invocation of one of a session's changeset operations
+ * (`ISessionChangeset.invokeOperation`). Fired once any confirmation the
+ * operation requires has been accepted and before the operation runs, so it
+ * reports the invocation, not its outcome.
+ */
+export interface ISessionChangesetOperationInvokedEvent {
+	readonly session: ISession;
+	/** `ISessionChangesetOperation.id` of the invoked operation. */
+	readonly operationId: string;
+	/** The operation-specific request metadata the operation was invoked with. */
+	readonly metadata?: Record<string, unknown>;
 }
 
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
@@ -96,6 +111,13 @@ export interface ISendRequestOptions {
 	readonly title?: string;
 	/** Hide this request and its response from the chat transcript. */
 	readonly hideFromTranscript?: boolean;
+}
+
+/** Options for forking a chat within a session. */
+export interface IForkChatOptions {
+	/** Optional captured prompt and context for a host-owned fork-and-send operation. */
+	readonly initialMessage?: IChatSessionInitialMessage;
+	readonly title?: string;
 }
 
 /** Provider options applied when creating a new session draft. */
@@ -294,6 +316,12 @@ export interface ISessionsProvider {
 	 * provider. Do not implement or consume this event in other providers.
 	 */
 	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+
+	/**
+	 * Optional. Fires when the user invokes a changeset operation of one of
+	 * this provider's sessions; see {@link ISessionChangesetOperationInvokedEvent}.
+	 */
+	readonly onDidInvokeChangesetOperation?: Event<ISessionChangesetOperationInvokedEvent>;
 
 	/**
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
@@ -616,8 +644,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source

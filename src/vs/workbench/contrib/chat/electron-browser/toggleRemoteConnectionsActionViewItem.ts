@@ -172,7 +172,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: !usesGitHubEnvironment,
 					run: () => this._selectConnectionMethod('devTunnel'),
 				}),
-				detail: localize('remoteConnections.devTunnel.detail', "Connect from VS Code or a browser through a secure tunnel."),
+				detail: localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents."),
 			},
 			{
 				...toAction({
@@ -181,9 +181,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					checked: usesGitHubEnvironment,
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				detail: localize('remoteConnections.githubEnvironment.detail', "Register this machine with GitHub for remote agent access."),
+				detail: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
 				badge: localize('remoteConnections.preview', "Preview"),
-				hover: { content: githubEnvironmentDataHandlingDescription },
 			},
 		];
 	}

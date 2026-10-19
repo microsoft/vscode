@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -380,6 +380,8 @@ export interface ISessionsManagementService {
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 	/** Fires when a provider moved a chat to another of its sessions (see `ISessionsProvider.onDidMoveChat`). */
 	readonly onDidMoveChat: Event<IChatMovedEvent>;
+	/** Fires when the user invokes a changeset operation of a session from any provider. */
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent>;
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
@@ -479,13 +481,14 @@ export interface ISessionsManagementService {
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded
 	 * with the source chat's history up to and including the given turn. Used
-	 * for the fork gesture on sessions that support multiple chats.
+	 * for the fork gesture on sessions that support forking.
 	 *
 	 * @param session The session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChatInSession(session: ISession, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChatInSession(session: ISession, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source

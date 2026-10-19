@@ -25,7 +25,7 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 		));
 	}
 
-	test('advertises resource-scoped discard for Branch and non-empty Uncommitted Changes', () => {
+	test('advertises resource-scoped discard for Branch, non-empty Uncommitted, and Session Changes', () => {
 		const contribution = createContribution();
 		const contexts = [
 			{ changesetUri: buildBranchChangesetUri(sessionKey), changesetKind: ChangesetKind.Branch, gitState: { uncommittedChanges: 0 } },
@@ -54,7 +54,14 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 				status: ChangesetOperationStatus.Idle,
 			}],
 			[],
-			[],
+			[{
+				id: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				label: 'Discard Changes',
+				confirmation: 'Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone.',
+				icon: 'discard',
+				scopes: [ChangesetOperationScope.Resource],
+				status: ChangesetOperationStatus.Idle,
+			}],
 		]);
 	});
 });

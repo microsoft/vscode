@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, isConfigured } from '../../common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { ConfigurationService } from '../../common/configurationService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -29,11 +29,20 @@ suite('ConfigurationService.test.ts', () => {
 	let fileService: IFileService;
 	let settingsResource: URI;
 
+	// Tests register settings in the global registry: deregister them, so that later test files do not see them.
+	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	let registeredBefore: Set<IConfigurationNode>;
+
 	setup(async () => {
+		registeredBefore = new Set(registry.getConfigurations());
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
 		settingsResource = URI.file('settings.json');
+	});
+
+	teardown(() => {
+		registry.deregisterConfigurations(registry.getConfigurations().filter(node => !registeredBefore.has(node)));
 	});
 
 	test('simple', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

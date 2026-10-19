@@ -3440,6 +3440,17 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		suite('explicit browser sandbox creation', () => {
+			test('creating and discarding drafts does not provision cloud sessions', async () => {
+				const { provider, provisionRequests, cloudSends } = createSandboxProvider({ providerMode: 'sandbox' });
+				const workspaceDraft = provider.createNewSession(repoWorkspace, CopilotSandboxSessionType.id);
+				provider.deleteNewSession(workspaceDraft.sessionId);
+				const quickDraft = provider.createQuickChat(CopilotSandboxSessionType.id);
+				provider.deleteNewSession(quickDraft.sessionId);
+				await timeout(0);
+
+				assert.deepStrictEqual({ provisionRequests, cloudSends }, { provisionRequests: [], cloudSends: [] });
+			});
+
 			test('waits for cloud-service models even when the host already published a smaller catalog', async () => {
 				const cloudModel = { ...sandboxModel('claude-sonnet-4.6'), identifier: 'cloud-catalog:claude-sonnet-4.6' };
 				const models = [sandboxModel('auto')];

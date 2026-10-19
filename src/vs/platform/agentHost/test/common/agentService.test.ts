@@ -324,6 +324,74 @@ suite('buildAgentHostOTelEnv', () => {
 		assert.strictEqual(env[AgentHostOTelEnvVars.FilePath], '');
 	});
 
+	test('managed file export enables telemetry and overrides collector destinations', () => {
+		const env = buildAgentHostOTelEnv(
+			{ exporterType: 'otlp-http', otlpEndpoint: 'http://local:4318' },
+			{
+				[AgentHostOTelEnvVars.OtlpEndpoint]: 'http://environment:4318',
+				[AgentHostOTelEnvVars.OtlpTracesEndpoint]: 'http://environment:4318/v1/traces',
+				[AgentHostOTelEnvVars.OtlpMetricsEndpoint]: 'http://environment:4318/v1/metrics',
+				[AgentHostOTelEnvVars.OtlpTracesProtocol]: 'http/protobuf',
+				[AgentHostOTelEnvVars.OtlpMetricsProtocol]: 'http/protobuf',
+				[AgentHostOTelEnvVars.OtlpHeaders]: 'authorization=environment',
+				[AgentHostOTelEnvVars.OtlpTracesHeaders]: 'authorization=environment-traces',
+				[AgentHostOTelEnvVars.OtlpMetricsHeaders]: 'authorization=environment-metrics',
+			},
+			{ exporterType: 'file', outfile: '/managed/copilot.jsonl', otlpEndpoint: 'http://managed:4318', otlpProtocol: 'grpc' },
+		);
+		assert.deepStrictEqual(env, {
+			[AgentHostOTelEnvVars.Enabled]: 'true',
+			[AgentHostOTelEnvVars.ExporterType]: 'file',
+			[AgentHostOTelEnvVars.FilePath]: '/managed/copilot.jsonl',
+			[AgentHostOTelEnvVars.FilePathIsManaged]: 'true',
+			[AgentHostOTelEnvVars.OtlpEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpEndpointAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpProtocolAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpTracesHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsHeaders]: '',
+		});
+	});
+
+	test('managed disabled policy suppresses file, collector, and database destinations', () => {
+		const env = buildAgentHostOTelEnv(
+			{ enabled: true, exporterType: 'file', outfile: 'local.jsonl', dbSpanExporterEnabled: true },
+			{
+				[AgentHostOTelEnvVars.OtlpEndpoint]: 'http://environment:4318',
+				[AgentHostOTelEnvVars.DbSpanExporterEnabled]: 'true',
+			},
+			{ enabled: false, exporterType: 'file', outfile: '/managed/copilot.jsonl', otlpEndpoint: 'http://managed:4318', dbSpanExporterEnabled: true },
+		);
+		assert.deepStrictEqual(env, {
+			[AgentHostOTelEnvVars.Enabled]: 'false',
+			[AgentHostOTelEnvVars.ExporterType]: 'file',
+			[AgentHostOTelEnvVars.FilePath]: '',
+			[AgentHostOTelEnvVars.OtlpEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpEndpointAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsEndpoint]: '',
+			[AgentHostOTelEnvVars.OtlpProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpProtocolAlt]: '',
+			[AgentHostOTelEnvVars.OtlpTracesProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsProtocol]: '',
+			[AgentHostOTelEnvVars.OtlpHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpTracesHeaders]: '',
+			[AgentHostOTelEnvVars.OtlpMetricsHeaders]: '',
+			[AgentHostOTelEnvVars.DbSpanExporterEnabled]: '',
+		});
+	});
+
+	test('overrides an inherited managed-file marker outside the current managed-file branch', () => {
+		const inherited = { [AgentHostOTelEnvVars.FilePathIsManaged]: 'true' };
+		assert.strictEqual(buildAgentHostOTelEnv({}, inherited)[AgentHostOTelEnvVars.FilePathIsManaged], 'false');
+		assert.strictEqual(buildAgentHostOTelEnv({}, {})[AgentHostOTelEnvVars.FilePathIsManaged], undefined);
+	});
+
 	test('managed service name wins over inherited env', () => {
 		const env = buildAgentHostOTelEnv(
 			{ serviceName: 'user-service' },

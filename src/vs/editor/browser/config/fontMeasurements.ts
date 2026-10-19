@@ -212,15 +212,23 @@ export class FontMeasurementsImpl extends Disposable {
 			this._createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Bold, all, monospace);
 		}
 
+		if (bareFontInfo.fontFeatureSettings !== EditorFontLigatures.OFF) {
+			const monospaceLigatureTestStrings = ['fi', '<=', '=>', '==='];
+			for (const testString of monospaceLigatureTestStrings) {
+				this._createRequest(testString, CharWidthRequestType.Regular, all, monospace);
+			}
+		}
+
 		readCharWidths(targetWindow, bareFontInfo, all);
 
 		const maxDigitWidth = Math.max(digit0.width, digit1.width, digit2.width, digit3.width, digit4.width, digit5.width, digit6.width, digit7.width, digit8.width, digit9.width);
 
-		let isMonospace = (bareFontInfo.fontFeatureSettings === EditorFontLigatures.OFF);
+		let isMonospace = true;
 		const referenceWidth = monospace[0].width;
 		for (let i = 1, len = monospace.length; isMonospace && i < len; i++) {
-			const diff = referenceWidth - monospace[i].width;
-			if (diff < -0.001 || diff > 0.001) {
+			const request = monospace[i];
+			const diff = referenceWidth * request.chr.length - request.width;
+			if (diff < -0.005 || diff > 0.005) {
 				isMonospace = false;
 				break;
 			}

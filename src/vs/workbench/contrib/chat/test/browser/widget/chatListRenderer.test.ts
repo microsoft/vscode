@@ -9,14 +9,17 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { revive } from '../../../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -30,13 +33,19 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../.
 import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -79,7 +88,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
 import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionTargetResultPill } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -1363,35 +1372,35 @@ suite('ChatListRenderer', () => {
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
 			});
+		});
 
-			suite('endsWithCompletedQuestionInteraction', () => {
-				test('resumes working progress after completed ask interactions', () => {
-					const completedTool: IChatToolInvocationSerialized = {
-						kind: 'toolInvocationSerialized',
-						toolCallId: 'ask-1',
-						toolId: 'ask_user',
-						invocationMessage: 'Waiting for answer...',
-						originMessage: undefined,
-						pastTenseMessage: undefined,
-						isComplete: true,
-						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
-						presentation: undefined,
-						source: ToolDataSource.Internal,
-					};
-					const completedQuestion: IChatQuestionCarousel = {
-						kind: 'questionCarousel',
-						questions: [],
-						allowSkip: true,
-						isUsed: true,
-					};
+		suite('endsWithCompletedQuestionInteraction', () => {
+			test('resumes working progress after completed ask interactions', () => {
+				const completedTool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'ask-1',
+					toolId: 'ask_user',
+					invocationMessage: 'Waiting for answer...',
+					originMessage: undefined,
+					pastTenseMessage: undefined,
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+				};
+				const completedQuestion: IChatQuestionCarousel = {
+					kind: 'questionCarousel',
+					questions: [],
+					allowSkip: true,
+					isUsed: true,
+				};
 
-					assert.deepStrictEqual([
-						endsWithCompletedQuestionInteraction([completedTool]),
-						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
-						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
-						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
-					], [true, true, false, false]);
-				});
+				assert.deepStrictEqual([
+					endsWithCompletedQuestionInteraction([completedTool]),
+					endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+					endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+					endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+				], [true, true, false, false]);
 			});
 		});
 	});
@@ -2052,6 +2061,7 @@ suite('ChatListRenderer', () => {
 		instantiationService.stub(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 			override acceptElicitation() { }
 		}());
+		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
 
 		const editingSession = options.editingSession;
 		if (editingSession) {
@@ -4401,7 +4411,7 @@ suite('ChatListRenderer', () => {
 				expandedOnReturn: toolRow.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
 				sameThumbnails: thumbnails.every((button, index) => batch.querySelectorAll('.chat-image-generation-batch-thumbnail')[index] === button),
 				toolBeforePreview: toolRow.nextElementSibling === preview,
-				countsBelowThumbnails: preview.nextElementSibling?.contains(thumbnails[0]) && preview.nextElementSibling.nextElementSibling === summary,
+				countsBelowThumbnails: preview.nextElementSibling?.contains(thumbnails[0]) && preview.nextElementSibling.nextElementSibling?.contains(summary),
 				toolRows: batch.querySelectorAll('.chat-tool-invocation-part').length,
 				finalStatus: summary.textContent,
 			}, {
@@ -4766,6 +4776,131 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	test('image batches wrap natural-width thumbnails without internal scrolling', async () => {
+		const { instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		container.style.width = '760px';
+		renderer.layout(container.clientWidth);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced() { return true; }
+		}());
+		const dimensions = [[1024, 1024], [1356, 1024], [1024, 1356], [1356, 1024], [1024, 1356]];
+		for (let index = 0; index < 10; index++) {
+			const [width, height] = dimensions[index % dimensions.length];
+			const value = dom.$<HTMLCanvasElement>('canvas', { width, height }).toDataURL('image/png').split(',')[1];
+			const tool = new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `grid-image-${index}`, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool({
+				content: [], toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
+			});
+		}
+		renderer.renderElement(node, 0, template);
+		const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+		const grid = batch.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnails')!;
+		const buttons = [...grid.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+		await retry(async () => {
+			const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
+			assert.strictEqual(images.length, 10);
+			await Promise.all(images.map(image => image.decode()));
+		}, 10, 50);
+		const snapshot = () => {
+			const rows = [...grid.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail-row')];
+			return {
+				rowCounts: rows.map(row => row.children.length),
+				leftAlignedWithSpareSpace: rows.length > 0 && rows.every(row => {
+					const first = row.firstElementChild!.getBoundingClientRect();
+					const last = row.lastElementChild!.getBoundingClientRect();
+					const bounds = grid.getBoundingClientRect();
+					return Math.abs(first.left - bounds.left) < 1 && last.right < bounds.right - 1;
+				}),
+				preservesAspectRatios: buttons.every((button, index) => {
+					const bounds = button.getBoundingClientRect();
+					const [width, height] = dimensions[index % dimensions.length];
+					return Math.abs(bounds.width / bounds.height - width / height) < 0.02;
+				}),
+				noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
+				noScrollbar: !batch.querySelector('.monaco-scrollable-element'),
+			};
+		};
+		await retry(async () => assert.deepStrictEqual(snapshot(), {
+			rowCounts: [5, 5], leftAlignedWithSpareSpace: true, preservesAspectRatios: true, noOverflow: true, noScrollbar: true,
+		}), 10, 50);
+		buttons[1].click();
+		buttons[1].focus();
+		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === buttons[6],
+			selected: buttons[6].getAttribute('aria-pressed'),
+		}, { focused: true, selected: 'true' });
+		container.style.width = '360px';
+		renderer.layout(container.clientWidth);
+		await retry(async () => assert.deepStrictEqual(snapshot(), {
+			rowCounts: [3, 3, 2, 2], leftAlignedWithSpareSpace: true, preservesAspectRatios: true, noOverflow: true, noScrollbar: true,
+		}), 10, 50);
+		assert.strictEqual(dom.getActiveElement(), buttons[6], 'resizing must preserve keyboard focus');
+		buttons[6].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === buttons[3],
+			selected: buttons[3].getAttribute('aria-pressed'),
+			sameButtons: buttons.every((button, index) => grid.querySelectorAll('.chat-image-generation-batch-thumbnail')[index] === button),
+		}, { focused: true, selected: 'true', sameButtons: true });
+	});
+
+	for (const width of [360, 760, 1000]) {
+		test(`image batch rows stay stable without padding image tiles (${width}px)`, async () => {
+			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = `${width}px`;
+			renderer.layout(container.clientWidth);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return true; }
+			}());
+			const dimensions = [[1024, 1356], [1024, 1536], [1536, 1024], [1356, 1024], [1024, 1024], [1600, 400]];
+			const tools = Array.from({ length: 10 }, (_, index) => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `natural-grid-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const grid = template.value.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnails')!;
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			await nextFrame();
+			const heights = () => [...grid.querySelectorAll('.chat-image-generation-batch-thumbnail-row')].map(row => row.getBoundingClientRect().height);
+			const initial = heights();
+			assert.ok(initial.length > 0);
+			const snapshots = [];
+			for (const [index, tool] of tools.entries()) {
+				const [imageWidth, imageHeight] = dimensions[index % dimensions.length];
+				const value = dom.$<HTMLCanvasElement>('canvas', { width: imageWidth, height: imageHeight }).toDataURL('image/png').split(',')[1];
+				await tool.didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
+				});
+				await retry(async () => {
+					const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
+					assert.strictEqual(images.length, index + 1);
+					await Promise.all(images.map(image => image.decode()));
+				}, 10, 50);
+				await nextFrame();
+				snapshots.push({
+					stableRows: heights().every((height, row) => Math.abs(height - initial[row]) < 1),
+					noPaddedTiles: [...grid.querySelectorAll('img')].every(image => {
+						const bounds = image.parentElement!.getBoundingClientRect();
+						return Math.abs(bounds.width / bounds.height - image.naturalWidth / image.naturalHeight) < 0.02;
+					}),
+					noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
+				});
+			}
+			assert.deepStrictEqual(snapshots, tools.map(() => ({
+				stableRows: true, noPaddedTiles: true, noOverflow: true,
+			})));
+		});
+	}
+
 	for (const [theme, border, selectedBorder] of [
 		['dark', 'rgb(60, 60, 60)', 'rgb(0, 127, 212)'],
 		['light', 'rgb(212, 212, 212)', 'rgb(0, 144, 241)'],
@@ -4821,9 +4956,9 @@ suite('ChatListRenderer', () => {
 				spacing: {
 					previewToThumbnails: firstButtonBounds.top - preview.getBoundingClientRect().bottom,
 					betweenThumbnails: buttons[1].getBoundingClientRect().left - firstButtonBounds.right,
-					thumbnailsToSummary: summary.getBoundingClientRect().top - firstButtonBounds.bottom,
+					thumbnailsToSummary: summary.parentElement!.getBoundingClientRect().top - firstButtonBounds.bottom,
 				},
-				countsBelowThumbnails: thumbnails.parentElement?.nextElementSibling === summary,
+				countsBelowThumbnails: thumbnails.nextElementSibling?.contains(summary),
 				oneTool: template.value.querySelectorAll('.chat-tool-invocation-part').length,
 				focusedSelection: mainWindow.document.activeElement === buttons[0],
 			}, {
@@ -4874,6 +5009,310 @@ suite('ChatListRenderer', () => {
 			role: 'status',
 			live: 'polite',
 		});
+	});
+
+	suite('image batch ZIP downloads', () => {
+		const desktopTest = isWeb ? test.skip : test;
+
+		async function createDownloadRenderer() {
+			const context = createPersistentProgressRenderer();
+			const { instantiationService, model, request } = context;
+			const fileService = store.add(new FileService(new NullLogService()));
+			for (const scheme of [Schemas.inMemory, Schemas.vscodeRemote]) {
+				store.add(fileService.registerProvider(scheme, store.add(new InMemoryFileSystemProvider())));
+			}
+			instantiationService.stub(IFileService, fileService);
+			const folder = URI.from({ scheme: Schemas.inMemory, path: '/downloads' });
+			const target = URI.joinPath(folder, 'generated-images.zip');
+			await fileService.createFolder(folder);
+			const dialogShown = new DeferredPromise<ISaveDialogOptions>();
+			const destination = new DeferredPromise<URI | undefined>();
+			const dialogs: ISaveDialogOptions[] = [];
+			instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+				override async defaultFilePath() { return folder; }
+				override async showSaveDialog(options: ISaveDialogOptions) {
+					dialogs.push(options);
+					await dialogShown.complete(options);
+					return destination.p;
+				}
+			}());
+			const errors = sinon.spy(instantiationService.get(INotificationService), 'error');
+			store.add(toDisposable(() => errors.restore()));
+			const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1];
+			const addTool = (id: string, toolId = 'image_generation') => {
+				const tool = new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+					id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, id, undefined, {}, {}, request.id);
+				model.acceptResponseProgress(request, tool);
+				return tool;
+			};
+			const finishTool = (tool: ChatToolInvocation, output: IToolResultInputOutputDetails['output'] = [{ type: 'embed', value: imageData, mimeType: 'image/png' }]) => tool.didExecuteTool({
+				content: [], toolSpecificData: { kind: 'generatedImage' }, toolResultDetails: { input: '{}', output },
+			});
+			const render = () => context.renderer.renderElement(context.node, 0, context.template);
+			const getDownload = () => {
+				const actions = context.template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch-actions [role="button"]');
+				assert.ok(actions.length);
+				return actions[actions.length - 1];
+			};
+			const waitForDownload = () => retry(async () => assert.notStrictEqual(getDownload().getAttribute('aria-disabled'), 'true'), 10, 100);
+			return { ...context, fileService, target, dialogShown, destination, dialogs, errors, imageData, addTool, finishTool, render, getDownload, waitForDownload };
+		}
+
+		function readArchive(archive: VSBuffer): { path: string; data: string }[] {
+			const entries: { path: string; data: string }[] = [];
+			let offset = 0;
+			while (archive.readUInt32LE(offset) === 0x04034b50) {
+				const size = archive.readUInt32LE(offset + 18);
+				const nameLength = readUInt16LE(archive.buffer, offset + 26);
+				const extraLength = readUInt16LE(archive.buffer, offset + 28);
+				const start = offset + 30 + nameLength + extraLength;
+				entries.push({ path: archive.slice(offset + 30, offset + 30 + nameLength).toString(), data: encodeBase64(archive.slice(start, start + size)) });
+				offset = start + size;
+			}
+			return entries;
+		}
+
+		for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+			desktopTest(`downloads all originals from only the chosen ${toolId} batch using the keyboard`, async () => {
+				const context = await createDownloadRenderer();
+				const { addTool, finishTool, model, request, fileService, imageData, target, render, getDownload, dialogShown, destination, dialogs, errors, response } = context;
+				for (const id of ['earlier-1', 'earlier-2']) {
+					await finishTool(addTool(id, toolId));
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('A separate batch follows.') });
+				const source = URI.from({ scheme: Schemas.vscodeRemote, authority: 'image-host', path: '/generated-image.jpg' });
+				const jpeg = dom.$<HTMLCanvasElement>('canvas', { width: 12, height: 6 }).toDataURL('image/jpeg').split(',')[1];
+				await fileService.writeFile(source, decodeBase64(jpeg));
+				await finishTool(addTool('download-1', toolId), [
+					{ type: 'embed', value: imageData, mimeType: 'image/png' },
+					{ type: 'ref', uri: source, mimeType: 'image/jpeg' },
+				]);
+				await finishTool(addTool('download-2', toolId), Array.from({ length: 7 }, () => ({ type: 'embed', value: imageData, mimeType: 'image/png' })));
+				request.response!.complete();
+				render();
+				const button = getDownload();
+				button.focus();
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+				assert.deepStrictEqual({
+					label: button.getAttribute('aria-label'),
+					enabled: button.getAttribute('aria-disabled') !== 'true',
+					focusable: button.tabIndex === 0,
+					focused: dom.getActiveElement() === button,
+				}, { label: 'Download All Images as ZIP', enabled: true, focusable: true, focused: true });
+				const keyCode = toolId === 'image_generation' ? 13 : 32;
+				const key = keyCode === 13 ? 'Enter' : ' ';
+				button.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+				button.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
+				assert.strictEqual(button.getAttribute('aria-disabled'), 'true', 'Keyboard activation starts the download');
+				const options = await dialogShown.p;
+				button.click();
+				const busy = button.getAttribute('aria-disabled');
+				await destination.complete(target);
+				await context.waitForDownload();
+				const images = getGeneratedImageResources(response.response, response.sessionResource).filter(image => image.toolCallId.startsWith('download-'));
+				assert.deepStrictEqual({
+					entries: readArchive((await fileService.readFile(target)).value),
+					batches: context.template.value.querySelectorAll('.chat-image-generation-batch-actions').length,
+					suggestedPath: options.defaultUri?.path,
+					fileSystems: options.availableFileSystems,
+					dialogCount: dialogs.length,
+					busy,
+					label: button.getAttribute('aria-label'),
+					buttonOutsideLiveRegion: !button.closest('[role="status"]'),
+					errors: errors.callCount,
+				}, {
+					entries: images.map(image => ({ path: image.name, data: image.base64Value ?? jpeg })),
+					batches: 2,
+					suggestedPath: '/downloads/generated-images.zip',
+					fileSystems: [Schemas.file],
+					dialogCount: 1,
+					busy: 'true',
+					label: 'Download All Images as ZIP',
+					buttonOutsideLiveRegion: true,
+					errors: 0,
+				});
+			});
+		}
+
+		for (const scheme of [Schemas.http, Schemas.https]) {
+			desktopTest(`downloads a mixed batch of embedded and ${scheme} images`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.parse(`${scheme}://example.com/generated-image.png`);
+				const urlImageData = dom.$<HTMLCanvasElement>('canvas', { width: 12, height: 6 }).toDataURL('image/png').split(',')[1];
+				const readImage = sinon.stub<[URI, CancellationToken], Promise<VSBuffer | undefined>>().resolves(decodeBase64(urlImageData));
+				context.instantiationService.stub(ISharedWebContentExtractorService, { readImage });
+				await context.finishTool(context.addTool('download-embedded'));
+				await context.finishTool(context.addTool('download-url'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				context.render();
+				context.getDownload().click();
+				await context.dialogShown.p;
+				await context.destination.complete(context.target);
+				await context.waitForDownload();
+				const images = getGeneratedImageResources(context.response.response, context.response.sessionResource);
+				assert.deepStrictEqual({
+					entries: readArchive((await context.fileService.readFile(context.target)).value),
+					urlReads: readImage.args,
+					errors: context.errors.callCount,
+				}, {
+					entries: images.map((image, index) => ({ path: image.name, data: index === 0 ? context.imageData : urlImageData })),
+					urlReads: [[source, CancellationToken.None]],
+					errors: 0,
+				});
+			});
+		}
+
+		for (const rejected of [false, true]) {
+			desktopTest(`reports unavailable URL image data without saving a partial batch (rejected: ${rejected})`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.parse('https://example.com/generated-image.png');
+				const readImage = sinon.stub<[URI, CancellationToken], Promise<VSBuffer | undefined>>();
+				if (rejected) {
+					readImage.rejects(new Error('Image request failed'));
+				} else {
+					readImage.resolves(undefined);
+				}
+				context.instantiationService.stub(ISharedWebContentExtractorService, { readImage });
+				await context.finishTool(context.addTool('download-embedded'));
+				await context.finishTool(context.addTool('download-url'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				await context.fileService.writeFile(context.target, VSBuffer.fromString('previous archive'));
+				context.render();
+				context.getDownload().click();
+				await context.waitForDownload();
+				assert.deepStrictEqual({
+					saved: (await context.fileService.readFile(context.target)).value.toString(),
+					urlReads: readImage.args,
+					dialogs: context.dialogs.length,
+					errors: context.errors.args,
+				}, {
+					saved: 'previous archive',
+					urlReads: [[source, CancellationToken.None]],
+					dialogs: 0,
+					errors: [[rejected ? 'Failed to download image batch: Image request failed' : 'Failed to download image batch: Unable to read image data from the URL.']],
+				});
+			});
+		}
+
+		(isWeb ? test : test.skip)('downloads embedded and HTTPS images through the browser without opening a save dialog', async () => {
+			const context = await createDownloadRenderer();
+			const source = URI.parse('https://example.com/generated-image.png');
+			store.add(context.fileService.registerProvider(Schemas.https, store.add(new InMemoryFileSystemProvider())));
+			await context.fileService.writeFile(source, decodeBase64(context.imageData));
+			await context.finishTool(context.addTool('download-1'));
+			await context.finishTool(context.addTool('download-2'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+			context.render();
+			const downloaded = new DeferredPromise<{ name: string; url: string }>();
+			store.add(dom.addDisposableListener(mainWindow.document, dom.EventType.CLICK, event => {
+				const anchor = event.target;
+				if (anchor instanceof HTMLAnchorElement && anchor.download) {
+					event.preventDefault();
+					void downloaded.complete({ name: anchor.download, url: anchor.href });
+				}
+			}));
+			context.getDownload().click();
+			const { name, url } = await downloaded.p;
+			const archive = VSBuffer.wrap(new Uint8Array(await (await fetch(url)).arrayBuffer()));
+			await context.waitForDownload();
+			const images = getGeneratedImageResources(context.response.response, context.response.sessionResource);
+			assert.deepStrictEqual({
+				name,
+				entries: readArchive(archive),
+				dialogs: context.dialogs.length,
+				errors: context.errors.callCount,
+			}, {
+				name: 'generated-images.zip',
+				entries: images.map(image => ({ path: image.name, data: context.imageData })),
+				dialogs: 0,
+				errors: 0,
+			});
+		});
+
+		desktopTest('disables empty batches and snapshots ready images without waiting for failed, cancelled, or pending calls', async () => {
+			const context = await createDownloadRenderer();
+			const tools = Array.from({ length: 5 }, (_, index) => context.addTool(`download-${index}`));
+			context.render();
+			const button = context.getDownload();
+			const initiallyDisabled = button.getAttribute('aria-disabled');
+			button.click();
+			const initialDialogs = context.dialogs.length;
+			await context.finishTool(tools[0]);
+			await tools[1].didExecuteTool({ content: [], toolResultError: 'Generation failed' });
+			tools[2].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+			tools[3].requestConfirmation({ confirmationMessages: { title: 'Generate Image?', message: new MarkdownString('Approve generation') } });
+			const initialLabel = button.getAttribute('aria-label');
+			button.click();
+			await context.dialogShown.p;
+			await context.finishTool(tools[4]);
+			const stillBusy = button.getAttribute('aria-disabled');
+			await context.destination.complete(context.target);
+			await context.waitForDownload();
+			const entries = readArchive((await context.fileService.readFile(context.target)).value);
+			assert.deepStrictEqual({
+				initiallyDisabled,
+				initialDialogs,
+				initialLabel,
+				stillBusy,
+				finalLabel: button.getAttribute('aria-label'),
+				contents: entries.map(entry => entry.data),
+				errors: context.errors.callCount,
+			}, {
+				initiallyDisabled: 'true',
+				initialDialogs: 0,
+				initialLabel: 'Download 1 Ready Image as ZIP',
+				stillBusy: 'true',
+				finalLabel: 'Download 2 Ready Images as ZIP',
+				contents: [context.imageData],
+				errors: 0,
+			});
+		});
+
+		desktopTest('cancelling the save dialog writes nothing and re-enables downloading', async () => {
+			const context = await createDownloadRenderer();
+			await context.finishTool(context.addTool('download-1'));
+			await context.finishTool(context.addTool('download-2'));
+			context.render();
+			context.getDownload().click();
+			await context.dialogShown.p;
+			await context.destination.complete(undefined);
+			await context.waitForDownload();
+			assert.deepStrictEqual({
+				saved: await context.fileService.exists(context.target),
+				errors: context.errors.callCount,
+			}, { saved: false, errors: 0 });
+		});
+
+		for (const failure of ['read', 'write']) {
+			desktopTest(`reports ${failure} failures without writing a partial archive or leaving the action disabled`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.from({ scheme: Schemas.vscodeRemote, authority: 'image-host', path: '/generated-image.png' });
+				await context.fileService.writeFile(source, decodeBase64(context.imageData));
+				await context.finishTool(context.addTool('download-1'));
+				await context.finishTool(context.addTool('download-2'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				context.render();
+				await retry(async () => {
+					await Promise.all([...context.template.value.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch img')].map(image => image.decode()));
+				}, 10, 100);
+				await context.fileService.writeFile(context.target, VSBuffer.fromString('previous archive'));
+				if (failure === 'read') {
+					await context.fileService.del(source);
+				} else {
+					const write = sinon.stub(context.fileService, 'writeFile').rejects(new Error('No space left'));
+					store.add(toDisposable(() => write.restore()));
+				}
+				context.getDownload().click();
+				if (failure === 'write') {
+					await context.dialogShown.p;
+					await context.destination.complete(context.target);
+				}
+				await context.waitForDownload();
+				assert.deepStrictEqual({
+					saved: (await context.fileService.readFile(context.target)).value.toString(),
+					dialogs: context.dialogs.length,
+					errors: context.errors.callCount,
+					message: String(context.errors.firstCall?.args[0]).startsWith('Failed to download image batch:'),
+				}, { saved: 'previous archive', dialogs: failure === 'write' ? 1 : 0, errors: 1, message: true });
+			});
+		}
 	});
 
 	for (const toolId of ['image_generation', 'image_gen.imagegen']) {
@@ -11296,9 +11735,12 @@ suite('ChatListRenderer', () => {
 			configurePersistentProgressTypography(container, 13);
 			container.style.width = `${width}px`;
 			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			const reducedMotionChanged = disposables.add(new Emitter<void>());
+			let motionReduced = false;
 			if (animate) {
 				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-					override isMotionReduced(): boolean { return false; }
+					override onDidChangeReducedMotion = reducedMotionChanged.event;
+					override isMotionReduced(): boolean { return motionReduced; }
 				}());
 			}
 			const saveAction = instantiationService.createInstance(MenuItemAction, {
@@ -11397,8 +11839,11 @@ suite('ChatListRenderer', () => {
 					};
 				};
 				const beforeFinish = bounds();
-				const transitionDuration = Number(clock.effect?.getTiming().duration);
-				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), Math.ceil(transitionDuration / 50) + 1, 50);
+				// The clock is paused at its end. Finish through the reveal's reduced-motion cleanup, which is the
+				// same cleanup its real-time deadline runs (covered with virtual time in chatImageReveal.test.ts).
+				motionReduced = true;
+				reducedMotionChanged.fire();
+				assert.ok(!imageReveal.classList.contains('revealing'));
 				const afterFinish = bounds();
 				assert.deepStrictEqual({
 					revealStates,
@@ -12613,6 +13058,53 @@ suite('ChatListRenderer', () => {
 			}
 		}
 
+		for (const carousel of [true, false]) {
+			for (const selectedOption of ['save-sandbox-path', 'skip']) {
+				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					const resource = URI.file('/outside/new.ts').toString();
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'sandbox-write',
+						toolName: 'apply_patch',
+						displayName: 'Apply Patch',
+						confirmationTitle: 'Add to user sandbox settings and retry?',
+						invocationMessage: 'Allow read/write access to the folder.',
+						options: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+						],
+						edits: { items: [{ after: { uri: resource, content: { uri: resource } } }] },
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
+					const labels = buttons.map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
+					const button = buttons[selectedOption === 'skip' ? 1 : 0];
+					assert.ok(button);
+					button.click();
+
+					assert.deepStrictEqual({
+						labels,
+						hasFilePreview,
+						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
+					}, {
+						labels: ['Allow', 'Skip'],
+						hasFilePreview: true,
+						confirmed: {
+							type: ToolConfirmKind.UserAction,
+							selectedButton: selectedOption,
+							selectedButtonKind: selectedOption === 'skip' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+						},
+					});
+				});
+			}
+		}
+
 		for (const cdPrefix of ['', 'cd /workspace && ']) {
 			test(`restores edited shell approvals after switching sessions (${cdPrefix ? 'directory prefix' : 'no prefix'})`, async () => {
 				const context = createConfirmationRenderer();
@@ -12719,6 +13211,26 @@ suite('ChatListRenderer', () => {
 				},
 				primaryLabel: 'Deny Once',
 				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'deny-once', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'custom modified-file option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Add to user sandbox settings and retry?',
+						message: 'Allow read/write access to the folder.',
+						customOptions: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/outside/new.ts'), editKind: 'create' }],
+					},
+				},
+				primaryLabel: 'Allow',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'save-sandbox-path', selectedButtonKind: ConfirmationOptionKind.Approve },
 			},
 			{
 				name: 'modified-file option',
