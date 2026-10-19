@@ -5,24 +5,16 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
-import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
-import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
-import { IEditableData } from '../../../../common/views.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
-import { IExplorerService } from '../../browser/files.js';
-import { FilesRenderer } from '../../browser/views/explorerViewer.js';
-import { ExplorerItem } from '../../common/explorerModel.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { InlineEditInputBox } from '../../../../browser/parts/views/inlineEditInputBox.js';
 
-suite('Files - Explorer rename focus', () => {
+suite('InlineEditInputBox - focus', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let input: HTMLInputElement;
 	let otherInput: HTMLInputElement;
@@ -36,35 +28,21 @@ suite('Files - Explorer rename focus', () => {
 		otherInput = dom.append(document.body, document.createElement('input'));
 		store.add(toDisposable(() => otherInput.remove()));
 
-		const fileService = store.add(new TestFileService());
-		const configurationService = new TestConfigurationService();
-		const item = new ExplorerItem(URI.file('/workspace/example.txt'), fileService, configurationService, NullFilesConfigurationService, undefined);
-		const editableData: IEditableData = {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
+		instantiationService.stub(IContextMenuService, { onDidHideContextMenu: Event.None });
+		const inputBox = store.add(instantiationService.createInstance(InlineEditInputBox, container, {
 			validationMessage: () => null,
 			onFinish: async (value, success) => { finished.push({ value, success }); },
-		};
-		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IExplorerService, { getEditableData: () => editableData });
-		const labels = store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-		const renderer = store.add(instantiationService.createInstance(FilesRenderer, container, labels, { get: () => 0, isMatch: () => false }, () => { }));
-		const template = renderer.renderTemplate(container);
-		store.add(toDisposable(() => renderer.disposeTemplate(template)));
-		renderer.renderElement(new class extends mock<ITreeNode<ExplorerItem, FuzzyScore>>() {
-			override readonly element = item;
-		}(), 0, template);
-		const element = container.querySelector('input');
-		assert.ok(element);
-		input = element;
-		input.value = 'renamed.txt';
-		input.setSelectionRange(0, 7);
-		input.focus();
+		}, { ariaLabel: 'Rename', value: 'renamed.txt', selection: { start: 0, end: 7 } }));
+		input = inputBox.inputBox.inputElement;
 	});
 
 	teardown(async () => {
 		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
 	});
 
-	test('preserves rename when its document loses focus', async () => {
+	test('preserves editing when its document loses focus', async () => {
 		// Capture the state at blur before the asynchronous handler can finish editing.
 		let blurState: { focused: boolean; active: boolean } | undefined;
 		store.add(dom.addDisposableListener(input, dom.EventType.BLUR, () => {
@@ -84,7 +62,7 @@ suite('Files - Explorer rename focus', () => {
 		assert.deepStrictEqual(finished, [{ value: 'renamed.txt', success: true }]);
 	});
 
-	test('finishes rename when focus moves within its document', async () => {
+	test('finishes editing when focus moves within its document', async () => {
 		otherInput.focus();
 		await timeout(0);
 		assert.deepStrictEqual({ finished, connected: input.isConnected }, {
@@ -92,7 +70,7 @@ suite('Files - Explorer rename focus', () => {
 		});
 	});
 
-	test('finishes rename when focus moves within its document while it is unfocused', async () => {
+	test('finishes editing when focus moves within its document while it is unfocused', async () => {
 		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', false);
 		await timeout(0);
 		// No blur is dispatched for focus changes while the document is unfocused

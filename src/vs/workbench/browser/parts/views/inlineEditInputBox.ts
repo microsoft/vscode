@@ -37,7 +37,9 @@ export interface IInlineEditInputBoxOptions {
  *
  * Errors reported by {@link IEditableData.validationMessage} block accepting the value, other
  * messages are shown as information. Pressing Enter accepts the value, pressing Escape cancels
- * editing and moving focus elsewhere accepts the value if it is valid.
+ * editing and moving focus elsewhere accepts the value if it is valid. Losing window focus
+ * (for example via Alt+Tab or an OS input-source switcher) keeps editing while the input remains
+ * the active element of its document.
  *
  * Once editing finishes the input box is removed and {@link IEditableData.onFinish} is called.
  * Disposing the input box before editing finishes removes it without calling `onFinish`.
