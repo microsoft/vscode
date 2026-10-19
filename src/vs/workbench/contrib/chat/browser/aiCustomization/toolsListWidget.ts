@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
@@ -40,13 +41,13 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
-import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
-import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
+import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpPolicyBlockedTooltip, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { type AgentHostMcpServer } from './mcpServerCount.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
@@ -482,14 +483,25 @@ class ToolsConnectedRowRenderer implements IListRenderer<IToolsConnectedRowEntry
 		if (entry.server) {
 			const server = entry.server;
 			const enabled = this._isEnabled(server);
+			const blockedByPolicy = server.disabledReason?.source === 'policy';
 			data.toggle.checked = enabled;
-			data.toggle.setAriaLabel(localize('toolsConnectedServerToggle', "Enable {0}", entry.label));
+			data.toggle.disabled = blockedByPolicy;
+			if (blockedByPolicy) {
+				data.toggle.setAriaLabel(localize('toolsConnectedServerBlockedByOrganization', "{0} is disabled by your organization", entry.label), getMcpPolicyBlockedTooltip());
+			} else {
+				data.toggle.setAriaLabel(localize('toolsConnectedServerToggle', "Enable {0}", entry.label));
+			}
 			data.container.setAttribute('aria-checked', String(enabled));
 			data.elementDisposables.add(data.toggle.onChange(enabled => this._setEnabled(server, enabled)));
-			if (server.enabled && enabled) {
+			if (blockedByPolicy) {
+				const policyLabel = DOM.append(data.actions, $('.mcp-server-disabled-label'));
+				policyLabel.textContent = getCustomizationDisabledLabel(server.disabledReason);
+				data.elementDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), policyLabel, getMcpPolicyBlockedTooltip()));
+			} else if (server.enabled && enabled) {
 				this._renderActions(server, data.actions, data.elementDisposables);
 			}
 		} else {
+			data.toggle.disabled = false;
 			data.container.removeAttribute('aria-checked');
 		}
 		data.actions.style.display = data.actions.childElementCount > 0 ? '' : 'none';
@@ -1033,7 +1045,8 @@ export class ToolsListWidget extends Disposable {
 		const id = `connected-server:${server.id}`;
 		const expandable = this._isConnectedServerReady(server);
 		const expanded = expandable && this._expanded.get().has(id);
-		const nameMatches = matchesContiguousSubString(query, server.name) ?? undefined;
+		const serverLabel = getMcpServerDisplayLabel(server);
+		const nameMatches = matchesContiguousSubString(query, serverLabel) ?? undefined;
 		const state = this._connectedTools.get(server.id);
 		const tools = expanded && state?.state === 'loaded' ? state.tools : [];
 		const toolEntries: IToolsConnectedRowEntry[] = [];
@@ -1056,7 +1069,7 @@ export class ToolsListWidget extends Disposable {
 			file => void this._editorService.openEditor({ resource: file.uri, options: { selection: file.range, pinned: true } }),
 		);
 		const description = source ? localize('toolsConnectedServerSource', "MCP server from {0}", source.label) : undefined;
-		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: server.name, description, source, server, expandable, nameMatches }];
+		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: serverLabel, description, source, server, expandable, nameMatches }];
 		if (expanded) {
 			if (toolEntries.length > 0) {
 				entries.push(...toolEntries);
@@ -1193,7 +1206,7 @@ export class ToolsListWidget extends Disposable {
 		}
 		if (entry.type === 'empty' || entry.type === 'connected') {
 			if (entry.type === 'connected' && entry.server) {
-				return localize('toolsConnectedServerAriaLabel', "{0}, {1}", entry.label, getMcpStatusPresentation(getActiveSessionServerPresentation(entry.server).status)?.label ?? '');
+				return localize('toolsConnectedServerAriaLabel', "{0}, {1}", entry.label, getMcpStatusPresentation(getActiveSessionServerPresentation(entry.server).status, entry.server.disabledReason)?.label ?? '');
 			}
 			return entry.label;
 		}

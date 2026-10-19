@@ -1451,6 +1451,9 @@ export class CopilotAgentSession extends Disposable {
 					if (result.displayNames) {
 						this._setMcpServerDisplayNames(result.displayNames);
 					}
+					if (result.policyBlockedServers) {
+						this._setPolicyBlockedMcpServers(result.policyBlockedServers);
+					}
 					await raceCancellationError(this._refreshMcpServersFromRpc(), token);
 					if (token.isCancellationRequested || this.isDisposed) {
 						return;
@@ -1688,6 +1691,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onConnectorRefreshRetryable: (session: CopilotAgentSession) => void;
 	private _mcpServerControlOperations = 0;
 	private readonly _mcpServerDisplayNames = new Map<string, string>();
+	/** Connector runtime servers the organization's managed MCP policy refused, from the latest determining reconciliation. */
+	private _policyBlockedMcpServers: ReadonlySet<string> = new Set();
 	/**
 	 * Retains challenge metadata and its latest callback id so token delivery can report Starting.
 	 * Connected and needs-auth statuses remain the final lifecycle authority.
@@ -4397,6 +4402,7 @@ export class CopilotAgentSession extends Disposable {
 				return measureAgentProviderOperation(recorder, 'elicitationRequest', () => this._handleElicitationRequest(context));
 			}, { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
 			setMcpServerDisplayNames: displayNames => this._setMcpServerDisplayNames(displayNames),
+			setPolicyBlockedMcpServers: serverNames => this._setPolicyBlockedMcpServers(serverNames),
 			handleMcpAuthRequest: this._guarded(request => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('mcpAuthRequest');
@@ -4425,6 +4431,46 @@ export class CopilotAgentSession extends Disposable {
 				this._mcpCustomizations.applyOne({ name: serverName, displayName, state });
 			}
 		}
+	}
+
+	/**
+	 * Publishes servers the managed MCP policy refused even when the runtime no longer lists them, so clients can
+	 * explain why they are unavailable instead of silently dropping them. Servers that are no longer blocked return
+	 * to their reported inventory state, or are removed when the runtime does not list them.
+	 */
+	private _setPolicyBlockedMcpServers(serverNames: ReadonlySet<string>): void {
+		const previous = this._policyBlockedMcpServers;
+		this._policyBlockedMcpServers = new Set(serverNames);
+		for (const serverName of this._policyBlockedMcpServers) {
+			if (this._mcpInventoryProvenance.has(serverName)) {
+				const state = this._mcpCustomizations.stateForServer(serverName);
+				this._mcpCustomizations.applyOne({ name: serverName, displayName: this._mcpServerDisplayNames.get(serverName), state: state ?? { kind: McpServerStatus.Stopped }, blockedByPolicy: true });
+			} else {
+				this._mcpCustomizations.applyOne(this._policyBlockedSdkMcpServer(serverName));
+			}
+		}
+		for (const serverName of previous) {
+			if (this._policyBlockedMcpServers.has(serverName)) {
+				continue;
+			}
+			const state = this._mcpCustomizations.stateForServer(serverName);
+			if (this._mcpInventoryProvenance.has(serverName) && state) {
+				this._mcpCustomizations.applyOne({ name: serverName, state, blockedByPolicy: false });
+			} else {
+				this._mcpCustomizations.remove(serverName);
+			}
+		}
+	}
+
+	/** A policy-refused server the runtime does not list: it is configured by the Connector but cannot run. */
+	private _policyBlockedSdkMcpServer(serverName: string): ISdkMcpServer {
+		return {
+			name: serverName,
+			displayName: this._mcpServerDisplayNames.get(serverName),
+			state: { kind: McpServerStatus.Stopped },
+			enabled: false,
+			blockedByPolicy: true,
+		};
 	}
 
 	/** Resolves only matching, currently pending SDK authentication callbacks. */
@@ -6122,6 +6168,10 @@ export class CopilotAgentSession extends Disposable {
 			try {
 				if (desired) {
 					if (enabled !== false || (this._mcpLaunchConfigurationDirty && this._projectedMcpServerLaunchEnablement.has(serverName))) {
+						continue;
+					}
+					if (this._policyBlockedMcpServers.has(serverName)) {
+						// Re-enabling cannot override the managed policy; the client shows the server as blocked instead.
 						continue;
 					}
 					// Re-enabling restarts the server. The SDK reports the
@@ -9625,6 +9675,11 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._mcpInventoryProvenance = new Map(servers.map(server => [server.name, { source: server.source, sourcePlugin: server.sourcePlugin }]));
 		const sdkServers = servers.map(server => this._toSdkMcpServer(server));
+		for (const serverName of this._policyBlockedMcpServers) {
+			if (!serverNames.has(serverName)) {
+				sdkServers.push(this._policyBlockedSdkMcpServer(serverName));
+			}
+		}
 		this._mcpCustomizations.applyAll(sdkServers);
 		for (const server of servers) {
 			if (server.enabled === undefined) {
@@ -9776,6 +9831,7 @@ export class CopilotAgentSession extends Disposable {
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...((server.status === 'pending' && !hasPendingAuthentication) || server.status === 'connected' ? { allowAuthRequiredToStarting: true } : {}),
 			enabled: getEffectiveMcpServerEnablement(server.enabled, server.enabled === undefined ? server.status : server.live?.status),
+			blockedByPolicy: this._policyBlockedMcpServers.has(server.name),
 		};
 	}
 

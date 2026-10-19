@@ -88,6 +88,7 @@ import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeSe
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -496,6 +497,7 @@ suite('mcpListWidget', () => {
 			renderMcpListActions(getEntry: () => IMcpInstalledEntry | undefined, actions: HTMLElement, disposables: DisposableStore, updateTabbability: () => void): void;
 		};
 		widget.showConnectorActions = selected => opened.push(selected.name);
+		Object.assign(widget, { hoverService: NullHoverService, agentHostCustomizationService: { onDidChangeCustomizations: Event.None } });
 		const actions = DOM.$('.actions');
 		const store = disposables.add(new DisposableStore());
 
@@ -1393,6 +1395,7 @@ suite('mcpListWidget', () => {
 			getMcpStatusPresentation('disabled', { source: 'scope', scope: CustomizationEnablementKind.Workspace })?.label,
 			getMcpStatusPresentation('disabled', { source: 'scope', scope: CustomizationEnablementKind.Session })?.label,
 			getMcpStatusPresentation('disabled', { source: 'plugin', plugin: { id: 'plugin-1', name: 'Plugin One', uri: URI.file('/plugins/plugin-1').toString(), enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] } })?.label,
+			getMcpStatusPresentation('disabled', { source: 'policy' })?.label,
 			getMcpStatusPresentation(McpServerStatus.Ready)?.label,
 			getMcpStatusPresentation('disabled')?.label,
 		], [
@@ -1400,6 +1403,7 @@ suite('mcpListWidget', () => {
 			'Disabled (Workspace)',
 			'Disabled (Session)',
 			'Disabled (Plugin)',
+			'Disabled by Organization',
 			'Running',
 			'Disabled (Globally)',
 		]);
@@ -1469,6 +1473,7 @@ suite('mcpListWidget', () => {
 				['global disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] }), ['Enable', 'Enable (Workspace)', 'Enable (Session)']],
 				['workspace disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: 'file:///workspace', enabled: false }] }), ['Disable (Globally)', 'Enable (Workspace)', 'Enable (Session)']],
 				['session disabled', createAgentHostServer({ enabled: false, enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }), ['Disable (Globally)', 'Disable (Workspace)', 'Enable (Session)']],
+				['blocked by organization policy', createAgentHostServer({ enabled: false, disabledReason: { source: 'policy' } }), []],
 			];
 			for (const [, server, expected] of cases) {
 				const { service } = createAgentHostCustomizations();
@@ -1990,6 +1995,7 @@ suite('mcpListWidget', () => {
 				agentHostCustomizationService,
 				agentPluginService,
 				extensionsWorkbenchService,
+				hoverService: NullHoverService,
 				marketplaceInstallService,
 				customizationHarnessService,
 				mcpService: { servers: runtimeServers },
@@ -2734,6 +2740,33 @@ suite('mcpListWidget', () => {
 				label: toggle.getAttribute('aria-label'),
 				calls: ctx.hostEnablementCalls,
 			}, { disabled: true, label: 'Server One is disabled by its plugin', calls: [] });
+		});
+
+		test('a managed-policy block shows its label and locks the switch and lifecycle', () => {
+			const server = createAgentHostServer({ name: 'github-copilot-connector-1', displayName: 'Work Mail', enabled: false, status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped }, disabledReason: { source: 'policy' } });
+			const ctx = createRenderer(server, true, true);
+			disposables.add(ctx.store);
+			const entry: Entry = { type: 'session-server-item', server };
+			ctx.menu(entry);
+			ctx.render(entry);
+			const toggle = ctx.templateData.actions.querySelector<HTMLButtonElement>('[role="switch"]')!;
+			toggle.click();
+			const disabledLabel = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-disabled-label')!;
+			assert.deepStrictEqual({
+				disabled: toggle.disabled,
+				ariaLabel: toggle.getAttribute('aria-label'),
+				disabledLabel: disabledLabel.textContent,
+				startButton: ctx.templateData.actions.querySelector('.mcp-server-start') !== null,
+				lifecycle: getActiveSessionServerLifecycleAction(server),
+				calls: ctx.hostEnablementCalls,
+			}, {
+				disabled: true,
+				ariaLabel: 'Work Mail (Connector) is disabled by your organization',
+				disabledLabel: 'Disabled by Organization',
+				startButton: false,
+				lifecycle: undefined,
+				calls: [],
+			});
 		});
 
 		test('native management controls keep their durable local target', () => {

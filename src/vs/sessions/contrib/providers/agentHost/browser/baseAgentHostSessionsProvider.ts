@@ -35,7 +35,7 @@ import { AgentHostTransportFailureReason } from '../../../../../platform/agentHo
 import { supportsAgentHostArtifactRemoval } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSessionImport } from '../../../../../platform/agentHost/common/meta/agentHostSessionImportMeta.js';
 import { readSessionMovable, supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
-import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
+import { getMcpServerCustomizationDisabledReason, isMcpServerCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
@@ -6698,9 +6698,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.map(({ server, plugin }): IAgentHostMcpServer => ({
 				id: `${sessionUri.authority}/${server.id}`,
 				name: server.name,
-				enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
+				enabled: isMcpServerCustomizationEnabled(server, plugin),
 				enablement: server.enablement,
-				disabledReason: getCustomizationDisabledReason(server, plugin),
+				disabledReason: getMcpServerCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
 				state: server.state,
 				setEnabled: (enabled: boolean) => {

@@ -1104,10 +1104,31 @@ function getMcpDisabledLabel(reason: CustomizationDisabledReason | undefined): s
 	if (reason?.source === 'scope' && reason.scope !== CustomizationEnablementKind.Global) {
 		return getCustomizationDisabledLabel(reason);
 	}
-	if (reason?.source === 'plugin') {
+	if (reason?.source === 'plugin' || reason?.source === 'policy') {
 		return getCustomizationDisabledLabel(reason);
 	}
 	return localize('mcpDisabledGlobally', "Disabled (Globally)");
+}
+
+/** Explains why a server the organization's managed MCP policy blocks cannot be enabled or started. */
+export function getMcpPolicyBlockedTooltip(): string {
+	return localize('mcpServerBlockedByOrganizationTooltip', "Your organization's MCP policy blocks this server, so it can't be enabled or started in agent sessions. Contact your organization administrator for more information.");
+}
+
+/** Whether the server's disabled state is controlled by its plugin or a managed policy rather than by the user. */
+function isMcpEnablementLocked(reason: CustomizationDisabledReason | undefined): boolean {
+	return reason?.source === 'plugin' || reason?.source === 'policy';
+}
+
+function getMcpLockedToggleAriaLabel(label: string, reason: CustomizationDisabledReason | undefined): string | undefined {
+	switch (reason?.source) {
+		case 'plugin':
+			return localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label);
+		case 'policy':
+			return localize('mcpServerBlockedByOrganizationAria', "{0} is disabled by your organization", label);
+		default:
+			return undefined;
+	}
 }
 
 function getMcpEntryErrorMessage(entry: IMcpInstalledEntry): string | undefined {
@@ -1637,6 +1658,9 @@ const agentHostMcpServerEnablementActionInfo = {
 
 /** Creates enablement actions for an agent-host server. */
 export function getAgentHostMcpServerEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService, sessionResource: URI, server: AgentHostMcpServer, scopes: readonly AgentHostMcpServerEnablementScope[] = ['global', 'workspace', 'session']): IAction[] {
+	if (server.disabledReason?.source === 'policy') {
+		return [];
+	}
 	if (server.disabledReason?.source === 'plugin') {
 		const decision = server.disabledReason.plugin.enablement?.[0];
 		if (!decision) {
@@ -1667,6 +1691,9 @@ export function setPrimaryMcpServerEnablement(
 	activeSessionServer: AgentHostMcpServer | undefined,
 	enabled: boolean,
 ): void {
+	if (activeSessionServer?.disabledReason?.source === 'policy') {
+		return;
+	}
 	if (activeSessionServer && isHostOwnedPluginMcpServer(activeSessionServer)) {
 		agentHostCustomizations.setCustomizationEnablement(
 			sessionResource,
@@ -2801,23 +2828,39 @@ export class McpListWidget extends Disposable {
 			return;
 		}
 		const label = getMcpEntryLabel(entry);
-		if (!isConnectorMcpEntry(entry) && entry.type !== 'provider-item') {
+		if (isConnectorMcpEntry(entry)) {
+			// Connector rows have no toggle; still explain a managed-policy block, which otherwise looks like a broken connection.
+			const policyLabel = DOM.append(actions, $('.mcp-server-disabled-label'));
+			const policyHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), policyLabel, ''));
+			const update = () => {
+				const currentEntry = getEntry();
+				const disabledReason = currentEntry && getMcpDisabledReason(currentEntry);
+				const blocked = disabledReason?.source === 'policy';
+				policyLabel.textContent = blocked ? getMcpDisabledLabel(disabledReason) : '';
+				policyLabel.style.display = blocked ? '' : 'none';
+				policyHover.update(blocked ? getMcpPolicyBlockedTooltip() : '');
+			};
+			update();
+			disposables.add(this.agentHostCustomizationService.onDidChangeCustomizations(update));
+		} else if (entry.type !== 'provider-item') {
 			let enabled = this.isInstalledEntryEnabled(entry);
 			const disabledLabel = DOM.append(actions, $('.mcp-server-disabled-label'));
+			const disabledLabelHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), disabledLabel, ''));
 			const toggle = disposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
 			DOM.append(actions, toggle.domNode);
 			const update = () => {
 				const currentEntry = getEntry();
 				enabled = currentEntry ? this.isInstalledEntryEnabled(currentEntry) : false;
 				const disabledReason = currentEntry && getMcpDisabledReason(currentEntry);
-				const blockedByPlugin = disabledReason?.source === 'plugin';
+				const blockedByPolicy = disabledReason?.source === 'policy';
 				const toggleLabel = enabled ? localize('disableMcpServerAria', "Disable {0}", label) : localize('enableMcpServerAria', "Enable {0}", label);
-				const accessibleLabel = blockedByPlugin ? localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label) : toggleLabel;
+				const accessibleLabel = getMcpLockedToggleAriaLabel(label, disabledReason) ?? toggleLabel;
 				disabledLabel.textContent = enabled ? '' : getMcpDisabledLabel(disabledReason);
 				disabledLabel.style.display = enabled ? 'none' : '';
-				toggle.disabled = !currentEntry || !!blockedByPlugin;
+				disabledLabelHover.update(!enabled && blockedByPolicy ? getMcpPolicyBlockedTooltip() : '');
+				toggle.disabled = !currentEntry || isMcpEnablementLocked(disabledReason);
 				toggle.checked = enabled;
-				toggle.setAriaLabel(accessibleLabel);
+				toggle.setAriaLabel(accessibleLabel, blockedByPolicy ? getMcpPolicyBlockedTooltip() : accessibleLabel);
 				updateTabbability();
 			};
 			update();
@@ -3273,15 +3316,14 @@ export class McpListWidget extends Disposable {
 		const toggle = this.cardDisposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: label, checked: enabled }));
 		const switchElement = toggle.domNode;
 		DOM.append(parent, switchElement);
+		const disabledLabelHover = this.cardDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), disabledLabel, ''));
 		const updateLabel = () => {
-			const blockedByPlugin = getMcpDisabledReason(getEntry())?.source === 'plugin';
+			const disabledReason = getMcpDisabledReason(getEntry());
 			const toggleLabel = enabled
 				? localize('disableMcpServerAria', "Disable {0}", label)
 				: localize('enableMcpServerAria', "Enable {0}", label);
-			const accessibleLabel = blockedByPlugin
-				? localize('mcpServerManagedByPluginAria', "{0} is disabled by its plugin", label)
-				: toggleLabel;
-			toggle.setAriaLabel(accessibleLabel);
+			const accessibleLabel = getMcpLockedToggleAriaLabel(label, disabledReason) ?? toggleLabel;
+			toggle.setAriaLabel(accessibleLabel, disabledReason?.source === 'policy' ? getMcpPolicyBlockedTooltip() : accessibleLabel);
 		};
 		updateLabel();
 		this.cardDisposables.add(toggle.onChange(checked => {
@@ -3297,7 +3339,8 @@ export class McpListWidget extends Disposable {
 			const disabledReason = getMcpDisabledReason(getEntry());
 			disabledLabel.textContent = enabled ? '' : getMcpDisabledLabel(disabledReason);
 			disabledLabel.style.display = enabled ? 'none' : '';
-			toggle.disabled = disabledReason?.source === 'plugin';
+			disabledLabelHover.update(!enabled && disabledReason?.source === 'policy' ? getMcpPolicyBlockedTooltip() : '');
+			toggle.disabled = isMcpEnablementLocked(disabledReason);
 			toggle.checked = enabled;
 			updateLabel();
 		};

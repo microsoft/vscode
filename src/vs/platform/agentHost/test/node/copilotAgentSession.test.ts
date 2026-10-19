@@ -46,7 +46,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
-import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerBlockedByPolicy, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -26919,6 +26919,54 @@ Use the attached image as context.
 					notifications: ['notifications/tools/list_changed'], removed: [],
 					calls: [{ accountId: 'session-account', refreshCatalog: true }, { accountId: 'session-account', refreshCatalog: true }],
 					disconnected: 0, restart: false, pending: false,
+				});
+			});
+
+			test('publishes Connector servers refused by the managed MCP policy as blocked instead of dropping them', async () => {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					rootValues,
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: 'connector-calendar', status: 'not_configured', source: 'managed' }] };
+					},
+				});
+				mockSession.onConnectorReconcile = async () => {
+					mockSession.connectorStatus = {
+						...mockSession.connectorStatus,
+						catalog: {
+							revision: 1, refreshedAtMs: 1, connectors: [
+								{ name: 'mail', displayName: 'Work Mail', status: 'connected', runtimeServerIds: ['connector-mail'] },
+								{ name: 'calendar', displayName: 'Calendar', status: 'connected', runtimeServerIds: ['connector-calendar'] },
+							]
+						},
+						runtimeServers: [{ connectorName: 'calendar', runtimeServerId: 'connector-calendar', status: 'not_configured' }],
+					};
+					throw new Error('Request session.connectors.reconcile failed with message: Connector MCP reconciliation failed: MCP server "connector-mail" is blocked by the managed policy; MCP server "connector-calendar" is blocked by the managed policy');
+				};
+				const snapshot = () => session.topLevelMcpCustomizations()
+					.map(server => ({ name: server.name, displayName: readMcpServerDisplayName(server), state: server.state.kind, blocked: readMcpServerBlockedByPolicy(server) }))
+					.sort((a, b) => a.name.localeCompare(b.name));
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+				const blocked = snapshot();
+
+				// The organization lifts the policy: a successful reconciliation clears the block.
+				mockSession.connectorStatus = { ...mockSession.connectorStatus, runtimeServers: [] };
+				mockSession.onConnectorReconcile = async () => {
+					mockSession.connectorStatus = { ...mockSession.connectorStatus, runtimeServers: [{ connectorName: 'calendar', runtimeServerId: 'connector-calendar', status: 'connected' }] };
+					mockSession.mcpListResult = { servers: [{ name: 'connector-calendar', status: 'connected', source: 'managed' }] };
+				};
+				session.markConnectorConfigurationChanged();
+				await session.refreshConnectors();
+
+				assert.deepStrictEqual({ blocked, unblocked: snapshot(), enable: mockSession.mcpEnableCalls }, {
+					blocked: [
+						{ name: 'connector-calendar', displayName: 'Calendar', state: McpServerStatus.Stopped, blocked: true },
+						{ name: 'connector-mail', displayName: 'Work Mail', state: McpServerStatus.Stopped, blocked: true },
+					],
+					unblocked: [
+						{ name: 'connector-calendar', displayName: 'Calendar', state: McpServerStatus.Ready, blocked: false },
+					],
+					enable: [],
 				});
 			});
 
