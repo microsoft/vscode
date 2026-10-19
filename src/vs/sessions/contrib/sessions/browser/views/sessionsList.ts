@@ -5684,7 +5684,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 	}
 
-	/** Reveals and selects the row of the session `sessionId`, or of its chat `chat`; whether the list shows it. */
+	/**
+	 * Reveals and selects the row of the session `sessionId`, or of its chat `chat`; whether the list shows it. A find
+	 * filter that hides the row is cleared, keeping focus where it was.
+	 */
 	private revealMoved(sessionId: string, chat: URI | undefined): boolean {
 		const session = this.sessions.find(candidate => candidate.sessionId === sessionId);
 		if (!session || !this.tree.hasElement(session)) {
@@ -5698,6 +5701,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return false;
 			}
 			element = chatItem;
+		}
+		if (!this.tree.getNode(element).visible) {
+			if (!this.hasFindPattern) {
+				return false;
+			}
+			const activeElement = DOM.getActiveElement();
+			const hadFocus = DOM.isAncestorOfActiveElement(this.listContainer);
+			this.tree.closeFind();
+			if (!hadFocus && DOM.isHTMLElement(activeElement)) {
+				activeElement.focus();
+			}
+			if (!this.tree.hasElement(element) || !this.tree.getNode(element).visible) {
+				return false;
+			}
 		}
 		this.tree.reveal(element, 0.5);
 		this.tree.setFocus([element]);

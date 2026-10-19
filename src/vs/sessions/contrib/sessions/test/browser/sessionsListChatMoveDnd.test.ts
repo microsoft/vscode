@@ -388,16 +388,20 @@ suite('Move Chats Drag and Drop', () => {
 		});
 	});
 
-	test('appends a moved chat after the destination\'s last chat that is not a subagent chat', () => {
+	test('appends a moved chat after the destination\'s last chat that is neither a subagent nor a hidden chat', () => {
 		const main = chat('main');
 		const peer = chat('peer', ChatOriginKind.User);
 		const subagent = chat('subagent', ChatOriginKind.Tool);
+		const hidden = { ...chat('hidden', ChatOriginKind.User), interactivity: constObservable(ChatInteractivity.Hidden) };
 		assert.deepStrictEqual({
 			withSubagent: getChatMoveAppendAnchor(multiChatSession('With Subagent', { chats: [main, peer, subagent] }).session)?.resource.toString(),
+			// The host refuses a hidden chat as an anchor (`invalidAnchor`).
+			withTrailingHidden: getChatMoveAppendAnchor(multiChatSession('With Hidden', { chats: [main, peer, hidden] }).session)?.resource.toString(),
 			mainOnly: getChatMoveAppendAnchor(multiChatSession('Main Only', { chats: [main] }).session)?.resource.toString(),
 			empty: getChatMoveAppendAnchor(multiChatSession('Empty').session),
 		}, {
 			withSubagent: 'test-chat://peer',
+			withTrailingHidden: 'test-chat://peer',
 			mainOnly: 'test-chat://main',
 			empty: undefined,
 		});
@@ -438,7 +442,9 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		const test = createTestSession(title);
 		test.capabilities.set({ supportsMultipleChats: true }, undefined);
 		const chats = observableValue<readonly IChat[]>(`chats-${title}`, [main, ...ids.map((id, index) => listChat(id, index + 1))]);
-		return { ...test.session, createdAt: new Date(createdAt--), chats, mainChat: constObservable(main) };
+		const created = new Date(createdAt--);
+		// Updated when created, so both sortings show the sessions in the order they are made.
+		return { ...test.session, createdAt: created, updatedAt: constObservable(created), chats, mainChat: constObservable(main) };
 	}
 
 	/** Sets the chats of `session`, made by {@link listSession}. */
@@ -871,6 +877,29 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			lastRowShownBefore: false,
 			moves: ['session Single -> Tree after t4'],
 			// Scrolled down to the moved chat, the last of Tree's nested rows, and selected it.
+			movedShown: true,
+			selected: ['Moved'],
+		});
+	});
+
+	test('after a move, a find filter that hides the moved row is cleared, so the list reveals and selects it', async () => {
+		// Its main chat, `Moved`, doesn't match the filter, so once nested its row would be filtered out.
+		const single = listSession('Alpha One', [], listChat('Moved'));
+		const tree = listSession('Alpha Tree', ['a1']);
+		const list = render([single, tree], { simulateMoves: true });
+		list.setExpanded('Alpha Tree', true);
+		list.find('Alpha');
+		let after: ReturnType<typeof list.rendered>;
+		try {
+			await list.dragOver('Alpha One', 'Alpha Tree', 0.5).drop();
+			await settle();
+			after = list.rendered();
+		} finally {
+			await list.closeFind();
+		}
+
+		assert.deepStrictEqual({ moves: list.moves, movedShown: after.rows.includes('Moved'), selected: after.selected }, {
+			moves: ['session Alpha One -> Alpha Tree after a1'],
 			movedShown: true,
 			selected: ['Moved'],
 		});

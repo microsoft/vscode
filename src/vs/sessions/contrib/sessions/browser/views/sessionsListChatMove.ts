@@ -41,13 +41,13 @@ export function canMoveIntoSession(source: ISession, target: ISession): boolean 
 }
 
 /**
- * The chat a moved chat is placed after to append it to `session`: its last chat that is not a tool's subagent chat
- * nor `exclude` (the moved chat, when it is already in `session`).
+ * The chat a moved chat is placed after to append it to `session`: its last chat that is neither a tool's subagent
+ * chat, a hidden chat (neither can anchor a move) nor `exclude` (the moved chat, when it is already in `session`).
  */
 export function getChatMoveAppendAnchor(session: ISession, exclude?: IChat): IChat | undefined {
 	const chats = session.chats.get();
 	for (let i = chats.length - 1; i >= 0; i--) {
-		if (chats[i].origin?.kind !== ChatOriginKind.Tool && chats[i].resource.toString() !== exclude?.resource.toString()) {
+		if (chats[i].origin?.kind !== ChatOriginKind.Tool && chats[i].interactivity.get() !== ChatInteractivity.Hidden && chats[i].resource.toString() !== exclude?.resource.toString()) {
 			return chats[i];
 		}
 	}
