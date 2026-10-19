@@ -3619,7 +3619,7 @@ suite('ProtocolServerHandler', () => {
 	suite('scoped relay credentials', () => {
 		const resource = 'https://api.github.com';
 
-		async function fixture(extension?: IProtocolServerExtension) {
+		async function fixture(extension?: IProtocolServerExtension, resolveRelayCredentials?: IProtocolServerConfig['resolveRelayCredentials']) {
 			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 			const providerTokens: string[] = [];
 			const handledTokens: string[] = [];
@@ -3644,7 +3644,7 @@ suite('ProtocolServerHandler', () => {
 			};
 			const relay = disposables.add(new MockProtocolServer());
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
-				agentService, stateManager, relay, { scopedRelayCredentials: true, allowExtensionMethods: false, extension },
+				agentService, stateManager, relay, { scopedRelayCredentials: true, allowExtensionMethods: false, extension, resolveRelayCredentials },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
 			));
@@ -3698,6 +3698,43 @@ suite('ProtocolServerHandler', () => {
 				providerTokens: ['desktop-token', 'desktop-token'],
 				handledTokens: ['desktop-token', 'desktop-token'],
 				changedTokens: ['desktop-token'],
+			});
+		});
+
+		test('only listener configuration can delegate execution to a local credential source', async () => {
+			const resolutions: { owner: string; resource: string }[] = [];
+			const f = await fixture(undefined, async (principal, resource) => {
+				resolutions.push({ owner: principal.userId, resource });
+				return {
+					principal,
+					getCredential: request => request.resource === resource
+						? { resource, token: 'delegated-desktop-token', revision: 1, expiresAt: undefined }
+						: undefined,
+				};
+			});
+			const transport = f.connect('ios-client');
+			const scope = await f.authenticate(transport, 'ios-token');
+			transport.simulateMessage(request(3, 'createSession', {
+				provider: 'copilot', channel: sessionUri,
+				credentials: { token: 'forged-token' }, useLocalCredentials: false,
+			}));
+			await f.scopedHandler.whenIdle();
+			assert.deepStrictEqual({
+				resolutions,
+				executionToken: agentService.createSessionConfigs[0]?.credentials?.getCredential({ resource })?.token,
+				sourceForwarded: agentService.createSessionConfigs[0]?.credentials === scope,
+				desktop: f.authentication.getAuthToken({ resource }),
+				providerTokens: f.providerTokens,
+				changedTokens: f.changedTokens,
+				tokenPublished: JSON.stringify(transport.sent).includes('delegated-desktop-token'),
+			}, {
+				resolutions: [{ owner: '123', resource }],
+				executionToken: 'delegated-desktop-token',
+				sourceForwarded: true,
+				desktop: 'desktop-token',
+				providerTokens: ['desktop-token'],
+				changedTokens: ['desktop-token'],
+				tokenPublished: false,
 			});
 		});
 

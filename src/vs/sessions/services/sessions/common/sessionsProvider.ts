@@ -44,6 +44,20 @@ export interface IChatMovedEvent {
 	readonly to: IChatMoveEnd;
 }
 
+/**
+ * A user invocation of one of a session's changeset operations
+ * (`ISessionChangeset.invokeOperation`). Fired once any confirmation the
+ * operation requires has been accepted and before the operation runs, so it
+ * reports the invocation, not its outcome.
+ */
+export interface ISessionChangesetOperationInvokedEvent {
+	readonly session: ISession;
+	/** `ISessionChangesetOperation.id` of the invoked operation. */
+	readonly operationId: string;
+	/** The operation-specific request metadata the operation was invoked with. */
+	readonly metadata?: Record<string, unknown>;
+}
+
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
@@ -302,6 +316,12 @@ export interface ISessionsProvider {
 	 * provider. Do not implement or consume this event in other providers.
 	 */
 	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+
+	/**
+	 * Optional. Fires when the user invokes a changeset operation of one of
+	 * this provider's sessions; see {@link ISessionChangesetOperationInvokedEvent}.
+	 */
+	readonly onDidInvokeChangesetOperation?: Event<ISessionChangesetOperationInvokedEvent>;
 
 	/**
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.

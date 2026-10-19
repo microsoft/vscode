@@ -32,7 +32,7 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKe
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
-import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostAuthenticationScope } from './agentHostAuthenticationScope.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
@@ -566,6 +566,8 @@ export interface IProtocolServerExtension {
  */
 export interface IProtocolServerConfig {
 	readonly scopedRelayCredentials?: boolean;
+	/** Trusted listener-owned delegation, applied only after validating the relay credential. */
+	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => Promise<IAgentHostCredentialSource | undefined>;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 
@@ -2941,6 +2943,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (!authentication?.owner || !client.transport.relayAuthenticate) {
 			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Client-owned credentials require a validated relay owner');
 		}
+		const principal = { apiOrigin: authentication.resource, userId: authentication.owner };
+		const resolveCredentials = this._config.resolveRelayCredentials;
 		client.authenticationScope = client.disposables.add(new AgentHostAuthenticationScope(
 			params => {
 				if (!client.transport.relayAuthenticate) {
@@ -2949,7 +2953,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return client.transport.relayAuthenticate(params);
 			},
 			() => this._captureRelayAuthorization(client)(),
-			{ apiOrigin: authentication.resource, userId: authentication.owner },
+			principal,
+			resolveCredentials ? resource => resolveCredentials(principal, resource) : undefined,
 		));
 		return client.authenticationScope;
 	}

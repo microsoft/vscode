@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -70,6 +70,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
+	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent> = this._onDidInvokeChangesetOperation.event;
 	private readonly _explicitlyMarkedUnreadMainChats = new ResourceMap<number | undefined>();
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
@@ -170,6 +172,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
+			}
+			if (provider.onDidInvokeChangesetOperation) {
+				disposables.add(provider.onDidInvokeChangesetOperation(e => this._onDidInvokeChangesetOperation.fire(e)));
 			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
