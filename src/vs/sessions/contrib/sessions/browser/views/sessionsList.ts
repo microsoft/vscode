@@ -3156,6 +3156,8 @@ interface ISessionsListDndDelegate {
 	moveChat(session: ISession, chat: IChat, drop: SessionsListChatDrop): void;
 	/** Move `session` under `target`. */
 	moveSessionUnder(session: ISession, target: ISession): void;
+	/** Shows the drop feedback for moving a chat or session, rather than the list's other drags', while `on`. */
+	setMoveDropFeedback(on: boolean): void;
 }
 
 interface ISessionDropTargetHeader {
@@ -3185,6 +3187,8 @@ interface IDraggedHeader {
 class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
 
 	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+	/** The chat row this list is dragging and what it moves, resolved once when the drag starts. */
+	private _draggedChat: { readonly item: ISessionChatItem; readonly movable: { readonly session: ISession; readonly chat: IChat } | undefined } | undefined;
 
 	constructor(private readonly delegate: ISessionsListDndDelegate) {
 		super();
@@ -3239,6 +3243,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		const chatItem = elements.find(isSessionChatItem);
 		if (chatItem) {
 			fillSessionChatDragData(originalEvent, chatItem.session.sessionId, chatItem.chat.resource);
+			this._draggedChat = { item: chatItem, movable: this.delegate.getMovableDraggedChat(chatItem) };
 			return;
 		}
 		const sessions = this.toSessions(elements);
@@ -3259,7 +3264,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	onDragEnd(): void {
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+		this._draggedChat = undefined;
 		this.delegate.setDropTargetHeader(undefined);
+		this.delegate.setMoveDropFeedback(false);
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): boolean | ITreeDragOverReaction {
@@ -3267,16 +3274,19 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (draggedChat) {
 			this.delegate.setDropTargetHeader(undefined);
 			const chatDrop = this.resolveChatDrop(draggedChat, targetElement, targetSector);
+			this.delegate.setMoveDropFeedback(!!chatDrop);
 			return chatDrop ? this.toChatDropReaction(chatDrop.drop, targetElement, targetSector) : false;
 		}
 
 		const draggedHeader = this.draggedHeader(data);
 		if (draggedHeader) {
 			this.delegate.setDropTargetHeader(undefined);
+			this.delegate.setMoveDropFeedback(false);
 			return this.onHeaderDragOver(draggedHeader, targetElement, targetSector);
 		}
 
 		const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
+		this.delegate.setMoveDropFeedback(!!sessionMove);
 		if (sessionMove) {
 			this.delegate.setDropTargetHeader(undefined);
 			return { accept: true, effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over } };
@@ -3317,6 +3327,8 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 
 	drop(data: IDragAndDropData, targetElement: SessionListItem | undefined, _targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined): void {
 		this.delegate.setDropTargetHeader(undefined);
+		this.delegate.setMoveDropFeedback(false);
+		// Check the targets in the order `onDragOver` does, so the result matches the feedback.
 		try {
 			const draggedChat = this.draggedChat(data);
 			if (draggedChat) {
@@ -3324,12 +3336,6 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 				if (chatDrop) {
 					this.delegate.moveChat(chatDrop.session, chatDrop.chat, chatDrop.drop);
 				}
-				return;
-			}
-
-			const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
-			if (sessionMove) {
-				this.delegate.moveSessionUnder(sessionMove.session, sessionMove.target);
 				return;
 			}
 
@@ -3341,6 +3347,12 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 						this.delegate.reorderSection(draggedHeader.id, targetRef, sectorToPosition(targetSector), draggedHeader.isWorkspace);
 					}
 				}
+				return;
+			}
+
+			const sessionMove = this.resolveSessionMoveTarget(data, targetElement, targetSector);
+			if (sessionMove) {
+				this.delegate.moveSessionUnder(sessionMove.session, sessionMove.target);
 				return;
 			}
 
@@ -3377,7 +3389,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 	 * move or would stay put.
 	 */
 	private resolveChatDrop(item: ISessionChatItem, targetElement: SessionListItem | undefined, targetSector: ListViewTargetSector | undefined): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
-		const dragged = this.delegate.getMovableDraggedChat(item);
+		const dragged = this._draggedChat?.item === item ? this._draggedChat.movable : this.delegate.getMovableDraggedChat(item);
 		if (!dragged) {
 			return undefined;
 		}
@@ -3416,7 +3428,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return undefined;
 		}
 		const dragged = this.draggedSessions(data);
-		if (dragged.length !== 1 || !canMoveIntoSession(dragged[0], targetElement) || !this.delegate.canMoveSessionUnder(dragged[0])) {
+		if (dragged.length !== 1 || !this.delegate.canMoveSessionUnder(dragged[0]) || !canMoveIntoSession(dragged[0], targetElement)) {
 			return undefined;
 		}
 		return { session: dragged[0], target: targetElement };
@@ -4211,6 +4223,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					canMoveSessionUnder: session => this.isChatMoveDndEnabled() && this._sessionsManagementService.canMoveSessionUnder(session),
 					moveChat: (session, chat, drop) => this.moveChatByDrop(session, chat, drop),
 					moveSessionUnder: (session, target) => this.moveSessionUnderByDrop(session, target),
+					setMoveDropFeedback: on => this.listContainer.classList.toggle('move-drag', on),
 				})),
 				identityProvider: {
 					getId: (element: SessionListItem) => {

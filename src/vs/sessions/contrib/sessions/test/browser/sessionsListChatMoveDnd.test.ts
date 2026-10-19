@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
@@ -188,11 +189,13 @@ suite('Move Chats Drag and Drop', () => {
 	suite('running a dropped move', () => {
 
 		/** Runs `moves` in turn, answering confirmations with `answer`, and records what the user saw and what moved. */
-		async function run(moves: readonly SessionsListMove[], options?: { readonly answer?: IConfirmationResult; readonly confirm?: boolean; readonly refuse?: string }) {
+		async function run(moves: readonly SessionsListMove[], options?: { readonly answer?: IConfirmationResult; readonly confirm?: boolean; readonly refuse?: string; readonly failSettingWrite?: boolean }) {
 			const shown: string[] = [];
 			const calls: string[] = [];
 			const configurationService = new class extends TestConfigurationService {
-				override updateValue(key: string, value: unknown): Promise<void> { return this.setUserConfiguration(key, value); }
+				override updateValue(key: string, value: unknown): Promise<void> {
+					return options?.failSettingWrite ? Promise.reject(new Error('Unable to write into user settings.')) : this.setUserConfiguration(key, value);
+				}
 			}();
 			if (options?.confirm !== undefined) {
 				await configurationService.setUserConfiguration(ChatMoveSettingId.ConfirmDragAndDrop, options.confirm);
@@ -273,6 +276,25 @@ suite('Move Chats Drag and Drop', () => {
 				asked: { shown: ['confirm: Are you sure you want to move \'Chat\' to a new session? [&&Move, Do not ask me again]'], confirmSetting: false },
 				off: { shown: [], calls: 3 },
 			});
+		});
+
+		test('a confirmed move happens though "Do not ask me again" could not be saved', async () => {
+			const errors: unknown[] = [];
+			const originalHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				const result = await run([moveInto, moveInto], { answer: { confirmed: true, checkboxChecked: true }, failSettingWrite: true });
+				assert.deepStrictEqual({ results: result.results, confirmations: result.shown.length, calls: result.calls, confirmSetting: result.confirmSetting, errors: errors.map(error => (error as Error).message) }, {
+					results: [true, true],
+					// The setting stayed on, so the next move asks again.
+					confirmations: 2,
+					calls: ['moveChat Chat -> Target after (first)', 'moveChat Chat -> Target after (first)'],
+					confirmSetting: undefined,
+					errors: ['Unable to write into user settings.', 'Unable to write into user settings.'],
+				});
+			} finally {
+				setUnexpectedErrorHandler(originalHandler);
+			}
 		});
 
 		test('a refused move says why; a successful move shows nothing', async () => {

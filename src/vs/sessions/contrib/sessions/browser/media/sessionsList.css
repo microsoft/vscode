@@ -1407,19 +1407,19 @@
 	display: block;
 }
 
-/* Drag and drop feedback: an insertion line between rows, an outlined row to drop onto, an outlined list for its empty space. */
-.sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
-.sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+/* Feedback while moving a chat or session: an insertion line between rows, an outlined row to drop onto, an outlined list for its empty space. */
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
 	height: calc(2 * var(--vscode-strokeThickness));
 	background-color: var(--vscode-focusBorder);
 	z-index: 1;
 }
 
-.sessions-list-control .monaco-list .monaco-list-rows .monaco-list-row.drop-target {
+.sessions-list-control.move-drag .monaco-list .monaco-list-rows .monaco-list-row.drop-target {
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
 }
 
-.sessions-list-control .monaco-list.drop-target {
+.sessions-list-control.move-drag .monaco-list.drop-target {
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
 }

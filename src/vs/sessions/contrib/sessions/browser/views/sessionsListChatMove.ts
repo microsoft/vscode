@@ -5,6 +5,7 @@
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { ChatMoveSettingId } from '../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -246,7 +247,12 @@ export async function runSessionsListMove(
 			return false;
 		}
 		if (result.checkboxChecked === true) {
-			await configurationService.updateValue(ChatMoveSettingId.ConfirmDragAndDrop, false);
+			try {
+				await configurationService.updateValue(ChatMoveSettingId.ConfirmDragAndDrop, false);
+			} catch (error) {
+				// The user confirmed the move: make it, though the next one asks again.
+				onUnexpectedError(error);
+			}
 		}
 	}
 	try {
