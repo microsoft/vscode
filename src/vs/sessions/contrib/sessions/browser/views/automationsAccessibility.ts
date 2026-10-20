@@ -130,6 +130,9 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			if (group.description) {
 				lines.push(group.description);
 			}
+			if (group.automations.length === 0) {
+				lines.push(localize('automationsAccessibleView.emptyOwnershipGroup', "No automations."));
+			}
 			for (const automation of group.automations) {
 				lines.push('');
 				lines.push(automation.enabled

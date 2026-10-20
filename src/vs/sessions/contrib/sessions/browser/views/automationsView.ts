@@ -143,6 +143,7 @@ interface IAutomationOwnershipSection {
 	readonly section: HTMLDetailsElement;
 	readonly title: HTMLElement;
 	readonly grid: HTMLElement;
+	readonly emptyState: HTMLElement | undefined;
 	readonly disposables: DisposableStore;
 }
 
@@ -522,6 +523,9 @@ class AutomationCardsSection extends Disposable {
 				this.ownershipSections.set(group.ownership, rendered);
 			}
 			rendered.title.textContent = group.label;
+			if (rendered.emptyState) {
+				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
+			}
 			const currentSection = this.container.children.item(groupIndex);
 			if (currentSection !== rendered.section) {
 				this.container.insertBefore(rendered.section, currentSection);
@@ -628,7 +632,14 @@ class AutomationCardsSection extends Disposable {
 		const grid = DOM.append(section, $('.automations-ownership-grid'));
 		grid.setAttribute('role', 'group');
 		grid.setAttribute('aria-labelledby', title.id);
-		return { section, title, grid, disposables };
+		const emptyState = ownership === 'user'
+			? DOM.append(section, $('.automations-ownership-empty.automations-cards-empty'))
+			: undefined;
+		if (emptyState) {
+			this.renderEmptyState(emptyState, disposables);
+			emptyState.style.display = 'none';
+		}
+		return { section, title, grid, emptyState, disposables };
 	}
 
 	private isVisibleTemplateElement(element: HTMLElement): boolean {
@@ -650,7 +661,7 @@ class AutomationCardsSection extends Disposable {
 				return this.errorContainer;
 			case 'ready':
 				if (!this.emptyStateRendered) {
-					this.renderEmptyState();
+					this.emptyCreateButton = this.renderEmptyState(this.emptyContainer, this.emptyStateDisposables);
 					this.emptyStateRendered = true;
 				}
 				return this.emptyContainer;
@@ -891,20 +902,20 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private renderEmptyState(): void {
-		const title = DOM.append(this.emptyContainer, $('h3.automations-cards-empty-title'));
+	private renderEmptyState(container: HTMLElement, disposables: DisposableStore): IButton {
+		const title = DOM.append(container, $('h3.automations-cards-empty-title'));
 		title.textContent = localize('noAutomationsYet', "No automations yet");
-		const desc = DOM.append(this.emptyContainer, $('p.automations-cards-empty-description'));
+		const desc = DOM.append(container, $('p.automations-cards-empty-description'));
 		desc.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
 
-		const createButton = this.emptyStateDisposables.add(new Button(this.emptyContainer, {
+		const createButton = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			title: localize('createAutomation', "Create Automation"),
 		}));
-		this.emptyCreateButton = createButton;
 		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
-		this.emptyStateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		return createButton;
 	}
 
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {

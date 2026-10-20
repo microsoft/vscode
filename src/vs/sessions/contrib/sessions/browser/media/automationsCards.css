@@ -184,6 +184,11 @@
 	gap: var(--vscode-spacing-size120);
 }
 
+.automations-ownership-empty {
+	box-sizing: border-box;
+	width: 100%;
+}
+
 /* Card Wrapper */
 .automations-card-wrapper {
 	display: flex;

@@ -1509,12 +1509,19 @@ suite('AutomationsCardsWidget', () => {
 		const grouped = snapshot();
 		const accessible = buildAutomationsAccessibleContent(items, [], 'ready', []);
 		automationService.setAutomations([items[0]]);
+		const repositoryOnlyAccessible = buildAutomationsAccessibleContent([items[0]], [], 'ready', []);
 		assert.deepStrictEqual({
 			grouped,
 			tooltips,
 			accessibleGroups: ['Your automations', 'Repository automations', 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.'].map(label => accessible.includes(label)),
 			accessibleOrder: accessible.indexOf('Legacy review') < accessible.indexOf('Repository review'),
 			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-title'), element => element.textContent),
+			emptyPersonal: {
+				title: widget.element.querySelector('.automations-ownership-empty .automations-cards-empty-title')?.textContent,
+				description: widget.element.querySelector('.automations-ownership-empty .automations-cards-empty-description')?.textContent,
+				button: widget.element.querySelector('.automations-ownership-empty .monaco-button')?.textContent,
+				accessible: repositoryOnlyAccessible.includes('Your automations\nNo automations.'),
+			},
 		}, {
 			grouped: [
 				{ title: 'Your automations', open: true, cards: ['Legacy review', 'Personal review', 'Local review'], description: null, info: undefined },
@@ -1525,7 +1532,13 @@ suite('AutomationsCardsWidget', () => {
 				},
 			],
 			tooltips: ['These automations are visible to anyone with repository access, and can be edited by anyone with write access.'],
-			accessibleGroups: [true, true, true], accessibleOrder: true, remaining: ['Repository automations'],
+			accessibleGroups: [true, true, true], accessibleOrder: true, remaining: ['Your automations', 'Repository automations'],
+			emptyPersonal: {
+				title: 'No automations yet',
+				description: 'Describe what you want to automate, then choose when it runs.',
+				button: 'Create Automation',
+				accessible: true,
+			},
 		});
 	});
 
