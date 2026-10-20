@@ -11,11 +11,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
-import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri, ChangesetKind, parseChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetStatus, ChatOriginKind, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
@@ -937,6 +937,38 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('subscribes, registers, and refreshes the session Working Set without watching files, and drops it on the last unsubscribe', async () => {
+		const session = AgentSession.uri('mock', 'session-working-set').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		const changeset = buildWorkingSetChangesetUri(session);
+
+		const handled = await environment.coordinator.tryHandleSubscribe(URI.parse(changeset), async () => session);
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		await tick();
+		const subscribed = {
+			handled,
+			registered: environment.stateManager.getChangesetState(changeset)?.status,
+			subscriptions: [...environment.subscriptions.getSessionSubscriptions(session)],
+			workingSetRefreshes: [...environment.changesets.workingSetRefreshes],
+			rootLookups: environment.gitService.rootLookupCalls,
+			acquisitions: environment.monitor.acquisitions,
+		};
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+
+		assert.deepStrictEqual({ subscribed, afterUnsubscribe: [...environment.subscriptions.getSessionSubscriptions(session)] }, {
+			subscribed: {
+				handled: true,
+				registered: ChangesetStatus.Computing,
+				subscriptions: [changeset],
+				workingSetRefreshes: [session],
+				rootLookups: [],
+				acquisitions: [],
+			},
+			afterUnsubscribe: [],
+		});
+	});
+
 	test('does not attach root state when watcher acquisition fails', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
@@ -1718,6 +1750,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly turnRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
+	readonly workingSetRefreshes: string[] = [];
 	readonly chatSummaryRefreshes: string[] = [];
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
@@ -1741,6 +1774,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshSessionChangeset(session: string, strategy?: ChangesetDiffStrategy): void {
 		assert.strictEqual(strategy ?? 'fileEditTracker', 'fileEditTracker');
 		this.sessionRefreshes.push(session);
+	}
+	refreshWorkingSetChangeset(owner: string): void {
+		this.workingSetRefreshes.push(owner);
 	}
 	onWorkingDirectoryAvailable(session: string): void {
 		this.workingDirectoryAvailable.push(session);
@@ -1783,6 +1819,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(_chat: string): void { }
 	refreshChatChangesSummary(chat: string): void {
 		this.chatSummaryRefreshes.push(chat);
@@ -1796,6 +1833,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.uncommittedRefreshes.length = 0;
 		this.turnRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
+		this.workingSetRefreshes.length = 0;
 		this.chatSummaryRefreshes.length = 0;
 		this.recomputed.length = 0;
 	}

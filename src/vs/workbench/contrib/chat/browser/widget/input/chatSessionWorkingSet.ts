@@ -38,14 +38,31 @@ export interface IChatSessionWorkingSetUndo {
 	 * Undoes the session's changes to the files of `diffs` after any confirmation
 	 * the session requires, resolving to whether changes to any of them were undone.
 	 * A file whose changes no longer match its diff in `diffs` is left alone.
+	 * `all` is set when the user undoes every file of the working set at once,
+	 * which, like Undo All Edits in the editing session's working set, may need
+	 * confirming where undoing a single file doesn't.
 	 */
-	undo(diffs: readonly IEditSessionEntryDiff[]): Promise<boolean>;
+	undo(diffs: readonly IEditSessionEntryDiff[], all: boolean): Promise<boolean>;
+}
+
+/** Keeps a session's changes to the files of its working set in the session, which then leaves them out of the working set. */
+export interface IChatSessionWorkingSetKeep {
+	/** Whether changes can be kept now; they can't while a turn is running, for example. */
+	readonly enabled: IObservable<boolean>;
+	/**
+	 * Keeps the session's changes to the files of `diffs`, resolving to whether
+	 * changes to any of them were kept. A file whose changes no longer match its
+	 * diff in `diffs` is left alone.
+	 */
+	keep(diffs: readonly IEditSessionEntryDiff[]): Promise<boolean>;
 }
 
 /** What a {@link ChatSessionWorkingSet} can do with the files it lists. */
 export interface IChatSessionWorkingSetFileActions {
-	/** Keeps the changes to the files of `diffs`, which hides each file until its changes change. */
-	keep(diffs: readonly IEditSessionEntryDiff[]): void;
+	/** Keeps the changes to the files of `diffs`, resolving to whether any changes were kept. */
+	keep(diffs: readonly IEditSessionEntryDiff[]): Promise<boolean>;
+	/** Whether changes can be kept now; always when absent. */
+	readonly keepEnabled?: IObservable<boolean>;
 	/** Undoes changes to files, or `undefined` while the session doesn't support that. */
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
 }
@@ -72,12 +89,13 @@ export class ChatSessionWorkingSet extends Disposable {
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this.onDidFocus = this._register(dom.trackFocus(this.domNode)).onDidFocus;
 
-		const keep = (keptDiffs: readonly IEditSessionEntryDiff[]) => {
-			fileActions.keep(keptDiffs);
-			accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+		const keep = async (keptDiffs: readonly IEditSessionEntryDiff[]) => {
+			if (await fileActions.keep(keptDiffs)) {
+				accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+			}
 		};
-		const undo = async (sessionUndo: IChatSessionWorkingSetUndo, undoneDiffs: readonly IEditSessionEntryDiff[]) => {
-			if (await sessionUndo.undo(undoneDiffs)) {
+		const undo = async (sessionUndo: IChatSessionWorkingSetUndo, undoneDiffs: readonly IEditSessionEntryDiff[], all: boolean) => {
+			if (await sessionUndo.undo(undoneDiffs, all)) {
 				accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
 			}
 		};
@@ -109,7 +127,7 @@ export class ChatSessionWorkingSet extends Disposable {
 					id: 'chat.sessionWorkingSet.undoAll',
 					label: localize('chat.sessionWorkingSet.undo', "Undo"),
 					tooltip: localize('chat.sessionWorkingSet.undoAll', "Undo All Edits"),
-					run: () => undo(sessionUndo, diffs.read(undefined)),
+					run: () => undo(sessionUndo, diffs.read(undefined), true),
 				})] : []),
 				toAction({
 					id: VIEW_ALL_EDITS_ACTION_ID,
@@ -123,6 +141,13 @@ export class ChatSessionWorkingSet extends Disposable {
 				const undoButton = buttonBar.buttons[1];
 				reader.store.add(autorun(enabledReader => {
 					undoButton.enabled = sessionUndo.enabled.read(enabledReader);
+				}));
+			}
+			const keepEnabled = fileActions.keepEnabled;
+			if (keepEnabled) {
+				const keepButton = buttonBar.buttons[0];
+				reader.store.add(autorun(enabledReader => {
+					keepButton.enabled = keepEnabled.read(enabledReader);
 				}));
 			}
 		}));
@@ -162,21 +187,23 @@ export class ChatSessionWorkingSet extends Disposable {
 function getFileActions(
 	diff: IEditSessionEntryDiff,
 	fileActions: IChatSessionWorkingSetFileActions,
-	keep: (diffs: readonly IEditSessionEntryDiff[]) => void,
-	undo: (sessionUndo: IChatSessionWorkingSetUndo, diffs: readonly IEditSessionEntryDiff[]) => Promise<void>,
+	keep: (diffs: readonly IEditSessionEntryDiff[]) => Promise<void>,
+	undo: (sessionUndo: IChatSessionWorkingSetUndo, diffs: readonly IEditSessionEntryDiff[], all: boolean) => Promise<void>,
 	reader: IReaderWithStore,
 ): IAction[] {
-	const keepAction = toAction({
-		id: 'chat.sessionWorkingSet.keepFile',
-		label: localize('chat.sessionWorkingSet.keepFile', "Keep"),
-		class: ThemeIcon.asClassName(Codicon.check),
-		run: () => keep([diff]),
-	});
+	const keepAction = reader.store.add(new Action('chat.sessionWorkingSet.keepFile', localize('chat.sessionWorkingSet.keepFile', "Keep"), ThemeIcon.asClassName(Codicon.check), true, async () => keep([diff])));
+	const keepEnabled = fileActions.keepEnabled;
+	if (keepEnabled) {
+		// Updating the action in place keeps keyboard focus on it.
+		reader.store.add(autorun(enabledReader => {
+			keepAction.enabled = keepEnabled.read(enabledReader);
+		}));
+	}
 	const sessionUndo = fileActions.undo.read(reader);
 	if (!sessionUndo) {
 		return [keepAction];
 	}
-	const undoAction = reader.store.add(new Action('chat.sessionWorkingSet.undoFile', localize('chat.sessionWorkingSet.undoFile', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => undo(sessionUndo, [diff])));
+	const undoAction = reader.store.add(new Action('chat.sessionWorkingSet.undoFile', localize('chat.sessionWorkingSet.undoFile', "Undo"), ThemeIcon.asClassName(Codicon.discard), false, () => undo(sessionUndo, [diff], false)));
 	// Updating the action in place keeps keyboard focus on it.
 	reader.store.add(autorun(enabledReader => {
 		undoAction.enabled = sessionUndo.enabled.read(enabledReader);

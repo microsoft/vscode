@@ -997,11 +997,8 @@ export default defineConfig(
 						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
 						'src/vs/platform/agentHost/test/node/localModelBridge/copilotRequestHandler.test.ts',
 						'src/vs/platform/agentHost/test/node/shared/worktreeIsolation.test.ts',
-						'src/vs/sessions/contrib/automations/test/browser/automationDialog.test.ts',
-						'src/vs/sessions/contrib/editor/test/browser/editor.contribution.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-						'src/vs/workbench/api/test/browser/mainThreadCustomEditors.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/agentHostCustomizationSidecar.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/agentHostUsageSidecar.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/agentSessions/agentHostClientTools.test.ts',
@@ -1010,7 +1007,6 @@ export default defineConfig(
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
-						'src/vs/workbench/services/configuration/test/browser/configurationService.test.ts',
 					]
 				}
 			]

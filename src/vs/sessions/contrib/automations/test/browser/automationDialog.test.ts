@@ -1387,6 +1387,7 @@ suite('Automation dialog creation', () => {
 		const localConfiguration = { sessionTemplate: { modelId: 'selected-model', config: { mode: 'plan', autoApprove: 'assisted' } } };
 		const captures: string[] = [];
 		const restored: Array<IAutomationSessionConfiguration | undefined> = [];
+		const onDidCreateSession = disposables.add(new Emitter<string | undefined>());
 		const dialog = openDialog({
 			initialValues: {
 				name: 'Review', prompt: 'Review changes', enabled: true,
@@ -1402,6 +1403,7 @@ suite('Automation dialog creation', () => {
 				if (options?.providerId === 'host') {
 					restored.push(options.automationConfiguration);
 				}
+				onDidCreateSession.fire(options?.providerId);
 				return upcastPartial<ISession>({ sessionId: `draft-${options?.providerId}`, providerId: options?.providerId });
 			},
 			getAutomationSessionConfiguration: async session => {
@@ -1415,15 +1417,15 @@ suite('Automation dialog creation', () => {
 		}));
 		await timeout(0);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
-		const flip = async () => {
+		// A switch is complete once the draft session is recreated for the new provider.
+		const flip = async (providerId: string) => {
+			const switched = Event.toPromise(Event.filter(onDidCreateSession.event, id => id === providerId));
 			toggle.click();
-			for (let i = 0; i < 4; i++) {
-				await timeout(0);
-			}
+			await switched;
 		};
-		await flip();
+		await flip('cloud');
 		const cloudSessionType = dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label');
-		await flip();
+		await flip('host');
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
