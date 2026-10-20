@@ -668,13 +668,9 @@
 	--modern-ui-editor-tab-action-button-background: var(--modern-ui-editor-tab-custom-action-selected-background, var(--vscode-toolbar-hoverBackground));
 }
 
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .title.tab-actions-reserve-space .tab-actions .action-label:not(.disabled, .codicon-close, .codicon-close-small):is(:hover, :focus),
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .title .tab-actions .action-label:not(.disabled, .codicon-close, .codicon-close-small):is(:hover, :focus) {
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .title.tab-actions-reserve-space .tab-actions .action-label:not(.disabled):is(:hover, :focus),
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .title .tab-actions .action-label:not(.disabled):is(:hover, :focus) {
 	background-color: var(--modern-ui-editor-tab-action-button-background);
-}
-
-.modern-ui-tabs.monaco-workbench .part.editor .title .tab-actions .action-label:is(.codicon-close, .codicon-close-small) {
-	background-color: transparent;
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.tab-actions-left):not(.close-action-off):hover > .tab-actions::before,
