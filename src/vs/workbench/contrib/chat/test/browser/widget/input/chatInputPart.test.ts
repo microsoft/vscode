@@ -19,6 +19,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput } from '../../../../../../common/editor.js';
@@ -91,6 +92,10 @@ suite('ChatInputPart', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		// Runs the commands of the session working set's rows.
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)?.handler(accessor, ...args)) as R,
+		}));
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		const signals: string[] = [];
 		instantiationService.stub(IAccessibilitySignalService, upcastPartial<IAccessibilitySignalService>({
@@ -407,8 +412,8 @@ suite('ChatInputPart', () => {
 		diffs.set([{ ...first, added: 2 }, second], undefined);
 		states.push(readRows());
 
-		const both = [{ file: '/first.ts', actions: ['Keep', 'Undo'] }, { file: '/second.ts', actions: ['Keep', 'Undo'] }];
-		const secondOnly = [{ file: '/second.ts', actions: ['Keep', 'Undo'] }];
+		const both = [{ file: '/first.ts', actions: ['Keep', 'Undo', 'Open Changes in Diff Editor'] }, { file: '/second.ts', actions: ['Keep', 'Undo', 'Open Changes in Diff Editor'] }];
+		const secondOnly = [{ file: '/second.ts', actions: ['Keep', 'Undo', 'Open Changes in Diff Editor'] }];
 		assert.deepStrictEqual(states, [both, secondOnly, both, secondOnly, both]);
 	});
 
@@ -435,6 +440,8 @@ suite('ChatInputPart', () => {
 		// The session leaves kept files out of its changes, so the workbench doesn't hide them.
 		const afterKeep = readRows();
 		keepEnabled.set(false, undefined);
+		// The rows show their menu's actions once it reports the change.
+		await timeout(0);
 
 		assert.deepStrictEqual({ kept, afterKeep, whileDisabled: readRows() }, {
 			kept: ['/first.ts'],
