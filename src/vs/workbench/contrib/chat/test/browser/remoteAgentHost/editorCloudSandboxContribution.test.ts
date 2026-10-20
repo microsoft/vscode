@@ -2129,7 +2129,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('opens original offline history without waking or replacing the sandbox', async () => {
+	test('opens original offline history for drafting without waking or replacing the sandbox', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		await h.contribution.activate();
@@ -2138,12 +2138,13 @@ suite('Editor cloud sandbox discovery', () => {
 			resource: session.sessionResource.toString(),
 			title: session.title,
 			readOnly: session.isReadOnly?.get(),
+			blocked: session.isInputBlocked?.get(),
 			requests: session.history.filter(item => item.type === 'request').map(item => item.prompt),
 			history: h.calls.history,
 			connected: h.calls.connected,
 			created: h.calls.created,
 		}, {
-			resource: resource.toString(), title: discovered.name, readOnly: true,
+			resource: resource.toString(), title: discovered.name, readOnly: true, blocked: true,
 			requests: ['Original request'], history: [discovered.taskId], connected: [], created: 0,
 		});
 	});

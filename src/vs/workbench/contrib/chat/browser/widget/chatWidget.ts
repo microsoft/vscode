@@ -2151,7 +2151,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				$mid: MarshalledId.ChatViewContext, sessionResource: resource, inputUri: this.input.inputUri,
 			}),
 		} : historyStatus?.action);
-		this.readOnlyBanner?.setVisible(readOnly && !keepInputVisible);
+		this.readOnlyBanner?.setVisible(readOnly && (!keepInputVisible || !!historyStatus));
 		this.setInputVisible(!readOnly || keepInputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
@@ -2184,7 +2184,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private observeSessionArchived(model: IChatModel): IObservable<boolean> {
-		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || model.sessionResource.scheme === 'agent-host-claude' || model.sessionResource.scheme === 'agent-host-codex'
+		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || isAgentHostTarget(getChatSessionType(model.sessionResource))
 			? observableFromEvent(this, this.agentSessionsService.model.onDidChangeSessions, () => this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true)
 			: constObservable(false);
 	}
@@ -2192,7 +2192,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
 		const policyRequired = isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
 		this.policyReadOnly = policyRequired && !archived;
-		this.setReadOnly(model.isReadOnly.read(reader) || policyRequired, !policyRequired && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
+		const readOnly = model.isReadOnly.read(reader) || policyRequired || (archived && isAgentHostTarget(getChatSessionType(model.sessionResource)));
+		this.setReadOnly(readOnly, !policyRequired && !archived && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
 
 	private autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable {

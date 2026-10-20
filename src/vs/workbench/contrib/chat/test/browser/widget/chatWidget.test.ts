@@ -1416,6 +1416,111 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('keeps the sandbox composer visible while live content is unavailable', () => {
+		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => container.remove()));
+		const inputContainer = dom.append(container, dom.$('.interactive-input-part'));
+		const input = dom.append(inputContainer, dom.$<HTMLTextAreaElement>('textarea'));
+		const transcript = dom.append(container, dom.$('div'));
+		transcript.tabIndex = 0;
+		const readOnly = observableValue('readOnly', true);
+		const blocked = observableValue('blocked', true);
+		let archived = false;
+		const sessionChanges = store.add(new Emitter<void>());
+		const model = upcastPartial<IChatModel>({
+			sessionResource: URI.parse('remote-agent-host-test:/session'),
+			isReadOnly: readOnly,
+			isInputBlocked: blocked,
+		});
+		const draftOnly = observableValue('draftOnly', false);
+		const widget: {
+			observeSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+		} = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false,
+			_draftOnly: draftOnly,
+			_visible: constObservable(false),
+			_readOnlyContextKey: { set: () => { } },
+			policyRequiresAgentHost: constObservable(false),
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: () => ({ isArchived: () => archived }),
+			},
+			chatSuggestNextWidget: { hide: () => { } },
+			hasInputFocus: () => mainWindow.document.activeElement === input,
+			inputPartDisposable: { value: { element: inputContainer } },
+			renderChatSuggestNextWidget: () => { },
+			listWidget: {
+				focusLastItem: () => -1,
+				focus: () => transcript.focus(),
+				updateRendererOptions: () => { },
+			},
+		});
+		const sessionArchived = widget.observeSessionArchived(model);
+		store.add(autorun(reader => widget.updateReadOnlyState(model, sessionArchived.read(reader), reader)));
+		input.value = 'Keep this draft';
+		input.focus();
+		input.setSelectionRange(2, 6);
+		const snapshot = () => ({
+			visible: !inputContainer.classList.contains('chat-input-hidden'),
+			focused: mainWindow.document.activeElement === input,
+			draftOnly: draftOnly.get(),
+			text: input.value,
+			selection: [input.selectionStart, input.selectionEnd],
+		});
+		const recorded = snapshot();
+		archived = true;
+		sessionChanges.fire();
+		const archivedWhileBlocked = snapshot();
+		archived = false;
+		sessionChanges.fire();
+		input.focus();
+		const unarchived = snapshot();
+		readOnly.set(false, undefined);
+		blocked.set(false, undefined);
+		const live = snapshot();
+		readOnly.set(true, undefined);
+
+		const draft = { visible: true, focused: true, draftOnly: true, text: 'Keep this draft', selection: [2, 6] };
+		const restricted = { ...draft, visible: false, focused: false, draftOnly: false };
+		assert.deepStrictEqual({ recorded, archivedWhileBlocked, unarchived, live, restricted: snapshot() }, {
+			recorded: draft,
+			archivedWhileBlocked: restricted,
+			unarchived: draft,
+			live: { ...draft, draftOnly: false },
+			restricted,
+		});
+	});
+
+	test('history recovery remains visible beside a blocked composer', async () => {
+		const { widget } = createRerenderWidget();
+		let inputVisible = false;
+		let bannerVisible = false;
+		let message: string | undefined;
+		let action: { label: string; run: () => Promise<void> } | undefined;
+		let retries = 0;
+		Object.assign(widget, {
+			setInputVisible: (visible: boolean) => inputVisible = visible,
+			readOnlyBanner: {
+				setVisible: (visible: boolean) => bannerVisible = visible,
+				setMessage: (value: string | undefined) => message = value,
+				setAction: (value: typeof action) => action = value,
+			},
+		});
+		widget.setReadOnly(true, true, {
+			kind: 'live', message: 'Live history unavailable',
+			action: { label: 'Retry', run: async () => { retries++; } },
+		});
+		const failed = { inputVisible, bannerVisible, message, action: action?.label };
+		await action?.run();
+		widget.setReadOnly(true, true, undefined);
+
+		assert.deepStrictEqual({ failed, inputVisible, bannerVisible, retries }, {
+			failed: { inputVisible: true, bannerVisible: true, message: 'Live history unavailable', action: 'Retry' },
+			inputVisible: true, bannerVisible: false, retries: 1,
+		});
+	});
+
 	test('applies read-only to rendered rows on the first layout after the list is attached', () => {
 		const { widget, domNode, rerenders } = createRerenderWidget();
 		domNode.style.height = '50px';
@@ -1494,7 +1599,7 @@ suite('ChatWidget', () => {
 				_readOnlyContextKey: { set: () => { } }, policyRequiresAgentHost: policy, readOnlyBanner: banner,
 				agentSessionsService: {
 					model: { onDidChangeSessions: sessionChanges.event },
-					getSession: () => ({ isArchived: () => archivedState }),
+					getSession: () => ({ isArchived: () => selected.get() === local && archivedState }),
 				},
 				chatSuggestNextWidget: { hide: () => { } }, hasInputFocus: () => false,
 				setInputVisible: () => { }, renderChatSuggestNextWidget: () => { },
