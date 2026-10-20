@@ -70,14 +70,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
-	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		const editsBefore = [...this._edits];
 		const turnsBefore = new Set(this._turns);
 		try {
 			for (const edit of edits) {
 				await this.storeFileEdit(edit);
 			}
-			await beforeCommit?.();
+			await beforeCommit?.((toolCallId, filePath) => this.readFileEditContent(toolCallId, filePath));
 		} catch (error) {
 			this._edits.splice(0, this._edits.length, ...editsBefore);
 			this._turns.clear();
@@ -421,6 +421,21 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._persistedTurns.clear();
 		this._terminalOutputs.clear();
 		this._toolResultResources.clear();
+	}
+
+	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		const ids = new Set(providerTurnIds);
+		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
+		let afterBoundary = false;
+		for (const turnId of this._turns) {
+			const eventId = this._turnEventIds.get(turnId);
+			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
+				await this.deleteTurn(turnId);
+			}
+			if (turnId === afterHostTurnId) {
+				afterBoundary = true;
+			}
+		}
 	}
 
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
@@ -817,6 +832,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshChangesetCatalog: () => { },
 		refreshBranchChangeset: () => { },
 		refreshSessionChangeset: () => { },
+		refreshWorkingSetChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
 		computeTurnChangeset: async session => session,
@@ -828,6 +844,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		openTrackedTurnDatabase: () => undefined,
 		openTrackedSessionDatabases: () => ({ sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }),
 		onFileEditsDiscarded: () => { },
+		onFileEditsAccepted: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },
 	};

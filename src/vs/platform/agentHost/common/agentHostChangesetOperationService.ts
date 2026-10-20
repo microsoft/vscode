@@ -18,6 +18,7 @@ export const AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID = 'checkout';
 export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
 export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
 export const AGENT_HOST_DISCARD_CHANGES_OPERATION_ID = 'discard-changes';
+export const AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID = 'accept-changes';
 
 /**
  * Changeset operations advertised for a branch that already has a pull
@@ -33,6 +34,22 @@ export const AgentHostPullRequestOperationId = {
 } as const;
 
 export const AGENT_HOST_PULL_REQUEST_OPERATION_IDS: ReadonlySet<string> = new Set(Object.values(AgentHostPullRequestOperationId));
+
+/**
+ * Changeset operations that create a pull request for the session's branch.
+ * Declared here for the same reason as {@link AgentHostPullRequestOperationId}.
+ * Current hosts advertise only `Create` (configured through request metadata);
+ * the other variants are still handled and may be advertised by older hosts.
+ */
+export const AgentHostCreatePullRequestOperationId = {
+	Create: 'create-pr',
+	CreateDraft: 'create-draft-pr',
+	CreateAutoMerge: 'create-pr-auto-merge',
+	CreateAutoSquash: 'create-pr-auto-squash',
+	CreateAutoRebase: 'create-pr-auto-rebase',
+	CreateAgentMerge: 'create-pr-agent-merge',
+	CreateDraftAgentMerge: 'create-draft-pr-agent-merge',
+} as const;
 
 /**
  * The subset that hands the merge off to GitHub's own auto-merge. Agent Merge

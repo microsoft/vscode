@@ -732,7 +732,7 @@ suite('Automation dialog creation', () => {
 		const disabledWhileChecking = dialog.saveButton.getAttribute('aria-disabled');
 		target.set({ workspace: REPOSITORY }, undefined);
 		const picker = dialog.openToolsPicker();
-		picker.tree.toggle('Edit Files');
+		picker.tree.toggle('Read Files');
 		picker.tree.accept();
 		assert.deepStrictEqual({
 			switch: dialog.container.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
@@ -788,13 +788,13 @@ suite('Automation dialog creation', () => {
 			group: 'group',
 			heading: 'Tools',
 			help: undefined,
-			label: 'All tools allowed',
+			label: '0 tools allowed',
 			secondary: true,
 			background: 'var(--vscode-button-secondaryBackground)',
 			foreground: 'var(--vscode-button-secondaryForeground)',
 			border: '1px solid var(--vscode-dropdown-border)',
 			buttonDescribedBy: null,
-			count: '2 of 2 tools selected',
+			count: '0 of 2 tools selected',
 			cloudDescriptionInline: false,
 			infoButton: null,
 			notes: 0,
@@ -886,8 +886,8 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ labels, tools: result?.value.sessionTemplate?.config?.tools }, {
-			labels: ['All tools allowed', '1 tool allowed', '0 tools allowed', 'All tools allowed'],
-			tools: ['edit'],
+			labels: ['0 tools allowed', '1 tool allowed', 'All tools allowed', '0 tools allowed'],
+			tools: ['read'],
 		});
 	});
 
@@ -914,49 +914,34 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual({ loading, failed, retried, accountChangeLoads: loads }, {
 			loading: { loads: 1, buttonDisabled: 'true', status: 'Loading available tools...', role: 'status', retryVisible: false, count: null },
 			failed: { buttonDisabled: 'true', status: 'Available tools could not be loaded.', role: 'status', retryVisible: true, count: null },
-			retried: { loads: 2, buttonDisabled: 'false', status: undefined, role: 'status', retryVisible: false, count: '2 of 2 tools selected' },
+			retried: { loads: 2, buttonDisabled: 'false', status: undefined, role: 'status', retryVisible: false, count: '0 of 2 tools selected' },
 			accountChangeLoads: 3,
 		});
 		dialog.cancelButton.click();
 		await dialog.result;
 	});
 
-	test('new cloud automations select every catalog tool, waiting for the catalog when saved early', async () => {
-		const catalog = observableValue<AutomationToolCatalog>('catalog', { kind: 'loading' });
-		const dialog = openDialog({}, cloudConfiguration(undefined, catalog));
-		dialog.setPrompt('Review changes');
-		await dialog.setCloud(true);
-		await dialog.selectWorkspace(REPOSITORY);
-		dialog.saveButton.click();
-		await timeout(0);
-		const pending = dialog.saveButton.getAttribute('aria-disabled');
-		catalog.set({
-			kind: 'ready', groups: [
-				{ id: 'issues', label: 'Issues', tools: [{ id: 'github/issue_read', label: 'Read issue' }, { id: 'github/list_issues', label: 'List issues' }] },
-				{ id: 'pulls', label: 'Pull requests', tools: [{ id: 'github/issue_read', label: 'Read issue' }, { id: 'github/pull_request_read', label: 'Read pull request' }] },
-			],
-		}, undefined);
-		const result = await dialog.result;
-		assert.deepStrictEqual({ pending, tools: result?.value.sessionTemplate?.config?.tools }, {
-			pending: 'true', tools: ['github/issue_read', 'github/list_issues', 'github/pull_request_read'],
+	for (const { name, catalog } of [
+		{ name: 'ready', catalog: toolCatalog() },
+		{ name: 'empty', catalog: toolCatalog([]) },
+		{ name: 'loading', catalog: { kind: 'loading' } },
+		{ name: 'unavailable', catalog: { kind: 'error', message: 'Available tools could not be loaded.' } },
+	] satisfies { name: string; catalog: AutomationToolCatalog }[]) {
+		test(`new cloud automations save with no tools when the catalog is ${name}`, async () => {
+			const dialog = openDialog({}, cloudConfiguration(undefined, constObservable(catalog)));
+			dialog.setPrompt('Review changes');
+			await dialog.setCloud(true);
+			await dialog.selectWorkspace(REPOSITORY);
+			const picker = catalog.kind === 'ready' ? dialog.openToolsPicker() : undefined;
+			const checkedTools = picker?.tree.items.flatMap(group => group.children ?? []).filter(item => item.checked) ?? [];
+			picker?.tree.accept();
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({ checkedTools, kind: result?.kind, tools: result?.value.sessionTemplate?.config?.tools }, {
+				checkedTools: [], kind: 'create', tools: [],
+			});
 		});
-	});
-
-	test('a new cloud automation is not saved when its default tools cannot be loaded', async () => {
-		const catalog = observableValue<AutomationToolCatalog>('catalog', { kind: 'loading' });
-		const dialog = openDialog({}, cloudConfiguration(undefined, catalog));
-		dialog.setPrompt('Review changes');
-		await dialog.setCloud(true);
-		await dialog.selectWorkspace(REPOSITORY);
-		dialog.saveButton.click();
-		await timeout(0);
-		catalog.set({ kind: 'error', message: 'Available tools could not be loaded.' }, undefined);
-		await timeout(0);
-		const error = dialog.container.querySelector<HTMLElement>('.automation-form-save-error')!;
-		const saveFailed = error.style.display !== 'none';
-		dialog.cancelButton.click();
-		assert.deepStrictEqual({ saveFailed, result: await dialog.result }, { saveFailed: true, result: undefined });
-	});
+	}
 
 	test('editing a cloud automation with unreported tools preserves them without loading defaults', async () => {
 		const automation: IAutomationDescriptor = {
@@ -1402,6 +1387,7 @@ suite('Automation dialog creation', () => {
 		const localConfiguration = { sessionTemplate: { modelId: 'selected-model', config: { mode: 'plan', autoApprove: 'assisted' } } };
 		const captures: string[] = [];
 		const restored: Array<IAutomationSessionConfiguration | undefined> = [];
+		const onDidCreateSession = disposables.add(new Emitter<string | undefined>());
 		const dialog = openDialog({
 			initialValues: {
 				name: 'Review', prompt: 'Review changes', enabled: true,
@@ -1417,6 +1403,7 @@ suite('Automation dialog creation', () => {
 				if (options?.providerId === 'host') {
 					restored.push(options.automationConfiguration);
 				}
+				onDidCreateSession.fire(options?.providerId);
 				return upcastPartial<ISession>({ sessionId: `draft-${options?.providerId}`, providerId: options?.providerId });
 			},
 			getAutomationSessionConfiguration: async session => {
@@ -1430,15 +1417,15 @@ suite('Automation dialog creation', () => {
 		}));
 		await timeout(0);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
-		const flip = async () => {
+		// A switch is complete once the draft session is recreated for the new provider.
+		const flip = async (providerId: string) => {
+			const switched = Event.toPromise(Event.filter(onDidCreateSession.event, id => id === providerId));
 			toggle.click();
-			for (let i = 0; i < 4; i++) {
-				await timeout(0);
-			}
+			await switched;
 		};
-		await flip();
+		await flip('cloud');
 		const cloudSessionType = dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label');
-		await flip();
+		await flip('host');
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');

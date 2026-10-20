@@ -48,6 +48,10 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	/** CAPI model override for the runtime's search subagent. Empty uses the runtime default. */
+	SearchSubagentModel = 'searchSubagentModel',
+	/** Offer the runtime's built-in Explore agent. On by default. */
+	ExploreAgent = 'exploreAgent',
 	/** Use the runtime's execution subagent instead of the extension-native client tool. */
 	ExecutionSubagent = 'executionSubagent',
 	/** Runtime model ID for the execution subagent; empty inherits the session model. */
@@ -121,6 +125,10 @@ export const CopilotImageGenerationEnabledSettingId = 'chat.copilot.imageGenerat
 export function isImageGenerationEnabledByDefault(quality: string | undefined): boolean {
 	return quality === 'insider';
 }
+
+export const CopilotSearchSubagentModelSettingId = 'chat.copilot.searchSubagent.model';
+
+export const CopilotExploreAgentEnabledSettingId = 'chat.copilot.exploreAgent.enabled';
 
 export const AgentHostCopilotExecutionSubagentEnabledSettingId = 'chat.agentHost.copilot.executionSubagent.enabled';
 
@@ -285,6 +293,18 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.SearchSubagentModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.searchSubagentModel.title', "Search Subagent Model"),
+		description: localize('agentHost.config.searchSubagentModel.description', "CAPI model ID to use for the search subagent. Empty uses the runtime default. An unavailable model makes the search tool unavailable. Changing this value restarts the Copilot SDK client after active turns finish."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.ExploreAgent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.exploreAgent.title', "Explore Agent"),
+		description: localize('agentHost.config.exploreAgent.description', "When enabled, Copilot SDK sessions can use the runtime's built-in Explore agent, independently of the search subagent tool. Applied when a session launches or resumes. Does not disable custom agents named Explore."),
+		default: true,
 	}),
 	[CopilotCliConfigKey.ExecutionSubagent]: schemaProperty<boolean>({
 		type: 'boolean',

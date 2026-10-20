@@ -2696,6 +2696,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		if (this._currentSubmenuElement === element) {
+			this._cancelSubmenuHide();
 			return;
 		}
 
@@ -2726,7 +2727,11 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showSubmenuForElement(element: IActionListItem<T>, anchor: HTMLElement): void {
-		if (!this._hoverEnabled || this._currentSubmenuElement === element) {
+		if (!this._hoverEnabled) {
+			return;
+		}
+		this._cancelSubmenuHide();
+		if (this._currentSubmenuElement === element) {
 			return;
 		}
 

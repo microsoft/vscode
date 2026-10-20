@@ -11,19 +11,20 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, IReaderWithStore } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
+import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
@@ -54,14 +55,48 @@ export function getChatFileChangeLineCounts(added: number, removed: number): str
 
 /** Options controlling how {@link renderChangesSummaryFileList} renders each row. */
 export interface IChangesSummaryFileListOptions {
-	readonly alwaysOpenInDiffEditor?: boolean;
+	/**
+	 * Opens the changed file itself, as the editing session's working set does,
+	 * instead of its diff. A deleted file opens its content before the deletion.
+	 */
+	readonly openFile?: boolean;
 	readonly ariaLabel?: string;
 	/**
 	 * Provides the actions shown in a per-row action bar (right-aligned). Return
 	 * an empty array for rows that should have no actions. When omitted, no action
-	 * bar is rendered.
+	 * bar is rendered. The actions are provided again when observables read with
+	 * `reader` change, and disposables added to its store live until then or until
+	 * the row is rendered again.
 	 */
-	readonly getRowActions?: (diff: IEditSessionEntryDiff) => IAction[];
+	readonly getRowActions?: (diff: IEditSessionEntryDiff, reader: IReaderWithStore) => IAction[];
+	/**
+	 * Shows the row actions as icons after the change counts, revealed while the
+	 * row is hovered, focused, or selected, instead of as links before the counts.
+	 */
+	readonly rowActionIcons?: boolean;
+}
+
+/** A list rendered by {@link renderChangesSummaryFileList}. */
+export interface IChangesSummaryFileList extends IDisposable {
+	/** The changes of the selected rows. */
+	getSelectedElements(): readonly IEditSessionEntryDiff[];
+}
+
+/**
+ * Opens the diff of a file's change, or the multi-diff editor with the absent
+ * side empty when the change created or deleted the file.
+ */
+export function openChatFileChangeDiff(editorService: IEditorService, diff: IEditSessionEntryDiff, options?: IEditorOptions): void {
+	const editorResource = toChatFileChangeEditorResource(diff);
+	if (!editorResource.original.resource || !editorResource.modified.resource) {
+		openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff]);
+		return;
+	}
+	editorService.openEditor({
+		original: editorResource.original,
+		modified: editorResource.modified,
+		options,
+	});
 }
 
 /**
@@ -78,10 +113,10 @@ export function renderChangesSummaryFileList(
 	editorService: IEditorService,
 	configurationService: IConfigurationService,
 	options?: IChangesSummaryFileListOptions,
-): IDisposable {
+): IChangesSummaryFileList {
 	const store = new DisposableStore();
 	const columnWidths: IChangesSummaryColumnWidths = { insertions: 2, deletions: 2 };
-	const list = store.add(instantiationService.createInstance(CollapsibleChangesSummaryListPool, options, columnWidths)).get();
+	const { list, renderer } = store.add(instantiationService.createInstance(CollapsibleChangesSummaryListPool, options, columnWidths)).get();
 	const listNode = list.getHTMLElement();
 	const listContainer = listNode.parentElement!;
 	container.appendChild(listContainer);
@@ -92,9 +127,17 @@ export function renderChangesSummaryFileList(
 			return;
 		}
 
+		if (options?.openFile) {
+			editorService.openEditor({
+				resource: diff.isDeleted ? diff.originalURI : diff.modifiedURI,
+				options: item.editorOptions,
+			}, item.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+			return;
+		}
+
 		const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
 		const openInDiffEditorByDefault = configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
-		const openInDiffEditor = options?.alwaysOpenInDiffEditor || diff.isDeleted || (altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault);
+		const openInDiffEditor = diff.isDeleted || (altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault);
 
 		if (!openInDiffEditor) {
 			const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
@@ -106,16 +149,7 @@ export function renderChangesSummaryFileList(
 			// fall back to the diff editor.
 		}
 
-		const editorResource = toChatFileChangeEditorResource(diff);
-		if (!editorResource.original.resource || !editorResource.modified.resource) {
-			openChatFileChanges(editorService, localize('chat.fileChanges', "File Changes"), [diff]);
-			return;
-		}
-		editorService.openEditor({
-			original: editorResource.original,
-			modified: editorResource.modified,
-			options: { preserveFocus: true }
-		});
+		openChatFileChangeDiff(editorService, diff, { preserveFocus: true });
 	}));
 
 	store.add(list.onContextMenu(e => {
@@ -124,6 +158,10 @@ export function renderChangesSummaryFileList(
 
 	store.add(autorun((r) => {
 		const currentDiffs = diffs.read(r);
+		// Laying out and rebuilding the rows removes whatever had keyboard focus in them, so focus returns to the same file afterwards.
+		const hadFocus = !!options?.getRowActions && dom.isAncestorOfActiveElement(listNode);
+		const focusedAction = hadFocus ? renderer.getFocusedRowAction() : undefined;
+		const focusedIndex = focusedAction ? list.indexOf(focusedAction.diff) : list.getFocus().at(0);
 		let insertionsColumnCharacters = 2;
 		let deletionsColumnCharacters = 2;
 		// Widths are shared by the list so each row uses the same count columns.
@@ -143,9 +181,29 @@ export function renderChangesSummaryFileList(
 		listNode.style.height = height + 'px';
 
 		list.splice(0, list.length, currentDiffs);
+		if (hadFocus) {
+			const sameFile = focusedAction && currentDiffs.find(diff => isEqual(diff.modifiedURI, focusedAction.diff.modifiedURI));
+			if (sameFile) {
+				// Its actions only show in the focused row, which an insertion may have moved out of view.
+				const index = list.indexOf(sameFile);
+				list.setFocus([index]);
+				list.reveal(index);
+			} else if (focusedIndex !== undefined && focusedIndex >= 0 && list.getFocus().length === 0 && list.length > 0) {
+				// When the focused file leaves the list, keyboard focus moves to the file taking its place.
+				const index = Math.min(focusedIndex, list.length - 1);
+				list.setFocus([index]);
+				list.reveal(index);
+			}
+			if (!dom.isAncestorOfActiveElement(listNode) && !(sameFile && focusedAction && renderer.focusRowAction(sameFile, focusedAction.index))) {
+				list.domFocus();
+			}
+		}
 	}));
 
-	return store;
+	return {
+		getSelectedElements: () => list.getSelectedElements(),
+		dispose: () => store.dispose(),
+	};
 }
 
 
@@ -308,6 +366,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 interface IChatFileChangesSummaryListWrapper extends IDisposable {
 	list: WorkbenchList<IEditSessionEntryDiff>;
+	renderer: CollapsibleChangesSummaryListRenderer;
 }
 
 interface IChangesSummaryColumnWidths {
@@ -334,12 +393,13 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 		const store = new DisposableStore();
 		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
 		const resourceLabels = store.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: () => Disposable.None }));
+		const renderer = new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options, this.columnWidths);
 		const list = store.add(this.instantiationService.createInstance(
 			WorkbenchList<IEditSessionEntryDiff>,
 			'ChatListRenderer',
 			container,
 			new CollapsibleChangesSummaryListDelegate(),
-			[new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options, this.columnWidths)],
+			[renderer],
 			{
 				alwaysConsumeMouseWheel: false,
 				identityProvider: { getId: diff => getComparisonKey(diff.modifiedURI) },
@@ -359,22 +419,31 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 		));
 		return {
 			list: list,
+			renderer,
 			dispose: () => {
 				store.dispose();
 			}
 		};
 	}
 
-	get(): WorkbenchList<IEditSessionEntryDiff> {
-		return this._resourcePool.get().list;
+	get(): IChatFileChangesSummaryListWrapper {
+		return this._resourcePool.get();
 	}
 }
 
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
-	readonly actionBar?: ActionBar;
+	/** Where the row's actions render, when the list has row actions. */
+	readonly actionsContainer?: HTMLElement;
+	/** The actions of the rendered element. */
+	actionBar?: ActionBar;
 	readonly changesContainer: HTMLElement;
+	/** The element the change counts are inserted before, or `null` to append them. */
+	readonly changesAnchor: HTMLElement | null;
+	readonly elementDisposables: DisposableStore;
 	changesElement?: HTMLElement;
+	/** The element the row renders. */
+	element?: IEditSessionEntryDiff;
 }
 
 class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEditSessionEntryDiff> {
@@ -388,6 +457,18 @@ class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEdi
 	}
 }
 
+/** The index of the action with keyboard focus in `actionBar`, if any. */
+function getFocusedActionIndex(actionBar: ActionBar): number | undefined {
+	if (actionBar.isFocused()) {
+		for (let index = 0; index < actionBar.length(); index++) {
+			if (actionBar.isFocused(index)) {
+				return index;
+			}
+		}
+	}
+	return undefined;
+}
+
 class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessionEntryDiff, ICollapsibleChangesSummaryListTemplate> {
 
 	static TEMPLATE_ID = 'collapsibleChangesSummaryListRenderer';
@@ -395,34 +476,73 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 
 	readonly templateId: string = CollapsibleChangesSummaryListRenderer.TEMPLATE_ID;
 
+	/** The templates of rows with actions, for moving keyboard focus within rows. */
+	private readonly _templatesWithActions = new Set<ICollapsibleChangesSummaryListTemplate>();
+
 	constructor(
 		private labels: ResourceLabels,
 		private readonly options: IChangesSummaryFileListOptions | undefined,
 		private readonly columnWidths: IChangesSummaryColumnWidths,
 	) { }
 
+	/** The element and index of the row action with keyboard focus, if any. */
+	getFocusedRowAction(): { readonly diff: IEditSessionEntryDiff; readonly index: number } | undefined {
+		for (const { element, actionBar } of this._templatesWithActions) {
+			const index = actionBar && getFocusedActionIndex(actionBar);
+			if (element && index !== undefined) {
+				return { diff: element, index };
+			}
+		}
+		return undefined;
+	}
+
+	/** Moves keyboard focus to the action at `index`, or the last one, in the row of `diff`, returning whether it did. */
+	focusRowAction(diff: IEditSessionEntryDiff, index: number): boolean {
+		const actionBar = Iterable.find(this._templatesWithActions, template => template.element === diff)?.actionBar;
+		if (!actionBar || actionBar.isEmpty()) {
+			return false;
+		}
+		actionBar.focus(Math.min(index, actionBar.length() - 1));
+		return actionBar.isFocused();
+	}
+
 	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		// Only when a row-action provider is supplied do we add an action bar
-		// between the file label and the trailing change counts.
-		let actionBar: ActionBar | undefined;
+		const elementDisposables = new DisposableStore();
+		let actionsContainer: HTMLElement | undefined;
+		let changesContainer = label.element;
+		let changesAnchor: HTMLElement | null = null;
 		if (this.options?.getRowActions) {
-			container.classList.add('chat-summary-list-row-with-actions');
-			const actionsContainer = container.appendChild($('.chat-summary-list-actions'));
-			actionBar = new ActionBar(actionsContainer);
+			if (this.options.rowActionIcons) {
+				// Like the editing session's working set, icons follow the change counts.
+				actionsContainer = changesAnchor = label.element.appendChild($('.chat-summary-list-icon-actions'));
+			} else {
+				// Links sit between the file label and the trailing change counts.
+				container.classList.add('chat-summary-list-row-with-actions');
+				actionsContainer = container.appendChild($('.chat-summary-list-actions'));
+				changesContainer = container;
+			}
 		}
-		return {
+		const template: ICollapsibleChangesSummaryListTemplate = {
 			label,
-			actionBar,
-			changesContainer: actionBar ? container : label.element,
+			actionsContainer,
+			changesContainer,
+			changesAnchor,
+			elementDisposables,
 			dispose: () => {
 				label.dispose();
-				actionBar?.dispose();
+				elementDisposables.dispose();
 			}
 		};
+		if (actionsContainer) {
+			this._templatesWithActions.add(template);
+		}
+		return template;
 	}
 
 	renderElement(data: IEditSessionEntryDiff, index: number, templateData: ICollapsibleChangesSummaryListTemplate): void {
+		templateData.elementDisposables.clear();
+		templateData.element = data;
 		const label = templateData.label;
 		label.setFile(data.modifiedURI, {
 			fileKind: FileKind.FILE,
@@ -432,7 +552,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		templateData.changesElement?.remove();
 
 		if (!data.identical && !data.isBusy) {
-			const changesSummary = templateData.changesContainer.appendChild($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
+			const changesSummary = templateData.changesContainer.insertBefore($(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`), templateData.changesAnchor);
 
 			const added = changesSummary.appendChild($(`.insertions`));
 			added.textContent = `+${data.added}`;
@@ -445,13 +565,36 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 			templateData.changesElement = changesSummary;
 		}
 
-		if (templateData.actionBar && this.options?.getRowActions) {
-			templateData.actionBar.clear();
-			templateData.actionBar.push(this.options.getRowActions(data), { icon: false, label: true });
+		const { actionsContainer } = templateData;
+		const getRowActions = this.options?.getRowActions;
+		if (actionsContainer && getRowActions) {
+			// An action bar restores its focused action after it's cleared, so each element gets its own:
+			// a row reused for another file must not move keyboard focus to that file's actions.
+			const actionBar = templateData.actionBar = templateData.elementDisposables.add(new ActionBar(actionsContainer));
+			const icons = !!this.options?.rowActionIcons;
+			templateData.elementDisposables.add(autorun(reader => {
+				const actions = getRowActions(data, reader);
+				// Rebuilding the actions removes the one with keyboard focus, so focus returns to the same action afterwards.
+				const focusedIndex = getFocusedActionIndex(actionBar);
+				const focusedId = focusedIndex !== undefined ? actionBar.getAction(focusedIndex)?.id : undefined;
+				actionBar.clear();
+				actionBar.push(actions, { icon: icons, label: !icons });
+				if (focusedIndex !== undefined && !actionBar.isEmpty()) {
+					const index = actions.findIndex(action => action.id === focusedId);
+					actionBar.focus(index >= 0 ? index : Math.min(focusedIndex, actionBar.length() - 1));
+				}
+			}));
 		}
 	}
 
+	disposeElement(_data: IEditSessionEntryDiff, _index: number, templateData: ICollapsibleChangesSummaryListTemplate): void {
+		templateData.element = undefined;
+		templateData.actionBar = undefined;
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: ICollapsibleChangesSummaryListTemplate): void {
+		this._templatesWithActions.delete(templateData);
 		templateData.dispose();
 	}
 }
