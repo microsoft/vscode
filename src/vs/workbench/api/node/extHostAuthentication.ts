@@ -39,7 +39,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		clientId: string,
 		clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: any[] }>,
-		initialTokens: any[]
+		initialTokens: any[],
+		providerId?: string
 	) {
 		super(
 			extHostWindow,
@@ -54,7 +55,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			clientId,
 			clientSecret,
 			onDidDynamicAuthProviderTokensChange,
-			initialTokens
+			initialTokens,
+			providerId
 		);
 
 		// Prepend Node-specific flows to the existing flows

@@ -79,6 +79,7 @@ const DEFAULT_TELEMETRY_SOURCE = 'NewChatSessionTypePicker';
  * new-chat telemetry would be incorrect side effects.
  */
 export interface ISessionTypePickerOptions {
+	readonly presentation?: IObservable<{ readonly label: string; readonly icon: ThemeIcon } | undefined>;
 	/** When present, only session types from these providers are offered. */
 	readonly allowedProviders?: IObservable<readonly string[]>;
 	/** Retain a chosen provider/type if it becomes unavailable instead of selecting a replacement. */
@@ -218,6 +219,7 @@ export class SessionTypePicker extends Disposable {
 			this._session.read(reader);
 			this._options?.providerId?.read(reader);
 			this._options?.allowedProviders?.read(reader);
+			this._options?.presentation?.read(reader);
 			this._recompute();
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
@@ -256,7 +258,10 @@ export class SessionTypePicker extends Disposable {
 	 * is set (see {@link setFolderSource}), otherwise from the active session.
 	 */
 	protected _resolveFolderSessionTypes(): IProviderSessionType[] {
-		return this._resolveUnfilteredSessionTypes().filter(type => this._isProviderAllowed(type.providerId));
+		const presentation = this._options?.presentation?.get();
+		return this._resolveUnfilteredSessionTypes()
+			.filter(type => this._isProviderAllowed(type.providerId))
+			.map(type => presentation ? { ...type, sessionType: { ...type.sessionType, ...presentation } } : type);
 	}
 
 	private _isProviderAllowed(providerId: string): boolean {
@@ -297,6 +302,9 @@ export class SessionTypePicker extends Disposable {
 			return sessionTypes;
 		}
 		const session = this._session.get();
+		if (!session && this._sessionWorkspaceFolderSource) {
+			return this.sessionsManagementService.getAllProviderSessionTypes();
+		}
 		return session ? this._sessionTypesForSession(session) : [];
 	}
 
@@ -390,7 +398,7 @@ export class SessionTypePicker extends Disposable {
 		});
 	}
 
-	/** Source session-type availability from the selected workspace while displaying the active draft's type. */
+	/** Source availability from the selected workspace or the provider catalog before selection, while displaying the active draft's type. */
 	setSessionWorkspaceFolderSource(source: IObservable<URI | undefined>): void {
 		this._sessionWorkspaceFolderSource = source;
 		this._sessionWorkspaceFolderSourceWatch.value = autorun(reader => {
@@ -438,7 +446,7 @@ export class SessionTypePicker extends Disposable {
 	getUserPickedSessionType(): IPreferredSessionType | undefined {
 		const pick = this._readStoredPick();
 		const providerId = this._options?.providerId?.get();
-		return providerId && pick?.providerId !== providerId ? undefined : pick;
+		return (providerId && pick?.providerId !== providerId) || (pick?.providerId && !this._isProviderAllowed(pick.providerId)) ? undefined : pick;
 	}
 
 	/**
@@ -450,7 +458,7 @@ export class SessionTypePicker extends Disposable {
 	 */
 	getPreferredSessionType(folderUri: URI): IPreferredSessionType | undefined {
 		const providerId = this._options?.providerId?.get();
-		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri).find(type => !providerId || type.providerId === providerId);
+		const first = this.sessionsManagementService.getSessionTypesForFolder(folderUri).find(type => (!providerId || type.providerId === providerId) && this._isProviderAllowed(type.providerId));
 		return first ? { providerId: first.providerId, sessionTypeId: first.sessionType.id } : undefined;
 	}
 

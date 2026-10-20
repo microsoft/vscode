@@ -9,6 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { OS } from '../../../../../base/common/platform.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -33,6 +36,7 @@ import { FileOperationError, FileOperationResult, IFileService } from '../../../
 import product from '../../../../../platform/product/common/product.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputType } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -661,6 +665,57 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
+	test('empty file editor opens an untitled file on double-click in empty space', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: false,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		const commands: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<T>(id: string): Promise<T | undefined> {
+				commands.push(id);
+				return Promise.resolve(undefined);
+			}
+		});
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-test');
+		store.add({ dispose: () => container.remove() });
+		editor.create(container);
+		const doubleClick = (selector: string) => {
+			container.querySelector(selector)?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+			return commands.splice(0);
+		};
+
+		const disabled = doubleClick('.empty-file-editor');
+		await configurationService.setUserConfiguration(SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: setting => setting === SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING,
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]),
+			change: { keys: [SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING], overrides: [] },
+		});
+
+		assert.deepStrictEqual({
+			disabled,
+			emptySpace: doubleClick('.empty-file-editor'),
+			emptyStateText: doubleClick('.sessions-empty-state-description'),
+			searchInput: doubleClick('.empty-file-editor-search input'),
+			actions: doubleClick('.empty-file-editor-actions'),
+		}, {
+			disabled: [],
+			emptySpace: ['workbench.action.files.newUntitledFile'],
+			emptyStateText: ['workbench.action.files.newUntitledFile'],
+			searchInput: [],
+			actions: [],
+		});
+	});
+
 	test('empty file editor shows file search and new file action', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		store.add(registerEmptyFileEditorActions());
@@ -716,6 +771,73 @@ suite('Sessions - Editor Contribution', () => {
 				{ id: 'workbench.action.files.newUntitledFile', args: [] },
 			],
 			triggers: [`config.${SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING}`],
+		});
+	});
+
+	test('empty file editor focuses an empty search input, otherwise its container', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		store.add(registerEmptyFileEditorActions());
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING]: true,
+		});
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const editor = store.add(instantiationService.createInstance(EmptyFileEditor, new class extends mock<IEditorGroup>() {
+			override windowId = mainWindow.vscodeWindowId;
+		}()));
+		const container = appendElement(mainWindow.document.body, 'empty-file-editor-focus-test');
+		// Focusing scrolls the document to the element; restore it so later tests measure unscrolled bounds.
+		store.add({ dispose: () => mainWindow.scrollTo(0, 0) });
+		store.add({ dispose: () => container.remove() });
+
+		editor.create(container);
+		const input = container.querySelector<HTMLInputElement>('.empty-file-editor-search input');
+		assert.ok(input);
+		// Keyboard focus must be inside the editor part so `editorAreaFocus` keeps Cmd+N on New File.
+		const focusedElement = () => {
+			const activeElement = mainWindow.document.activeElement;
+			return activeElement === input ? 'searchInput' : activeElement === container.querySelector('.empty-file-editor') ? 'editorContainer' : 'other';
+		};
+
+		editor.focus();
+		const emptySearch = focusedElement();
+		// Set the text without an input event so no picker opens; focusing the input would open one.
+		input.value = 'app';
+		editor.focus();
+		const nonEmptySearch = focusedElement();
+
+		const editorContainer = container.querySelector('.empty-file-editor');
+		assert.deepStrictEqual({
+			role: editorContainer?.getAttribute('role'),
+			ariaLabel: editorContainer?.getAttribute('aria-label'),
+			emptySearch,
+			nonEmptySearch,
+			pickerOpen: !!instantiationService.get(IQuickInputService).currentQuickInput,
+		}, {
+			role: 'group',
+			ariaLabel: 'Files editor',
+			emptySearch: 'searchInput',
+			nonEmptySearch: 'editorContainer',
+			pickerOpen: false,
+		});
+	});
+
+	test('empty file editor search picker keeps Cmd+N on New File', () => {
+		const ctrlCmdN = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS)!.getHashCode();
+		const rule = KeybindingsRegistry.getDefaultKeybindings()
+			.find(item => item.command === 'workbench.action.files.newUntitledFile' && item.keybinding?.getHashCode() === ctrlCmdN && item.weight1 > KeybindingWeight.SessionsContrib);
+		const evaluate = (values: Record<string, boolean>) => rule?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T | undefined }) ?? true;
+
+		assert.deepStrictEqual({
+			// Outweighs the Agents Window New Session binding, which also matches outside the editor area.
+			registered: !!rule,
+			pickerFocused: evaluate({ [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+			elsewhere: evaluate({}),
+		}, {
+			registered: true,
+			pickerFocused: true,
+			elsewhere: false,
 		});
 	});
 

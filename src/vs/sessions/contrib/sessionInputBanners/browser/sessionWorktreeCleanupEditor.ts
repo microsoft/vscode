@@ -31,7 +31,6 @@ import { localize } from '../../../../nls.js';
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -72,7 +71,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super(SessionWorktreeCleanupEditor.ID, group, telemetryService, themeService, storageService);
@@ -94,7 +92,9 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
-			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Active, running, needs-input, and pinned sessions are always protected.")));
+			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Active, running, needs-input, and pinned sessions are never cleaned up.")));
+		dom.append(content, dom.$('p', undefined,
+			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
 		this.renderAutomaticCleanup(content);
 
@@ -131,7 +131,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	override async setInput(input: SessionWorktreeCleanupEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		await this.load();
+		void this.load();
 	}
 
 	focusAutomaticCleanup(): void {
@@ -196,6 +196,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		} finally {
 			if (version === this.renderVersion && this.ageSelect) {
 				this.ageSelect.disabled = false;
+				this.updateScrollDimensions();
 			}
 		}
 	}
@@ -322,9 +323,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	private renderAutomaticCleanup(content: HTMLElement): void {
 		const section = dom.append(content, dom.$('.session-worktree-cleanup-automatic'));
-		const heading = dom.append(section, dom.$('h2.session-worktree-cleanup-settings-heading'));
-		heading.appendChild(renderIcon(Codicon.settingsGear));
-		dom.append(heading, dom.$('span', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Cleanup Settings")));
+		dom.append(section, dom.$('h2', undefined, localize('sessionWorktreeCleanup.automaticHeading', "Cleanup Settings")));
 		dom.append(section, dom.$('p', undefined, localize('sessionWorktreeCleanup.automaticDescription', "Changes to these settings are saved immediately. Background cleanup evaluates existing and future sessions after confirming their eligibility. For merged pull requests, inactive sessions are marked as done first, then optionally deleted after an additional retention period.")));
 		this.renderAutomaticSetting(section, ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 			localize('sessionWorktreeCleanup.autoMark', "Mark merged sessions as done after"),
@@ -333,22 +332,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 			localize('sessionWorktreeCleanup.autoDelete', "Permanently delete automatically completed sessions after"),
 			localize('sessionWorktreeCleanup.autoDeleteAria', "Automatically delete completed merged sessions"));
 		this.renderSuggestionSetting(section);
-	}
-
-	/**
-	 * Appends a gear button that opens the Settings editor filtered to the given setting, for users
-	 * who prefer to configure it there directly. The label names the setting for the hover and for
-	 * screen readers.
-	 */
-	private renderConfigureInSettings(row: HTMLElement, settingId: string): void {
-		const configure = dom.append(row, dom.$('button.session-worktree-cleanup-configure', { type: 'button' }));
-		configure.appendChild(renderIcon(Codicon.settingsGear));
-		const label = localize('sessionWorktreeCleanup.configureInSettings', "Configure {0} in Settings", settingId);
-		configure.setAttribute('aria-label', label);
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), configure, label));
-		this.editorDisposables.add(dom.addDisposableListener(configure, dom.EventType.CLICK, () => {
-			void this.preferencesService.openSettings({ query: `@id:${settingId}` }).catch(error => this.notificationService.error(error));
-		}));
 	}
 
 	/**
@@ -375,7 +358,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		information.appendChild(renderIcon(Codicon.info));
 		const informationHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), information, description));
 		this.editorDisposables.add(dom.addDisposableListener(information, dom.EventType.CLICK, () => informationHover.show(true)));
-		this.renderConfigureInSettings(row, AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING);
 		const update = () => {
 			checkbox.checked = this.configurationService.getValue<boolean>(AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING) === true;
 		};
@@ -402,7 +384,6 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		days.step = '1';
 		days.setAttribute('aria-label', localize('sessionWorktreeCleanup.settingDays', "{0} days", label));
 		dom.append(row, dom.$('span', undefined, localize('sessionWorktreeCleanup.daysSuffix', "days")));
-		this.renderConfigureInSettings(row, setting);
 		const update = () => {
 			const value = this.configurationService.getValue<number>(setting) ?? 0;
 			checkbox.checked = value > 0;

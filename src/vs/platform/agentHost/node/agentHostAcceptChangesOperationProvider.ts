@@ -11,7 +11,7 @@ import { ChangesetKind } from '../common/changesetUri.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostAcceptChangesOperationHandler } from './agentHostAcceptChangesOperationHandler.js';
 
-/** Offers accepting a file's changes on Working Set changesets. */
+/** Offers accepting a file's changes, or the hunks of a range, on Working Set changesets. */
 export class AgentHostAcceptChangesOperationContribution extends Disposable implements IChangesetOperationContribution {
 
 	constructor(
@@ -33,7 +33,7 @@ export class AgentHostAcceptChangesOperationContribution extends Disposable impl
 			id: AgentHostAcceptChangesOperationHandler.OPERATION_ACCEPT_CHANGES,
 			label: localize('agentHost.changeset.acceptChanges', "Accept Changes"),
 			icon: 'check',
-			scopes: [ChangesetOperationScope.Resource],
+			scopes: [ChangesetOperationScope.Resource, ChangesetOperationScope.Range],
 			status: ChangesetOperationStatus.Idle,
 		} satisfies ChangesetOperation];
 	}

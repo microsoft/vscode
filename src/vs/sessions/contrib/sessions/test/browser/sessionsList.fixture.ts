@@ -8,7 +8,7 @@ import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboard
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -131,6 +131,22 @@ const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
 const EMPTY_GROUP: ISessionsListFixtureGroup = { id: 'later', name: 'Later' };
+
+/** Environments of the repository grouping fixtures; sessions name them as their provider. */
+const REPOSITORY_ENVIRONMENTS: readonly ISessionEnvironment[] = [
+	{ id: 'local', label: 'This Computer' },
+	{ id: 'cloud', label: 'Cloud' },
+	{ id: 'devbox', label: 'devbox' },
+];
+/** Sessions of the repository grouping fixtures, in several environments and repositories. */
+const REPOSITORY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'cloud-auth', title: 'Fix authentication redirect loop', workspace: 'microsoft/vscode', repository: 'microsoft/vscode', environment: 'cloud', providerId: 'cloud', minutesAgo: 5, changesSummary: { files: 4, additions: 132, deletions: 18 } },
+	{ id: 'local-backoff', title: 'Add reconnect backoff', workspace: 'vscode', repository: 'microsoft/vscode', minutesAgo: 12 },
+	{ id: 'devbox-tests', title: 'Investigate flaky integration tests', workspace: 'vscode [devbox]', repository: 'microsoft/vscode', environment: 'devbox', providerId: 'devbox', minutesAgo: 20 },
+	{ id: 'fork-notes', title: 'Port the release notes fix', workspace: 'vscode', repository: 'contoso/vscode', minutesAgo: 35 },
+	{ id: 'docs-guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', repository: 'microsoft/vscode-docs', environment: 'cloud', providerId: 'cloud', minutesAgo: 50 },
+	{ id: 'scratch', title: 'Prototype a settings parser', workspace: 'scratch', minutesAgo: 70 },
+];
 
 //#endregion
 
@@ -469,6 +485,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A pinned member of Release work appears in the expanded Pinned section at the top rather than in its group, which keeps only its other session.'],
+	}),
+
+	//#endregion
+
+	//#region Repository grouping
+
+	SessionsList_RepositoryGrouping: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Sections list sessions by repository, sorted by name: contoso/vscode and microsoft/vscode with repository icons, then the scratch workspace section with a folder icon, then vscode-docs with a repository icon. Both vscode repositories include their owner because they share a name. The microsoft/vscode section lists sessions from Cloud, this computer, and devbox; the Cloud and devbox rows show their environment as a badge, while the row from this computer shows none.'],
+	}),
+	SessionsList_RepositoryGrouping_HoveredHeader: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+		interaction: { hovered: { section: 'repository:microsoft/vscode' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action.'],
 	}),
 
 	//#endregion

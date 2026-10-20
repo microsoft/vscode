@@ -319,6 +319,9 @@ import '../workbench/contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import '../workbench/contrib/webviewView/browser/webviewView.contribution.js';
 import '../workbench/contrib/customEditor/browser/customEditor.contribution.js';
 
+// Media Preview
+import '../workbench/contrib/mediaPreview/browser/mediaPreview.contribution.js';
+
 // External Uri Opener
 import '../workbench/contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 

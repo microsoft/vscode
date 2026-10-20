@@ -11,10 +11,28 @@ import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
-import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
+import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
+
+	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection> {
+		return this._client.request({
+			domain: 'tasks',
+			method: 'GET',
+			path: '/feed/connect',
+			expectedStatus: 200,
+			policy: { credential: true },
+			options,
+		}, signal, response => parse.object<SessionFeedConnection>({
+			url: parse.nonEmptyString,
+			subprotocol: parse.exact('json.webpubsub.azure.v1'),
+			group: parse.nonEmptyString,
+			expires_at: parse.dateTime,
+			reconnect_after: parse.dateTime,
+			frame_schema_version: parse.exact(1),
+		})(response.data));
+	}
 
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		const { query, ...requestOptions } = options ?? {};

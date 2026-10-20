@@ -7,6 +7,7 @@ import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type Vali
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
+import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
@@ -284,6 +285,8 @@ export interface IAgentHostWorkspaceTrustRequest {
  * `authenticate` command before responding.
  */
 export interface IAgentHostMcpAuthenticationRequest {
+	/** Absent from hosts that predate targeted MCP authentication. */
+	readonly target?: McpServerAuthenticateTarget;
 	readonly serverName: string;
 	readonly auth: McpAuthRequirement;
 }

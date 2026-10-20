@@ -199,6 +199,39 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result2.length, 0);
 	});
 
+	test('requests made while a resolution waits behind another share it', async function () {
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'slow-vendor', displayName: 'Slow Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
+		], []);
+		const started = new DeferredPromise<void>();
+		const firstResolution = new DeferredPromise<void>();
+		let resolutions = 0;
+		store.add(languageModels.registerLanguageModelProvider('slow-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				if (++resolutions === 1) {
+					started.complete();
+					await firstResolution.p;
+				}
+				return [];
+			},
+			sendChatRequest: async () => {
+				throw new Error();
+			},
+			provideTokenCount: async () => {
+				throw new Error();
+			}
+		}));
+
+		const running = languageModels.selectLanguageModels({ vendor: 'slow-vendor' });
+		await started.p;
+		const waiting = [1, 2, 3].map(() => languageModels.selectLanguageModels({ vendor: 'slow-vendor' }));
+		firstResolution.complete();
+		await Promise.all([running, ...waiting]);
+
+		assert.strictEqual(resolutions, 2);
+	});
+
 	test('sendChatRequest returns a response-stream', async function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {

@@ -902,6 +902,7 @@ suite('Sessions - Chat View', () => {
 		const loadCts = viewStore.add(new MutableDisposable<CancellationTokenSource>());
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_store: viewStore,
+			_transcriptDisposables: viewStore.add(new DisposableStore()),
 			configurationService,
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
@@ -1482,6 +1483,7 @@ suite('Sessions - Chat View', () => {
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables.add(new DisposableStore()),
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
 			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
 			_isPrimaryObs: observableValue('primary', true),
@@ -3134,6 +3136,52 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual(gaps, layouts.map(layout => layout.gap));
 	});
 
+	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`keeps context usage transparent inside the session composer with a custom background (${theme})`, () => {
+			const workbench = dom.append(document.body, dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`));
+			disposables.add(toDisposable(() => workbench.remove()));
+			workbench.style.setProperty('--vscode-chat-list-background', '#ffffff');
+			workbench.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0.08)');
+			workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
+			const chatView = dom.append(part, dom.$('.chat-view.chat-view-chat'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			const container = dom.append(secondaryToolbar, dom.$('.chat-context-usage-container'));
+			const widget = dom.append(container, dom.$('.chat-context-usage-widget'));
+			const appearance = () => {
+				const style = dom.getWindow(widget).getComputedStyle(widget);
+				return { color: style.backgroundColor, image: style.backgroundImage, border: style.borderTopWidth };
+			};
+			const secondary = appearance();
+			chatView.classList.add('experimental-session-composer');
+			input.appendChild(container);
+			const insideInput = appearance();
+			part.classList.remove('has-chat-background');
+			const withoutBackground = appearance();
+			part.classList.add('has-chat-background');
+			chatView.classList.remove('experimental-session-composer');
+			secondaryToolbar.appendChild(container);
+			const restored = appearance();
+
+			const opaque = {
+				color: 'rgb(255, 255, 255)',
+				image: 'linear-gradient(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.08))',
+				border: '1px',
+			};
+			const transparent = { color: 'rgba(0, 0, 0, 0)', image: 'none', border: '0px' };
+			assert.deepStrictEqual({ secondary, insideInput, withoutBackground, restored }, {
+				secondary: opaque,
+				insideInput: transparent,
+				withoutBackground: transparent,
+				restored: opaque,
+			});
+		});
+	}
+
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
@@ -4029,6 +4077,7 @@ suite('Sessions - Chat View', () => {
 		};
 		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			_currentChatResourceObs: constObservable(resource),
 			_currentSessionObs: constObservable(session),
 			_preparationModel: { value: undefined },
@@ -4068,6 +4117,7 @@ suite('Sessions - Chat View', () => {
 		const calls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
 		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
 			_currentSessionObs: constObservable(session),
 			_preparationModel: { value: undefined },
@@ -4094,6 +4144,41 @@ suite('Sessions - Chat View', () => {
 			canceled: true,
 			logOpened: true,
 		});
+	});
+
+	test('stops transcript updates before disposing view dependencies', () => {
+		const viewStore = disposables.add(new DisposableStore());
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', { message: 'Preparing session', cancel: () => { } });
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly description = constObservable(undefined);
+			override readonly preparationProgress = preparationProgress;
+			override readonly isNewSessionRequestInProgress = preparationProgress.map(progress => !!progress);
+		}();
+		const calls: (string | undefined)[] = [];
+		viewStore.add(toDisposable(() => {
+			calls.push('dispose dependencies');
+			preparationProgress.set(undefined, undefined);
+		}));
+		const view: {
+			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
+			dispose(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: viewStore,
+			_transcriptDisposables: viewStore.add(new DisposableStore()),
+			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
+			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_saveCurrentViewState: () => { },
+			_widget: { setTranscriptProgress: (message: string | undefined) => calls.push(message) },
+		});
+		view._setupTranscriptPreparationProgress(constObservable(undefined));
+
+		view.dispose();
+		preparationProgress.set({ message: 'Late progress', cancel: () => { } }, undefined);
+
+		assert.deepStrictEqual(calls, ['Preparing session', 'dispose dependencies']);
 	});
 
 	function createLoadingFeedbackView() {
@@ -4229,6 +4314,7 @@ suite('Sessions - Chat View', () => {
 			_saveCurrentViewState(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			instantiationService,
 			_preparationModel: preparationModel,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),

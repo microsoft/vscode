@@ -22,6 +22,7 @@ import { AICustomizationManagementSection, IAICustomizationWorkspaceService } fr
 import { ICustomizationSyncProvider, type IHarnessDescriptor, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
 import { CustomizationType } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 function customizationKey(customization: Customization): string {
 	return customization.uri;
@@ -138,11 +139,13 @@ export function createRemoteAgentHarnessDescriptor(
 	controller: RemoteAgentPluginController,
 	itemProvider: AgentCustomizationItemProvider,
 	syncProvider: ICustomizationSyncProvider,
+	customAgentTarget?: Target,
 ): IHarnessDescriptor {
 	return {
 		id: harnessId,
 		label: displayName,
 		icon: ThemeIcon.fromId(Codicon.remote.id),
+		customAgentTarget,
 		hiddenSections: [AICustomizationManagementSection.Models],
 		hideGenerateButton: true,
 		itemProvider,
