@@ -757,7 +757,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			} finally {
 				await upgraded.close();
 			}
-		}).timeout(10_000);
+		});
 	}
 
 	test('applies the catalog migration after upstream v4', async () => {
@@ -960,7 +960,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			version: [{ user_version: 20 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
-	}).timeout(10_000);
+	});
 
 	test('increments dirty markers and clears only the observed marker', async () => {
 		database = new AgentHostDatabase(':memory:');
@@ -1091,7 +1091,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				migratedRows: [{ session_uri: 'session://upgrade-3', provider: 'copilot', start_time: 3, external: 0, registration_source: 'restore', verified: 0 }],
 			},
 		]);
-	}).timeout(10_000);
+	});
 
 	test('round trips one complete verified row', async () => {
 		database = new AgentHostDatabase(':memory:');
@@ -1401,7 +1401,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			current: { session, provider: 'copilot', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
 			sourceRevision: 3,
 		});
-	}).timeout(10_000);
+	});
 
 	test('runtime legacy mirror failure rolls back current registration', async () => {
 		const path = join(temporaryDirectory!, 'runtime-rollback.db');
@@ -1461,7 +1461,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			oldBuildSession: { session: 'session://old-build', provider: 'copilot', startTime: 2, modifiedTime: 0, external: true, source: 'discovery' },
 			oldBuildSessionV2: undefined,
 		});
-	}).timeout(10_000);
+	});
 
 	test('legacy row absence is not current deletion', async () => {
 		const path = join(temporaryDirectory!, 'old-build-orphan.db');
