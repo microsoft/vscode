@@ -34622,6 +34622,29 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual({ reason, nestedMovable: getStateManager(service).getSessionState(source.toString())?.chats.find(chat => chat.resource === nested.toString())?.movable }, { reason: AgentChatMoveRefusal.Workspaceless, nestedMovable: true });
 				});
 
+				test('a promote never takes the session\'s own folder out of a session that stays', async () => {
+					const { service, source, nested, sessionFolder, database } = await setupWorkspaceless();
+					const shared = URI.parse(buildChatUri(source, 'shared'));
+					await service.createChat(source, shared, { workingDirectories: [sessionFolder] });
+					completeTurn(service, shared);
+					const before = (await database.listScratchFolders()).map(entry => ({ folder: entry.folder, chat: entry.chatUri, state: entry.state }));
+
+					const sharedReason = await refusalOf(service.moveChat(source, shared, { kind: 'newSession' }));
+					const defaultReason = await refusalOf(service.moveChat(source, URI.parse(buildDefaultChatUri(source)), { kind: 'newSession' }));
+
+					assert.deepStrictEqual({
+						sharedReason,
+						defaultRefused: defaultReason !== undefined,
+						unchanged: (await database.listScratchFolders()).map(entry => ({ folder: entry.folder, chat: entry.chatUri, state: entry.state })),
+						chats: getStateManager(service).getSessionState(source.toString())?.chats.map(chat => chat.resource).sort(),
+					}, {
+						sharedReason: AgentChatMoveRefusal.Workspaceless,
+						defaultRefused: true,
+						unchanged: before,
+						chats: [buildDefaultChatUri(source), nested.toString(), shared.toString()].sort(),
+					});
+				});
+
 				test('moving a workspace-less session under another session records its folder as its chat\'s', async () => {
 					const { service, source, target, sessionFolder, database } = await setupWorkspaceless();
 					const defaultChat = buildDefaultChatUri(source);
