@@ -21,6 +21,30 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
+const trustedChatImageSources = new Map([
+	['raw.githubusercontent.com', '/'],
+	['private-user-images.githubusercontent.com', '/'],
+	['avatars.githubusercontent.com', '/'],
+	['gist.github.com', '/assets/'],
+	['github.com', '/user-attachments/assets/'],
+]);
+
+/**
+ * Matches Copilot web's production image sources, restricted to HTTPS without credentials or non-default ports.
+ */
+function isRemoteImageAllowed(uri: URI): boolean {
+	try {
+		// Validate the browser URL after the same serialization used when rewriting image sources.
+		const url = new URL(uri.toString(true));
+		const trustedPath = trustedChatImageSources.get(url.hostname);
+		return url.protocol === `${Schemas.https}:`
+			&& !url.username && !url.password && !url.port
+			&& trustedPath !== undefined && url.pathname.startsWith(trustedPath);
+	} catch {
+		return false;
+	}
+}
+
 const nonPlainTextMarkdownSyntax = /[\\`*_[\]<>|&$]/;
 const gfmAutolink = /\b(?:https?:\/\/|www\.)/i;
 const gfmStrikethrough = /~~/;
@@ -109,7 +133,8 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 			},
 			...options?.sanitizerConfig,
 			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
-			remoteImageIsAllowed: uri => uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true,
+			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
+				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
 		}
 	};
 }

@@ -1669,6 +1669,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 			changed.fire(sessionId);
 		}
 		override readonly label = 'Fixture Provider';
+		override readonly environment = { id: 'local', label: 'This Computer' };
 		override readonly icon = Codicon.terminal;
 		override readonly order = 0;
 		override readonly sessionTypes = sessionTypes;
