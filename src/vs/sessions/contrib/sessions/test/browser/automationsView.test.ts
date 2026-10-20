@@ -4273,7 +4273,8 @@ suite('AutomationsCardsWidget', () => {
 			eventColumn: content.includes('Event appears to the right of Trigger'),
 			advancedFilters: content.includes('Expand Advanced below them to configure optional filters'),
 			requiredFields: content.includes('Required event fields appear directly below the Trigger and Event row'),
-		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true });
+			sharedFilters: content.includes('it appears once and applies to each of those events'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, sharedFilters: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {

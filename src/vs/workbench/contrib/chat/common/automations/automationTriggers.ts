@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { equals, stableStringify } from '../../../../../base/common/objects.js';
 import { AutomationTrigger, AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
 
 export interface IAutomationTriggerField {
@@ -65,6 +66,10 @@ export interface IAutomationTriggerChoice extends IEvent {
 	readonly fields: readonly IAutomationTriggerField[];
 }
 
+export interface IAutomationTriggerFieldGroup extends IAutomationTriggerField {
+	readonly choices: readonly IAutomationTriggerChoice[];
+}
+
 export function automationTriggerChoices(definitions: readonly AutomationTriggerDefinition[]): readonly IAutomationTriggerChoice[] {
 	return definitions.flatMap(definition => {
 		const name = definition.name ?? definition.id;
@@ -72,6 +77,21 @@ export function automationTriggerChoices(definitions: readonly AutomationTrigger
 		const fields = automationTriggerFields(definition);
 		return fields ? events.filter(event => event.name === name && types?.includes(event.type)).map(event => ({ ...event, fields })) : [];
 	});
+}
+
+export function automationTriggerFieldGroups(choices: readonly IAutomationTriggerChoice[]): readonly IAutomationTriggerFieldGroup[] {
+	const groups = new Map<string, IAutomationTriggerFieldGroup>();
+	for (const choice of choices) {
+		for (const field of choice.fields) {
+			const key = stableStringify(field);
+			const current = groups.get(key);
+			groups.set(key, current ? {
+				...current,
+				choices: [...current.choices, choice],
+			} : { ...field, choices: [choice] });
+		}
+	}
+	return [...groups.values()];
 }
 
 export function automationTriggerFamily(triggers: Readonly<Record<string, AutomationTrigger>>): AutomationTriggerFamily | undefined {
@@ -97,15 +117,38 @@ export function selectAutomationTriggerEvents(current: Readonly<Record<string, A
 			result[name] = current[name];
 		}
 	}
+	for (const field of automationTriggerFieldGroups(selected)) {
+		const names = [...new Set(field.choices.map(choice => choice.name))];
+		const value = names.map(name => result[name]?.[field.name]).find(value => value !== undefined);
+		if (value !== undefined) {
+			for (const name of names) {
+				if (!equals(result[name][field.name], value)) {
+					result[name] = { ...result[name], [field.name]: value };
+				}
+			}
+		}
+	}
 	return result;
 }
 
 export function canEditAutomationTriggers(triggers: Readonly<Record<string, AutomationTrigger>>, choices: readonly IAutomationTriggerChoice[]): boolean {
-	return automationTriggerFamily(triggers) !== undefined && Object.entries(triggers).every(([name, trigger]) =>
-		trigger.types?.every(type => {
+	if (automationTriggerFamily(triggers) === undefined) {
+		return false;
+	}
+	const selected: IAutomationTriggerChoice[] = [];
+	for (const [name, trigger] of Object.entries(triggers)) {
+		for (const type of trigger.types ?? []) {
 			const choice = choices.find(choice => choice.name === name && choice.type === type);
-			return choice && !validateAutomationTriggerFields(choice.fields, trigger);
-		}));
+			if (!choice || validateAutomationTriggerFields(choice.fields, trigger)) {
+				return false;
+			}
+			selected.push(choice);
+		}
+	}
+	return automationTriggerFieldGroups(selected).every(field => {
+		const values = [...new Set(field.choices.map(choice => choice.name))].map(name => triggers[name]?.[field.name]).filter(value => value !== undefined);
+		return values.every(value => equals(value, values[0]));
+	});
 }
 
 export function automationTriggerSummary(triggers: Readonly<Record<string, AutomationTrigger>>, compact = false): string | undefined {

@@ -19,7 +19,7 @@ import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickin
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IAutomationCloudTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationTriggerCatalog } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { automationTriggerChoices, automationTriggerFamily, AutomationTriggerFamily, automationTriggerSummary, canEditAutomationTriggers, IAutomationTriggerChoice, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerChoices, automationTriggerFamily, automationTriggerFieldGroups, AutomationTriggerFamily, automationTriggerSummary, canEditAutomationTriggers, IAutomationTriggerChoice, IAutomationTriggerFieldGroup, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 
 export interface IAutomationTriggerFormState {
 	cloudTrigger?: IAutomationCloudTrigger;
@@ -188,9 +188,9 @@ export class AutomationTriggerEditor extends Disposable {
 		this.fieldControls.clear();
 		DOM.clearNode(this.requiredFieldsContainer);
 		DOM.clearNode(this.fieldsContainer);
-		for (const choice of choices.filter(choice => this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type))) {
-			this.renderFields(choice, choice.fields.filter(field => field.required), this.requiredFieldsContainer, this.requiredFieldControls, choices[0].family === 'pullRequest');
-			this.renderFields(choice, choice.fields.filter(field => !field.required), this.fieldsContainer, this.fieldControls, choices[0].family === 'pullRequest');
+		const selected = choices.filter(choice => this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type));
+		for (const field of automationTriggerFieldGroups(selected)) {
+			this.renderField(field, field.required ? this.requiredFieldsContainer : this.fieldsContainer, field.required ? this.requiredFieldControls : this.fieldControls);
 		}
 		this.requiredFieldsContainer.style.display = this.requiredFieldsContainer.childElementCount ? '' : 'none';
 		this.renderActorPermission();
@@ -231,51 +231,48 @@ export class AutomationTriggerEditor extends Disposable {
 		picker.show();
 	}
 
-	private renderFields(choice: IAutomationTriggerChoice, fields: readonly IAutomationTriggerChoice['fields'][number][], target: HTMLElement, controls: DisposableStore, showEventLabel: boolean): void {
-		if (!fields.length) {
-			return;
+	private renderField(field: IAutomationTriggerFieldGroup, target: HTMLElement, controls: DisposableStore): void {
+		const container = this.row(target, field.label);
+		if (field.name === 'paths') {
+			DOM.append(target, DOM.$('span', undefined, localize('automation.trigger.pathsHelp', "Match changed files with gitignore-style patterns, separated by commas.")));
 		}
-		if (showEventLabel) {
-			DOM.append(target, DOM.$('span.automation-form-label', undefined, choice.label));
-		}
-		for (const field of fields) {
-			const container = this.row(target, field.label);
-			if (field.name === 'paths') {
-				DOM.append(target, DOM.$('span', undefined, localize('automation.trigger.pathsHelp', "Match changed files with gitignore-style patterns, separated by commas.")));
-			}
-			const value = this.state.cloudTrigger!.triggers[choice.name][field.name];
-			const update = (value: string | readonly string[]) => {
-				const trigger = { ...this.state.cloudTrigger!.triggers[choice.name] };
-				const normalized = normalizeAutomationTriggerField(field, value);
+		const names = [...new Set(field.choices.map(choice => choice.name))];
+		const value = names.map(name => this.state.cloudTrigger!.triggers[name][field.name]).find(value => value !== undefined);
+		const update = (value: string | readonly string[]) => {
+			const triggers = { ...this.state.cloudTrigger!.triggers };
+			const normalized = normalizeAutomationTriggerField(field, value);
+			for (const name of names) {
+				const trigger = { ...triggers[name] };
 				if (normalized === undefined) {
 					delete trigger[field.name];
 				} else {
 					trigger[field.name] = normalized;
 				}
-				this.state.cloudTrigger = { ...this.state.cloudTrigger!, triggers: { ...this.state.cloudTrigger!.triggers, [choice.name]: trigger } };
-				this.validate();
-				this.changed();
-			};
-			if (field.options?.length && !field.scalar) {
-				for (const option of field.options) {
-					const checkbox = controls.add(new Checkbox(option, Array.isArray(value) && value.includes(option), defaultCheckboxStyles));
-					const label = DOM.append(container, DOM.$('label'));
-					DOM.append(label, checkbox.domNode);
-					DOM.append(label, DOM.$('span', undefined, option));
-					controls.add(checkbox.onChange(() => {
-						const current = this.state.cloudTrigger!.triggers[choice.name][field.name];
-						const values = Array.isArray(current) ? current.filter((value): value is string => typeof value === 'string') : [];
-						update(checkbox.checked ? [...values, option] : values.filter(value => value !== option));
-					}));
-				}
-			} else {
-				const input = controls.add(new InputBox(container, this.contextViewService, {
-					inputBoxStyles: defaultInputBoxStyles, ariaLabel: field.label,
-					placeholder: field.name === 'query' ? localize('automation.trigger.queryExample', "e.g. label:bug is:open") : field.scalar ? undefined : localize('automation.trigger.commaSeparated', "Comma-separated values"),
-				}));
-				input.value = typeof value === 'string' ? value : Array.isArray(value) ? value.join(', ') : '';
-				controls.add(input.onDidChange(update));
+				triggers[name] = trigger;
 			}
+			this.state.cloudTrigger = { ...this.state.cloudTrigger!, triggers };
+			this.validate();
+			this.changed();
+		};
+		if (field.options?.length && !field.scalar) {
+			for (const option of field.options) {
+				const checkbox = controls.add(new Checkbox(option, Array.isArray(value) && value.includes(option), defaultCheckboxStyles));
+				const label = DOM.append(container, DOM.$('label'));
+				DOM.append(label, checkbox.domNode);
+				DOM.append(label, DOM.$('span', undefined, option));
+				controls.add(checkbox.onChange(() => {
+					const current = this.state.cloudTrigger!.triggers[names[0]][field.name];
+					const values = Array.isArray(current) ? current.filter((value): value is string => typeof value === 'string') : [];
+					update(checkbox.checked ? [...values, option] : values.filter(value => value !== option));
+				}));
+			}
+		} else {
+			const input = controls.add(new InputBox(container, this.contextViewService, {
+				inputBoxStyles: defaultInputBoxStyles, ariaLabel: field.label,
+				placeholder: field.name === 'query' ? localize('automation.trigger.queryExample', "e.g. label:bug is:open") : field.scalar ? undefined : localize('automation.trigger.commaSeparated', "Comma-separated values"),
+			}));
+			input.value = typeof value === 'string' ? value : Array.isArray(value) ? value.join(', ') : '';
+			controls.add(input.onDidChange(update));
 		}
 	}
 
