@@ -133,6 +133,7 @@ export class ModelPickerWidget extends Disposable {
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	/** Reused by the hover without rebuilding the model catalog. */
 	private _organizationDefaultDescription: string | undefined;
+	private _fusionDisplayName: string | undefined;
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 	private _minimal: IObservable<boolean> | undefined;
@@ -155,6 +156,11 @@ export class ModelPickerWidget extends Disposable {
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
+	}
+
+	/** The selected model's name as Fusion presents it, e.g. "Fusion Max", when Fusion stands for it. */
+	get fusionDisplayName(): string | undefined {
+		return this._fusionDisplayName;
 	}
 
 	get domNode(): HTMLElement | undefined {
@@ -877,9 +883,13 @@ export class ModelPickerWidget extends Disposable {
 		const inlineFusion = !comparisonSummary && !!shownModel?.metadata.autoModelFusion && this._configurationService.getValue<boolean>(ChatConfiguration.FusionModelPickerInlineTiers);
 		const effort = inlineFusion ? getModelConfigProperty(shownModel, configurationAccess, MODEL_CONFIG_GROUP_EFFORT) : undefined;
 		const fusionTier = inlineFusion && (routingTier?.label ?? (effort && effort.value !== undefined ? getModelConfigValueLabel(effort.schema, effort.value) : undefined));
+		const formatFusionTier = (value: unknown, tierLabel: string) => localize('chat.modelPicker.fusionTier', "Fusion {0}", getInlineFusionTierLabel(value, tierLabel));
+		// A HydraFusion model shown as one of Fusion's tiers is named by that tier, even where the label shows only Fusion.
+		const fusionRoutingName = routingTier && shownModel?.metadata.autoModelFusion ? formatFusionTier(this._selectedModel?.metadata.id, routingTier.label) : undefined;
 		const displayName = fusionTier
-			? localize('chat.modelPicker.fusionTier', "Fusion {0}", getInlineFusionTierLabel(routingTier ? this._selectedModel?.metadata.id : effort?.value, fusionTier))
+			? fusionRoutingName ?? formatFusionTier(effort?.value, fusionTier)
 			: shownName;
+		this._fusionDisplayName = comparisonSummary ? undefined : fusionRoutingName ?? (fusionTier ? displayName : undefined);
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
 		const name = comparisonSummary ?? (shownModel && displayName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(displayName) : displayName);
 

@@ -12,9 +12,8 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { INewSessionPromptOption, INewSessionPromptOptionsController, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../browser/newSessionComposerService.js';
-import { NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
+import { NewSessionPromptOptionsPresenter, NewSessionPromptOptionsWidget } from '../../browser/newSessionPromptOptions.js';
 
 interface IPromptOptionsRefreshHarness {
 	readonly _promptOptionsRefresh: MutableDisposable<CancellationTokenSource>;
@@ -41,8 +40,8 @@ interface IReplacePromptHarness {
 	readonly _promptTemplatePlaceholder: { readonly value: { setPlaceholder(placeholder: string): void } };
 }
 
-const refreshPromptOptions = Reflect.get(NewChatInputWidget.prototype, 'refreshPromptOptions') as (this: IPromptOptionsRefreshHarness, token?: CancellationToken) => Promise<boolean>;
-const replacePrompt = Reflect.get(NewChatInputWidget.prototype, '_replacePrompt') as (this: IReplacePromptHarness, text: string, placeholder: string, expectedValue: string) => boolean;
+const refreshPromptOptions = Reflect.get(NewSessionPromptOptionsPresenter.prototype, 'refreshPromptOptions') as (this: IPromptOptionsRefreshHarness, token?: CancellationToken) => Promise<boolean>;
+const replacePrompt = Reflect.get(NewSessionPromptOptionsPresenter.prototype, '_replacePrompt') as (this: IReplacePromptHarness, text: string, placeholder: string, expectedValue: string) => boolean;
 
 class TestHoverService extends mock<IHoverService>() {
 	readonly contents: string[] = [];

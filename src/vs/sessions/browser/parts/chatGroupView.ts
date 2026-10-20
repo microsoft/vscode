@@ -17,16 +17,15 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
-import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
-import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
+import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
 import { ChatHeader } from './chatHeader.js';
@@ -333,19 +332,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return undefined;
 			}
 
-			const archived = context.session.isArchived.read(reader);
-			if (archived) {
-				const action = getChatSessionArchiveActionPresentation(this._archiveActionWording.read(reader)).unarchive;
-				return {
-					archived: true,
-					content: {
-						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
-						action: {
-							label: action.title.value,
-							run: () => this._commandService.executeCommand<void>(UNARCHIVE_SESSION_COMMAND_ID, context.session),
-						},
-					},
-				};
+			const archivedContent = getArchivedChatBannerContent(context.session, chat, this._archiveActionWording.read(reader), this._commandService, reader);
+			if (archivedContent) {
+				return { archived: true, content: archivedContent };
 			}
 			return { archived: false, content: { message: localize('sessionReadOnlyBanner.message', "This chat is read-only") } };
 		});

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/emptyFileEditor.css';
-import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -77,6 +78,7 @@ export class EmptyFileEditor extends EditorPane {
 	static readonly ID = EmptyFileEditorInput.EDITOR_ID;
 	private readonly inputDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly featureDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private container: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
 	private search: EmptyFileEditorSearch | undefined;
 	private workspace: ISessionWorkspace | undefined;
@@ -89,6 +91,7 @@ export class EmptyFileEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(EmptyFileEditor.ID, group, telemetryService, themeService, storageService);
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
@@ -99,7 +102,13 @@ export class EmptyFileEditor extends EditorPane {
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
-		const container = append(parent, $('.empty-file-editor'));
+		// Focusable so the editor area owns keyboard focus (e.g. for Cmd+N) once the editor is focused.
+		const container = this.container = append(parent, $('.empty-file-editor', {
+			tabIndex: 0,
+			role: 'group',
+			'aria-label': localize('emptyFileEditor.ariaLabel', "Files editor"),
+		}));
+		container.style.outline = 'none';
 		this.content = append(container, $('.empty-file-editor-content'));
 		this.renderContent();
 	}
@@ -125,6 +134,16 @@ export class EmptyFileEditor extends EditorPane {
 
 		const featureDisposables = new DisposableStore();
 		this.featureDisposables.value = featureDisposables;
+		if (this.container) {
+			// Like an empty editor group, double-clicking empty space opens an untitled file.
+			featureDisposables.add(addDisposableListener(this.container, EventType.DBLCLICK, event => {
+				if (isHTMLElement(event.target) && event.target.closest('.empty-file-editor-search, .empty-file-editor-actions')) {
+					return;
+				}
+				EventHelper.stop(event);
+				void this.commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+			}));
+		}
 		const searchContainer = append(this.content, $('.empty-file-editor-search'));
 		this.search = featureDisposables.add(this.instantiationService.createInstance(EmptyFileEditorSearch, searchContainer));
 		this.search.setWorkspace(this.workspace);
@@ -159,7 +178,11 @@ export class EmptyFileEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		// Do not steal focus to the search button when the editor opens.
+		super.focus();
+
+		if (!this.search?.focusIfEmpty()) {
+			this.container?.focus();
+		}
 	}
 
 	override layout(dimension: Dimension): void {

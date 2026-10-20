@@ -278,13 +278,23 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	left: 0px;
 	height: 35px;
 	flex-direction: row;
 	align-items: center;
+	justify-content: flex-end;
+	box-sizing: border-box;
+	cursor: grab;
 	padding: 0 4px;
 	border-bottom: none;
 	background: transparent;
 	container-type: unset;
+}
+
+.chat-composite-bar-toolbar-floating > .chat-composite-bar-toolbar {
+	cursor: default;
+	position: relative;
+	z-index: 2;
 }
 
 /* The shared modern editor-tab hooks own tab geometry, typography, and states.
@@ -612,7 +622,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content {
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):is(.modern-ui-connected-editor-tabs, :not(.modern-ui-compact)) .session-view > .session-view-content:not(.standalone-chat) {
 	/* Keep sticky-scroll and other transcript overlays below the session frame. */
 	isolation: isolate;
 }

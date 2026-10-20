@@ -796,7 +796,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false)));
+		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (!this.viewOptions.hostSubmit && (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false))));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
@@ -1707,9 +1707,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * belongs to the empty state of the standard chat layout.
 	 */
 	private isGettingStartedTipEligible(): boolean {
-		if (typeof this.viewOptions.renderGettingStartedTip === 'function'
-			? !this.viewOptions.renderGettingStartedTip()
-			: this.viewOptions.renderGettingStartedTip === false) {
+		if (typeof this.viewOptions.renderGettingStartedTip === 'function' && !this.viewOptions.renderGettingStartedTip()) {
 			return false;
 		}
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -2697,6 +2695,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
 			renderSecondaryToolbar: this.viewOptions.renderSecondaryToolbar ?? true,
+			renderStatusToolbar: this.viewOptions.renderStatusToolbar,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
 				telemetrySource: 'chatWidget',
@@ -2708,12 +2707,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
+			inputEditorPadding: this.viewOptions.inputEditorPadding,
 			isTransientChat: isTransientChat(this),
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			inputPartHorizontalPadding: this.viewOptions.inputPartHorizontalPadding,
+			hostModelSelection: this.viewOptions.hostModelSelection,
+			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
+			ownsDraftVoiceSession: this.viewOptions.ownsDraftVoiceSession,
+			hostSubmit: this.viewOptions.hostSubmit,
 		};
 
 		let input: ChatInputPart;
@@ -2756,6 +2761,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		input.render(container, '', this);
+		if (!isInlineEdit && this.viewOptions.inputPlaceholder) {
+			input.inputEditor.updateOptions({ placeholder: this.viewOptions.inputPlaceholder });
+		}
 		// The migration notice and the tip belong to the empty state, which never applies while a request is edited.
 		if (!isInlineEdit) {
 			if (this.viewOptions.customizationMigrationNotice) {
@@ -2786,15 +2794,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.customizationMigrationNotice.clear();
 			}
-			this._gettingStartedTip.value = this.instantiationService.createInstance(
-				ChatInputTipPresenter,
-				{
-					container: input.gettingStartedTipContainerElement,
-					isEligible: () => this.isGettingStartedTipEligible(),
-					focusInput: () => this.focusInput(),
-				},
-				input.noticeHost,
-			);
+			if (this.viewOptions.renderGettingStartedTip !== false) {
+				this._gettingStartedTip.value = this.instantiationService.createInstance(
+					ChatInputTipPresenter,
+					{
+						container: input.gettingStartedTipContainerElement,
+						isEligible: () => this.isGettingStartedTipEligible(),
+						focusInput: () => this.focusInput(),
+					},
+					input.noticeHost,
+				);
+			}
 		}
 		// Keep read-only chats' composer hidden if the input part was rebuilt.
 		this._applyInputVisibility();
@@ -3066,9 +3076,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
 			}
 			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
+			this._updateInputPlaceholder(placeholder);
 		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 		}
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
@@ -3084,7 +3094,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
-				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+				this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 			}
 
 			this.onDidChangeItems();
@@ -3227,6 +3237,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.resetInputPlaceholder();
 	}
 
+	/** Shows `placeholder` in the input, unless the host supplies its own. */
+	private _updateInputPlaceholder(placeholder: string | undefined): void {
+		this.inputEditor?.updateOptions({ placeholder: this.viewOptions.inputPlaceholder ?? placeholder });
+	}
+
 	setInput(value = ''): void {
 		this.input.setValue(value, false);
 		this.refreshParsedInput();
@@ -3293,7 +3308,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		this.inputEditor?.updateOptions({ placeholder: undefined });
+		this._updateInputPlaceholder(undefined);
 		this.listWidget?.updateRendererOptions({ restorable: true, editable: !this._readOnly, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		this.rerenderListIfConnected();
 	}
@@ -3413,7 +3428,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
+		const modelInputBlocked = this.viewModel?.model.isInputBlocked.get() && !this.viewOptions.hostSubmit;
+		if (this._readOnly || modelInputBlocked || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
 		const participant = this.getParticipantForLocalChat(query);

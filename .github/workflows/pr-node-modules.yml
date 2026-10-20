@@ -7,9 +7,47 @@ on:
 
 permissions: {}
 
+# Warming a missing cache takes up to 15 minutes, and the pushes in the meantime need the same
+# caches. Allow one running and one pending run: GitHub replaces the pending run with the newest
+# push, which then skips the caches the running one saved. Don't cancel in-progress runs, or
+# frequent pushes may keep a slow cache from ever being saved.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  # Most pushes don't change the dependencies. Each job below only runs when one of the caches
+  # it keeps warm is missing (see .github/actions/detect-missing-caches/detect.ts), for example
+  # after a dependency change or a cache eviction. Jobs also run when the detection fails.
+  caches:
+    name: Detect Missing Caches
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      compile: ${{ steps.detect.outputs.compile }}
+      linux: ${{ steps.detect.outputs.linux }}
+      macOS: ${{ steps.detect.outputs.macOS }}
+      windows: ${{ steps.detect.outputs.windows }}
+      copilot-linux: ${{ steps.detect.outputs.copilot-linux }}
+      copilot-windows: ${{ steps.detect.outputs.copilot-windows }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect missing caches
+        id: detect
+        uses: ./.github/actions/detect-missing-caches
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   compile:
     name: Compile
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.compile == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
@@ -79,6 +117,8 @@ jobs:
 
   linux:
     name: Linux
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.linux == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       NPM_ARCH: x64
@@ -165,6 +205,8 @@ jobs:
 
   macOS:
     name: macOS
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.macOS == 'true') }}
     runs-on: macos-26-xlarge
     env:
       NPM_ARCH: arm64
@@ -240,6 +282,8 @@ jobs:
 
   windows:
     name: Windows
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.windows == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     env:
       NPM_ARCH: x64
@@ -322,6 +366,8 @@ jobs:
 
   copilot-linux:
     name: Copilot (Linux)
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.copilot-linux == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode
@@ -355,6 +401,8 @@ jobs:
 
   copilot-windows:
     name: Copilot (Windows)
+    needs: caches
+    if: ${{ !cancelled() && (needs.caches.result != 'success' || needs.caches.outputs.copilot-windows == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
       - name: Checkout microsoft/vscode

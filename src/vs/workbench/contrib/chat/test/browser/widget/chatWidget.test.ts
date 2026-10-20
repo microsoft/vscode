@@ -520,6 +520,28 @@ suite('ChatWidget', () => {
 		]), [undefined, undefined, undefined, undefined]);
 	});
 
+	test('a host that sends through its submit handler decides whether input is blocked, not the bound chat model', async () => {
+		const reached: string[] = [];
+		const submit = async (hostSubmit: boolean) => {
+			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+			Object.defineProperties(widget, {
+				viewOptions: { value: hostSubmit ? { hostSubmit: { canSubmit: constObservable(true) } } : {} },
+				// A placeholder local chat, as blocked by a policy that requires the agent host.
+				viewModel: { value: { model: { isInputBlocked: constObservable(true) }, sessionResource: LocalChatSessionUri.forSession('placeholder') } },
+				input: { value: { hasPendingProgrammaticModelSelection: false, isManagedSettingsRefreshBlocked: false } },
+				// The first step past the input checks.
+				getParticipantForLocalChat: { value: () => { reached.push(hostSubmit ? 'hostSubmit' : 'widget'); return undefined; } },
+				instantiationService: { value: { createInstance: () => { throw new Error('stop after the input checks'); } } },
+			});
+			await widget.acceptInput('Build it').catch(() => undefined);
+		};
+
+		await submit(false);
+		await submit(true);
+
+		assert.deepStrictEqual(reached, ['hostSubmit']);
+	});
+
 	test('transcript progress context is independent of request context and clears with its callback', () => {
 		const { widget, contextKeyService } = createTranscriptProgressWidget();
 		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);

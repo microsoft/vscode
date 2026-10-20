@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -36,6 +37,8 @@ import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/ch
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatSessionWorkingSet } from '../widget/input/chatSessionWorkingSet.js';
+import { confirmUndoAllEdits } from './chatEditing.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -87,6 +90,20 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 
 abstract class WorkingSetAction extends EditingSessionAction {
 
+	override run(accessor: ServicesAccessor, ...args: unknown[]) {
+		// A chat that shows a session working set in place of its editing session's runs the command on the working set's files.
+		// A file's row passes its working set, since clicking its actions doesn't focus the chat, and never runs it elsewhere.
+		const rowWorkingSet = args[1] instanceof ChatSessionWorkingSet ? args[1] : undefined;
+		const sessionWorkingSet = rowWorkingSet ?? getEditingSessionContext(accessor, args)?.chatWidget.input.sessionWorkingSet;
+		if (sessionWorkingSet) {
+			const uris = URI.isUri(args[0]) ? [args[0]] : sessionWorkingSet.selectedResources;
+			if (rowWorkingSet || uris.some(uri => sessionWorkingSet.includes(uri))) {
+				return this.runSessionWorkingSetAction(accessor, sessionWorkingSet, uris);
+			}
+		}
+		return super.run(accessor, ...args);
+	}
+
 	runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
 
 		const uris: URI[] = [];
@@ -104,6 +121,8 @@ abstract class WorkingSetAction extends EditingSessionAction {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
+
+	abstract runSessionWorkingSetAction(accessor: ServicesAccessor, sessionWorkingSet: ChatSessionWorkingSet, uris: readonly URI[]): Promise<void> | void;
 }
 
 registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
@@ -140,6 +159,10 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 			editedFile?.getEditorIntegration(pane).toggleDiff(undefined, true);
 		}
 	}
+
+	runSessionWorkingSetAction(_accessor: ServicesAccessor, sessionWorkingSet: ChatSessionWorkingSet, uris: readonly URI[]): void {
+		sessionWorkingSet.openFileChanges(uris);
+	}
 });
 
 registerAction2(class AcceptAction extends WorkingSetAction {
@@ -148,6 +171,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
+			precondition: ContextKeyExpr.or(ChatContextKeys.inChatSessionWorkingSet.negate(), ChatContextKeys.sessionWorkingSetKeepEnabled),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -165,6 +189,10 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		await currentEditingSession.accept(...uris);
 	}
+
+	async runSessionWorkingSetAction(_accessor: ServicesAccessor, sessionWorkingSet: ChatSessionWorkingSet, uris: readonly URI[]): Promise<void> {
+		await sessionWorkingSet.keepFiles(uris);
+	}
 });
 
 registerAction2(class DiscardAction extends WorkingSetAction {
@@ -173,6 +201,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
+			precondition: ContextKeyExpr.or(ChatContextKeys.inChatSessionWorkingSet.negate(), ChatContextKeys.sessionWorkingSetUndoEnabled),
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
@@ -180,7 +209,11 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+				// A session working set offers Undo only while its session supports undoing changes to single files.
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+					ContextKeyExpr.or(ChatContextKeys.inChatSessionWorkingSet.negate(), ChatContextKeys.sessionWorkingSetHasUndo),
+				),
 				order: 1,
 				group: 'navigation'
 			}],
@@ -189,6 +222,10 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 
 	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		await currentEditingSession.reject(...uris);
+	}
+
+	async runSessionWorkingSetAction(_accessor: ServicesAccessor, sessionWorkingSet: ChatSessionWorkingSet, uris: readonly URI[]): Promise<void> {
+		await sessionWorkingSet.undoFiles(uris);
 	}
 });
 
@@ -292,18 +329,8 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 
 	// Ask for confirmation if there are any edits
 	const entries = currentEditingSession.entries.get().filter(e => e.state.get() === ModifiedFileEntryState.Modified);
-	if (entries.length > 0) {
-		const confirmation = await dialogService.confirm({
-			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
-			message: entries.length === 1
-				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made in {0}. Do you want to proceed?", basename(entries[0].modifiedURI))
-				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made in {0} files. Do you want to proceed?", entries.length),
-			primaryButton: localize('chat.editing.discardAll.confirmation.primaryButton', "Yes"),
-			type: 'info'
-		});
-		if (!confirmation.confirmed) {
-			return false;
-		}
+	if (entries.length > 0 && !await confirmUndoAllEdits(dialogService, entries.map(e => e.modifiedURI))) {
+		return false;
 	}
 
 	await currentEditingSession.reject();
@@ -884,7 +911,8 @@ registerAction2(ViewPreviousEditsAction);
 
 /**
  * Workbench command to explore accepting working set changes from an extension. Executing
- * the command will accept the changes for the provided resources across all edit sessions.
+ * the command will accept the changes for the provided resources across all edit sessions,
+ * and keep them in the session working sets that chats show in place of their editing session's.
  */
 CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: ServicesAccessor, resources: UriComponents[]) => {
 	if (resources.length === 0) {
@@ -893,7 +921,21 @@ CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: S
 
 	const uris = resources.map(resource => URI.revive(resource));
 	const chatEditingService = accessor.get(IChatEditingService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
 	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
 		await editingSession.accept(...uris);
 	}
+
+	// Several chats can show the same session.
+	const sessions = new ResourceSet();
+	const sessionWorkingSets = chatWidgetService.getAllWidgets().flatMap(widget => {
+		const sessionResource = widget.viewModel?.sessionResource;
+		const sessionWorkingSet = widget.input.sessionWorkingSet;
+		if (!sessionResource || !sessionWorkingSet || sessions.has(sessionResource)) {
+			return [];
+		}
+		sessions.add(sessionResource);
+		return [sessionWorkingSet];
+	});
+	await Promise.all(sessionWorkingSets.map(sessionWorkingSet => sessionWorkingSet.keepAcceptedFiles(uris)));
 });

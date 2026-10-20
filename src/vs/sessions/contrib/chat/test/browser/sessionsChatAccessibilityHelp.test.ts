@@ -58,6 +58,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
 			independentDrag: content.includes('without moving its parent.'),
+			newSessionDrag: content.includes('drag its blank top area beside another pane.'),
 			independentVisibility: content.includes('Closing the parent pane leaves independent sub-session panes open.'),
 			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
 			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
@@ -65,7 +66,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			markRead: content.includes('as read<keybinding:agentSession.markRead>'),
 			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
 			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -804,12 +805,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
 
-		assert.deepStrictEqual([
-			'workbench.action.navigateLeft',
-			'workbench.action.navigateRight',
-			'workbench.action.navigateUp',
-			'workbench.action.navigateDown',
-		].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)), [true, true, true, true]);
+		assert.deepStrictEqual({
+			navigation: [
+				'workbench.action.navigateLeft',
+				'workbench.action.navigateRight',
+				'workbench.action.navigateUp',
+				'workbench.action.navigateDown',
+			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
+			openInGrid: content.includes('Open in Grid'),
+			openToTheSide: content.includes('choose Open to the Side from the session row\'s context menu'),
+		}, { navigation: [true, true, true, true], openInGrid: false, openToTheSide: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

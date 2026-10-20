@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { NewChatInputWidget } from './newChatInput.js';
+import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
@@ -36,12 +36,12 @@ const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
 
 /**
  * A widget for composing a secondary chat within an existing session.
- * Reuses {@link NewChatInputWidget} but without workspace/session type pickers,
+ * Reuses the new-session composer input but without workspace/session type pickers,
  * since the session already exists.
  */
 export class NewChatInSessionWidget extends Disposable {
 
-	private readonly _newChatInput: NewChatInputWidget;
+	private readonly _newChatInput: SharedChatInputComposer;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
@@ -83,16 +83,13 @@ export class NewChatInSessionWidget extends Disposable {
 			return true;
 		});
 
-		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+		this._newChatInput = this._register(this.instantiationService.createInstance(SharedChatInputComposer, {
 			session: this._session,
-			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			inputVisible: _options.inputVisible,
 			hostVisible: _options.hostVisible,
 			canSendRequest,
 			loading: constObservable(false),
-			historyKey: constObservable(undefined), // no persisted history for the new-chat-in-session view
-			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
 			petHostPreferred: _options.petHostPreferred,
 			renderRepositoryControls: false,
@@ -198,15 +195,6 @@ export class NewChatInSessionWidget extends Disposable {
 			},
 		}));
 		this._tipDisposable.value = store;
-	}
-
-	/**
-	 * Returns the workspace URI from the active session's workspace.
-	 */
-	private _getContextFolderUri(): URI | undefined {
-		const session = this._session.get();
-		const workspace = session?.workspace.get();
-		return workspace?.folders[0]?.workingDirectory;
 	}
 
 	// --- Send ---
