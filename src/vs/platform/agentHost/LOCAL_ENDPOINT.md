@@ -14,6 +14,8 @@ Mission Control hosts advertise their log directory in the optional `vscode.ahpL
 
 Debug-log exports log and skip unsupported or unavailable individual log sources. Up to 1,000 client-file candidates are retained independently of the host archive; the combined ZIP entry budget and Mission Control deduplication are applied only after the host archive is available. A failed host-archive download does not prevent exporting client-owned logs. Cancellation and destination folder, write, or installation failures stop the operation and preserve the previous export.
 
+Native ZIP creation reports skipped sources back to the exporter. If the host archive disappears during native inspection or opening, the exporter rebuilds the ZIP from the retained client candidates and reports the partial export.
+
 All AHP JSONL writers in one process that use the same log directory share a cumulative 500 MiB budget, including concurrent connections, reconnects, and Mission Control lanes. Each window and host process accounts independently. Existing per-connection rotation (five files of up to 75 MiB each) still applies, but deleting or rotating a file does not replenish the shared budget. Pending entries and dropped-entry markers reserve their UTF-8 byte count before being queued, so queued writes cannot overshoot the budget.
 
 When the next complete entry would exceed the budget, the process emits one `[AHPLog]` warning and stops capture for that log directory until the window or host process restarts. Already queued entries still flush. Subsequent messages are skipped before serialization; accounting uses memory only, without extra filesystem scans or metadata calls. Protocol traffic and other diagnostic logs are unaffected.

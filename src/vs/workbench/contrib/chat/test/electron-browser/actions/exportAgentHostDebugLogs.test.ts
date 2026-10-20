@@ -81,6 +81,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 				downloaded = (await fileService.readFile(host.source)).value.toString();
 				zipProgress.fire({ operationId: options!.operationId!, bytes: 14, total: 14, path: 'host-logs.zip' });
 				await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+				return { skippedFiles: [] };
 			},
 		});
 		const { service, fileService } = setupService(nativeHost);
@@ -111,6 +112,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 			createZipFile: async (target, files) => {
 				entries = files;
 				await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+				return { skippedFiles: [] };
 			},
 		}));
 		const destination = URI.file('/exports/logs.zip');
@@ -147,6 +149,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 			createZipFile: async (target, files) => {
 				entries = files;
 				await fileService.writeFile(target, VSBuffer.fromString('client ZIP'));
+				return { skippedFiles: [] };
 			},
 		}));
 		await fileService.createFolder(URI.file('/tmp'));
@@ -178,6 +181,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 			createZipFile: async (target, files) => {
 				paths = files.map(file => hasKey(file, { path: true }) ? file.path : '');
 				await fileService.writeFile(target, VSBuffer.fromString('client ZIP'));
+				return { skippedFiles: [] };
 			},
 		}));
 		const artifact = {
@@ -226,6 +230,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 				createZipFile: async (target, files) => {
 					paths = files.map(file => hasKey(file, { path: true }) ? file.path : '');
 					await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+					return { skippedFiles: [] };
 				},
 			}));
 			const host = remoteArtifact();
@@ -253,6 +258,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 				createZipFile: async (target, files) => {
 					paths = files.map(file => hasKey(file, { path: true }) ? file.path : '');
 					await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+					return { skippedFiles: [] };
 				},
 			}));
 			const host = remoteArtifact();
@@ -269,11 +275,72 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 		});
 	}
 
+	for (const stage of ['inspection', 'open']) {
+		test(`reports a host archive skipped during native ${stage} and restores the client budget`, async () => {
+			const attempts: string[][] = [];
+			const sourceError = `Host archive ${stage} failed`;
+			const { service, fileService, warnings } = setupService(upcastPartial<INativeHostService>({
+				onDidProgressZipFile: Event.None,
+				createZipFile: async (target, files) => {
+					attempts.push(files.map(file => hasKey(file, { path: true }) ? file.path : ''));
+					if (attempts.length === 1) {
+						await fileService.writeFile(target, VSBuffer.fromString('incomplete ZIP'));
+						return { skippedFiles: [{ path: 'host-logs.zip', error: sourceError }] };
+					}
+					await fileService.writeFile(target, VSBuffer.fromString('client ZIP'));
+					return { skippedFiles: [] };
+				},
+			}));
+			const host = remoteArtifact();
+			const destination = URI.file('/exports/logs.zip');
+			await fileService.writeFile(destination, VSBuffer.fromString('previous ZIP'));
+			const result = await service.save(destination, [
+				{ path: 'client.log', contents: 'client', size: 6 },
+				{ path: 'ahp/relay.jsonl', contents: 'relay', size: 5 },
+			], {
+				...host,
+				artifact: { ...host.artifact, entries: Array.from({ length: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES }, (_, index) => ({ path: `host-${index}.log`, size: 1 })) },
+			});
+			assert.deepStrictEqual({
+				attempts,
+				result,
+				saved: (await fileService.readFile(destination)).value.toString(),
+				hostFailureLogged: warnings.some(message => message.includes(sourceError)),
+			}, {
+				attempts: [['host-logs.zip'], ['client.log', 'ahp/relay.jsonl']],
+				result: { hostSaveError: sourceError },
+				saved: 'client ZIP',
+				hostFailureLogged: true,
+			});
+		});
+	}
+
+	test('preserves the previous export when the client-only ZIP retry fails', async () => {
+		let attempts = 0;
+		const { service, fileService } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: Event.None,
+			createZipFile: async (target, _files) => {
+				if (++attempts === 1) {
+					await fileService.writeFile(target, VSBuffer.fromString('incomplete ZIP'));
+					return { skippedFiles: [{ path: 'host-logs.zip', error: 'Host archive disappeared' }] };
+				}
+				throw new Error('Disk full');
+			},
+		}));
+		const destination = URI.file('/exports/logs.zip');
+		await fileService.writeFile(destination, VSBuffer.fromString('previous ZIP'));
+		await assert.rejects(service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], remoteArtifact()), /Disk full/);
+		assert.deepStrictEqual({
+			attempts,
+			saved: (await fileService.readFile(destination)).value.toString(),
+		}, { attempts: 2, saved: 'previous ZIP' });
+	});
+
 	test('does not turn host archive download cancellation into a partial export', async () => {
 		let zipCreated = false;
 		const { service, fileService } = setupService(upcastPartial<INativeHostService>({
 			onDidProgressZipFile: Event.None,
-			createZipFile: async () => { zipCreated = true; },
+			createZipFile: async () => { zipCreated = true; return { skippedFiles: [] }; },
 		}));
 		const destination = URI.file('/exports/logs.zip');
 		await fileService.writeFile(destination, VSBuffer.fromString('existing'));
@@ -321,6 +388,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 				await fileService.writeFile(target, VSBuffer.fromString('partial'));
 				started.complete();
 				await completion.p;
+				return { skippedFiles: [] };
 			},
 			cancelZipFile: async operationId => {
 				cancelledOperation = operationId;
@@ -358,7 +426,10 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 		const { service, fileService } = setupService(upcastPartial<INativeHostService>({
 			onDidProgressZipFile: zipProgress.event,
 			cancelZipFile: async () => { },
-			createZipFile: async target => { await fileService.writeFile(target, VSBuffer.fromString('new ZIP')); },
+			createZipFile: async target => {
+				await fileService.writeFile(target, VSBuffer.fromString('new ZIP'));
+				return { skippedFiles: [] };
+			},
 		}), provider);
 		const destination = URI.file('/exports/logs.zip');
 		await fileService.writeFile(destination, VSBuffer.fromString('previous ZIP'));
