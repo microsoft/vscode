@@ -12266,7 +12266,7 @@ suite('AgentHostChatContribution', () => {
 		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
 			let attachmentDisposed = false;
 			const onDidChange = disposables.add(new Emitter<void>());
-			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', outputPosition: { generation: 0, start: 0 }, hasExited: false, exitCode: undefined };
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
 					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
