@@ -19,6 +19,7 @@ import type { IDefaultAccount } from '../../../../../../base/common/defaultAccou
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -88,12 +89,12 @@ export class AgentHostAuthTokenCache {
 	private _globalGeneration = 0;
 
 	/**
-	 * Forwards a token once per resource/scope pair. Same-token callers share
+	 * Forwards a token once per resource/scope/target combination. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint): Promise<boolean> {
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint, target?: AuthenticateTarget): Promise<boolean> {
 		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku]);
-		const key = this._key(resource, scopes);
+		const key = this._key(resource, scopes, target);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
 		const pending = this._pendingAuthentications.get(key);
@@ -114,7 +115,7 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement);
+			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement, target);
 		}
 
 		if (this._completedTokens.get(key) === credentialKey) {
@@ -191,8 +192,8 @@ export class AgentHostAuthTokenCache {
 		return this._globalGeneration === globalGeneration && (this._keyGenerations.get(key) ?? 0) === keyGeneration;
 	}
 
-	private _key(resource: string, scopes: readonly string[] | undefined): string {
-		return `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+	private _key(resource: string, scopes: readonly string[] | undefined, target?: AuthenticateTarget): string {
+		return `${resource}\x00${JSON.stringify([[...new Set(scopes)].sort(), ...(target ? [target.kind, target.session, target.customizationId] : [])])}`;
 	}
 }
 
@@ -482,6 +483,7 @@ async function resolveAuthenticationSessionForResource(
 }
 
 export interface IAgentHostAuthenticateRequest {
+	readonly target?: AuthenticateTarget;
 	readonly resource: string;
 	readonly scopes?: readonly string[];
 	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
@@ -509,6 +511,7 @@ interface IResolvedAgentHostAuthenticationOptions extends IAgentHostAuthenticati
 
 interface IAgentHostAuthenticationForwardingOptions extends Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> {
 	readonly getDefaultAccount?: () => IDefaultAccount | null;
+	readonly target?: AuthenticateTarget;
 }
 
 interface IForwardedAuthenticationSession {
@@ -529,6 +532,8 @@ function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgen
 }
 
 export interface IAgentHostMcpAuthenticationOptionsBase {
+	/** Echoes the host-advertised session URI and MCP customization id that issued the challenge, when known. */
+	readonly target: McpServerAuthenticateTarget | undefined;
 	readonly allowInteraction: boolean;
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
@@ -559,7 +564,7 @@ async function forwardAuthenticationToken(
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
-	const rejectedSession = options.authTokenCache?.getRejectedSession(resource, scopes);
+	const rejectedSession = options.target ? undefined : options.authTokenCache?.getRejectedSession(resource, scopes);
 	// The lookup may have started before this session was quarantined.
 	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
 		throw new CancellationError();
@@ -583,6 +588,7 @@ async function forwardAuthenticationToken(
 		}
 	}
 	const request: IAgentHostAuthenticateRequest = {
+		...(options.target ? { target: options.target } : {}),
 		resource,
 		scopes,
 		token,
@@ -590,7 +596,7 @@ async function forwardAuthenticationToken(
 		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
 	};
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account), entitlement);
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account), entitlement, options.target);
 	}
 	await options.authenticate(request);
 	return true;
@@ -979,8 +985,10 @@ export function autoAuthenticateMcpServer(
 	agentHost: { readonly scheme: string; readonly authority: string },
 	serverName: string,
 	auth: Pick<McpAuthRequirement, 'resource' | 'oauthClient' | 'requiredScopes'>,
+	target: McpServerAuthenticateTarget | undefined,
 ): Promise<boolean> {
 	return resolveMcpServerAuthentication(accessor, auth.resource, {
+		target,
 		allowInteraction: false,
 		logPrefix: '[AgentHost]',
 		mcpServerId: agentHostMcpServerId(agentHost.authority, serverName, auth.resource.resource),

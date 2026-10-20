@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -2743,7 +2744,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = rawToolCallStateToInvocation({
 				...createToolCallState(),
 				status: ToolCallStatus.AuthRequired,
-				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'opaque/server-id:with/slashes' },
 				auth: {
 					reason: McpAuthRequiredReason.InsufficientScope,
 					oauthClient: {
@@ -2758,7 +2759,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
+			}, undefined, URI.parse('other-agent://tenant/conversations/opaque-session?revision=1'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -2773,7 +2774,8 @@ suite('stateToProgressAdapter', () => {
 				parameters: undefined,
 				confirmationMessages: undefined,
 				server: {
-					id: 'frontend/mcp-1',
+					id: 'frontend/opaque/server-id:with/slashes',
+					target: { kind: AuthenticateTargetKind.McpServer, session: URI.parse('other-agent://tenant/conversations/opaque-session?revision=1').toString(), customizationId: 'opaque/server-id:with/slashes' },
 					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {

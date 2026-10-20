@@ -220,7 +220,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (this._agentHostService.registerMcpAuthenticationHandler) {
 			// Chat session URIs have no authority; retain that identity for remembered MCP grants.
 			store.add(this._agentHostService.registerMcpAuthenticationHandler(request =>
-				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._agentHostService, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
 		}
 		store.add(this._agentHostService.onDidNotification(notification => {
 			if (notification.type !== NotificationType.AuthRequired) {

@@ -70,7 +70,7 @@ import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type Comp
 import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -338,7 +338,7 @@ interface IOutputTerminalAttachment {
 	readonly disposable: MutableDisposable<IDisposable>;
 }
 
-function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessionWithDefaultChat | undefined): IChatMcpAuthenticationRequiredServer[] {
+function getMcpAuthenticationRequiredServers(sessionResource: URI, backendSession: URI, state: ISessionWithDefaultChat | undefined): IChatMcpAuthenticationRequiredServer[] {
 	const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 		? [c]
 		: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
@@ -354,6 +354,7 @@ function getMcpAuthenticationRequiredServers(sessionResource: URI, state: ISessi
 			const state = server.state as McpServerAuthRequiredState;
 			return {
 				id: sessionResource.authority + '/' + server.id,
+				target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: server.id },
 				name: server.name,
 				resource: state.resource.resource,
 				oauthClient: state.oauthClient,
@@ -2925,7 +2926,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionSub = this._ensureSessionSubscription(backendSession.toString());
 		let previousServers: readonly IChatMcpAuthenticationRequiredServer[] | undefined;
 		const reconcile = () => {
-			const servers = getMcpAuthenticationRequiredServers(sessionResource, this._getSessionState(backendSession.toString(), chatURI));
+			const servers = getMcpAuthenticationRequiredServers(sessionResource, backendSession, this._getSessionState(backendSession.toString(), chatURI));
 			if (equals(previousServers, servers)) {
 				return;
 			}
@@ -3912,7 +3913,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 		const mcpAuthRequired$ = derivedOpts({ equalsFn: equals }, reader => {
-			return getMcpAuthenticationRequiredServers(opts.sessionResource, mergedState$.read(reader));
+			return getMcpAuthenticationRequiredServers(opts.sessionResource, opts.backendSession, mergedState$.read(reader));
 		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
@@ -4392,7 +4393,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			},
 			oauthClient: server.oauthClient,
 			requiredScopes: server.requiredScopes ? [...server.requiredScopes] : undefined,
-		}).catch(err => {
+		}, server.target).catch(err => {
 			this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
 			return false;
 		});
@@ -4725,14 +4726,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						},
 					}, opts.chatURI);
 				};
-				const showAuthentication = (toolCall: ToolCallState & { status: ToolCallStatus.AuthRequired }) => invocation.setAuthenticationRequired(toolCallAuthenticationServer(toolCall, opts.sessionResource.authority, this._toolAuthenticationServerName(toolCall, opts)), onCancelAuthentication);
+				const showAuthentication = (toolCall: ToolCallState & { status: ToolCallStatus.AuthRequired }) => invocation.setAuthenticationRequired(toolCallAuthenticationServer(toolCall, opts.sessionResource.authority, opts.backendSession, this._toolAuthenticationServerName(toolCall, opts)), onCancelAuthentication);
 				if (!silentAuthenticationAttempted) {
 					// Try silent authentication once per tool call so an expired token
 					// that is renewed automatically does not flash the authentication UI.
 					// A later challenge means the silent credential was rejected, so it
 					// shows the UI directly instead of retrying silently.
 					silentAuthenticationAttempted = true;
-					const server = toolCallAuthenticationServer(tc, opts.sessionResource.authority);
+					const server = toolCallAuthenticationServer(tc, opts.sessionResource.authority, opts.backendSession);
 					const serverName = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === server.id)?.name ?? server.name;
 					this._autoAuthenticateMcpServer(opts.sessionResource, { ...server, name: serverName }).then(() => {
 						const current = part$.read(undefined).toolCall;
@@ -4802,7 +4803,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toolAuthenticationServerName(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, opts: IObserveTurnOptions): string | undefined {
-		const id = toolCallAuthenticationServer(tc, opts.sessionResource.authority).id;
+		const id = toolCallAuthenticationServer(tc, opts.sessionResource.authority, opts.backendSession).id;
 		const server = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === id);
 		return server ? getMcpServerDisplayLabel(server) : undefined;
 	}

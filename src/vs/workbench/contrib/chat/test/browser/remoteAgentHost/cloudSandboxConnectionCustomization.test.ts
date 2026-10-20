@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { cloudSandboxAddress, ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { AuthenticateTargetKind, type McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { createCloudSandboxConnectionCustomization } from '../../../browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 
@@ -70,6 +71,25 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 			requests: ['https://mcp.example.test'],
 			renewal: undefined,
 		});
+	});
+
+	test('preserves an MCP target when replacing a credential with a sealed token', async () => {
+		const fixture = createFixture();
+		const target: McpServerAuthenticateTarget = { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/conversations/opaque-session', customizationId: 'opaque/github/server' };
+		const request = { target, resource: 'https://api.github.com/mcp', scopes: ['repo'], token: 'plaintext' };
+		const result = await fixture.authenticate(request);
+		assert.deepStrictEqual({ result, requests: fixture.requests }, {
+			result: { ...request, token: 'copilot-sealed.v1.key.cached' },
+			requests: ['cached:env-1'],
+		});
+	});
+
+	test('user-local MCP targets use MCP sealing even at the provider resource origin', async () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const customization = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service, true, async request => ({ ...request, token: 'copilot-sealed.v1.mcp.fresh' }));
+		const target: McpServerAuthenticateTarget = { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/conversations/opaque-session', customizationId: 'opaque/github/server' };
+		const request = { target, resource: 'https://api.github.com', token: 'test-mcp-token' };
+		assert.deepStrictEqual(await customization?.authenticate?.(request), { ...request, token: 'copilot-sealed.v1.mcp.fresh' });
 	});
 
 	for (const token of ['plaintext', 'copilot-sealed.v1.key.challenged']) {
