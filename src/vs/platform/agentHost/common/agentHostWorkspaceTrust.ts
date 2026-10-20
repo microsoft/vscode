@@ -6,7 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { IWorkspaceTrustManagementService } from '../../workspace/common/workspaceTrust.js';
 import { SessionConfigKey } from './sessionConfigKeys.js';
-import { readSessionWorkspaceless, SessionState } from './state/sessionState.js';
+import { readSessionScratchFolders, readSessionWorkspaceless, SessionState } from './state/sessionState.js';
 import { isWorktreeUnderRepository } from './worktreePaths.js';
 
 /** Resolves persisted trust roots, inheriting trust only for individual VS Code-created worktrees. */
@@ -23,9 +23,18 @@ export async function resolveAgentHostSessionTrustFolders(
 			return undefined;
 		}
 	}
-	const folders = workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
+	let folders = workingDirectories?.map(directory => typeof directory === 'string' ? URI.parse(directory) : directory);
 	if (folders === undefined) {
 		return undefined;
+	}
+	// Host-allocated per-chat scratch folders are internal and never need workspace trust.
+	const scratchFolders = readSessionScratchFolders(state._meta);
+	if (scratchFolders.length > 0) {
+		const scratch = new Set(scratchFolders.map(folder => URI.parse(folder).toString()));
+		folders = folders.filter(folder => !scratch.has(folder.toString()));
+		if (folders.length === 0) {
+			return undefined;
+		}
 	}
 	if (state.config?.values[SessionConfigKey.Isolation] === 'worktree' && state.project?.uri) {
 		const repositoryRoot = typeof state.project.uri === 'string' ? URI.parse(state.project.uri) : state.project.uri;
