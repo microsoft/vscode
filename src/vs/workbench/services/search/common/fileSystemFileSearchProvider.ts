@@ -13,15 +13,19 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileType, IFileService } from '../../../../platform/files/common/files.js';
-import { IgnoreFile } from '../../search/common/ignoreFile.js';
-import { IFileQuery, IFolderQuery, ISearchComplete, ISearchResultProvider, ITextQuery, isFilePatternMatch, QueryGlobTester } from '../../search/common/search.js';
+import { IgnoreFile } from './ignoreFile.js';
+import { IFileQuery, IFolderQuery, ISearchComplete, ISearchResultProvider, ITextQuery, isFilePatternMatch, QueryGlobTester } from './search.js';
 
 interface IFileSearchCache extends IDisposable {
 	readonly cancellation: CancellationTokenSource;
 	readonly folders: Map<string, Promise<URI[]>>;
 }
 
-export class AgentHostFileSearchProvider extends Disposable implements ISearchResultProvider {
+/**
+ * A file search provider that walks a folder through {@link IFileService}, for
+ * file systems that have no native search, such as remote or virtual ones.
+ */
+export class FileSystemFileSearchProvider extends Disposable implements ISearchResultProvider {
 
 	private readonly caches = this._register(new DisposableMap<string, IFileSearchCache>());
 
@@ -161,6 +165,6 @@ export class AgentHostFileSearchProvider extends Disposable implements ISearchRe
 	}
 
 	async textSearch(_query: ITextQuery): Promise<ISearchComplete> {
-		throw new Error('Agent host file search does not provide text search');
+		throw new Error('File system file search does not provide text search');
 	}
 }
