@@ -26,7 +26,7 @@ import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../.
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
-import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -1073,6 +1073,7 @@ export function renderForm(
 	customizations?: { readonly service: IAutomationService; readonly hoverService: IHoverService; readonly existingId?: string },
 	notifyError: (error: Error) => void = onUnexpectedError,
 	quickInputService?: IQuickInputService,
+	setRepositoryWarningVisible: (visible: boolean) => void = () => { },
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1816,7 +1817,8 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const providerDetails = DOM.append(promptSection, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
+	const providerOptions = DOM.append(promptSection, $('.automation-provider-options'));
+	const providerDetails = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
 	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools'));
 	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true, buttonSecondaryBorder: asCssVariable(selectBorder) }));
@@ -1910,35 +1912,39 @@ export function renderForm(
 		}));
 		picker.show();
 	}));
-	const ownerRow = DOM.append(promptSection, $('.automation-provider-details.automation-form-row.automation-owner', { role: 'group', 'aria-labelledby': 'automation-owner-label' }));
+	const ownerRow = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row.automation-owner', { role: 'group', 'aria-labelledby': 'automation-owner-label' }));
 	DOM.append(ownerRow, $('span.automation-form-label', { id: 'automation-owner-label' }, localize('automation.owner', "Owner")));
 	const ownerLabels = [localize('automation.owner.user', "Only me"), localize('automation.owner.repository', "Repository")];
 	const ownerDescriptions = [
 		localize('automation.owner.userDescription', "Only you can see and edit it. Runs act as you."),
-		localize('automation.owner.repositoryDescription', "Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as the Copilot app."),
+		localize('automation.owner.repositoryDescription', "Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot."),
 	];
-	let ownerRadio: Radio | undefined;
-	const ownerDescription = $('p', { id: 'automation-owner-description' });
 	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
-	if (isEdit) {
-		DOM.append(ownerRow, $('span', undefined, ownerLabels[ownerIndex]));
-		ownerDescription.textContent = localize('automation.owner.immutable', "Ownership can't be changed after creation.");
-	} else {
-		ownerRadio = disposables.add(new Radio({
-			ariaLabel: localize('automation.owner', "Owner"),
-			className: 'segmented',
-			items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex })),
-		}));
-		ownerRadio.domNode.setAttribute('aria-describedby', ownerDescription.id);
-		DOM.append(ownerRow, ownerRadio.domNode);
-		ownerDescription.textContent = ownerDescriptions[ownerIndex];
+	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
+	const ownerRadio = disposables.add(new Radio({
+		ariaLabel: localize('automation.owner', "Owner"),
+		className: 'segmented',
+		items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex, disabled: isEdit })),
+	}));
+	DOM.append(ownerControl, ownerRadio.domNode);
+	for (const [index, element] of ownerRadio.optionElements.entries()) {
+		const description = isEdit
+			? localize('automation.owner.immutableDescription', "{0} Ownership can't be changed after creation.", ownerDescriptions[index])
+			: ownerDescriptions[index];
+		element.setAttribute('aria-description', description);
+		if (customizations) {
+			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description }));
+		}
+	}
+	setRepositoryWarningVisible(ownerIndex === 1);
+	if (!isEdit) {
 		disposables.add(ownerRadio.onDidSelect(index => {
 			state.ownership = index === 1 ? 'repository' : 'user';
-			ownerDescription.textContent = ownerDescriptions[index];
+			setRepositoryWarningVisible(index === 1);
 		}));
 		// The modal captures arrow keys before the Radio receives them.
 		disposables.add(DOM.addDisposableListener(DOM.getWindow(form), DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-			const elements = ownerRadio!.optionElements;
+			const elements = ownerRadio.optionElements;
 			const index = elements.findIndex(element => element === event.target);
 			const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1
 				: event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
@@ -1952,13 +1958,12 @@ export function renderForm(
 			event.stopImmediatePropagation();
 		}, true));
 	}
-	DOM.append(ownerRow, ownerDescription);
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		toolsPicker.clear();
 		updateIntervalOptions(configuration !== undefined);
-		setAutomationControlVisible(providerDetails, configuration !== undefined);
-		setAutomationControlVisible(ownerRow, configuration !== undefined);
+		setAutomationControlVisible(providerOptions, configuration !== undefined);
+		setRepositoryWarningVisible(configuration !== undefined && state.ownership === 'repository');
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (!configuration) {
@@ -2105,7 +2110,7 @@ export function renderForm(
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
 		setSaving: (saving, committing) => {
-			ownerRadio?.setEnabled(!saving);
+			ownerRadio.setEnabled(!saving && !isEdit);
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);
@@ -2537,7 +2542,31 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
 	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
 		const recents = super._getRecentWorkspaces();
-		return this.cloudMode?.get() ? recents.filter(({ workspace }) => this.isCloudCandidate(workspace.folders[0]?.root ?? workspace.uri)) : recents;
+		if (!this.cloudMode?.get()) {
+			return recents;
+		}
+		const candidates = recents.flatMap(recent => {
+			const folder = recent.workspace.folders[0]?.root ?? recent.workspace.uri;
+			if (!this.isCloudCandidate(folder)) {
+				return [];
+			}
+			const repository = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get().workspace;
+			return [{ recent, key: repository ? extUriIgnorePathCase.getComparisonKey(repository) : getComparisonKey(folder) }];
+		});
+		const localRepositoryKeys = new Set(candidates
+			.filter(({ recent }) => recent.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL)
+			.map(({ key }) => key));
+		const seen = new Set<string>();
+		return candidates.flatMap(({ recent, key }) => {
+			if (recent.workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL && localRepositoryKeys.has(key)) {
+				return [];
+			}
+			if (seen.has(key)) {
+				return [];
+			}
+			seen.add(key);
+			return [recent];
+		});
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {

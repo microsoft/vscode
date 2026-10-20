@@ -313,8 +313,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 						try {
 							historySignal.throwIfAborted();
 							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
-								if (!(error instanceof ApiRequestError) || error.statusCode !== 404 || (entry.definition.ownership ?? entry.definition.owner_type) === 'repository') {
+								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
 									throw error;
+								}
+								const creator = entry.definition.created_by.login;
+								if ((entry.definition.ownership ?? entry.definition.owner_type) === 'repository'
+									&& !!creator
+									&& creator.toLowerCase() !== this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase()) {
+									return undefined;
 								}
 								this.removeEntry(entry, historySignal);
 								this.logService.info('[CloudAutomations] Definition no longer available', entry.definition.id);
@@ -355,7 +361,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				return await this.withClient(signal, async (client, signal) => {
 					const metadata = await client.repositories.get(repository, signal);
 					signal.throwIfAborted();
-					this.repositoryWriteAccess.set(repositoryKey(repository), metadata.permissions?.push === true);
+					this.setRepositoryWriteAccess(repositoryKey(repository), metadata.permissions?.push === true);
 					if (!metadata.private) {
 						throw new Error(localize('cloudAutomations.privateRepositoryRequired', "Cloud automations currently require a private GitHub repository."));
 					}
@@ -421,7 +427,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				const metadata = await client.repositories.get(repository, signal);
 				signal.throwIfAborted();
-				this.repositoryWriteAccess.set(key, metadata.permissions?.push === true);
+				this.setRepositoryWriteAccess(key, metadata.permissions?.push === true);
 				if (!metadata.private) {
 					snapshot.delete(key);
 					continue;
@@ -486,6 +492,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedTools.set(undefined, tx);
 			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
 		});
+	}
+
+	private setRepositoryWriteAccess(key: string, canWrite: boolean): void {
+		const changed = this.repositoryWriteAccess.has(key) && this.repositoryWriteAccess.get(key) !== canWrite;
+		this.repositoryWriteAccess.set(key, canWrite);
+		if (changed) {
+			this.cachedEntries.set([...this.cachedEntries.get()], undefined);
+		}
 	}
 
 	override dispose(): void {

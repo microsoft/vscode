@@ -144,13 +144,17 @@
 	flex-direction: row;
 	align-items: center;
 	margin-top: 0;
-	padding: 8px 10px 10px;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size240) var(--vscode-spacing-size100);
 }
 
 .monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions {
-	flex: 0 0 auto;
-	width: auto;
-	margin-left: auto;
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 0;
+	width: 100%;
+	min-width: 0;
+	margin-left: 0;
 }
 
 /*
@@ -281,7 +285,16 @@
 	padding: 2px 2px 4px;
 }
 
+.automation-provider-options {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size240);
+}
+
 .automation-provider-details {
+	flex: 0 1 auto;
+	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 }
@@ -294,15 +307,46 @@
 
 .automation-provider-tools > .monaco-button {
 	width: fit-content;
+	padding-block: var(--vscode-spacing-size60);
 	padding-inline: var(--vscode-spacing-size160);
 }
 
-.automation-provider-details > p {
-	margin: 0;
+.automation-owner {
+	flex: 0 0 auto;
 }
 
-.automation-owner > .monaco-custom-radio {
+.automation-owner-control {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-owner-control > .monaco-custom-radio {
 	width: fit-content;
+}
+
+.automation-owner-warning {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 1.4;
+	margin-right: var(--vscode-spacing-size80);
+	visibility: hidden;
+	white-space: normal;
+}
+
+.automation-owner-warning.visible {
+	visibility: visible;
+}
+
+.automation-owner-warning > .codicon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .automation-provider-tools > p {

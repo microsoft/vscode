@@ -64,6 +64,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	tasks: readonly Task[] = [];
 	listError: Error | undefined;
 	historyError: Error | undefined;
+	readonly historyErrors = new Map<string, Error>();
 	pendingHistory: Promise<void> | undefined;
 	getError: Error | undefined;
 	createError: Error | undefined;
@@ -92,11 +93,12 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
-	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
+	override async listRuns(id: string): Promise<PaginatedResponse<ListTasksResponse>> {
 		this.calls.push('history');
 		await this.pendingHistory;
-		if (this.historyError) {
-			throw this.historyError;
+		const error = this.historyErrors.get(id) ?? this.historyError;
+		if (error) {
+			throw error;
 		}
 		return { data: { tasks: this.tasks } };
 	}
@@ -1288,6 +1290,21 @@ suite('CloudAutomationStore', () => {
 		}
 	});
 
+	test('write-access loss republishes automation capabilities after mutation revalidation', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const permissionStates: boolean[] = [];
+		disposables.add(autorun(reader => {
+			for (const automation of provider.automations.read(reader)) {
+				permissionStates.push(provider.canUpdateAutomation(automation.id));
+			}
+		}));
+		api.canWrite = false;
+		await assert.rejects(provider.updateAutomation(provider.automations.get()[0].id, { name: 'Updated' }), AutomationUnavailableError);
+		assert.deepStrictEqual(permissionStates, [true, false]);
+	});
+
 	test('agent tools never list or resolve a collaborator Repository prompt', async () => {
 		const { provider, api, set, tools, invoke } = setupTools();
 		api.definitions = [
@@ -1310,16 +1327,30 @@ suite('CloudAutomationStore', () => {
 		}, { names: ['Review'], leaked: false, rejected: [true, true, true], mutations: [] });
 	});
 
-	test('unavailable creator-scoped history does not remove a visible Repository automation', async () => {
+	test('unavailable collaborator history does not remove its Repository automation or block healthy history', async () => {
 		const { provider, api, set } = setup();
-		api.definitions = [{ ...definition, ownership: 'repository', created_by: { login: 'teammate' } }];
+		api.definitions = [
+			{ ...definition, id: 'shared', ownership: 'repository', created_by: { login: 'teammate' } },
+			{ ...definition, id: 'owned', ownership: 'repository' },
+		];
+		api.historyErrors.set('shared', new ApiRequestError(404, 'notFound'));
+		api.tasks = [{ id: 'task', state: 'completed', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', remote_steerable: false }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		assert.deepStrictEqual({
+			ids: provider.automations.get().map(automation => JSON.parse(automation.id).at(-1)),
+			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
+			runs: provider.runs.get().map(run => JSON.parse(run.automationId).at(-1)),
+		}, { ids: ['shared', 'owned'], catalogue: 'ready', history: 'ready', runs: ['owned'] });
+	});
+
+	test('history 404 still removes a creator-owned Repository automation', async () => {
+		const { provider, api, set } = setup();
+		api.definitions = [{ ...definition, ownership: 'repository' }];
 		api.historyError = new ApiRequestError(404, 'notFound');
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-		await assert.rejects(provider.refresh(), ApiRequestError);
-		assert.deepStrictEqual({
-			names: provider.automations.get().map(automation => automation.name),
-			catalogue: provider.catalogueState.get(), history: provider.historyState.get(),
-		}, { names: ['Review'], catalogue: 'ready', history: 'error' });
+		await provider.refresh();
+		assert.deepStrictEqual(provider.automations.get(), []);
 	});
 
 	test('creation forwards the raw Cloud model and rejects unsupported templates before dispatch', async () => {

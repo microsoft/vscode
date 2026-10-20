@@ -225,6 +225,7 @@ suite('Automation dialog creation', () => {
 			configurationService,
 			hovers,
 			getSaveTooltip: () => delayedHovers.get(saveButton),
+			getTooltip: (element: HTMLElement) => delayedHovers.get(element),
 			setRefresh: (value: () => Promise<void>) => { refresh = value; },
 			selectWorkspace: async (uri: URI | undefined, fromRepository = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME) => {
 				if (await workspacePicker.onWillSelectWorkspace?.()) {
@@ -378,6 +379,47 @@ suite('Automation dialog creation', () => {
 		assert.strictEqual(await dialog.result, undefined);
 	});
 
+	test('Owner shares the Tools row, explains each choice, and warns when Repository is selected', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		await dialog.setCloud(true);
+		const owner = dialog.container.querySelector<HTMLElement>('.automation-owner')!;
+		const radios = owner.querySelectorAll<HTMLElement>('[role="radio"]');
+		const warning = dialog.container.querySelector<HTMLElement>('.automation-owner-warning')!;
+		const warningState = () => ({ visible: warning.classList.contains('visible'), hidden: warning.getAttribute('aria-hidden'), display: warning.style.display });
+		const initialWarning = warningState();
+		radios[1].click();
+		assert.deepStrictEqual({
+			rowLabels: Array.from(owner.parentElement!.querySelectorAll('.automation-form-label'), label => label.textContent),
+			inlineText: owner.textContent,
+			choices: Array.from(radios, radio => ({ description: radio.getAttribute('aria-description'), tooltip: dialog.getTooltip(radio) })),
+			warning: {
+				initial: initialWarning,
+				selected: warningState(),
+				role: warning.getAttribute('role'),
+				live: warning.getAttribute('aria-live'),
+				icon: warning.querySelector('.codicon-warning')?.getAttribute('aria-hidden'),
+				text: warning.textContent,
+				footer: warning.parentElement?.classList.contains('automation-dialog-footer-actions'),
+			},
+		}, {
+			rowLabels: ['Tools', 'Owner'],
+			inlineText: 'OwnerOnly meRepository',
+			choices: [
+				{ description: 'Only you can see and edit it. Runs act as you.', tooltip: 'Only you can see and edit it. Runs act as you.' },
+				{ description: 'Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot.', tooltip: 'Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot.' },
+			],
+			warning: {
+				initial: { visible: false, hidden: 'true', display: '' },
+				selected: { visible: true, hidden: 'false', display: '' },
+				role: 'status', live: 'polite', icon: 'true',
+				text: 'This automation will be visible to everyone with repository access, and can be edited by anyone with write access.',
+				footer: true,
+			},
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	test('Owner is read-only on edit, including legacy Only me, and never enters the update', async () => {
 		for (const ownership of [undefined, 'repository'] as const) {
 			const existing: IAutomationDescriptor = {
@@ -387,10 +429,31 @@ suite('Automation dialog creation', () => {
 			};
 			const dialog = openDialog({ existing }, cloudConfiguration());
 			const owner = dialog.container.querySelector('.automation-owner')!;
+			const radios = owner.querySelectorAll<HTMLElement>('[role="radio"]');
 			assert.deepStrictEqual({
-				controls: owner.querySelectorAll('[role="radio"]').length,
+				controls: radios.length,
 				text: owner.textContent,
-			}, { controls: 0, text: `Owner${ownership === 'repository' ? 'Repository' : 'Only me'}Ownership can't be changed after creation.` });
+				choices: Array.from(radios, radio => ({
+					label: radio.textContent,
+					checked: radio.getAttribute('aria-checked'),
+					disabled: radio.getAttribute('aria-disabled'),
+					description: radio.getAttribute('aria-description'),
+				})),
+				warning: dialog.container.querySelector('.automation-owner-warning')?.textContent,
+			}, {
+				controls: 2, text: 'OwnerOnly meRepository',
+				choices: [
+					{
+						label: 'Only me', checked: String(ownership !== 'repository'), disabled: 'true',
+						description: `Only you can see and edit it. Runs act as you. Ownership can't be changed after creation.`,
+					},
+					{
+						label: 'Repository', checked: String(ownership === 'repository'), disabled: 'true',
+						description: `Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot. Ownership can't be changed after creation.`,
+					},
+				],
+				warning: ownership === 'repository' ? 'This automation is visible to everyone with repository access, and can be edited by anyone with write access.' : undefined,
+			});
 			dialog.saveButton.click();
 			const result = await dialog.result;
 			assert.ok(result?.kind === 'update');
@@ -402,9 +465,14 @@ suite('Automation dialog creation', () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		await dialog.setCloud(true);
 		dialog.container.querySelectorAll<HTMLElement>('.automation-owner [role="radio"]')[1].click();
+		const warning = dialog.container.querySelector<HTMLElement>('.automation-owner-warning')!;
+		assert.strictEqual(warning.getAttribute('aria-hidden'), 'false');
 		await dialog.setCloud(false);
 		dialog.setPrompt('Local review');
-		assert.strictEqual(dialog.container.querySelector<HTMLElement>('.automation-owner')!.style.display, 'none');
+		assert.deepStrictEqual({
+			options: dialog.container.querySelector<HTMLElement>('.automation-provider-options')!.style.display,
+			warning: { visible: warning.classList.contains('visible'), hidden: warning.getAttribute('aria-hidden') },
+		}, { options: 'none', warning: { visible: false, hidden: 'true' } });
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
@@ -1073,7 +1141,7 @@ suite('Automation dialog creation', () => {
 			sessionType: dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label'),
 			error: dialog.container.querySelector('#automation-target-error')?.textContent,
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
-			hiddenTools: dialog.container.querySelector<HTMLElement>('.automation-provider-details')!.style.display,
+			hiddenTools: dialog.container.querySelector<HTMLElement>('.automation-provider-options')!.style.display,
 		});
 		const revoked = snapshot();
 		await dialog.setCloud(false);
@@ -1155,7 +1223,7 @@ suite('Automation dialog creation', () => {
 		await dialog.setCloud(true);
 		await dialog.selectWorkspace(REPOSITORY);
 		await dialog.setCloud(false);
-		const toolsHidden = dialog.container.querySelector<HTMLElement>('.automation-provider-details')?.style.display;
+		const toolsHidden = dialog.container.querySelector<HTMLElement>('.automation-provider-options')?.style.display;
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
