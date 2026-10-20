@@ -4542,6 +4542,68 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
+		test('required credentials that expire during another resource lookup are refreshed before recovery becomes ready', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+			const resolving = new DeferredPromise<void>();
+			let resolutions = 0;
+			const first = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'expiring-token', expiresIn: 1 };
+			const second = { resource: advertisedAgent.protectedResources[1].resource, scopes: ['repo'], token: 'second-token' };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => {
+					if (++resolutions === 1) {
+						return [first];
+					}
+					if (resolutions === 2) {
+						resolving.complete();
+						return blocked.p;
+					}
+					return [{ ...first, token: 'refreshed-token', expiresIn: 60 }];
+				},
+			});
+			try {
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				const initial = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: initial.id, result: {} });
+				await connecting;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const recovery = await beginRecovery(client, transports);
+				recovery.transport.fireMessage({ jsonrpc: '2.0', id: recovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await resolving.p;
+				clock.tick(1_500);
+				await blocked.complete([second]);
+				await flushMicrotasks();
+				const pendingAuthentication = findRequest(recovery.transport, 'authenticate');
+				if (pendingAuthentication) {
+					recovery.transport.fireMessage({ jsonrpc: '2.0', id: pendingAuthentication.id, result: {} });
+					await flushMicrotasks();
+				}
+				const stateAfterExpiry = client.connectionState;
+				const replacement = await raceTimeout(waitForTransport(transports, 2), 1_000);
+				assert.ok(replacement, 'Expired required credentials must restart authentication before readiness');
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const tokens: string[] = [];
+				for (let index = 0; index < 2; index++) {
+					const authentication = await waitForRequestAtWithin(replacement, 'authenticate', index);
+					tokens.push((authentication.params as AuthenticateParams).token);
+					replacement.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				}
+				await reconnected;
+				assert.deepStrictEqual({ stateAfterExpiry, tokens: tokens.sort(), state: client.connectionState }, {
+					stateAfterExpiry: AgentHostClientState.Reconnecting,
+					tokens: ['refreshed-token', 'second-token'],
+					state: AgentHostClientState.Connected,
+				});
+			} finally {
+				client.dispose();
+				await blocked.complete([]);
+				clock.restore();
+			}
+		});
+
 		for (const closeTransport of [false, true]) {
 			test(`a stalled required authentication lookup is released by client disposal (closeTransport=${closeTransport})`, async () => {
 				const blocked = new DeferredPromise<readonly AuthenticateParams[]>();

@@ -1323,6 +1323,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const now = Date.now();
 			if (isExpired(authentication.expiresAt, now)) {
 				this._authentication.delete(key);
+				if (requiredAdvertisedAuthenticationKeys.has(key)) {
+					throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Authentication expired before restoring ${authentication.params.resource}`);
+				}
 				return;
 			}
 			const expiresIn = getRemainingTimeInSeconds(authentication.expiresAt, now);
