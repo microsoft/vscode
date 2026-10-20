@@ -313,6 +313,17 @@ suite('IssueFormService', () => {
 		}, { path: '/owner/custom/issues/new', labels: 'bug', title: 'Title #1', repositories: ['owner/custom'] });
 	});
 
+	test('preview preserves an explicit template and fragment while encoding title and body once', async () => {
+		const { service, host, data, opened } = createSubmissionService();
+		const result = await service.submitIssue(host, {
+			...data, uri: URI.parse('https://github.com/microsoft/vscode/issues/new?labels=area%2Fissue+reporter&template=custom.yml#details'),
+		}, 'Title #1 & 50%', '## Details\nA + B & café? #');
+		assert.deepStrictEqual({ result, opened }, {
+			result: true,
+			opened: ['https://github.com/microsoft/vscode/issues/new?labels=area%2Fissue+reporter&template=custom.yml&title=Title+%231+%26+50%25&body=%23%23+Details%0AA+%2B+B+%26+caf%C3%A9%3F+%23#details'],
+		});
+	});
+
 	test('explicit private diagnostics retain custom query parameters and fragment instead of using a configured public target', async () => {
 		const { service, host, data, opened, repositories } = createSubmissionService(true);
 		const uri = URI.parse('https://github.com/owner/private?labels=diagnostics&template=private.yml#context');

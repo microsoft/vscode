@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,15 +34,7 @@ export function parseIssueReporterRepositories(value: unknown): readonly string[
 	if (!Array.isArray(value) || value.some(entry => typeof entry !== 'string' || !repositoryNameRegex.test(entry))) {
 		throw new Error('Additional issue repositories must be an array of GitHub repositories in owner/repo format.');
 	}
-	const seen = new Set<string>();
-	return value.filter((entry: string) => {
-		const key = entry.toLowerCase();
-		if (seen.has(key)) {
-			return false;
-		}
-		seen.add(key);
-		return true;
-	});
+	return distinct<string>(value, entry => entry.toLowerCase());
 }
 
 export function parseGitHubRepository(url: string): IssueReporterTarget['repository'] {
@@ -149,15 +142,7 @@ export function getIssueReporterRepositoryChoices(data: IssueTargetData, product
 	for (const repository of repositories) {
 		choices.push(createIssueReporterTarget(`https://github.com/${repository}/issues/new`)!);
 	}
-	const seen = new Set<string>();
-	return choices.filter(target => {
-		const key = `${target.repository!.owner}/${target.repository!.repositoryName}`.toLowerCase();
-		if (seen.has(key)) {
-			return false;
-		}
-		seen.add(key);
-		return true;
-	});
+	return distinct(choices, target => `${target.repository!.owner}/${target.repository!.repositoryName}`.toLowerCase());
 }
 
 export function resolveIssueReporterTarget(data: IssueTargetData, product: IssueProduct): IssueReporterTarget | undefined {
@@ -179,11 +164,5 @@ export function getIssueReporterUrlWithTitle(issueTitle: string, issueUrl: strin
 		url.pathname = `/${repository.owner}/${repository.repositoryName}/issues/new`;
 	}
 	url.searchParams.set('title', issueTitle);
-	return url.toString();
-}
-
-export function getIssueReporterUrlWithBody(baseUrl: string, body: string): string {
-	const url = new URL(baseUrl);
-	url.searchParams.set('body', body);
 	return url.toString();
 }

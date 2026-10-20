@@ -23,7 +23,7 @@ import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
 import { IIssueFormService, IIssueSubmissionHost, ISimilarIssue, IssueReporterData, IssueSource } from '../common/issue.js';
-import { getIssueReporterUrlWithBody, getIssueReporterUrlWithTitle, resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
+import { getIssueReporterUrlWithTitle, resolveIssueReporterTarget } from '../common/issueReporterTarget.js';
 import BaseHtml from './issueReporterPage.js';
 import { IssueWebReporter } from './issueReporterService.js';
 import { IGitHubUploadService } from './githubUploadService.js';
@@ -366,24 +366,16 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private createIssuePreviewUrl(baseUrl: string, body: string, gitHubDetails: { owner: string; repositoryName: string } | undefined, issueSource: IssueSource | undefined): string {
-		return this.addTemplateToUrl(getIssueReporterUrlWithBody(baseUrl, body), gitHubDetails?.owner, gitHubDetails?.repositoryName, issueSource);
-	}
-
-	private addTemplateToUrl(baseUrl: string, owner?: string, repositoryName?: string, issueSource?: IssueSource): string {
-		const needsTemplate = owner?.toLowerCase() === 'microsoft' && (repositoryName?.toLowerCase() === 'vscode'
-			|| (repositoryName?.toLowerCase() === 'vscode-internalbacklog' && (issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow)));
-		if (!needsTemplate) {
-			return baseUrl;
+		const url = new URL(baseUrl);
+		url.searchParams.set('body', body);
+		const owner = gitHubDetails?.owner.toLowerCase();
+		const repositoryName = gitHubDetails?.repositoryName.toLowerCase();
+		const needsTemplate = owner === 'microsoft' && (repositoryName === 'vscode'
+			|| (repositoryName === 'vscode-internalbacklog' && (issueSource === IssueSource.VSCode || issueSource === IssueSource.AgentsWindow)));
+		if (needsTemplate && !url.searchParams.has('template')) {
+			url.searchParams.set('template', 'bug_report.md');
 		}
-		try {
-			const url = new URL(baseUrl);
-			if (!url.searchParams.has('template')) {
-				url.searchParams.set('template', 'bug_report.md');
-			}
-			return url.toString();
-		} catch {
-			return `${baseUrl}&template=bug_report.md`;
-		}
+		return url.toString();
 	}
 
 	private dataUrlToBytes(dataUrl: string): Uint8Array | undefined {
