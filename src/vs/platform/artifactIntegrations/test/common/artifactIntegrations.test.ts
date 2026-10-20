@@ -18,16 +18,18 @@ import { applyArtifactAutomationSelection, disableArtifactAutomation, reconcileA
 import { ArtifactIntegrationRegistry } from '../../common/artifactIntegrationRegistry.js';
 import { ArtifactIntegrationService } from '../../common/artifactIntegrationService.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError } from '../../common/artifactIntegrationStore.js';
-import { ArtifactAutomationNotice, ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, ArtifactPromptTrackingError, ArtifactSessionState, IArtifactIntegrationStorage, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome, selectArtifactCoordinator } from '../../common/artifactRuntime.js';
+import { ArtifactAutomationNotice, ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptState, ArtifactPromptTrackingError, ArtifactSessionState, ArtifactStorageCommitError, IArtifactIntegrationStorage, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome, selectArtifactCoordinator } from '../../common/artifactRuntime.js';
 
 class MemoryStorage implements IArtifactIntegrationStorage {
 	value: string | undefined;
 	failure: Error | undefined;
 	barrier: DeferredPromise<void> | undefined;
+	beforeWrite: ((value: string) => Promise<void>) | undefined;
 
 	async read() { return this.value; }
 
 	async write(value: string): Promise<void> {
+		await this.beforeWrite?.(value);
 		await this.barrier?.p;
 		if (this.failure) {
 			throw this.failure;
@@ -548,6 +550,25 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual({ revision: ledger.state.get().revision, stored: storage.value }, { revision: 0, stored: undefined });
 	});
 
+	test('uncertain durability publishes the committed consent but prevents further changes and dispatch', () => run(async store => {
+		const storage = new class extends MemoryStorage {
+			override async write(value: string): Promise<void> {
+				await super.write(value);
+				throw new ArtifactStorageCommitError(new Error('Directory sync failed'));
+			}
+		}();
+		const f = fixture(store, codeAction, storage);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await assert.rejects(reference.object.configure('test', 0, { automatic: true }), ArtifactStorageCommitError);
+		await assert.rejects(reference.object.configure('test', 1, { automatic: false }), ArtifactStorageCommitError);
+		await assert.rejects(reference.object.invoke('test', 'act', 'chat', 'request'), ArtifactStorageCommitError);
+		assert.deepStrictEqual({
+			configuration: reference.object.snapshot.get().contributions[0].configuration.values,
+			stored: JSON.parse(storage.value!),
+			runs: reference.object.snapshot.get().runs,
+		}, { configuration: { automatic: true }, stored: f.service.ledger.state.get(), runs: [] });
+	}));
+
 	test('configuration transitions preserve enablement metadata', () => {
 		const option: ArtifactAutomationOption = { id: 'automatic', kind: 'boolean', label: 'Automatically Act', description: 'Run automatically.', defaultValue: false, actionIds: ['act'], maxAttempts: 2 };
 		const enabled = applyArtifactAutomationSelection(
@@ -614,6 +635,61 @@ suite('Artifact Integrations', () => {
 		await waitForState(reference.object.snapshot, snapshot => snapshot.contributions.some(contribution => contribution.integrationId === 'refreshable' && contribution.view.availability.kind === 'available'));
 		registration.dispose();
 		assert.deepStrictEqual({ before, registered: f.registry.integrations.get().map(integration => integration.id) }, { before: 'error', registered: ['test'] });
+	}));
+
+	for (const phase of ['match', 'createResource'] as const) {
+		test(`integration changes during initial ${phase} refresh the replacement registration`, () => run(async store => {
+			const f = fixture(store);
+			const started = new DeferredPromise<void>();
+			const resume = new DeferredPromise<void>();
+			let calls = 0;
+			if (phase === 'match') {
+				const match = f.integration.match;
+				f.integration.match = async (...args) => {
+					if (++calls === 1) {
+						void started.complete();
+						await resume.p;
+					}
+					return match(...args);
+				};
+			} else {
+				const createResource = f.integration.createResource;
+				f.integration.createResource = async (...args) => {
+					if (++calls === 1) {
+						void started.complete();
+						await resume.p;
+					}
+					return createResource(...args);
+				};
+			}
+			const acquiring = f.service.acquireArtifact('session', artifact.id);
+			await started.p;
+			f.setAuthenticationRequired(false);
+			await resume.complete();
+			const reference = store.add(await acquiring);
+			await timeout(0);
+			assert.deepStrictEqual({
+				calls,
+				contributions: reference.object.snapshot.get().contributions.map(contribution => [contribution.integrationId, contribution.view.availability.kind]),
+			}, { calls: 2, contributions: [['test', 'available']] });
+		}));
+	}
+
+	test('retrying an accepted manual request does not require the action to remain available', () => run(async store => {
+		let effects = 0;
+		const f = fixture(store, {
+			...codeAction,
+			prepare: async () => ({ kind: 'ready', value: { run: async () => { effects++; return { kind: 'completed', summary: 'Done' }; } } }),
+		});
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		const original = await reference.object.invoke('test', 'act', 'chat', 'request');
+		await waitForState(reference.object.snapshot, snapshot => snapshot.runs[0]?.state === 'completed');
+		f.bindings[0].view.set({ ...f.bindings[0].view.get(), stateActions: [] }, undefined);
+		const repeated = await reference.object.invoke('test', 'act', 'chat', 'request');
+		await assert.rejects(reference.object.invoke('test', 'act', 'other-chat', 'request'), /different arguments/);
+		await assert.rejects(reference.object.invoke('test', 'other-action', 'chat', 'request'), /different arguments/);
+		await assert.rejects(reference.object.invoke('test', 'act', 'chat', 'new-request'), /no longer available/);
+		assert.deepStrictEqual({ id: repeated.id, state: repeated.state, effects }, { id: original.id, state: 'completed', effects: 1 });
 	}));
 
 	test('promoting a reference rematches integrations without changing its recorded identity', () => run(async store => {
@@ -1101,6 +1177,47 @@ suite('Artifact Integrations', () => {
 		assert.deepStrictEqual({ submissions: f.submitted.length, cancellations: f.handles[0].cancelCalls }, { submissions: 1, cancellations: 1 });
 	}));
 
+	for (const phase of ['submission', 'queue persistence'] as const) {
+		test(`cancellation during ${phase} is retained when prompt submission reports busy`, () => run(async store => {
+			const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };
+			const f = fixture(store, action);
+			const submitted = new DeferredPromise<void>();
+			const busy = new DeferredPromise<void>();
+			const queued = new DeferredPromise<void>();
+			const persist = new DeferredPromise<void>();
+			f.storage.beforeWrite = async value => {
+				const state: ArtifactIntegrationState = JSON.parse(value);
+				if (phase === 'queue persistence' && state.runs.some(run => run.state === 'queued' && run.prompt)) {
+					void queued.complete();
+					await persist.p;
+				}
+			};
+			let submissions = 0;
+			f.runtime.chat.submit = async () => {
+				submissions++;
+				void submitted.complete();
+				await busy.p;
+				return { kind: 'busy' };
+			};
+			const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+			const requested = await reference.object.invoke('test', 'act', 'chat', 'request');
+			await submitted.p;
+			if (phase === 'queue persistence') {
+				await busy.complete();
+				await queued.p;
+			}
+			await reference.object.cancel(requested.id);
+			await busy.complete();
+			await persist.complete();
+			await f.service.whenIdle();
+			await timeout(1001);
+			assert.deepStrictEqual({
+				submissions,
+				runs: reference.object.snapshot.get().runs.map(run => ({ state: run.state, dispatched: run.dispatched })),
+			}, { submissions: 1, runs: [{ state: 'cancelled', dispatched: false }] });
+		}));
+	}
+
 	test('restart reattaches a persisted prompt without cancelling or resending it', () => run(async store => {
 		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };
 		const firstStore = store.add(new DisposableStore());
@@ -1150,6 +1267,40 @@ suite('Artifact Integrations', () => {
 			runs: f.service.ledger.state.get().runs.map(run => [run.state, run.indeterminate === true]),
 		}, { submissions: 1, recovered: [first.id], runs: [['failed', false], ['cancelled', false]] });
 	}));
+
+	for (const kind of ['prompt', 'code'] as const) {
+		test(`restart preserves ${kind} recovery when the original action was removed`, () => run(async store => {
+			const firstStore = store.add(new DisposableStore());
+			const action: ArtifactAction = kind === 'prompt'
+				? { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) }
+				: { ...codeAction, prepare: async () => ({ kind: 'ready', value: { run: async () => { throw new Error('Unknown effect'); } } }) };
+			const first = fixture(firstStore, action);
+			const reference = firstStore.add(await first.service.acquireArtifact('session', artifact.id));
+			const requested = await reference.object.invoke('test', 'act', 'chat', 'request');
+			await waitForState(first.service.ledger.state, state => state.runs[0]?.state === (kind === 'prompt' ? 'submitted' : 'interrupted'));
+			await first.service.whenIdle();
+			first.service.dispose();
+			firstStore.dispose();
+			await first.service.whenIdle();
+			const restarted = fixture(store, { ...codeAction, id: 'other' }, first.storage, artifact, []);
+			const restored = store.add(await restarted.service.acquireArtifact('session', artifact.id));
+			if (kind === 'prompt') {
+				restarted.progress.set({ kind: 'completed', turnId: 'original-turn', reason: 'Recovered completion' }, undefined);
+				await timeout(0);
+			}
+			assert.deepStrictEqual({
+				availability: restored.object.snapshot.get().contributions[0].view.availability.kind,
+				actions: restored.object.snapshot.get().contributions[0].actions.map(action => action.id),
+				recovered: restarted.recovered.map(recovery => recovery.requestId),
+				submissions: restarted.submitted,
+				runs: restored.object.snapshot.get().runs.map(run => [run.id, run.state, run.indeterminate === true]),
+			}, {
+				availability: 'available', actions: ['other'],
+				recovered: kind === 'prompt' ? [requested.id] : [], submissions: [],
+				runs: [[requested.id, kind === 'prompt' ? 'completed' : 'interrupted', kind === 'code']],
+			});
+		}));
+	}
 
 	test('legacy records without origin cannot automatically send a prompt', () => run(async store => {
 		const action: ArtifactAction = { id: 'act', label: 'Analyse', iconId: 'search', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) };
