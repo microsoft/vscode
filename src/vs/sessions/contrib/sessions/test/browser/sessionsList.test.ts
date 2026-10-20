@@ -2950,22 +2950,13 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('Mixed harness indicator', () => {
-		test('marks a session whose chats use different harnesses, with its hover only while mixed', () => {
+	suite('Mixed harnesses', () => {
+		test('a session whose chats use different harnesses says so in its label, without an icon', () => {
 			const base = createTestSession('Mixed').session;
 			const mainChat = base.mainChat.get();
 			const chats = observableValue<readonly IChat[]>('chats', [mainChat, { ...mainChat, harness: 'claude' }]);
 			const session: ISession = { ...base, chats, mainChat: constObservable(mainChat) };
-			const hoverTargets = new Set<HTMLElement>();
-			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(IHoverService, {
-					...NullHoverService,
-					setupManagedHover: (_delegate, target) => {
-						hoverTargets.add(target);
-						return { dispose: () => hoverTargets.delete(target), show: () => { }, hide: () => { }, update: () => { } };
-					},
-				});
-			});
+			const harness = createListHarness(disposables, [session]);
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
@@ -2974,11 +2965,10 @@ suite('Sessions - SessionsList', () => {
 			}));
 			list.layout(300, 400);
 			const snapshot = () => {
-				const indicator = container.querySelector<HTMLElement>('.session-mixed-harness-indicator')!;
+				const row = container.querySelector<HTMLElement>('.session-item');
 				return {
-					visible: indicator.classList.contains('visible'),
-					icon: indicator.classList.contains('codicon-combine'),
-					hover: hoverTargets.has(indicator),
+					icon: !!row?.querySelector('.codicon-combine, .session-mixed-harness-indicator'),
+					mixedLabel: row?.closest('.monaco-list-row')?.getAttribute('aria-label')?.includes('chats use different harnesses') ?? false,
 				};
 			};
 
@@ -2986,8 +2976,8 @@ suite('Sessions - SessionsList', () => {
 			chats.set([mainChat], undefined);
 
 			assert.deepStrictEqual({ mixed, single: snapshot() }, {
-				mixed: { visible: true, icon: true, hover: true },
-				single: { visible: false, icon: true, hover: false },
+				mixed: { icon: false, mixedLabel: true },
+				single: { icon: false, mixedLabel: false },
 			});
 		});
 	});

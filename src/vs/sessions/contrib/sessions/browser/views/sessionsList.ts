@@ -1278,7 +1278,6 @@ interface ISessionItemTemplate {
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
 	readonly renderedSession: ISettableObservable<ISession | undefined>;
 	readonly pendingVoiceIndicator: HTMLElement;
-	readonly mixedHarnessIndicator: HTMLElement;
 	readonly comparisonAttemptStatus: HTMLElement;
 	readonly comparisonAttemptStatusIcon: HTMLElement;
 	readonly comparisonAttemptStatusLabel: HTMLElement;
@@ -1432,10 +1431,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		// Shown when a voice response arrived while this session was unfocused and
 		// is held until it is (mirrors the main window's sessions viewer).
 		const pendingVoiceIndicator = DOM.append(titleRow, $('.session-pending-voice-indicator'));
-		// Shown when the session's chats use more than one harness; the row's label says so.
-		const mixedHarnessIndicator = DOM.append(titleRow, $('.session-mixed-harness-indicator'));
-		mixedHarnessIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.combine));
-		mixedHarnessIndicator.setAttribute('aria-hidden', 'true');
 		const comparisonAttemptStatus = DOM.append(titleRow, $('span.session-comparison-attempt-status'));
 		const comparisonAttemptStatusIcon = DOM.append(comparisonAttemptStatus, $('span.session-comparison-attempt-status-icon'));
 		comparisonAttemptStatusIcon.setAttribute('aria-hidden', 'true');
@@ -1509,7 +1504,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, mixedHarnessIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1600,19 +1595,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		template.elementDisposables.add(autorun(reader => {
 			this._voicePlaybackService.pendingResponseVersion.read(reader);
 			template.pendingVoiceIndicator.classList.toggle('visible', this._voicePlaybackService.hasPendingResponse(pendingVoiceResource));
-		}));
-
-		// The hover lives only while the row is mixed; the autorun's store releases it otherwise.
-		template.elementDisposables.add(autorun(reader => {
-			const mixed = hasMixedChatHarnesses(element, reader);
-			template.mixedHarnessIndicator.classList.toggle('visible', mixed);
-			if (mixed) {
-				reader.store.add(this.hoverService.setupManagedHover(
-					getDefaultHoverDelegate('mouse'),
-					template.mixedHarnessIndicator,
-					localize('sessionMixedHarnesses', "Chats in this session use different harnesses"),
-				));
-			}
 		}));
 
 		// Toolbar context

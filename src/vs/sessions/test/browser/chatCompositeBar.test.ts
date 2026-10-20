@@ -974,32 +974,29 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('marks a chat whose harness differs from the main chat\'s with that harness\'s icon and label', () => {
+	test('names a chat\'s harness that differs from the main chat\'s in its label, without an icon', () => {
 		const { tabs } = createHarness(disposables, { isAgentHost: true, secondaryHarness: 'claude' });
 
 		assert.deepStrictEqual(tabs.map(tab => ({
-			harnessIcon: tab.querySelector('.chat-composite-bar-tab-harness')?.classList.contains('codicon-claude') ?? false,
+			harnessIcon: !!tab.querySelector('.codicon-claude, .codicon-agent'),
 			ariaLabel: tab.getAttribute('aria-label'),
 		})), [
 			{ harnessIcon: false, ariaLabel: 'Main Chat, State: Completed' },
-			{ harnessIcon: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
+			{ harnessIcon: false, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
 		]);
 	});
 
 	test('presents a restored chat\'s harness generically until its provider learns it', () => {
 		const knownHarnesses = observableValue<readonly string[]>('knownHarnesses', []);
 		const { tabs } = createHarness(disposables, { isAgentHost: true, secondaryHarness: 'claude', knownHarnesses });
-		const snapshot = () => ({
-			icon: [...tabs[1].querySelector('.chat-composite-bar-tab-harness')!.classList].filter(name => name.startsWith('codicon-')),
-			ariaLabel: tabs[1].getAttribute('aria-label'),
-		});
+		const snapshot = () => tabs[1].getAttribute('aria-label');
 
 		const cold = snapshot();
 		knownHarnesses.set(['claude'], undefined);
 
 		assert.deepStrictEqual({ cold, loaded: snapshot() }, {
-			cold: { icon: ['codicon-agent'], ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Other Harness' },
-			loaded: { icon: ['codicon-claude'], ariaLabel: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude' },
+			cold: 'Parent Session / Secondary Chat, State: Completed, uses harness Other Harness',
+			loaded: 'Parent Session / Secondary Chat, State: Completed, uses harness Claude',
 		});
 	});
 

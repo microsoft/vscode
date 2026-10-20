@@ -243,19 +243,6 @@
 		}
 	}
 
-	.monaco-list-row .session-mixed-harness-indicator {
-		display: none;
-		height: 16px;
-		align-items: center;
-		margin-left: 4px;
-		color: var(--vscode-descriptionForeground);
-		font-size: var(--vscode-codiconFontSize-compact, 12px);
-
-		&.visible {
-			display: flex;
-		}
-	}
-
 	.session-inline-rename-input {
 		display: none;
 		flex: 1;
@@ -634,8 +621,7 @@
 		.session-title,
 		.session-title-toolbar,
 		.session-compact-hover-description,
-		.session-pending-voice-indicator,
-		.session-mixed-harness-indicator {
+		.session-pending-voice-indicator {
 			display: none;
 		}
 
