@@ -57,6 +57,7 @@ import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions,
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
+import { AgentHostAuthenticationPendingError } from '../../common/agentHostAdvertisedAuthentication.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -4238,7 +4239,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication' | 'resolveAdvertisedAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport(connectionKind));
@@ -4265,6 +4266,209 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		const advertisedAgent = {
+			provider: 'copilot' as const, displayName: 'Test', description: 'test', models: [],
+			protectedResources: [
+				{ resource: 'https://api.example.com', authorization_servers: ['https://example.com'], scopes_supported: ['read'] },
+				{ resource: 'https://api.example.com/repos', authorization_servers: ['https://example.com'], scopes_supported: ['repo'] },
+			],
+		};
+
+		async function initializeAdvertised(transport: TestClientProtocolTransport): Promise<void> {
+			transport.connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [advertisedAgent], activeSessions: 1 } }],
+				},
+			});
+		}
+
+		test('advertised authentication gates all protected requests until every credential is acknowledged', async () => {
+			const credentials = new DeferredPromise<readonly AuthenticateParams[]>();
+			const resolving = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+				resolveAdvertisedAuthentication: async agents => {
+					assert.deepStrictEqual(agents, [advertisedAgent]);
+					resolving.complete();
+					return credentials.p;
+				},
+			});
+			const transport = transports[0];
+			const connecting = client.connect();
+			await initializeAdvertised(transport);
+			await resolving.p;
+			const subscribing = client.subscribe(URI.parse('ahp-session:/ordinary-session'));
+			const stateBeforeCredentials = client.connectionState;
+			await credentials.complete(advertisedAgent.protectedResources.map(resource => ({
+				resource: resource.resource, scopes: resource.scopes_supported, token: 'existing-token',
+			})));
+			const first = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			const second = await waitForRequestAtWithin(transport, 'authenticate', 1);
+			transport.fireMessage({ jsonrpc: '2.0', id: first.id, result: {} });
+			await flushMicrotasks();
+			const stateAfterOneCredential = client.connectionState;
+			const subscribedBeforeAuthentication = findRequest(transport, 'subscribe') !== undefined;
+			transport.fireMessage({ jsonrpc: '2.0', id: second.id, result: {} });
+			await connecting;
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { snapshot: { resource: 'ahp-session:/ordinary-session', fromSeq: 0, state: {} } } });
+			await subscribing;
+			assert.deepStrictEqual({ stateBeforeCredentials, stateAfterOneCredential, subscribedBeforeAuthentication, state: client.connectionState }, {
+				stateBeforeCredentials: AgentHostClientState.Connecting,
+				stateAfterOneCredential: AgentHostClientState.Connecting,
+				subscribedBeforeAuthentication: false,
+				state: AgentHostClientState.Connected,
+			});
+		});
+
+		test('unavailable advertised authentication retries without publishing a ready or incompatible connection', async () => {
+			let ready = false;
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => {
+					if (!ready) {
+						throw new AgentHostAuthenticationPendingError('https://api.example.com');
+					}
+					return [{ resource: 'https://api.example.com', token: 'available-token' }];
+				},
+			});
+			const connecting = assert.rejects(client.connect(), AgentHostAuthenticationPendingError);
+			await initializeAdvertised(transports[0]);
+			await connecting;
+			const pendingState = client.connectionState;
+			ready = true;
+			const reconnected = Event.toPromise(client.onDidReconnect);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await reconnected;
+			assert.deepStrictEqual({ pendingState, state: client.connectionState }, {
+				pendingState: AgentHostClientState.Reconnecting, state: AgentHostClientState.Connected,
+			});
+		});
+
+		for (const rejected of [false, true]) {
+			test(`advertised authentication preserves reconnect credentials and removes rejected entries (rejected=${rejected})`, async () => {
+				let resolutions = 0;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async agents => {
+						resolutions++;
+						return agents.flatMap(agent => agent.protectedResources ?? []).map(resource => ({
+							resource: resource.resource, scopes: resource.scopes_supported, token: 'resolved-token',
+						}));
+					},
+				});
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				for (let index = 0; index < 2; index++) {
+					const request = await waitForRequestAtWithin(transports[0], 'authenticate', index);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: request.id, ...(rejected ? { error: { code: -32602, message: 'credential rejected' } } : { result: {} }) });
+				}
+				await connecting;
+				const readyState = client.connectionState;
+				const rotating = client.authenticate({ resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'rotated-token' });
+				const rotation = await waitForRequestAtWithin(transports[0], 'authenticate', 2);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: rotation.id, result: {} });
+				await rotating;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				transports[0].fireClose();
+				const replacement = await waitForTransport(transports, 1);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const tokens: string[] = [];
+				for (let index = 0; index < 2; index++) {
+					const request = await waitForRequestAtWithin(replacement, 'authenticate', index);
+					tokens.push((request.params as AuthenticateParams).token);
+					replacement.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+				}
+				await reconnected;
+				assert.deepStrictEqual({ readyState, resolutions, tokens: tokens.sort() }, {
+					readyState: AgentHostClientState.Connected,
+					resolutions: rejected ? 2 : 1,
+					tokens: ['resolved-token', 'rotated-token'],
+				});
+			});
+		}
+
+		test('late authentication does not retry an existing session subscription that failed before authentication', async () => {
+			const { client, transports } = createFactoryClient();
+			const transport = transports[0];
+			await completeHandshake(transport, client.connect());
+			const resource = URI.parse('ahp-session:/ordinary-existing-session');
+			const reference = disposables.add(client.getSubscription(StateComponents.Session, resource, 'test'));
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				error: { code: -32007, message: 'authentication required for https://api.github.com' },
+			});
+			await flushMicrotasks();
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'test-token' });
+			const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await authentication;
+			await flushMicrotasks();
+			assert.deepStrictEqual({
+				connectionState: client.connectionState,
+				subscriptionError: reference.object.value instanceof Error ? reference.object.value.message : undefined,
+				subscriptions: transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'subscribe').length,
+			}, {
+				connectionState: AgentHostClientState.Connected,
+				subscriptionError: 'authentication required for https://api.github.com',
+				subscriptions: 1,
+			});
+		});
+
+		test('initial authentication gates existing session subscriptions until authentication succeeds', async () => {
+			const credentials = new DeferredPromise<AuthenticateParams>();
+			const resolving = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined, {
+				resolveInitialAuthentication: () => {
+					resolving.complete();
+					return credentials.p;
+				},
+			});
+			const transport = transports[0];
+			const connecting = client.connect();
+			transport.connectDeferred.complete();
+			const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			});
+			await resolving.p;
+			const subscribing = client.subscribe(URI.parse('ahp-session:/ordinary-existing-session'));
+			const stateBeforeAuthentication = client.connectionState;
+			const subscriptionBeforeAuthentication = findRequest(transport, 'subscribe') !== undefined;
+			await credentials.complete({ resource: 'https://api.github.com', token: 'test-token' });
+			const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+			const subscriptionBeforeAcknowledgement = findRequest(transport, 'subscribe') !== undefined;
+			transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+			await connecting;
+			const subscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+			transport.fireMessage({
+				jsonrpc: '2.0', id: subscribe.id,
+				result: { snapshot: { resource: 'ahp-session:/ordinary-existing-session', fromSeq: 0, state: {} } },
+			});
+			await subscribing;
+			assert.deepStrictEqual({
+				stateBeforeAuthentication,
+				subscriptionBeforeAuthentication,
+				subscriptionBeforeAcknowledgement,
+				state: client.connectionState,
+			}, {
+				stateBeforeAuthentication: AgentHostClientState.Connecting,
+				subscriptionBeforeAuthentication: false,
+				subscriptionBeforeAcknowledgement: false,
+				state: AgentHostClientState.Connected,
+			});
+		});
 
 		test('refreshes the brokered ticket before opening a replacement transport', async () => {
 			const prepared = new DeferredPromise<void>();

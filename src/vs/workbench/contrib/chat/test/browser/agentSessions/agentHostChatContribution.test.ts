@@ -10713,6 +10713,31 @@ suite('AgentHostChatContribution', () => {
 
 	suite('history loading', () => {
 
+		test('an ordinary existing session returns an authentication history error without waiting for initial authentication', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const resource = URI.parse('agent-host-copilot:/ordinary-auth-race');
+			const backend = AgentSession.uri('copilot', 'ordinary-auth-race');
+			agentHostService.setAuthenticationPending(true);
+			agentHostService.failNextSubscriptionFor.add(backend.toString());
+			agentHostService.failNextSubscriptionError.set(backend.toString(), new Error('authentication required for https://api.github.com'));
+
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			agentHostService.setAuthenticationPending(false);
+
+			assert.deepStrictEqual({
+				history: session.history,
+				error: session.historyLoadError?.message,
+				authenticationPending: agentHostService.authenticationPending.get(),
+			}, {
+				history: [
+					{ type: 'request', prompt: '', participant: 'agent-host-copilot', isSystemInitiated: true, systemInitiatedLabel: 'Couldn\'t open session' },
+					{ type: 'response', parts: [], participant: 'agent-host-copilot', errorDetails: { message: 'authentication required for https://api.github.com' } },
+				],
+				error: 'authentication required for https://api.github.com',
+				authenticationPending: false,
+			});
+		});
+
 		suite('cloud sandbox promotion', () => {
 			async function createSandbox(options?: { cached?: boolean; peer?: boolean; newSession?: boolean }) {
 				const { instantiationService, agentHostService, chatService } = createTestServices(disposables, {

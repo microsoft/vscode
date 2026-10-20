@@ -45,7 +45,7 @@ import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHost
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
@@ -221,6 +221,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly prepareAuthentication?: () => Promise<void>;
 	/** Resolves required authentication before initialization or transport recovery becomes ready. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+	/** Resolves existing credentials for advertised resources before protected requests are released. */
+	readonly resolveAdvertisedAuthentication?: (agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
 }
@@ -434,6 +436,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _isSuspended = false;
 	private _firstSessionRequestPending = false;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
+	private readonly _resolveAdvertisedAuthentication: IAgentHostProtocolClientOptions['resolveAdvertisedAuthentication'];
 	private readonly _onDispose: (() => void) | undefined;
 	private _didDispose = false;
 
@@ -508,6 +511,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._prepareReconnect = options?.prepareReconnect;
 		this._prepareAuthentication = options?.prepareAuthentication;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
+		this._resolveAdvertisedAuthentication = options?.resolveAdvertisedAuthentication;
 		this._onDispose = options?.onDispose;
 
 		if (typeof transportOrFactory === 'function') {
@@ -778,7 +782,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._applyInitializeResult(result);
 			// Keep the snapshot even if authentication must finish on a later replay reconnect.
 			this._hydrateInitializedRootState(result);
-			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
+			if (this._resolveInitialAuthentication || this._resolveAdvertisedAuthentication || this._authentication.size > 0) {
 				stage = 'authentication';
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
@@ -1042,7 +1046,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 
-			const restoreAuthentication = freshInitialize || !!this._resolveInitialAuthentication || this._authentication.size > 0 || this._authenticationRestorePending;
+			const restoreAuthentication = freshInitialize || !!this._resolveInitialAuthentication || !!this._resolveAdvertisedAuthentication || this._authentication.size > 0 || this._authenticationRestorePending;
 			this._applyReconnectResult(result, freshInitialize, restoreAuthentication);
 			this._updateManagedSettingsPermissions(true);
 			// A replacement transport may need authentication even when the host remembers this client.
@@ -1265,6 +1269,32 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw new InitialAuthenticationError(error);
 			}
 		}
+		const advertisedAuthenticationKeys = new Set<string>();
+		if (this._resolveAdvertisedAuthentication) {
+			const rootState = this.rootState.value;
+			const agents = rootState && !(rootState instanceof Error) ? rootState.agents : [];
+			const missingAgents = agents.map(agent => ({
+				...agent,
+				protectedResources: agent.protectedResources?.filter(resource => {
+					const key = this._authenticationKey(this._normalizeAuthenticationParams({ resource: resource.resource, scopes: resource.scopes_supported, token: '' }));
+					const cached = this._authentication.get(key);
+					return !cached || isExpired(cached.expiresAt, Date.now());
+				}),
+			})).filter(agent => agent.protectedResources?.length);
+			const authentications = missingAgents.length > 0 ? await this._raceClose(this._resolveAdvertisedAuthentication(missingAgents)) : [];
+			if (this._state !== state || this._state.kind !== expectedState) {
+				return;
+			}
+			for (const params of authentications) {
+				const normalizedParams = this._normalizeAuthenticationParams(params);
+				const key = this._authenticationKey(normalizedParams);
+				const cached = this._authentication.get(key);
+				if (!cached || isExpired(cached.expiresAt, Date.now())) {
+					this._authentication.set(key, { params: normalizedParams, expiresAt: getExpirationTime(normalizedParams.expiresIn) });
+					advertisedAuthenticationKeys.add(key);
+				}
+			}
+		}
 		const authenticationKeys = [...this._authentication.keys()];
 		const restoreAuthentication = async (key: string) => {
 			if (this._state !== state || this._transport !== transport) {
@@ -1304,6 +1334,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// subscription re-snapshot that keeps restored sessions from freezing.
 				if (key === initialAuthenticationKey) {
 					throw new InitialAuthenticationError(error);
+				}
+				if (advertisedAuthenticationKeys.has(key) && this._authentication.get(key) === authentication) {
+					this._authentication.delete(key);
 				}
 				this._logService.warn(`[AgentHostProtocolClient] Failed to restore authentication for ${params.resource}: ${error instanceof Error ? error.message : String(error)}`);
 			}

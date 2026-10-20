@@ -21,6 +21,8 @@ import { AgentHostRemoteConnectionsSettingId, IMissionControlEnvironmentService,
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { MissionControlSharingService } from './missionControlSharingService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
+import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
+import { RemoteAgentHostAuthenticationResolver } from './remoteAgentHostAuthenticationResolver.js';
 
 class MissionControlContribution {
 	static readonly ID = 'workbench.contrib.missionControl';
@@ -36,6 +38,7 @@ registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, I
 registerSingleton(IMissionControlEnvironmentService, MissionControlEnvironmentService, InstantiationType.Delayed);
 registerSingleton(IMissionControlSharingService, MissionControlSharingService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, InstantiationType.Delayed);
+registerSingleton(IAgentHostAdvertisedAuthenticationResolver, RemoteAgentHostAuthenticationResolver, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(EditorCloudSandboxContribution.ID, EditorCloudSandboxContribution, WorkbenchPhase.AfterRestored);
