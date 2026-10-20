@@ -4546,6 +4546,7 @@ suite('CodexAgent prewarm eviction', () => {
 				getDefinitionsForSession: () => [tool],
 				canRequireConfirmation: sessionToolRequiresConfirmation,
 				requiresConfirmation: (_chatUri, toolName) => sessionToolRequiresConfirmation(toolName),
+				getConfirmationDisplay: () => undefined,
 				executeTool: (chatUri, toolName) => {
 					executions.push({ chatUri, toolName });
 					return 'Workspace change scheduled';

@@ -13,13 +13,15 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
 import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
-import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
+import { ChatMoveConfigKey } from '../../../../common/agentHostChatMove.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../../../common/sessionArtifacts.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ActionType, NotificationType, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type SessionAddedParams, type StateAction } from '../../../../common/state/sessionActions.js';
 import {
+	getAgentHostChatId,
 	readSessionCreationReference,
 	ROOT_STATE_URI,
 	type AnnotationsState,
@@ -31,6 +33,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
+import { newTestChatUri } from '../../hostDefaultChats.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory, ownCodexProtectedDirectories } from '../harness/testDirectories.js';
 
@@ -137,6 +140,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			resource: 'https://api.github.com',
 			token: config.githubToken ?? resolveGitHubToken(),
 		}, 30_000);
+		await beforeCreateSession?.();
 		const session = await addSession(prefix, workspace, true);
 		context.client.clearReceived();
 		return session;
@@ -1125,4 +1129,195 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 		const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 		assert.strictEqual(result.items.some(item => item.resource === session.sessionUri), true);
 	});
+
+	/**
+	 * Creates the invoking session of a `move_session` test while moving chats is enabled, so the session's agent is
+	 * launched with the tool. Runs with a stable resource: it isn't created with Codex's full-access preset, so every
+	 * provider asks for confirmation. The shared host has moves disabled again afterwards.
+	 */
+	async function withChatMovesSession(prefix: string, run: (session: IServerToolTestSession) => Promise<void>): Promise<void> {
+		try {
+			const session = await createSession(prefix, true, () => setRootConfig({ [ChatMoveConfigKey.Enabled]: true }));
+			await run(session);
+		} finally {
+			await setRootConfig({ [ChatMoveConfigKey.Enabled]: false });
+		}
+	}
+
+	/**
+	 * Creates a nested session of `sessionUri`. With `marker`, it first runs a turn: like the host's own move tests,
+	 * a nested session that never ran can't be prepared for a move yet.
+	 */
+	async function createPeer(sessionUri: string, turnId?: string, marker?: string): Promise<string> {
+		const chat = newTestChatUri();
+		await context.client.call('createChat', { channel: sessionUri, chat }, 30_000);
+		await chatState(chat);
+		if (turnId !== undefined && marker !== undefined) {
+			await driveChatTurnToCompletion(context.client, chat, turnId, `Reply exactly "${marker}".`, reserveClientSequenceBlock());
+		}
+		return chat;
+	}
+
+	async function chatOrder(sessionUri: string): Promise<readonly string[]> {
+		return (await sessionState(sessionUri)).chats.map(chat => chat.resource);
+	}
+
+	function chatLink(sessionUri: string, chatUri: string): string {
+		return buildOpenSessionLinkUri(sessionUri, getAgentHostChatId(chatUri));
+	}
+
+	function forgetSession(sessionUri: string): void {
+		const index = createdSessions.indexOf(sessionUri);
+		if (index >= 0) {
+			createdSessions.splice(index, 1);
+		}
+	}
+
+	serverToolTest('server tool: move_session reorders a nested session within its session', async function () {
+		await withChatMovesSession('move-reorder', async session => {
+			const first = await createPeer(session.sessionUri, 'turn-move-reorder-first-seed', 'FIRST_READY');
+			const second = await createPeer(session.sessionUri, 'turn-move-reorder-second-seed', 'SECOND_READY');
+			const sessionLink = buildOpenSessionLinkUri(session.sessionUri);
+			const { turn } = await driveServerTool(
+				session,
+				'turn-move-reorder',
+				`Call move_session exactly once with session "${chatLink(session.sessionUri, second)}", into "${sessionLink}", and after "${sessionLink}", then reply exactly "moved".`,
+				SessionServerToolName.MoveSession,
+				{ result: [/Nested session reordered/] },
+			);
+			assert.deepStrictEqual({
+				sawPendingConfirmation: turn.sawPendingConfirmation,
+				chats: await chatOrder(session.sessionUri),
+			}, {
+				sawPendingConfirmation: true,
+				chats: [session.chatUri, second, first],
+			});
+		});
+	}, config.supportsMultipleChats);
+
+	serverToolTest('server tool: move_session moves a nested session into another session', async function () {
+		await withChatMovesSession('move-into', async session => {
+			const target = await addSession('move-into-target', session.workspace, true);
+			await materializeSession(target, 'turn-move-into-target-seed', 'MOVE_TARGET_READY');
+			const peer = await createPeer(session.sessionUri, 'turn-move-into-peer-seed', 'PEER_READY');
+			const { turn } = await driveServerTool(
+				session,
+				'turn-move-into',
+				`Call move_session exactly once with session "${chatLink(session.sessionUri, peer)}" and into "${buildOpenSessionLinkUri(target.sessionUri)}", then reply exactly "moved".`,
+				SessionServerToolName.MoveSession,
+				{ result: [/Nested session moved into/] },
+			);
+			assert.deepStrictEqual({
+				sawPendingConfirmation: turn.sawPendingConfirmation,
+				source: await chatOrder(session.sessionUri),
+				target: await chatOrder(target.sessionUri),
+			}, {
+				sawPendingConfirmation: true,
+				source: [session.chatUri],
+				target: [target.chatUri, peer],
+			});
+		});
+	}, config.supportsMultipleChats);
+
+	serverToolTest('server tool: move_session makes a nested session its own session', async function () {
+		await withChatMovesSession('move-promote', async session => {
+			const peer = await createPeer(session.sessionUri, 'turn-move-promote-peer-seed', 'PEER_READY');
+			const { turn, tool } = await driveServerTool(
+				session,
+				'turn-move-promote',
+				`Call move_session exactly once with session "${chatLink(session.sessionUri, peer)}" and relationship "independent", then reply exactly "moved".`,
+				SessionServerToolName.MoveSession,
+				{ result: [/Nested session moved to its own session/] },
+			);
+			const promoted = parseOpenSessionLinkUri(/\((?<link>agent-host-session:\/\/[^)]+)\)/.exec(tool.resultText)?.groups?.link ?? '')?.toString();
+			assert.ok(promoted, `expected a link to the new session in: ${tool.resultText}`);
+			createdSessions.push(promoted);
+			assert.deepStrictEqual({
+				sawPendingConfirmation: turn.sawPendingConfirmation,
+				source: await chatOrder(session.sessionUri),
+				promotedDefaultChat: (await sessionState(promoted)).defaultChat,
+			}, {
+				sawPendingConfirmation: true,
+				source: [session.chatUri],
+				promotedDefaultChat: peer,
+			});
+		});
+	}, config.supportsMultipleChats);
+
+	serverToolTest('server tool: move_session moves a whole session into another session', async function () {
+		await withChatMovesSession('move-session', async session => {
+			const lone = await addSession('move-session-lone', session.workspace, true);
+			await materializeSession(lone, 'turn-move-session-lone-seed', 'MOVE_LONE_READY');
+			const { turn } = await driveServerTool(
+				session,
+				'turn-move-session',
+				`Call move_session exactly once with session "${buildOpenSessionLinkUri(lone.sessionUri)}" and into "${buildOpenSessionLinkUri(session.sessionUri)}", then reply exactly "moved".`,
+				SessionServerToolName.MoveSession,
+				{ result: [/Session moved into .* as a nested session/] },
+			);
+			const listed = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			forgetSession(lone.sessionUri);
+			assert.deepStrictEqual({
+				sawPendingConfirmation: turn.sawPendingConfirmation,
+				chats: await chatOrder(session.sessionUri),
+				loneListed: listed.items.some(item => item.resource === lone.sessionUri),
+			}, {
+				sawPendingConfirmation: true,
+				chats: [session.chatUri, lone.chatUri],
+				loneListed: false,
+			});
+		});
+	}, config.supportsMultipleChats);
+
+	serverToolTest('server tool: move_session moves the calling chat only once its turn ends', async function () {
+		await withChatMovesSession('move-self', async session => {
+			const target = await addSession('move-self-target', session.workspace, true);
+			await materializeSession(target, 'turn-move-self-target-seed', 'MOVE_SELF_TARGET_READY');
+			await sessionState(target.sessionUri);
+			const peer = await createPeer(session.sessionUri);
+			context.client.clearReceived();
+			const { turn, tool } = await driveServerTool(
+				{ ...session, chatUri: peer },
+				'turn-move-self',
+				`Call move_session exactly once with into "${buildOpenSessionLinkUri(target.sessionUri)}", then reply exactly "scheduled".`,
+				SessionServerToolName.MoveSession,
+				{ result: [/This chat will be moved into/] },
+			);
+			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionChatAdded)
+				&& getActionEnvelope(n).channel === target.sessionUri
+				&& (getActionEnvelope(n).action as { summary: { resource: string } }).summary.resource === peer, 30_000);
+			const notifications = context.client.receivedNotifications(() => true);
+			const turnEnded = notifications.findIndex(n => isActionNotification(n, ActionType.ChatTurnComplete) && getActionEnvelope(n).channel === peer);
+			const added = notifications.findIndex(n => isActionNotification(n, ActionType.SessionChatAdded) && getActionEnvelope(n).channel === target.sessionUri);
+			assert.deepStrictEqual({
+				sawPendingConfirmation: turn.sawPendingConfirmation,
+				toolCompleted: tool.completion.result.success,
+				movedAfterTurnEnded: turnEnded >= 0 && added > turnEnded,
+				source: await chatOrder(session.sessionUri),
+				target: await chatOrder(target.sessionUri),
+			}, {
+				sawPendingConfirmation: true,
+				toolCompleted: true,
+				movedAfterTurnEnded: true,
+				source: [session.chatUri],
+				target: [target.chatUri, peer],
+			});
+		});
+	}, config.supportsMultipleChats);
+
+	serverToolTest('server tool: move_session explains a refused move', async function () {
+		await withChatMovesSession('move-refused', async session => {
+			const other = await addSession('move-refused-other', session.workspace, true);
+			await materializeSession(other, 'turn-move-refused-other-seed', 'MOVE_REFUSED_READY');
+			await createPeer(other.sessionUri);
+			await driveServerTool(
+				session,
+				'turn-move-refused',
+				`You must call move_session exactly once with session "${buildOpenSessionLinkUri(other.sessionUri)}" and into "${buildOpenSessionLinkUri(session.sessionUri)}" so the host can check the move. Do not refuse on your own. After the tool fails, reply exactly "refused".`,
+				SessionServerToolName.MoveSession,
+				{ success: false, result: [/Cannot move: This session has nested sessions/] },
+			);
+			assert.deepStrictEqual(await chatOrder(session.sessionUri), [session.chatUri]);
+		});
+	}, config.supportsMultipleChats);
 }
