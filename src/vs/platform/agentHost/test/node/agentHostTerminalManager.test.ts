@@ -6,7 +6,7 @@
 import assert from 'assert';
 import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -207,6 +207,9 @@ class TestPty implements IPty {
 	private readonly _onExit = new Emitter<{ exitCode: number; signal?: number }>();
 	readonly onExit: IPty['onExit'] = listener => this._onExit.event(data => listener(data));
 
+	private readonly _onDidWrite = new Emitter<void>();
+	readonly onDidWrite = this._onDidWrite.event;
+
 	fireData(data: string): void {
 		this._onData.fire(data);
 	}
@@ -220,6 +223,7 @@ class TestPty implements IPty {
 
 	write(data: string | Buffer): void {
 		this.writes.push(typeof data === 'string' ? data : data.toString());
+		this._onDidWrite.fire();
 	}
 
 	kill(): void { }
@@ -261,12 +265,10 @@ function createHandler(nonce = 'test-nonce'): TestTerminalDataHandler {
 	});
 }
 
+/** Resolves once the terminal manager has written at least `count` chunks to the PTY. */
 async function waitForWrites(pty: TestPty, count: number): Promise<void> {
-	for (let i = 0; i < 20; i++) {
-		if (pty.writes.length >= count) {
-			return;
-		}
-		await timeout(10);
+	if (pty.writes.length < count) {
+		await Event.toPromise(Event.filter(pty.onDidWrite, () => pty.writes.length >= count));
 	}
 }
 

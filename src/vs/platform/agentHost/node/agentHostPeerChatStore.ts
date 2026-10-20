@@ -262,16 +262,34 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return { mutation: target ? { chat: target.chat, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch } : undefined, remaining };
 	}
 
-	/**
-	 * Awaits the writes of every session already in flight: for shutdown and tests only. A per-session path
-	 * awaits its own sessions with {@link whenSessionsIdle}, never other sessions' writes (a background
-	 * conversion pass keeps some in flight continuously). A pending older-build copy is not published: see
-	 * {@link flushCompatibilityPublishes}.
-	 */
-	async whenIdle(): Promise<void> {
-		while (this._writes.size || this._metadataWrites.size) {
-			await Promise.all([...this._writes.values(), ...[...this._metadataWrites.values()].flatMap(writes => [...writes])]);
+	/** Drains all writes, or one session's writes, and propagates failures to callers synchronizing catalog state. */
+	async whenIdle(session?: URI): Promise<void> {
+		const sessionKey = session?.toString();
+		while (true) {
+			const writes = this._pendingWrites(sessionKey);
+			if (writes.length === 0) {
+				return;
+			}
+			await Promise.all(writes);
 		}
+	}
+
+	/** Waits for one session's writes to settle before release; write callers report failures. */
+	whenSessionIdle(session: URI): Promise<void> {
+		return this.whenSessionsIdle([session]);
+	}
+
+	private _pendingWrites(sessionKey?: string): Promise<void>[] {
+		if (sessionKey === undefined) {
+			return [...this._writes.values(), ...[...this._metadataWrites.values()].flatMap(writes => [...writes])];
+		}
+		const writes: Promise<void>[] = [];
+		const queuedWrite = this._writes.get(sessionKey);
+		if (queuedWrite) {
+			writes.push(queuedWrite);
+		}
+		writes.push(...this._metadataWrites.get(sessionKey) ?? []);
+		return writes;
 	}
 
 	/**
@@ -282,7 +300,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	async whenSessionsIdle(sessions: readonly URI[]): Promise<void> {
 		const keys = [...new Set(sessions.map(session => session.toString()))];
 		while (true) {
-			const pending = keys.flatMap(key => [...(this._writes.has(key) ? [this._writes.get(key)!] : []), ...this._metadataWrites.get(key) ?? []]);
+			const pending = keys.flatMap(key => this._pendingWrites(key));
 			if (!pending.length) {
 				return;
 			}

@@ -327,10 +327,13 @@ export const IVoiceSessionController = createDecorator<IVoiceSessionController>(
 
 export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
 
-/** Whether a chat input owns the current Voice Mode session. */
-export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined): boolean {
+/**
+ * Whether a chat input owns the current Voice Mode session. A session that
+ * targets a draft belongs only to the input whose host owns that draft.
+ */
+export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined, ownsDraftTarget = false): boolean {
 	if (hasDraftTarget) {
-		return false;
+		return ownsDraftTarget;
 	}
 	if (targetSession) {
 		return !!sessionResource && isEqual(targetSession, sessionResource);

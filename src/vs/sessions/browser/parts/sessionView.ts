@@ -161,7 +161,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._register(autorun(reader => {
-			this._standaloneView.read(reader);
+			this._contentContainer.classList.toggle('standalone-chat', !!this._standaloneView.read(reader));
 			this._preparationView.read(reader);
 			this._updateStandaloneSessionActivityBar();
 		}));
@@ -370,6 +370,10 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	focusHarnessPicker(): void {
 		this._visibleStandaloneView?.focusHarnessPicker();
+	}
+
+	openModelComparison(): void {
+		this._visibleStandaloneView?.openModelComparison();
 	}
 
 	/**

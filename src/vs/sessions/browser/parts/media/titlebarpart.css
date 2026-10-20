@@ -7,6 +7,18 @@
 	justify-content: initial;
 }
 
+/* Keep window controls full-height when Modern UI applies its macOS offset. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) {
+	padding-top: 0;
+}
+
+/* Apply optical centering to toolbar content, not the window-control hit targets. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > .titlebar-center,
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.left-toolbar-container, .titlebar-actions-container) {
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size20);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: flex;
 	height: 100%;

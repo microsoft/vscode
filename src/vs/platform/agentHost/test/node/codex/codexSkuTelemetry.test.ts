@@ -19,6 +19,7 @@ import product from '../../../../product/common/product.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel, type ITelemetryData } from '../../../../telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../../telemetry/common/telemetryService.js';
+import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../../common/agent.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
@@ -56,7 +57,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const endpoints = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
-	const apiService = disposables.add(new CopilotApiService(fetch, logService, productService, endpoints));
+	const apiService = disposables.add(new CopilotApiService(fetch, logService, productService, endpoints, NullTelemetryService));
 	const events: { eventName: string; data: ITelemetryData }[] = [];
 	const telemetry = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 		telemetryLevel: TelemetryLevel.USAGE,
