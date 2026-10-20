@@ -194,6 +194,7 @@ suite('TabbedModelPicker', () => {
 			layout: () => { },
 		});
 		if (options.realContextView) {
+			container.style.height = '100vh';
 			const view = disposables.add(new ContextView(container, ContextViewDOMPosition.ABSOLUTE));
 			popup = view.getViewElement();
 			contextView = upcastPartial<IContextViewService>({

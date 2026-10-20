@@ -267,20 +267,19 @@ suite('SessionModelSelection', () => {
 				isQuickChat: constObservable(quickChat),
 			};
 			const provider = disposables.add(createProvider('provider'));
-			const copilot = { ...first, metadata: { ...first.metadata, targetChatSessionType: 'agent-host-copilot' } };
+			const copilot = { ...first, metadata: { ...first.metadata, modelGroup: { id: 'copilotcli' }, targetChatSessionType: 'agent-host-copilot' } };
 			const openRouter = {
 				...model('agent-host-copilot/openrouter/model'),
 				metadata: {
 					...first.metadata,
 					vendor: 'agent-host-copilot',
-					isBYOK: true,
 					byokModelIdentifier: 'openrouter/model',
 					modelGroup: { id: 'openrouter', sourceId: 'openrouter-source' },
 					targetChatSessionType: 'agent-host-copilot',
 				},
 			};
-			const claude = { ...second, identifier: 'claude/second', metadata: { ...second.metadata, targetChatSessionType: 'agent-host-claude' } };
-			const codex = { ...second, identifier: 'codex/second', metadata: { ...second.metadata, targetChatSessionType: 'agent-host-codex' } };
+			const claude = { ...second, identifier: 'claude/second', metadata: { ...second.metadata, modelGroup: { id: 'copilot' }, targetChatSessionType: 'agent-host-claude' } };
+			const codex = { ...second, identifier: 'codex/second', metadata: { ...second.metadata, modelGroup: { id: 'copilot' }, targetChatSessionType: 'agent-host-codex' } };
 			provider.models = [copilot];
 			const sessionTypes = [
 				{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub },
