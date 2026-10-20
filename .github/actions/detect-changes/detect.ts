@@ -86,6 +86,7 @@ const rules: readonly IChangeRule[] = [
 			'.github/actions/restore-node-modules/',
 			'.github/workflows/node_modules_cache/',
 			'build/azure-pipelines/common/computeNodeModulesCacheKey.ts',
+			'build/azure-pipelines/common/cacheKeys.ts',
 			'build/npm/dirs.ts',
 			'build/azure-pipelines/win32/exec.ps1',
 		],

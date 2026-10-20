@@ -720,6 +720,32 @@ suite('computeUnionedDiffs', () => {
 			part: 'after',
 		});
 	});
+
+	test('counts the edits a forked chat copied from its parent once, so they do not hide later edits', async () => {
+		const copiedEdit = {
+			turnId: 't1', toolCallId: 'tc1', filePath: '/shared.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v1'), afterContent: encodeString('v2'),
+		};
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit(copiedEdit);
+		sessionDb.addEdit({ ...copiedEdit, turnId: 't2', toolCallId: 'tc2', beforeContent: encodeString('v2'), afterContent: encodeString('v3\nv4') });
+		const forkDb = new TestSessionDatabase();
+		forkDb.addEdit(copiedEdit);
+
+		const result = await computeUnionedDiffs(
+			[
+				{ sessionUri: TEST_SESSION_URI, db: sessionDb },
+				{ sessionUri: PEER_CHAT_URI, db: forkDb },
+			],
+			createTestDiffService(),
+		);
+
+		assert.deepStrictEqual(result.map(diff => ({ ...simplify(diff), after: parseSessionDbUri(diff.after!.content.uri) })), [{
+			...simpleDiff('/shared.txt', 1, 0),
+			after: { sessionUri: TEST_SESSION_URI, toolCallId: 'tc2', filePath: '/shared.txt', part: 'after' },
+		}]);
+	});
 });
 
 suite('computeTurnDiffs', () => {

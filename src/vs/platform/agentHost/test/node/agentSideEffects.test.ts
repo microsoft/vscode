@@ -73,6 +73,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
@@ -279,6 +280,7 @@ function createTestSideEffects(
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves);
 	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
 		sessionDataService: options.sessionDataService,
 		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',
@@ -9905,10 +9907,18 @@ suite('AgentSideEffects', () => {
 			await discarded.p;
 		});
 
-		test('ChatTruncated fires onSessionTruncated once', () => {
+		test('ChatTruncated refreshes changesets once after provider data is truncated', async () => {
 			setupSession();
 
-			const changesets = new FakeChangesetService();
+			const truncation = new DeferredPromise<void>();
+			const refreshed = new DeferredPromise<void>();
+			agent.truncateChat = () => truncation.p;
+			const changesets = new class extends FakeChangesetService {
+				override onSessionTruncated(session: string): void {
+					super.onSessionTruncated(session);
+					refreshed.complete();
+				}
+			};
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -9920,6 +9930,9 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 			});
 
+			assert.deepStrictEqual(changesets.truncates, []);
+			truncation.complete();
+			await refreshed.p;
 			assert.deepStrictEqual(changesets.truncates, [sessionUri.toString()]);
 		});
 

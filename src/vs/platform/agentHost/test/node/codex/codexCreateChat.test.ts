@@ -391,6 +391,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
+		getConfirmationDisplay: () => undefined,
 		executeTool: () => '',
 	};
 }
@@ -404,6 +405,7 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
+		getConfirmationDisplay: () => undefined,
 		executeTool: () => '',
 	};
 }
@@ -425,6 +427,7 @@ function createRecordingChatServerToolHost(calls: { readonly method: 'requiresCo
 			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
 			return false;
 		},
+		getConfirmationDisplay: () => undefined,
 		executeTool: (chatUri, _toolName, _rawArgs) => {
 			calls.push({ method: 'executeTool', chatUri: chatUri.toString() });
 			return 'tool result';
@@ -4201,7 +4204,13 @@ suite('CodexAgent chat backing durability', () => {
 		const folder = URI.file('/repo/cancel-replace');
 		const threadId = 'cancel-replace-thread';
 		const signals: AgentSignal[] = [];
-		disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+		const completed = new DeferredPromise<void>();
+		disposables.add(agent.onDidChatProgress(signal => {
+			signals.push(signal);
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete && signal.action.turnId === 'turn-2') {
+				completed.complete();
+			}
+		}));
 
 		await materializeSession(agent, peer, session, chat, folder, threadId);
 		const appTurn = { id: 'app-turn-1', items: [], itemsView: 'notLoaded', status: 'inProgress', error: null, startedAt: 1, completedAt: null, durationMs: null };
@@ -4222,6 +4231,7 @@ suite('CodexAgent chat backing durability', () => {
 		peer.push({ id: replacement.id, result: {} });
 		await sending;
 		peer.push({ method: 'turn/completed', params: { threadId, turn: { ...appTurn, id: 'app-turn-2', status: 'completed', completedAt: 3, durationMs: 1000 } } });
+		await completed.p;
 
 		assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'action'
 			&& (signal.action.type === ActionType.ChatTurnCancelled || signal.action.type === ActionType.ChatTurnComplete)
