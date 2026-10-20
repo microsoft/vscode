@@ -52,7 +52,7 @@ suite('Copilot SDK - managed settings', function () {
 	test('bundled managedSettings.schema matches the snapshot', async function () {
 		const result = await client.rpc.managedSettings.schema();
 		assert.ok(result.schema && typeof result.schema === 'object' && !Array.isArray(result.schema));
-		const content = JSON.stringify(result, null, '\t') + '\n';
+		const content = JSON.stringify(result.schema, null, '\t') + '\n';
 		const snapshotPath = snapshotPathForTest(this.test!, 'schema', 'json');
 		if (process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1') {
 			await mkdir(dirname(snapshotPath), { recursive: true });
