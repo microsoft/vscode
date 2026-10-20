@@ -513,7 +513,7 @@ export function registerModelAndPositionCommand(id: string, handler: (accessor: 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
 			return new Promise((resolve, reject) => {
 				try {
-					const result = instaService.invokeFunction(handler, reference.object.textEditorModel, Position.lift(position), args.slice(2));
+					const result = instaService.invokeFunction(handler, reference.object.textEditorModel, Position.lift(position), ...args.slice(2));
 					resolve(result);
 				} catch (err) {
 					reject(err);
