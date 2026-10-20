@@ -3570,6 +3570,174 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('nested custom groups', () => {
+		const release: ISessionGroup = { id: 'release', name: 'Release work', createdAt: 3 };
+		const hotfixes: ISessionGroup = { id: 'hotfixes', name: 'Hotfixes', createdAt: 5, parentId: 'release' };
+		const docs: ISessionGroup = { id: 'docs', name: 'Docs', createdAt: 4, parentId: 'release' };
+		const urgent: ISessionGroup = { id: 'urgent', name: 'Urgent', createdAt: 6, parentId: 'hotfixes' };
+		const triage: ISessionGroup = { id: 'triage', name: 'Triage', createdAt: 2 };
+
+		function render(grouping = SessionsGrouping.Workspace) {
+			const now = Date.now();
+			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', createdAt: new Date(now - minutesAgo * 60_000) }).session;
+			const sessions = [session('Ship notes', 1), session('Fix login', 2), session('Patch CVE', 3), session('Flaky test', 4), session('Ungrouped', 5)];
+			const harness = createListHarness(disposables, sessions, {
+				groups: [release, hotfixes, docs, urgent, triage],
+				memberships: new Map([
+					[sessions[0].sessionId, release.id],
+					[sessions[1].sessionId, hotfixes.id],
+					[sessions[2].sessionId, urgent.id],
+					[sessions[3].sessionId, triage.id],
+				]),
+			});
+			const container = harness.createContainer(400, 800);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			const labelOf = (row: HTMLElement) => (row.querySelector('.session-section-label') ?? row.querySelector('.session-title') ?? row.querySelector('.session-placeholder-label'))?.textContent ?? '';
+			const rowOf = (label: string) => {
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => labelOf(candidate) === label);
+				assert.ok(row, `Expected a row for "${label}"`);
+				return row;
+			};
+			return { harness, container, list, labelOf, rowOf };
+		}
+
+		test('lists subgroups above their parent group\'s sessions, stepping in one level per nesting depth', () => {
+			for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
+				const { container, labelOf } = render(grouping);
+				const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => {
+					const content = row.querySelector<HTMLElement>('.session-group, .session-section, .session-item, .session-placeholder');
+					const depth = Number(content?.style.getPropertyValue('--session-group-depth') || 0);
+					return `${'  '.repeat(depth)}${labelOf(row)}`;
+				});
+				const groupHeaders = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => row.querySelector('.session-group'))
+					.map(row => `${row.getAttribute('aria-label')} (level ${row.getAttribute('aria-level')})`);
+
+				assert.deepStrictEqual({ grouping, rows, groupHeaders }, {
+					grouping,
+					rows: [
+						'Release work',
+						'  Hotfixes',
+						'    Urgent',
+						'    Patch CVE',
+						'  Fix login',
+						'  Docs',
+						'  No session',
+						'Ship notes',
+						'Triage',
+						'Flaky test',
+						grouping === SessionsGrouping.Workspace ? 'vscode' : 'Recent',
+						'Ungrouped',
+					],
+					groupHeaders: [
+						'Release work, 3 (level 1)',
+						'Hotfixes, 2 (level 2)',
+						'Urgent, 1 (level 3)',
+						'Docs, 0 (level 2)',
+						'Triage, 1 (level 1)',
+					],
+				});
+			}
+		});
+
+		test('drops a group inside another group, next to a nested group, or back at the top level, but never inside itself', () => {
+			const { harness, list, labelOf, rowOf } = render();
+			/** Drags `source` over `target` at `fraction` of its height and drops it there. */
+			const drag = (source: string, target: string, fraction: number) => {
+				const dataTransfer = new DataTransfer();
+				const sourceRow = rowOf(source);
+				const targetRow = rowOf(target);
+				sourceRow.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+				const bounds = targetRow.getBoundingClientRect();
+				const clientY = bounds.top + bounds.height * fraction;
+				const event = (type: string) => {
+					const dragEvent = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: bounds.left + 10, clientY });
+					Object.defineProperty(dragEvent, 'offsetY', { value: clientY - bounds.top });
+					return dragEvent;
+				};
+				targetRow.dispatchEvent(event('dragover'));
+				const feedback = [...targetRow.parentElement!.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.filter(row => /drop-target/.test(row.className) || row.querySelector('.session-header-drop-target'))
+					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ') || 'highlighted header'}`);
+				const insertionDepth = Number(targetRow.closest<HTMLElement>('.sessions-list-control')?.style.getPropertyValue('--session-group-insertion-depth') || 0);
+				targetRow.dispatchEvent(event('drop'));
+				sourceRow.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+				return {
+					drop: `${source} onto ${target} at ${fraction}`,
+					feedback,
+					insertionDepth,
+					moved: harness.movedGroups.splice(0).map(move => `${move.groupId} into ${move.parentId ?? 'top level'}`),
+					reorders: harness.sectionReorders.splice(0).map(reorder => `${reorder.draggedId} ${reorder.position} ${reorder.targetId} among ${reorder.visibleOrder.join(', ')}`),
+				};
+			};
+
+			const drops = [
+				drag('Triage', 'Release work', 0.5),
+				drag('Docs', 'Urgent', 0.1),
+				drag('Hotfixes', 'vscode', 0.1),
+				drag('Triage', 'Fix login', 0.5),
+				drag('Triage', 'Docs', 0.9),
+				drag('Release work', 'Urgent', 0.5),
+				drag('Release work', 'Patch CVE', 0.5),
+			];
+			list.setItemCollapsed({ group: urgent.id }, true);
+			drops.push(drag('Triage', 'Urgent', 0.9));
+
+			assert.deepStrictEqual(drops, [
+				{
+					drop: 'Triage onto Release work at 0.5',
+					feedback: ['Release work: drop-target'],
+					insertionDepth: 0,
+					moved: ['triage into release'],
+					reorders: ['group:triage before group:hotfixes among group:hotfixes, group:docs'],
+				},
+				{
+					drop: 'Docs onto Urgent at 0.1',
+					feedback: ['Urgent: drop-target-before'],
+					insertionDepth: 2,
+					moved: ['docs into hotfixes'],
+					reorders: ['group:docs before group:urgent among group:urgent'],
+				},
+				{
+					drop: 'Hotfixes onto vscode at 0.1',
+					feedback: ['vscode: drop-target-before'],
+					insertionDepth: 0,
+					moved: ['hotfixes into top level'],
+					reorders: ['group:hotfixes before workspace:vscode among group:release, group:triage, workspace:vscode'],
+				},
+				{
+					drop: 'Triage onto Fix login at 0.5',
+					feedback: ['Hotfixes: highlighted header'],
+					insertionDepth: 0,
+					moved: ['triage into hotfixes'],
+					reorders: ['group:triage before group:urgent among group:urgent'],
+				},
+				{
+					drop: 'Triage onto Docs at 0.9',
+					feedback: ['Docs: drop-target'],
+					insertionDepth: 0,
+					moved: ['triage into docs'],
+					reorders: [],
+				},
+				{ drop: 'Release work onto Urgent at 0.5', feedback: [], insertionDepth: 0, moved: [], reorders: [] },
+				{ drop: 'Release work onto Patch CVE at 0.5', feedback: [], insertionDepth: 0, moved: [], reorders: [] },
+				{
+					drop: 'Triage onto Urgent at 0.9',
+					// The list draws a line after a row as a line before the next row.
+					feedback: ['Fix login: drop-target-before'],
+					insertionDepth: 2,
+					moved: ['triage into hotfixes'],
+					reorders: ['group:triage after group:urgent among group:urgent'],
+				},
+			]);
+		});
+	});
+
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 

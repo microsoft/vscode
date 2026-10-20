@@ -15,8 +15,8 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
-| Custom groups and membership | `ISessionGroupsService` |
-| Top-level group/workspace order | `ISessionSectionOrderService` |
+| Custom groups, their nesting, and membership | `ISessionGroupsService` |
+| Order of groups among their siblings and of top-level groups and workspaces | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
@@ -42,7 +42,7 @@ Archived
 
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
-- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
+- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Remaining unpinned quick chats appear in the dedicated chats section.
 - Remaining sessions follow the selected workspace or date grouping.
@@ -65,6 +65,10 @@ User-created groups and workspace sections share a user-managed order below the 
 ### Date grouping
 
 User-created groups remain a contiguous user-managed block. Ungrouped sessions follow in fixed date sections.
+
+### Nested custom groups
+
+User-created groups form a tree without a depth limit. In either grouping mode, only top-level groups take part in the order above; a group lists its subgroups, in their own user-managed order, above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups' sessions. Deleting a group deletes its subgroups and ungroups their sessions. Comparison groups neither nest nor contain subgroups.
 
 ### Quick chats
 
@@ -105,7 +109,7 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
 - dropping a session on a nested chat row places it after that chat's session;
 - nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
-- user groups and workspace sections may reorder where the grouping mode allows;
+- user groups and workspace sections may reorder where the grouping mode allows, and a user group may move into another group or out to the top level, but never into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
 Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
@@ -120,7 +124,7 @@ Session facades may expose catalog-backed peer-chat identities, titles, interact
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace section and custom group, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace section and custom group, pins, custom groups and their nesting, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

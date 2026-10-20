@@ -10,15 +10,17 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 /**
- * Service that owns the manual top-level ordering of the sessions list: the
- * order of user-created groups and workspace sections relative to each other.
+ * Service that owns the manual ordering of the sessions list's headers: the
+ * order of user-created groups among their sibling groups, and of top-level
+ * groups and workspace sections relative to each other.
  *
- * The order is stored as a flat list of opaque identities (the sessions list
- * uses `group:<id>` for groups and `workspace:<label>` for workspace sections).
- * It is purely local (persisted to profile storage) and not synced to
- * providers. Identities the user has never moved fall back to a caller-provided
- * default order, so newly created groups / discovered workspaces appear in their
- * natural place until the user drags them.
+ * The order is stored as one flat list of opaque identities (the sessions list
+ * uses `group:<id>` for groups and `workspace:<label>` for workspace sections),
+ * from which each set of siblings resolves its relative order. It is purely
+ * local (persisted to profile storage) and not synced to providers. Identities
+ * the user has never moved fall back to a caller-provided default order, so
+ * newly created groups / discovered workspaces appear in their natural place
+ * until the user drags them.
  *
  * Workspaces additionally carry a *promotion* flag: once the user drags a
  * workspace it is promoted so it stays visible (escapes the "+N more workspaces"
@@ -59,6 +61,15 @@ export interface ISessionSectionOrderService {
 	 * identities such as deleted groups or vanished workspaces.
 	 */
 	retain(liveIds: Iterable<string>): void;
+
+	/**
+	 * Capture the manual positions and promotion of `ids`, returning a function
+	 * that restores them, e.g. to undo deleting groups whose positions
+	 * {@link retain} dropped since. Restoring re-inserts an identity that is no
+	 * longer ordered after the identity it followed when captured, and leaves
+	 * identities that are still ordered where they are.
+	 */
+	capturePositions(ids: Iterable<string>): () => void;
 }
 
 export const ISessionSectionOrderService = createDecorator<ISessionSectionOrderService>('sessionSectionOrderService');
@@ -124,6 +135,25 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 		this._order = order;
 		this._promoted = new Set(promoted);
 		this.save();
+	}
+
+	capturePositions(ids: Iterable<string>): () => void {
+		const captured = [...this._order];
+		const capturedIds = new Set(ids);
+		const promoted = [...capturedIds].filter(id => this._promoted.has(id));
+		return () => {
+			const order = restoreSectionOrderPositions(this._order, captured, capturedIds);
+			const promotedRestored = promoted.filter(id => !this._promoted.has(id));
+			if (arraysEqual(order, this._order) && promotedRestored.length === 0) {
+				return;
+			}
+			this._order = order;
+			for (const id of promotedRestored) {
+				this._promoted.add(id);
+			}
+			this.save();
+			this._onDidChange.fire();
+		};
 	}
 
 	// -- Storage --
@@ -237,6 +267,33 @@ export function mergeSectionOrder(persisted: readonly string[], visibleAfter: re
 		if (t) {
 			result.push(...t);
 		}
+	}
+	return result;
+}
+
+/**
+ * Re-insert the `ids` that `captured` ordered but `current` no longer does, each
+ * after the identity it followed in `captured` (or first, when none of the
+ * identities it followed are still in the result).
+ */
+export function restoreSectionOrderPositions(current: readonly string[], captured: readonly string[], ids: ReadonlySet<string>): string[] {
+	const result = [...current];
+	const placed = new Set(result);
+	for (let i = 0; i < captured.length; i++) {
+		const id = captured[i];
+		if (!ids.has(id) || placed.has(id)) {
+			continue;
+		}
+		let insertAt = 0;
+		for (let j = i - 1; j >= 0; j--) {
+			const index = result.indexOf(captured[j]);
+			if (index !== -1) {
+				insertAt = index + 1;
+				break;
+			}
+		}
+		result.splice(insertAt, 0, id);
+		placed.add(id);
 	}
 	return result;
 }
