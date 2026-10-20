@@ -211,10 +211,22 @@ suite('Automation dialog creation', () => {
 		return {
 			result, saveButton, cancelButton, nameInput, container, providers, actionWidgetService,
 			openEventPicker: () => {
-				container.querySelector<HTMLElement>('.automation-trigger-editor .monaco-button')!.click();
-				const tree = quickInputService.trees.at(-1);
-				assert.ok(tree?.visible);
-				return tree;
+				container.querySelector<HTMLElement>('.automation-event-select')!.click();
+				const popup = instantiationService.get(IContextViewService).getContextViewElement();
+				assert.ok(popup.querySelector('.automation-event-options'));
+				assert.strictEqual(quickInputService.trees.length, 0);
+				return {
+					element: popup,
+					get checkedLeafItems() {
+						return Array.from(popup.querySelectorAll<HTMLElement>('[role="checkbox"][aria-checked="true"]'), element => ({ label: element.getAttribute('aria-label') }));
+					},
+					toggle: (label: string) => {
+						popup.querySelector<HTMLElement>(`[role="checkbox"][aria-label="${label}"]`)!.click();
+					},
+					accept: () => {
+						popup.querySelector<HTMLElement>('[role="checkbox"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+					},
+				};
 			},
 			openToolsPicker: () => {
 				const button = container.querySelector<HTMLElement>('.automation-provider-tools .monaco-button');
@@ -336,7 +348,7 @@ suite('Automation dialog creation', () => {
 			selected: trigger.selectedOptions[0].textContent,
 			time: dialog.container.querySelector<HTMLElement>('.automation-form-time-group')!.style.display,
 			day: dialog.container.querySelector<HTMLElement>('.automation-form-day-group')!.style.display,
-			event: !!dialog.container.querySelector('.automation-trigger-editor select, .automation-trigger-editor .monaco-button'),
+			event: !!dialog.container.querySelector('.automation-form-event-group select, .automation-event-select'),
 		});
 		const states = [snapshot()];
 		for (const label of ['Weekly', 'Hourly', 'Issue', 'Pull Request', 'Daily']) {
@@ -409,6 +421,7 @@ suite('Automation dialog creation', () => {
 		}
 		picker.accept();
 		assert.strictEqual(dialog.saveButton.getAttribute('aria-disabled'), 'true');
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
 		for (const [label, value] of [['Paths', ' src/**, !src/generated/** '], ['Comment text', ' /review ']]) {
 			const input = dialog.container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 			input.value = value;
@@ -423,6 +436,52 @@ suite('Automation dialog creation', () => {
 				pull_request_comment: { types: ['timeline_comment', 'review_comment'], body_substring: '/review' },
 				pull_request_review_submitted: { types: ['submitted'], states: ['approved'] },
 			}, requireActorWritePermission: false,
+		});
+	});
+
+	test('Event shares the Trigger row and filters stay under collapsed Advanced', async () => {
+		const existing = eventAutomation({ issue_labeled: { types: ['labeled'], labels: ['bug'], query: ' is:open ', opaque: { keep: true } } });
+		const dialog = openDialog({ existing }, eventConfiguration());
+		const row = dialog.container.querySelector('.automation-form-schedule-row')!;
+		const event = row.querySelector('select[aria-label="Event"]');
+		const advanced = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+		const content = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
+		const initial = {
+			eventBesideTrigger: !!event && !!row.querySelector('select[aria-label="Trigger"]'),
+			eventOutsideAdvanced: !content.contains(event),
+			queryInsideAdvanced: !!content.querySelector('input[aria-label="Query"]'),
+			actorInsideAdvanced: !!content.querySelector('[role="checkbox"][aria-label="Require write access to trigger"]'),
+			expanded: advanced.getAttribute('aria-expanded'),
+			display: content.style.display,
+			disclosures: dialog.container.querySelectorAll('.automation-advanced-disclosure').length,
+		};
+		advanced.click();
+		const expanded = { expanded: advanced.getAttribute('aria-expanded'), display: content.style.display };
+		advanced.click();
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ initial, expanded, patch: result?.value.cloudTrigger }, {
+			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, actorInsideAdvanced: true, expanded: 'false', display: 'none', disclosures: 1 },
+			expanded: { expanded: 'true', display: '' }, patch: undefined,
+		});
+	});
+
+	test('PR Event dropdown supports keyboard navigation and Escape restores focus without changing saved triggers', async () => {
+		const dialog = openDialog({ existing: eventAutomation({ pull_request_comment: { types: ['review_comment', 'timeline_comment'], body_substring: ' /review ', opaque: true } }) },
+			{ ...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: prCatalog }) });
+		const picker = dialog.openEventPicker();
+		const checks = Array.from(picker.element.querySelectorAll<HTMLElement>('[role="checkbox"]'));
+		checks[0].focus();
+		checks[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		const moved = DOM.getActiveElement() === checks[1];
+		checks[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		dialog.container.querySelector<HTMLElement>('.automation-event-select')!.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+		const button = dialog.container.querySelector<HTMLElement>('.automation-event-select')!;
+		const closed = { expanded: button.getAttribute('aria-expanded'), focused: DOM.getActiveElement() === button, dialogOpen: !!dialog.container.querySelector('.automation-dialog') };
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ moved, closed, patch: result?.value.cloudTrigger }, {
+			moved: true, closed: { expanded: 'false', focused: true, dialogOpen: true }, patch: undefined,
 		});
 	});
 
@@ -462,6 +521,7 @@ suite('Automation dialog creation', () => {
 		choose('Trigger', 'Issue');
 		choose('Event', 'Issue labeled');
 		const required = dialog.saveButton.getAttribute('aria-disabled');
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
 		const input = dialog.container.querySelector<HTMLInputElement>('input[aria-label="Labels"]')!;
 		input.value = ' bug, help wanted, , bug ';
 		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
@@ -1950,7 +2010,7 @@ suite('Automation dialog creation', () => {
 			empty: dialog.container.querySelector('.automation-customizations')?.textContent?.includes('No customizations are available for this target.'),
 			selected: (await dialog.result)?.value.customizationIds,
 		}, {
-			loading: { summary: 'Loading…', message: 'Loading customizations…', expanded: 'true', controls: 'automation-customizations', spinners: 1, chevrons: 1 },
+			loading: { summary: 'Loading…', message: 'Loading customizations…', expanded: 'true', controls: 'automation-advanced-content', spinners: 1, chevrons: 1 },
 			empty: true,
 			selected: [],
 		});
@@ -2243,6 +2303,7 @@ suite('Automation dialog layout', () => {
 				'automation-form-row automation-form-schedule-row',
 				'automation-trigger-editor',
 				'automation-target-error',
+				'automation-advanced',
 			],
 			enabledCheckbox: null,
 			targetLabel: 'Target',

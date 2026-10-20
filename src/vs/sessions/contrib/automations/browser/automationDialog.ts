@@ -1175,8 +1175,13 @@ export function renderForm(
 		revalidate();
 	}));
 	const triggerContainer = DOM.append(formContent, $('.automation-trigger-editor'));
+	const eventGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-event-group'));
+	const triggerFields = $('.automation-trigger-fields');
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error', { role: 'status', 'aria-live': 'polite' }));
 	DOM.hide(scheduleError);
+	const customizationSelection = disposables.add(new AutomationCustomizationSelection(
+		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
+	));
 
 	const applyIntervalVisibility = () => {
 		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
@@ -1243,7 +1248,7 @@ export function renderForm(
 	});
 	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
 	const triggerEditor = disposables.add(instantiationService.createInstance(AutomationTriggerEditor,
-		triggerContainer, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
+		triggerContainer, eventGroup, triggerFields, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
 			const eventMode = runInCloud.get() && !!state.cloudTrigger;
 			if (eventMode) {
 				state.interval = 'custom';
@@ -1251,6 +1256,7 @@ export function renderForm(
 				state.interval = 'daily';
 			}
 			scheduleRow.style.display = eventMode && state.triggerReadOnly ? 'none' : '';
+			customizationSelection.setAdditionalContentVisible(eventMode && !state.triggerReadOnly);
 			updateIntervalOptions(runInCloud.get());
 			revalidate();
 		}, () => cloudConfiguration.get()?.loadTriggers?.()));
@@ -1992,9 +1998,6 @@ export function renderForm(
 		return selectedTools;
 	};
 
-	const customizationSelection = customizations ? disposables.add(new AutomationCustomizationSelection(
-		formContent, customizations.service, customizations.hoverService, logService, customizations.existingId,
-	)) : undefined;
 	reloadCustomizations = () => customizationSelection?.updateTarget(
 		state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
 			? createAutomationTarget(state, isolationModel.persistedBranch)
@@ -2145,6 +2148,9 @@ export class AutomationCustomizationSelection extends Disposable {
 	private readonly chevron: HTMLElement;
 	private readonly summary: HTMLElement;
 	private readonly content: HTMLElement;
+	private readonly body: HTMLElement;
+	private additionalContentVisible = false;
+	private customizationsVisible = false;
 	private readonly rows = this._register(new DisposableStore());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly toggles = new Map<string, boolean>();
@@ -2155,10 +2161,11 @@ export class AutomationCustomizationSelection extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		private readonly service: IAutomationService,
-		private readonly hoverService: IHoverService,
+		private readonly service: IAutomationService | undefined,
+		private readonly hoverService: IHoverService | undefined,
 		private readonly logService: ILogService,
 		private readonly existingId?: string,
+		private readonly additionalContent?: HTMLElement,
 	) {
 		super();
 		this._register(toDisposable(() => this.request.value?.cancel()));
@@ -2169,18 +2176,36 @@ export class AutomationCustomizationSelection extends Disposable {
 		DOM.append(this.chevron, renderIcon(Codicon.chevronRight));
 		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced")));
 		this.summary = DOM.append(this.disclosure.element, $('span.automation-advanced-summary'));
-		this.content = DOM.append(this.section, $('.automation-customizations', { id: 'automation-customizations' }));
-		this.disclosure.element.setAttribute('aria-controls', this.content.id);
+		this.body = DOM.append(this.section, $('.automation-advanced-content', { id: 'automation-advanced-content' }));
+		if (additionalContent) {
+			DOM.append(this.body, additionalContent);
+		}
+		this.content = DOM.append(this.body, $('.automation-customizations', { id: 'automation-customizations' }));
+		this.disclosure.element.setAttribute('aria-controls', this.body.id);
 		this.disclosure.element.setAttribute('aria-expanded', 'false');
-		DOM.hide(this.section, this.content);
+		DOM.hide(this.section, this.body);
 		this._register(this.disclosure.onDidClick(() => {
 			this.expanded = !this.expanded;
 			this.disclosure.element.setAttribute('aria-expanded', String(this.expanded));
 			DOM.reset(this.chevron, renderIcon(this.expanded ? Codicon.chevronDown : Codicon.chevronRight));
-			this.content.hidden = !this.expanded;
-			this.content.style.display = this.expanded ? '' : 'none';
+			this.body.hidden = !this.expanded;
+			this.body.style.display = this.expanded ? '' : 'none';
 			this.summary.hidden = this.expanded;
 		}));
+	}
+
+	setAdditionalContentVisible(visible: boolean): void {
+		this.additionalContentVisible = visible;
+		if (this.additionalContent) {
+			this.additionalContent.hidden = !visible;
+		}
+		this.updateVisibility();
+	}
+
+	private updateVisibility(): void {
+		this.section.style.display = this.additionalContentVisible || this.customizationsVisible ? '' : 'none';
+		this.content.style.display = this.customizationsVisible ? '' : 'none';
+		this.summary.hidden = this.expanded || !this.customizationsVisible;
 	}
 
 	getSelectedIds(): readonly string[] | undefined {
@@ -2210,11 +2235,13 @@ export class AutomationCustomizationSelection extends Disposable {
 		this.choices = undefined;
 		this.rows.clear();
 		DOM.clearNode(this.content);
-		if (!target || !target.providerId || !target.sessionTypeId || !this.service.getCustomizationChoices) {
-			DOM.hide(this.section);
+		this.customizationsVisible = false;
+		if (!target || !target.providerId || !target.sessionTypeId || !this.service?.getCustomizationChoices) {
+			this.updateVisibility();
 			return;
 		}
-		DOM.show(this.section);
+		this.customizationsVisible = true;
+		this.updateVisibility();
 		this.summary.textContent = localize('automation.customizations.loadingSummary', "Loading…");
 		const loading = DOM.append(this.content, $('.automation-customizations-message', { role: 'status' }));
 		const icon = DOM.append(loading, renderIcon(Codicon.loading));
@@ -2228,20 +2255,22 @@ export class AutomationCustomizationSelection extends Disposable {
 
 	private async load(target: AutomationTarget, request: CancellationTokenSource): Promise<void> {
 		try {
-			const choices = await this.service.getCustomizationChoices?.(target, this.existingId, request.token);
+			const choices = await this.service?.getCustomizationChoices?.(target, this.existingId, request.token);
 			if (request.token.isCancellationRequested || this._store.isDisposed) {
 				return;
 			}
 			this.choices = choices;
 			if (choices === undefined) {
-				DOM.hide(this.section);
+				this.customizationsVisible = false;
+				this.updateVisibility();
 				return;
 			}
 			this.renderChoices(choices);
 		} catch (error) {
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
 				this.logService.error('[AutomationDialog] Failed to load customization choices.', error);
-				DOM.hide(this.section);
+				this.customizationsVisible = false;
+				this.updateVisibility();
 			}
 		}
 	}
@@ -2267,11 +2296,15 @@ export class AutomationCustomizationSelection extends Disposable {
 			const text = DOM.append(row, $('.automation-customization-text'));
 			const label = DOM.append(text, $('span.automation-customization-label', { id: `automation-customization-${index}` }, choice.label));
 			checkbox.domNode.setAttribute('aria-labelledby', label.id);
-			this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
+			if (this.hoverService) {
+				this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
+			}
 			if (choice.description) {
 				const description = DOM.append(text, $('span.automation-customization-description', { id: `automation-customization-description-${index}` }, choice.description));
 				checkbox.domNode.setAttribute('aria-describedby', description.id);
-				this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
+				if (this.hoverService) {
+					this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
+				}
 			}
 			if (choice.outdated) {
 				const outdated = DOM.append(row, $('span.automation-customization-outdated', { id: `automation-customization-outdated-${index}` }, localize('automation.customizations.outdated', "Outdated")));
