@@ -17,7 +17,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
-import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { detectPluginFormat, readPluginMcpServers, PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
 
 function stubMcpCustomization(name = 'test'): McpServerCustomization {
@@ -574,6 +574,39 @@ suite('copilotPluginConverters', () => {
 	// ---- toSdkSessionCustomAgents ---------------------------------------
 
 	suite('toSdkSessionCustomAgents', () => {
+
+		test('preserves server tool allowlists from plugin MCP files', async () => {
+			const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+			const agentUri = URI.joinPath(pluginUri, 'helper.md');
+			const mcpUri = URI.joinPath(pluginUri, '.mcp.json');
+			await Promise.all([
+				fileService.writeFile(agentUri, VSBuffer.fromString('Agent without a tool allowlist')),
+				fileService.writeFile(mcpUri, VSBuffer.fromString(JSON.stringify({
+					mcpServers: {
+						local: { command: 'node', tools: ['read'] },
+						http: { type: 'http', url: 'https://example.com/mcp', tools: ['read'] },
+						sse: { type: 'sse', url: 'https://example.com/sse', tools: [] },
+						default: { command: 'node' },
+						wildcard: { type: 'http', url: 'https://example.com/mcp', tools: ['*'] },
+						invalidString: { command: 'node', tools: 'read' },
+						invalidArray: { command: 'node', tools: ['read', 42] },
+					},
+				}))),
+			]);
+			const servers = await readPluginMcpServers(pluginUri, [mcpUri], await detectPluginFormat(pluginUri, fileService), fileService);
+			const [agent] = await toSdkSessionCustomAgents([{
+				agents: [{ uri: agentUri, name: 'helper' }],
+				mcpServers: servers.map(server => ({ ...server, sdkRegistration: 'pluginDiscovery' })),
+			}], fileService);
+
+			assert.deepStrictEqual({
+				agentTools: agent.tools,
+				serverTools: Object.fromEntries(Object.entries(agent.mcpServers ?? {}).map(([name, server]) => [name, server.tools])),
+			}, {
+				agentTools: null,
+				serverTools: { local: ['read'], http: ['read'], sse: [], default: ['*'], wildcard: ['*'] },
+			});
+		});
 
 		test('preserves owning plugin MCP servers without importing disabled or session-config servers', async () => {
 			const firstUri = URI.from({ scheme: Schemas.inMemory, path: '/first/helper.md' });

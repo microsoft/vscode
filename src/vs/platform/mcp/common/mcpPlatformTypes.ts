@@ -48,6 +48,8 @@ export interface ICommonMcpServerConfiguration {
 	readonly type: McpServerType;
 	readonly version?: string;
 	readonly gallery?: boolean | string;
+	/** Server tool allowlist used by Copilot CLI and SDK. */
+	readonly tools?: readonly string[];
 }
 
 export interface IMcpStdioServerConfiguration extends ICommonMcpServerConfiguration {

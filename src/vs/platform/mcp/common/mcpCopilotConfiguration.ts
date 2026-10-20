@@ -33,7 +33,7 @@ export function toCopilotMcpServerConfiguration(config: IMcpServerConfiguration,
 			type: 'stdio',
 			command: config.command,
 			args: config.args ? [...config.args] : [],
-			tools: ['*'],
+			tools: config.tools ? [...config.tools] : ['*'],
 			...(config.env && { env: toStringEnv(config.env) }),
 			...(cwd ? { cwd } : {}),
 		};
@@ -41,7 +41,7 @@ export function toCopilotMcpServerConfiguration(config: IMcpServerConfiguration,
 	return {
 		type: config.transport === 'sse' ? 'sse' : 'http',
 		url: config.url,
-		tools: ['*'],
+		tools: config.tools ? [...config.tools] : ['*'],
 		...(config.headers && { headers: { ...config.headers } }),
 		...(config.oauth?.clientId && { oauthClientId: config.oauth.clientId }),
 	};
