@@ -30,6 +30,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
@@ -69,7 +70,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/co
 import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionCanvas, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID, toSessionId } from '../../../../../services/sessions/common/session.js';
 import { readSessionChangesStats } from '../../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
@@ -12902,6 +12903,196 @@ suite('LocalAgentHostSessionsProvider', () => {
 				createdModel: { id: 'selected-model' },
 				peerInputSelectedModels: ['agent-host-copilotcli:selected-model'],
 			});
+		});
+
+		suite('nested chat workspace', () => {
+			const repo = URI.file('/work/repo');
+			const other = URI.file('/work/other');
+			const scratch = URI.file('/home/user/.copilot/chats/nested-scratch');
+
+			function enableCreateChatWorkspace(multipleWorkingDirectories: boolean): void {
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: { ...agentHost.initializeResult.get()._meta, [AgentHostCreateChatWorkspaceCapabilityMetaKey]: true } }, undefined);
+				agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true }, ...(multipleWorkingDirectories ? { multipleWorkingDirectories: {} } : {}) } } as AgentInfo]);
+			}
+
+			/** A workspace session in `repo` with a peer in `other`, a peer in a scratch folder, and a peer without folders of its own. */
+			function setupWorkspaceSession(provider: ReturnType<typeof createProvider>, rawId: string): ISession {
+				const session = setupMultiChatSession(provider, rawId, [repo]);
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				const meta = withSessionScratchFolders(undefined, [scratch.toString()]);
+				const workingDirectories = [repo.toString(), other.toString(), scratch.toString()];
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'other'), 'Other', ProtocolSessionStatus.Idle, [other.toString(), repo.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'scratch'), 'Scratch', ProtocolSessionStatus.Idle, [scratch.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'shared'), 'Shared'),
+				], { defaultChat, meta, workingDirectories }));
+				fireSessionSummaryChanged(agentHost, rawId, { workingDirectories, _meta: meta });
+				return session;
+			}
+
+			function describeSupport(provider: ReturnType<typeof createProvider>, sessionId: string) {
+				const support = provider.getNestedChatWorkspaceSupport(sessionId);
+				return support && {
+					sessionFolder: support.sessionFolder?.toString(),
+					sessionFolders: support.sessionFolders.map(folder => folder.toString()),
+					multipleFolders: support.multipleFolders,
+					browseActions: support.browseActions === provider.browseActions,
+				};
+			}
+
+			test('offers no workspace choices on a host without the capability', () => {
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-old-host');
+
+				assert.strictEqual(provider.getNestedChatWorkspaceSupport(session.sessionId), undefined);
+			});
+
+			test('reports the session folder and non-scratch folders of a workspace session and a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const workspaceSession = setupWorkspaceSession(provider, 'nested-ws');
+
+				const sessionScratch = URI.file('/home/user/.copilot/chats/quick-own');
+				agentHost.addSession(createSession('nested-wl', { summary: 'Quick', quickChat: true, workingDirectories: [sessionScratch] }));
+				fireSessionAdded(agentHost, 'nested-wl', { title: 'Quick', workingDirectories: [sessionScratch.toString()], workspaceless: true, listsMintedDefaultChat: false });
+				const quickSession = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'nested-wl')!;
+				provider.getSessionConfig(quickSession.sessionId, quickSession.mainChat.get().resource);
+				const quickUri = AgentSession.uri('copilotcli', 'nested-wl').toString();
+				const quickDefault = buildDefaultChatUri(quickUri);
+				const quickMeta = withSessionScratchFolders(withSessionWorkspaceless(undefined, true), [sessionScratch.toString()]);
+				const quickDirectories = [sessionScratch.toString(), other.toString()];
+				agentHost.setSessionState('nested-wl', 'copilotcli', makeState([
+					makeChatSummary(quickDefault, '', ProtocolSessionStatus.Idle, [sessionScratch.toString()]),
+					makeChatSummary(buildChatUri(quickUri, 'foldered'), 'Foldered', ProtocolSessionStatus.Idle, [other.toString()]),
+				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
+				fireSessionSummaryChanged(agentHost, 'nested-wl', { workingDirectories: quickDirectories, _meta: quickMeta });
+
+				assert.deepStrictEqual({
+					workspace: describeSupport(provider, workspaceSession.sessionId),
+					workspaceless: describeSupport(provider, quickSession.sessionId),
+				}, {
+					workspace: { sessionFolder: repo.toString(), sessionFolders: [repo.toString(), other.toString()], multipleFolders: true, browseActions: true },
+					workspaceless: { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true },
+				});
+			}));
+
+			test('a single-folder agent may only create a nested chat in the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(false);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-single');
+				const outcome = async (workspace: INestedChatWorkspace) => {
+					try {
+						await provider.createNewChatInWorkspace(session.sessionId, workspace, 'Fix the bug');
+						return 'created';
+					} catch (error) {
+						return error instanceof NestedChatWorkspaceError ? error.kind : 'unexpected';
+					}
+				};
+
+				assert.deepStrictEqual({
+					multipleFolders: provider.getNestedChatWorkspaceSupport(session.sessionId)?.multipleFolders,
+					sessionFolder: await outcome({ kind: 'folder', folder: repo, isolation: 'folder' }),
+					sessionFolderWorktree: await outcome({ kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }),
+					otherFolder: await outcome({ kind: 'folder', folder: other, isolation: 'folder' }),
+					scratch: await outcome({ kind: 'scratch' }),
+					requested: agentHost.createdChats.map(call => call.options?.workspace?.kind),
+				}, {
+					multipleFolders: false,
+					sessionFolder: 'created',
+					sessionFolderWorktree: 'notSupported',
+					otherFolder: 'notSupported',
+					scratch: 'notSupported',
+					requested: ['folder'],
+				});
+			}));
+
+			test('createNewChatInWorkspace asks the host for the chosen folder, worktree, or scratch folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-create');
+				provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.Chosen);
+
+				const chats = [
+					await provider.createNewChatInWorkspace(session.sessionId, { kind: 'folder', folder: other, isolation: 'folder' }, 'ignored'),
+					await provider.createNewChatInWorkspace(session.sessionId, { kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }, 'Fix the bug'),
+					await provider.createNewChatInWorkspace(session.sessionId, { kind: 'scratch' }, 'ignored'),
+				];
+
+				assert.deepStrictEqual({
+					requests: agentHost.createdChats.map(call => {
+						const workspace = call.options?.workspace;
+						return { model: call.options?.model, workspace: workspace?.kind === 'folder' ? { ...workspace, folder: workspace.folder.toString() } : workspace };
+					}),
+					untitled: chats.map(chat => chat.status.get() === SessionStatus.Untitled),
+				}, {
+					requests: [
+						{ model: { id: 'selected-model' }, workspace: { kind: 'folder', folder: other.toString(), isolation: 'folder' } },
+						{ model: { id: 'selected-model' }, workspace: { kind: 'folder', folder: repo.toString(), isolation: 'worktree', baseBranch: 'main', prompt: 'Fix the bug' } },
+						{ model: { id: 'selected-model' }, workspace: { kind: 'scratch' } },
+					],
+					untitled: [true, true, true],
+				});
+			}));
+
+			test('createNewChatInWorkspace maps a host refusal to NestedChatWorkspaceError and drops the untitled mark', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-refused');
+				let minted: URI | undefined;
+				stub(agentHost, 'createChat').callsFake(async (_session, chat) => {
+					minted = chat;
+					throw new Error('not a git repository');
+				});
+
+				const error = await provider.createNewChatInWorkspace(session.sessionId, { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: undefined }, 'Fix the bug').then(() => undefined, e => e);
+				// Should the host still publish the chat, it must not show as a draft.
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-refused').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('nested-refused', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
+					makeChatSummary(minted!.toString(), 'Late'),
+				], { defaultChat }));
+				const late = session.chats.get().find(chat => chat.resource.fragment === getAgentHostChatId(minted!.toString()));
+
+				assert.deepStrictEqual({
+					kind: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
+					message: error instanceof Error ? error.message : undefined,
+					lateStatus: late?.status.get(),
+				}, {
+					kind: 'refused',
+					message: 'The nested session could not be created in other: not a git repository',
+					lateStatus: SessionStatus.Completed,
+				});
+			}));
+
+			test('resolves folder isolation, default branch, and branch completions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-folder-info');
+				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree', branch: 'develop' } };
+				agentHost.branchCompletionItems = [{ value: 'feature/a', label: 'feature/a' }];
+
+				const info = await provider.resolveNestedChatFolder(session.sessionId, other, CancellationToken.None);
+				const branches = await provider.getNestedChatBranches(session.sessionId, other, 'feat', CancellationToken.None);
+				agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema({ isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder', sessionMutable: false } }), values: {} };
+				const folderOnly = await provider.resolveNestedChatFolder(session.sessionId, other, CancellationToken.None);
+
+				assert.deepStrictEqual({
+					info,
+					branches,
+					folderOnly,
+					resolvedFolders: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory?.toString()),
+					completion: agentHost.branchCompletionRequests.map(request => ({ property: request.property, query: request.query, workingDirectory: request.workingDirectory?.toString() })),
+				}, {
+					info: { supportsWorktree: true, defaultBranch: 'develop' },
+					branches: ['feature/a'],
+					folderOnly: { supportsWorktree: false, defaultBranch: undefined },
+					resolvedFolders: [other.toString(), other.toString(), other.toString()],
+					completion: [{ property: 'branch', query: 'feat', workingDirectory: other.toString() }],
+				});
+			}));
 		});
 
 		test('sendRequest keeps a peer chat model loaded while dispatching', async () => {

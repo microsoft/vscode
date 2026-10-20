@@ -30,6 +30,7 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
+import { readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -2074,22 +2075,47 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
+			const workspace = readCreateChatWorkspaceMeta(params._meta);
+			if (workspace === 'invalid') {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat workspace metadata');
+			}
+			if (workspace && (params.source !== undefined || params.workingDirectories !== undefined)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'A createChat workspace cannot be combined with a source or working directories');
+			}
 			// The default chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
 			const defaultChat = state.defaultChat ?? this._chatOwnership.getDefaultChat(params.channel);
-			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString() && params.initialMessage === undefined) {
-				return null;
+			if (defaultChat !== undefined && URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+				if (workspace) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'The default chat cannot get a workspace of its own');
+				}
+				if (params.initialMessage === undefined) {
+					return null;
+				}
 			}
 			const chatUriError = createChatUriError(defaultChat, state.chats.map(existing => existing.resource), params.chat);
 			if (chatUriError !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
+			if (workspace?.kind === 'folder') {
+				// The folder joins the session's workspace, so it needs the same grants as a session's folders.
+				const checkAuthorization = this._captureRelayAuthorization(_client);
+				const folder = workspace.folder.toString();
+				if (_client.transport.relayClientId !== undefined && this._config.relayResourceRoots && !await this._isGrantedRelayResource(folder, false)) {
+					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Chat workspace is outside the host workspace grants');
+				}
+				if (this._config.relayRoots && !await this._isGrantedRelayDirectory(folder)) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Working directory is not an explicitly granted project root');
+				}
+				checkAuthorization();
+			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined
+			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined || workspace !== undefined
 				? {
 					...(params.title !== undefined ? { title: params.title } : {}),
 					...(params.workingDirectories !== undefined ? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) } : {}),
 					...(params.initialMessage !== undefined ? { initialMessage: params.initialMessage } : {}),
+					...(workspace !== undefined ? { workspace } : {}),
 				}
 				: undefined;
 			if (source) {

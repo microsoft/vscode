@@ -22,6 +22,7 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHos
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
+import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from './meta/agentHostCreateChatWorkspaceMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
@@ -93,6 +94,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostNativeImplementationMetaKey]?: true;
 	readonly [AgentHostChatStateFileCapabilityMetaKey]?: true;
 	readonly [AgentHostDetachedWorktreeCapabilityMetaKey]?: true;
+	/** Present when `createChat` honors a requested chat workspace (folder, worktree or scratch folder). */
+	readonly [AgentHostCreateChatWorkspaceCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatCapabilityMetaKey]?: true;
 	readonly [AgentHostSavedChatContinuationCapabilityMetaKey]?: true;
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
@@ -118,6 +121,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostNativeImplementationMetaKey]: true,
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
+		[AgentHostCreateChatWorkspaceCapabilityMetaKey]: true,
 		[AgentHostAutonomousAutomationsCapabilityMetaKey]: true,
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 		...(savedChat ? { [AgentHostSavedChatCapabilityMetaKey]: true as const } : {}),
@@ -138,6 +142,12 @@ export function supportsAgentHostChatStateFile(result: IAgentHostExtensionInitia
 export function supportsAgentHostDetachedWorktrees(result: IAgentHostExtensionInitializeResult | undefined): boolean {
 	const meta = result?._meta;
 	return meta?.[AgentHostDetachedWorktreeCapabilityMetaKey] === true;
+}
+
+/** Whether the host honors a workspace requested for a new peer chat on `createChat`. */
+export function supportsAgentHostCreateChatWorkspace(result: IAgentHostExtensionInitializeResult | undefined): boolean {
+	const meta = result?._meta;
+	return meta?.[AgentHostCreateChatWorkspaceCapabilityMetaKey] === true;
 }
 
 export const collectAgentHostDebugLogsParamsValidator = vObj({

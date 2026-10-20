@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -6271,15 +6271,25 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
 		const reservations = new DisposableStore();
+		const { workspace, ...requestOptions } = options ?? {};
+		// The requested workspace is host-owned: it resolves into the chat's working directories and never reaches providers.
+		const chatOptions = workspace ? requestOptions : options;
 		let scratch: IAllocatedScratchFolder | undefined;
+		let prepared: IPreparedChatWorkingDirectory | undefined;
 		try {
 			await this._scratchFoldersLoaded;
-			scratch = await this._allocateScratchFolder(session, chat, options);
-			await this._createChatWithReservations(session, chat, scratch ? { ...options, workingDirectories: [scratch.folder] } : options, reservations, credentials, initialMessageContext);
+			if (workspace?.kind === 'folder') {
+				prepared = await this._prepareRequestedChatFolder(session, chat, requestOptions, workspace, credentials);
+			} else {
+				scratch = await this._allocateScratchFolder(session, chat, chatOptions, workspace?.kind === 'scratch');
+			}
+			const directory = prepared?.directory ?? scratch?.folder;
+			await this._createChatWithReservations(session, chat, directory ? { ...chatOptions, workingDirectories: [directory] } : chatOptions, reservations, credentials, initialMessageContext);
 		} catch (error) {
-			// Reservations hold the folder attached to the session, so they end before the detach in abort().
+			// Reservations hold the folder attached to the session, so they end before the detach in abort() and release().
 			reservations.dispose();
 			await scratch?.abort();
+			await prepared?.release();
 			throw error;
 		} finally {
 			reservations.dispose();
@@ -6289,19 +6299,67 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Gives a new nested chat of a workspace-less session its own scratch folder: records the row, creates the folder,
-	 * attaches it to the session and pins the chat to it. Forks (they share their source's folder), side chats, the
-	 * default chat, chats naming folders and providers without per-chat folders are left alone.
+	 * Refuses a requested chat workspace the session cannot honor: combined with folders, a fork or a side chat,
+	 * for the default chat, or with a provider without chats or per-chat folders. Returns the session's provider.
 	 */
-	private async _allocateScratchFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined): Promise<IAllocatedScratchFolder | undefined> {
-		const sessionKey = session.toString();
+	private _requireChatWorkspaceSupport(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined): IAgent {
 		if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
-			return undefined;
+			throw new Error('[AgentService] createChat: a chat workspace cannot be combined with working directories, a fork or a side chat');
 		}
 		const provider = this._providerService.getProviderForSession(session);
-		if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories || !this._supportsChats(provider)
-			|| !readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) || chat.toString() === this._requireDefaultChat(session)) {
-			return undefined;
+		if (!provider) {
+			throw new Error(`[AgentService] createChat: no provider for session ${session.toString()}`);
+		}
+		if (!provider.getDescriptor().capabilities?.multipleWorkingDirectories) {
+			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support a workspace per chat`);
+		}
+		if (!this._supportsChats(provider)) {
+			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
+		}
+		if (chat.toString() === this._requireDefaultChat(session)) {
+			throw new Error('[AgentService] createChat: the default chat cannot get a workspace of its own');
+		}
+		return provider;
+	}
+
+	/** Adds a requested folder to the session, as is or in a new worktree, for a new chat to work in. */
+	private async _prepareRequestedChatFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions, workspace: Extract<IAgentCreateChatWorkspace, { kind: 'folder' }>, credentials: IAgentHostCredentialSource | undefined): Promise<IPreparedChatWorkingDirectory> {
+		this._requireChatWorkspaceSupport(session, chat, options);
+		const prepared = await this.prepareChatWorkingDirectory(session, workspace.folder, {
+			...(workspace.isolation === 'worktree'
+				? { isolation: 'worktree', prompt: workspace.prompt, forceNewWorktree: true, ...(workspace.baseBranch !== undefined ? { baseBranch: workspace.baseBranch } : {}) }
+				: { isolation: 'folder' }),
+			...(credentials ? { credentialSource: credentials } : {}),
+		});
+		try {
+			await prepared.associateWithChat?.(chat);
+		} catch (error) {
+			await prepared.release();
+			throw error;
+		}
+		return prepared;
+	}
+
+	/**
+	 * Gives a new nested chat its own scratch folder: records the row, creates the folder, attaches it to the session
+	 * and pins the chat to it. Unless `requested`, only nested chats of a workspace-less session get one; forks (they
+	 * share their source's folder), side chats, the default chat, chats naming folders and providers without per-chat
+	 * folders are left alone. A `requested` scratch folder is allocated in any session, or refused.
+	 */
+	private async _allocateScratchFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, requested = false): Promise<IAllocatedScratchFolder | undefined> {
+		const sessionKey = session.toString();
+		let provider: IAgent | undefined;
+		if (requested) {
+			provider = this._requireChatWorkspaceSupport(session, chat, options);
+		} else {
+			if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
+				return undefined;
+			}
+			provider = this._providerService.getProviderForSession(session);
+			if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories || !this._supportsChats(provider)
+				|| !readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) || chat.toString() === this._requireDefaultChat(session)) {
+				return undefined;
+			}
 		}
 		const folder = joinPath(workspacelessChatsRoot(this._environmentService.userHome), generateUuid());
 		const folderKey = folder.toString();
@@ -11186,8 +11244,8 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 
-			const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot);
-			const selectedBranch = defaultBranch?.name
+			const selectedBranch = options.baseBranch
+				?? (await this._gitService.getDefaultBranch(repositoryRoot))?.name
 				?? await this._gitService.getCurrentBranch(repositoryRoot)
 				?? 'HEAD';
 			const detached = await this._worktree.createDetachedWorktree({

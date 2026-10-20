@@ -922,7 +922,21 @@ export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions 
 	 * the provider, while retaining the side-chat provenance itself.
 	 */
 	readonly sideChat?: IAgentCreateChatSideChatSource;
+	/**
+	 * Host-owned workspace requested for a new peer chat. The host prepares it
+	 * (adding the folder to the session, creating a worktree or a scratch
+	 * folder) and resolves it into {@link workingDirectories}; providers never
+	 * receive it. Exclusive with {@link workingDirectories}, {@link fork} and
+	 * {@link sideChat}.
+	 */
+	readonly workspace?: IAgentCreateChatWorkspace;
 }
+
+/** The workspace a client asks for when it creates a peer chat (VS Code `_meta`, validated). */
+export type IAgentCreateChatWorkspace =
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'folder' }
+	| { readonly kind: 'folder'; readonly folder: URI; readonly isolation: 'worktree'; readonly baseBranch: string | undefined; readonly prompt: string }
+	| { readonly kind: 'scratch' };
 
 /** Identifies the exact source chat and turn to fork from. */
 export interface IAgentCreateChatForkSource {

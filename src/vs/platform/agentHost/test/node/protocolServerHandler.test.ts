@@ -16,6 +16,7 @@ import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
+import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
@@ -644,6 +645,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpSessionUris': true,
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
+				'vscode.createChatWorkspace': true,
 				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
@@ -8237,6 +8239,38 @@ suite('ProtocolServerHandler', () => {
 			}, {
 				code: AHP_SESSION_NOT_FOUND,
 				created: [],
+			});
+		});
+
+		test('createChat forwards a requested chat workspace and rejects malformed or conflicting ones', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-workspace');
+			const folder = URI.file('/other-repo');
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const params of [
+				{ chat: buildChatUri(sessionUri, 'scratch'), _meta: withCreateChatWorkspaceMeta({ other: true }, { kind: 'scratch' }) },
+				{ chat: buildChatUri(sessionUri, 'worktree'), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'folder', folder, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' }) },
+				{ chat: buildChatUri(sessionUri, 'invalid'), _meta: { 'vscode.chatWorkspace': { kind: 'folder', folder: 'relative', isolation: 'folder' } } },
+				{ chat: buildChatUri(sessionUri, 'with-folders'), workingDirectories: [URI.file('/workspace').toString()], _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) },
+				{ chat: buildChatUri(sessionUri, 'with-source'), source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) },
+				{ chat: buildDefaultChatUri(sessionUri), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) },
+			]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel: sessionUri, ...params }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => ({ chat: created.chat, workspace: created.options?.workspace?.kind === 'folder' ? { ...created.options.workspace, folder: created.options.workspace.folder.toString() } : created.options?.workspace })),
+			}, {
+				outcomes: [undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+				created: [
+					{ chat: buildChatUri(sessionUri, 'scratch'), workspace: { kind: 'scratch' } },
+					{ chat: buildChatUri(sessionUri, 'worktree'), workspace: { kind: 'folder', folder: folder.toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+				],
 			});
 		});
 

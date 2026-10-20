@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -147,6 +147,11 @@ export interface ICreateNewChatInSessionOptions {
 	 * just-sent chat may still transiently report `Untitled`.
 	 */
 	readonly forceNew?: boolean;
+	/**
+	 * Create the chat in this workspace (see {@link ISessionsProvider.createNewChatInWorkspace}); `prompt` names a new
+	 * worktree. Always creates a fresh chat, and rejects with the provider's error when it cannot be created there.
+	 */
+	readonly workspace?: { readonly workspace: INestedChatWorkspace; readonly prompt: string };
 }
 
 /**
@@ -479,7 +484,8 @@ export interface ISessionsManagementService {
 	 * provider so it can be shown as the new-chat-in-session view. Pass
 	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
 	 * chat. Returns the chat, or `undefined` when the provider could not be
-	 * resolved.
+	 * resolved. With {@link ICreateNewChatInSessionOptions.workspace}, always
+	 * creates a fresh chat in that workspace and rejects when the provider refuses.
 	 */
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
 
