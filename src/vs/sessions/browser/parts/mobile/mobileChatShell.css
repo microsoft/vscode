@@ -431,6 +431,12 @@
 	background-size: 64px 64px;
 }
 
+.agent-sessions-workbench.phone-layout .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer.welcome-phrases-visible:not(.no-agent-host) .new-session-welcome-message {
+	top: auto;
+	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
 .agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-below-input-surfaces {
 	order: 0;
 }
