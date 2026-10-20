@@ -3026,14 +3026,16 @@ suite('Sessions - Chat View', () => {
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
-		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
+		const list = dom.append(session, dom.$('.interactive-list'));
+		const response = dom.append(list, dom.$('.interactive-item-container.interactive-response'));
 		response.style.width = '600px';
 		const value = dom.append(response, dom.$('.value'));
 		const footer = dom.append(response, dom.$('.chat-footer-toolbar'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
-		const plainResponse = dom.append(plainSession, dom.$('.interactive-item-container.interactive-response'));
+		const plainList = dom.append(plainSession, dom.$('.interactive-list'));
+		const plainResponse = dom.append(plainList, dom.$('.interactive-item-container.interactive-response'));
 		const createHighContrastResponse = (themeClass: 'hc-black' | 'hc-light') => {
 			const highContrastWorkbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${themeClass}`);
 			highContrastWorkbench.style.setProperty('--session-view-background', '#ffffff');
@@ -3176,6 +3178,42 @@ suite('Sessions - Chat View', () => {
 				insideInput: transparent,
 				withoutBackground: transparent,
 				restored: opaque,
+			});
+		});
+	}
+
+	for (const hostSelector of ['.part.sessionspart', '.chat-editor-relative']) {
+		test(`keeps sticky progress aligned with its composer in ${hostSelector}`, () => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			workbench.style.setProperty('--vscode-spacing-size240', '24px');
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			const host = dom.append(workbench, dom.$(hostSelector));
+			host.style.width = '400px';
+			const widget = dom.append(host, dom.$('.chat-widget'));
+			const session = dom.append(widget, dom.$('.interactive-session'));
+			const list = dom.append(session, dom.$('.interactive-list'));
+			const row = dom.append(list, dom.$('.interactive-item-container'));
+			const stack = dom.append(session, dom.$('.interactive-input-part.chat-input-surface-stack'));
+			stack.style.cssText = 'display: flex; flex-direction: column; width: 100%';
+			const sticky = dom.append(stack, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+			const progress = dom.append(sticky, dom.$('.progress-container'));
+			progress.textContent = 'Analyzing workspace changes';
+			const composer = dom.append(stack, dom.$('.chat-input-container'));
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+
+			const stickyStyle = dom.getWindow(sticky).getComputedStyle(sticky);
+			const rowStyle = dom.getWindow(row).getComputedStyle(row);
+			assert.deepStrictEqual({
+				progressOffset: progress.getBoundingClientRect().left - composer.getBoundingClientRect().left,
+				stickyPadding: stickyStyle.paddingLeft,
+				stickyMargin: stickyStyle.marginLeft,
+				rowPadding: rowStyle.paddingLeft,
+			}, {
+				progressOffset: 0,
+				stickyPadding: '0px',
+				stickyMargin: '0px',
+				rowPadding: '24px',
 			});
 		});
 	}
