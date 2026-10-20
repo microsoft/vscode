@@ -30,6 +30,7 @@ import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resol
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
+import { readWorkingSetVersion, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -1470,9 +1471,11 @@ export class AgentHostSessionInputPills extends Disposable {
 					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message: messages.unverified })));
 					break;
 				}
-				const current = state.files
-					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))
-					.find(candidate => candidate && isEqual(candidate.modifiedURI, diff.modifiedURI));
+				const currentFile = state.files.find(file => {
+					const candidate = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
+					return candidate && isEqual(candidate.modifiedURI, diff.modifiedURI);
+				});
+				const current = currentFile && agentHostChangesetFileToEntryDiff(currentFile, connectionAuthority);
 				if (!current) {
 					// The file's changes are already gone.
 					continue;
@@ -1481,11 +1484,14 @@ export class AgentHostSessionInputPills extends Disposable {
 					failures.push({ fileName, message: messages.changed(fileName) });
 					continue;
 				}
+				// The agent may change the file while it works, so a Working Set operation names the changes that were shown.
+				const version = readWorkingSetVersion(currentFile);
 				try {
 					await connection.invokeChangesetOperation({
 						channel: channelKey,
 						operationId: operation.id,
 						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
+						...(version !== undefined ? { _meta: withWorkingSetVersion(undefined, version) } : {}),
 					});
 					succeeded++;
 				} catch (error) {

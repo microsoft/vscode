@@ -9,7 +9,7 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { splitLines } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -28,6 +28,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { isWorkingSetFileEditing, readWorkingSetVersion, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -42,6 +43,7 @@ import { isTextFileEditorModel, ITextFileService } from '../../../../../services
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import type { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
@@ -54,9 +56,17 @@ const DIFF_TIMEOUT_MS = 1000;
 /** How long an operation waits for the Working Set to finish updating. */
 const WORKING_SET_READY_TIMEOUT_MS = 30_000;
 
-/** A file of the session's Working Set, as last read from the agent host. */
-interface IWorkingSetFile {
+/** A file of the session's Working Set, and the version of its changes that the agent host published with it. */
+interface IWorkingSetFileChange {
 	readonly diff: IEditSessionEntryDiff;
+	/** Sent back with operations on the file, so they don't cover changes the editor didn't show. Older hosts publish none. */
+	readonly version: string | undefined;
+	/** Whether an agent's edit tool call is writing the file, so its changes can't be kept or undone meanwhile. */
+	readonly editing: boolean;
+}
+
+/** A file of the session's Working Set, as last read from the agent host. */
+interface IWorkingSetFile extends IWorkingSetFileChange {
 	/** The content its changes are compared with. */
 	readonly baseline: string;
 	/** Its content after the last edit the session recorded. */
@@ -148,6 +158,55 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		return unlessCancelled(super.rejectDeferred());
 	}
 
+	/** Whether an agent's edit tool call is writing the file, see {@link setEditing}. */
+	get isAgentEditing(): boolean {
+		return this._agentEditing;
+	}
+
+	private _agentEditing = false;
+	private _agentReloads = 0;
+
+	/**
+	 * Marks the file as being written by an agent's edit tool call of
+	 * `response`, or not. As while local chat edits stream into a file, the
+	 * editor is read-only, the changes can't be kept or undone, and changes
+	 * of the document, as when it reloads what the agent wrote, are the
+	 * agent's meanwhile.
+	 */
+	setEditing(editing: boolean, response: IChatResponseModel | undefined): void {
+		this._agentEditing = editing;
+		this._updateExternalEdit();
+		const modifiedBy = editing ? response : undefined;
+		if (this._isCurrentlyBeingModifiedByObs.get()?.responseModel === modifiedBy) {
+			return;
+		}
+		transaction(tx => {
+			this._isCurrentlyBeingModifiedByObs.set(modifiedBy && { responseModel: modifiedBy, undoStopId: undefined }, tx);
+			this._waitsForLastEdits.set(!!modifiedBy, tx);
+		});
+	}
+
+	/** Runs `task`, which reloads what the agent wrote into the document, with the document's changes counting as the agent's. */
+	async runAsAgentEdit(task: () => Promise<void>): Promise<void> {
+		this._agentReloads++;
+		this._updateExternalEdit();
+		try {
+			await task();
+		} finally {
+			this._agentReloads--;
+			this._updateExternalEdit();
+		}
+	}
+
+	/** Local chat counts the changes of a document as an agent's while the agent edits its file on disk. */
+	private _updateExternalEdit(): void {
+		if (this._agentEditing || this._agentReloads > 0) {
+			this.startExternalEdit();
+		} else {
+			this.stopExternalEdit();
+		}
+	}
+
 	private _matchLineEndings(): void {
 		this.originalModel.setEOL(this.modifiedModel.getEndOfLineSequence());
 	}
@@ -163,8 +222,11 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
  * operations keep or undo a file's changes, or the changes of one hunk. Each
  * entry follows a file of the Working Set: it compares the document with the
  * file's baseline, and keeping or undoing asks the host, whose updated
- * Working Set the entries then follow. Session, turn and branch changesets
- * reflect an undo as soon as the host records it.
+ * Working Set the entries then follow. The host updates the Working Set after
+ * each of the agent's edits, so changes can be kept or undone while the agent
+ * works, and an operation names the version of the changes the editor showed.
+ * Session, turn and branch changesets reflect an undo as soon as the host
+ * records it.
  */
 export class AgentHostEditReview extends Disposable implements IWorkingSetOperations {
 
@@ -241,9 +303,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				// While the Working Set updates, its files are the previous ones.
 				return;
 			}
-			const files = current && state
-				? state.files.map(file => agentHostChangesetFileToEntryDiff(file, current.connectionAuthority)).filter(isDefined)
-				: [];
+			const files = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
 			this._updates.queue(() => this._update(files));
 		}));
 	}
@@ -292,19 +352,28 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	/** Follows the files of the Working Set: reviews new ones, updates changed ones, and drops those that left it. */
-	private async _update(files: readonly IEditSessionEntryDiff[]): Promise<void> {
+	private async _update(files: readonly IWorkingSetFileChange[]): Promise<void> {
 		const listed = new ResourceSet();
 		for (const file of files) {
 			// A deleted file has no document to review; the working set lists it.
-			if (file.isDeleted || this._store.isDisposed) {
+			if (file.diff.isDeleted || this._store.isDisposed) {
 				continue;
 			}
-			const resource = this._uriIdentityService.asCanonicalUri(file.modifiedURI);
+			const resource = this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI);
 			listed.add(resource);
 			try {
 				await this._updateFile(resource, file);
 			} catch (error) {
 				this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
+			}
+			const entry = this._entries.get(resource);
+			if (entry) {
+				if (entry.isAgentEditing && !file.editing) {
+					// The agent's edit was recorded, so the document reloads what it wrote, as when local chat edits on disk end.
+					await entry.runAsAgentEdit(() => this._reloadFromDisk(resource));
+				}
+				// Like local chat edits while they stream into a file, the agent's edit can't be kept or undone while it writes the file.
+				entry.setEditing(file.editing, file.editing ? this._getLatestResponse() : undefined);
 			}
 		}
 		for (const entry of [...this._entries.values()]) {
@@ -314,12 +383,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		}
 	}
 
-	private async _updateFile(resource: URI, diff: IEditSessionEntryDiff): Promise<void> {
+	private async _updateFile(resource: URI, change: IWorkingSetFileChange): Promise<void> {
 		const existing = this._entries.get(resource);
-		if (existing && isSameWorkingSetFile(existing.file.diff, diff)) {
+		if (existing && isSameWorkingSetFile(existing.file, change)) {
 			return;
 		}
-		const contents = await this._readContents(diff);
+		const contents = await this._readContents(change.diff);
 		const entry = this._entries.get(resource);
 		if (this._store.isDisposed) {
 			return;
@@ -331,7 +400,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			return;
 		}
 		if (entry?.state.get() === ModifiedFileEntryState.Modified) {
-			await entry.update({ diff, ...contents });
+			// The review compares the document with what the session recorded, so it first gets the agent's last write.
+			await entry.runAsAgentEdit(() => this._reloadFromDisk(resource));
+			await entry.update({ ...change, ...contents });
 			entry.updateTelemetryInfo(this._getTelemetryInfo());
 			return;
 		}
@@ -339,7 +410,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			// The user decided on the earlier changes, so the file is reviewed anew.
 			this._removeEntry(entry);
 		}
-		await this._createEntry(resource, { diff, ...contents });
+		await this._createEntry(resource, { ...change, ...contents });
 	}
 
 	private async _createEntry(resource: URI, file: IWorkingSetFile): Promise<void> {
@@ -354,6 +425,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			this._logService.warn(`[AgentHostEditReview] Could not open ${resource} for review`, error);
 			return;
 		}
+		// An open document may not have reloaded the agent's last write yet, which the review compares it with.
+		await this._reloadFromDisk(resource);
 		if (this._store.isDisposed || this._entries.has(resource) || !this._hasSupportedEncoding(ref.object)) {
 			ref.dispose();
 			return;
@@ -406,6 +479,25 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	/**
+	 * Reloads a document from disk, unless it has unsaved changes. The agent
+	 * writes files on disk, and the Working Set can update before a document
+	 * reloads the agent's last write, which the review would then take for the
+	 * user's. Local chat reloads documents once an agent's edits on disk end too.
+	 */
+	private async _reloadFromDisk(resource: URI): Promise<void> {
+		const model = this._textFileService.files.get(resource);
+		if (!model || model.isDisposed() || model.isDirty()) {
+			return;
+		}
+		try {
+			// The file may have changed without its size and modification time telling, so it's read in any case.
+			await model.resolve({ forceReadFromFile: true });
+		} catch (error) {
+			this._logService.warn(`[AgentHostEditReview] Could not reload ${resource}`, error);
+		}
+	}
+
+	/**
 	 * Asks the agent host to accept or discard the changes of `entry` in the
 	 * Working Set: the changes of the hunk `change`, or all of them. Failures
 	 * are reported. Resolves to whether the host did.
@@ -429,26 +521,29 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				// The change was decided, or replaced by a newer one, since it was shown.
 				return false;
 			}
+			if (entry.isCurrentlyBeingModifiedBy.get()) {
+				// The editor disables keeping and undoing while the agent writes the file, as local chat does.
+				throw new Error(localize('agentHostEditReview.editing', "The agent is editing this file. Try again once it has finished."));
+			}
 			const workingSet = this._workingSet.get();
 			const state = workingSet && await whenReady(workingSet.subscription);
 			if (!workingSet || !state) {
 				throw new Error(localize('agentHostEditReview.notReady', "The session's changes couldn't be checked. Try again."));
 			}
-			const file = state.files
-				.map(candidate => agentHostChangesetFileToEntryDiff(candidate, workingSet.connectionAuthority))
-				.find(candidate => candidate && isEqual(this._uriIdentityService.asCanonicalUri(candidate.modifiedURI), entry.modifiedURI));
+			const file = toWorkingSetFileChanges(state, workingSet.connectionAuthority)
+				.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
 			if (!file) {
 				// The file left the Working Set, as when it was kept elsewhere.
 				return false;
 			}
-			if (!isSameWorkingSetFile(file, entry.file.diff)) {
+			if (!isSameWorkingSetFile(file, entry.file)) {
 				if (attempt === 0) {
 					// The entry follows the Working Set next.
 					continue;
 				}
 				throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
 			}
-			await this._invokeOperation(workingSet, entry, operationId, state, change && !file.isCreated ? change : undefined);
+			await this._invokeOperation(workingSet, entry, operationId, state, change && !file.diff.isCreated ? change : undefined);
 			return true;
 		}
 	}
@@ -461,7 +556,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			throw new Error(localize('agentHostEditReview.unsupported', "The agent host doesn't support this."));
 		}
 		if (operation.status === ChangesetOperationStatus.Disabled) {
-			// The agent host disables its operations while a turn runs.
+			// The agent host disables operations it can't run while a turn runs.
 			throw new Error(localize('agentHostEditReview.busy', "Try again once the agent has finished working."));
 		}
 		const resource = workingSet.connection.resourceUris.toAgentHost(entry.modifiedURI).toString();
@@ -470,12 +565,15 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			// The agent host reverts the changes on disk, so the document's unsaved text goes there first.
 			await this._textFileService.save(entry.modifiedURI, { reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 		}
+		const version = entry.file.version;
 		await workingSet.connection.invokeChangesetOperation({
 			channel: workingSet.channel.toString(),
 			operationId,
 			target: range
 				? { kind: ChangesetOperationTargetKind.Range, resource, side: 'after', range }
 				: { kind: ChangesetOperationTargetKind.Resource, resource },
+			// The agent may change the file while it works, so the host only acts on the changes the editor showed.
+			...(version !== undefined ? { _meta: withWorkingSetVersion(undefined, version) } : {}),
 		});
 	}
 
@@ -505,9 +603,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		});
 	}
 
+	/** The entries of `uris`, or every entry, whose changes can be kept or undone: as in local chat, not while the agent writes the file. */
 	private _getEntries(uris: readonly URI[]): readonly AgentHostEditReviewEntry[] {
-		const entries = [...this._entries.values()];
-		return uris.length === 0 ? entries : entries.filter(entry => uris.some(uri => isEqual(entry.modifiedURI, uri)));
+		return [...this._entries.values()]
+			.filter(entry => uris.length === 0 || uris.some(uri => isEqual(entry.modifiedURI, uri)))
+			.filter(entry => !entry.isCurrentlyBeingModifiedBy.get());
 	}
 
 	/** Attributes the changes to the chat's latest request, the one whose turn last updated the Working Set. */
@@ -525,6 +625,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			applyCodeBlockSuggestionId: undefined,
 			feature: 'sideBarChat',
 		};
+	}
+
+	/** The response of the chat's latest request, whose turn runs while the agent edits files. */
+	private _getLatestResponse(): IChatResponseModel | undefined {
+		return this._chatService.getSession(this.chatSessionResource)?.getRequests().at(-1)?.response;
 	}
 }
 
@@ -605,9 +710,23 @@ function withLineEndings(text: string, eol: string): string {
 	return text.replace(/\r\n|\r|\n/g, eol);
 }
 
-/** Whether two versions of a Working Set file have the same changes: versions are recorded content, which never changes. */
-function isSameWorkingSetFile(a: IEditSessionEntryDiff, b: IEditSessionEntryDiff): boolean {
-	return isEqual(a.originalURI, b.originalURI) && isEqual(a.modifiedSnapshotURI, b.modifiedSnapshotURI) && !!a.isCreated === !!b.isCreated;
+/**
+ * Whether two versions of a Working Set file have the same changes: versions
+ * are recorded content, which never changes, and the host's version of them.
+ */
+function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange): boolean {
+	return isEqual(a.diff.originalURI, b.diff.originalURI)
+		&& isEqual(a.diff.modifiedSnapshotURI, b.diff.modifiedSnapshotURI)
+		&& !!a.diff.isCreated === !!b.diff.isCreated
+		&& a.version === b.version;
+}
+
+/** The files of a Working Set, with the version the host published for each. */
+function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string): IWorkingSetFileChange[] {
+	return state.files.map(file => {
+		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
+		return diff && { diff, version: readWorkingSetVersion(file), editing: isWorkingSetFileEditing(file) };
+	}).filter(isDefined);
 }
 
 /** The Working Set once it's up to date, or `undefined` if it fails or doesn't update in time. */

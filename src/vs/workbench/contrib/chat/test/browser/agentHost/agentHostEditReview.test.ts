@@ -8,8 +8,8 @@ import { equals } from '../../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -27,6 +27,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { readWorkingSetVersion, withWorkingSetFileEditing, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -39,7 +40,7 @@ import { IEditorIdentifier, isDiffEditorInput } from '../../../../../common/edit
 import { DiffEditorInput } from '../../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IResolvedTextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { TestFileEditorInput, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
@@ -49,6 +50,7 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/ag
 import { ChatEditingModifiedDocumentEntry } from '../../../browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 import { IChatService, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import type { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 
 function createOperations(status = ChangesetOperationStatus.Idle): ChangesetOperation[] {
 	return [AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID].map(id => ({
@@ -96,7 +98,8 @@ class TestAgentHost extends mock<IAgentConnection>() {
 	override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		const target = params.target!;
 		const lines = target.kind === ChangesetOperationTargetKind.Range ? ` ${target.side} ${target.range.start.line}-${target.range.end.line}` : '';
-		this.invoked.push(`${params.operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID ? 'keep' : 'undo'} ${URI.parse(target.resource).path}${lines}`);
+		const version = readWorkingSetVersion(params);
+		this.invoked.push(`${params.operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID ? 'keep' : 'undo'} ${URI.parse(target.resource).path}${lines}${version ? ` @${version}` : ''}`);
 		if (this.failure) {
 			throw new Error(this.failure);
 		}
@@ -114,6 +117,8 @@ suite('AgentHostEditReview', () => {
 	let models: ResourceMap<ITextModel>;
 	/** File contents on disk, which the agent host writes and saves update. */
 	let disk: ResourceMap<string>;
+	/** Documents with unsaved changes, which the user typed. */
+	let dirty: ResourceSet;
 	/** Contents the agent host recorded, which it serves at their URIs. */
 	let recorded: ResourceMap<string>;
 	let saves: string[];
@@ -123,6 +128,8 @@ suite('AgentHostEditReview', () => {
 	/** How long diffs take. */
 	let diffDelay: number;
 	let version: number;
+	/** The response of the chat's latest request, if it has one. */
+	let chatResponse: IChatResponseModel | undefined;
 	/** The diff editors that are open. */
 	let diffEditors: IEditorIdentifier[];
 	/** The diff editors closed, and whether the original they compared with was still open then. */
@@ -159,12 +166,19 @@ suite('AgentHostEditReview', () => {
 		}
 	}
 
+	/** The agent host writes a file, which an open editor only reloads later, as when the file watcher lags behind. */
+	function hostWritesWithoutReload(path: string, content: string): void {
+		disk.set(URI.file(path), content);
+	}
+
 	function userTypes(path: string, lineNumber: number, column: number, text: string): void {
-		getModel(URI.file(path)).applyEdits([EditOperation.insert(new Position(lineNumber, column), text)]);
+		const resource = URI.file(path);
+		getModel(resource).applyEdits([EditOperation.insert(new Position(lineNumber, column), text)]);
+		dirty.add(resource);
 	}
 
 	/** A file of the Working Set. Its recorded contents get new URIs each time, like the edit rows of the host. */
-	function workingSetFile(path: string, baseline: string | undefined, current: string | undefined): ChangesetFile {
+	function workingSetFile(path: string, baseline: string | undefined, current: string | undefined, meta?: Record<string, unknown>): ChangesetFile {
 		version++;
 		const uri = URI.file(path).toString();
 		const record = (part: string, content: string) => {
@@ -179,6 +193,7 @@ suite('AgentHostEditReview', () => {
 				...(current === undefined ? {} : { after: record('after', current) }),
 				diff: { added: 1, removed: 1 },
 			},
+			...(meta ? { _meta: meta } : {}),
 		};
 	}
 
@@ -219,12 +234,14 @@ suite('AgentHostEditReview', () => {
 	setup(() => {
 		models = new ResourceMap<ITextModel>();
 		disk = new ResourceMap<string>();
+		dirty = new ResourceSet();
 		recorded = new ResourceMap<string>();
 		saves = [];
 		errors = [];
 		encodings = new ResourceMap<string>();
 		diffDelay = 0;
 		version = 0;
+		chatResponse = undefined;
 		diffEditors = [];
 		closedEditors = [];
 		host = new TestAgentHost();
@@ -273,22 +290,38 @@ suite('AgentHostEditReview', () => {
 		}());
 		collection.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
-				override get(_resource: URI) {
-					return undefined;
+				override get(resource: URI) {
+					if (!models.has(resource)) {
+						return undefined;
+					}
+					return new class extends mock<ITextFileEditorModel>() {
+						override isDisposed() { return false; }
+						override isDirty(): this is IResolvedTextFileEditorModel { return dirty.has(resource); }
+						override async resolve() {
+							// Like a text file model, reloading from disk keeps unsaved changes.
+							if (!dirty.has(resource)) {
+								modelService.updateModel(getModel(resource), disk.get(resource) ?? '', EditSources.reloadFromDisk());
+							}
+						}
+					}();
 				}
 			}();
 			override isDirty(resource: URI): boolean {
-				return models.has(resource) && getModel(resource).getValue() !== disk.get(resource);
+				return dirty.has(resource);
 			}
 			override async save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 				saves.push(`${resource.path}${options?.skipSaveParticipants ? ' (no participants)' : ''}`);
 				disk.set(resource, getModel(resource).getValue());
+				dirty.delete(resource);
 				return resource;
 			}
 		}());
 		collection.set(IFilesConfigurationService, new class extends mock<IFilesConfigurationService>() {
 			override getAutoSaveConfiguration(_resource: URI): IAutoSaveConfiguration {
 				return {};
+			}
+			override disableAutoSave(_resource: URI): IDisposable {
+				return Disposable.None;
 			}
 		}());
 		collection.set(IFileService, new class extends mock<IFileService>() {
@@ -310,7 +343,8 @@ suite('AgentHostEditReview', () => {
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestDelayedWorkerService));
 		collection.set(IChatService, new class extends mock<IChatService>() {
 			override getSession() {
-				return undefined;
+				// The chat's latest request, whose turn runs while the agent edits files.
+				return chatResponse && upcastPartial<IChatModel>({ getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'request', response: chatResponse })] });
 			}
 			override notifyUserAction(_event: IChatUserActionEvent): void { }
 		}());
@@ -399,6 +433,26 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
+	test('shows the agent\'s changes when the Working Set updates before an open document reloads what the agent wrote', async () => {
+		// The document is open when the agent edits the file.
+		hostWrites('/a.ts', 'a\nb\n');
+		getModel(URI.file('/a.ts'));
+		hostWritesWithoutReload('/a.ts', 'A\nb\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n')]);
+		await settle();
+		const first = await describeEntries();
+
+		// The agent edits the file again, and the Working Set updates first again.
+		hostWritesWithoutReload('/a.ts', 'A\nB\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n')]);
+		await settle();
+
+		assert.deepStrictEqual({ first, second: await describeEntries() }, {
+			first: [{ path: '/a.ts', original: 'a\nb\n', changes: ['[1,2)'] }],
+			second: [{ path: '/a.ts', original: 'a\nb\n', changes: ['[1,3)'] }],
+		});
+	});
+
 	test('does not show changes the session has not recorded as the agent\'s', async () => {
 		hostWrites('/a.ts', 'a\nB\n');
 		// After the agent's last edit, the user adds a line that the session doesn't record.
@@ -453,6 +507,49 @@ suite('AgentHostEditReview', () => {
 			kept: true,
 			undone: true,
 			invoked: ['keep /a.ts after 3-4', 'undo /a.ts after 1-2'],
+		});
+	});
+
+	test('names the version of the changes it showed when keeping or undoing them, so the agent host refuses later ones', async () => {
+		hostWrites('/a.ts', 'A\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'A\n', withWorkingSetVersion(undefined, 'tc1'))]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+
+		await entry.accept();
+
+		assert.deepStrictEqual(host.invoked, ['keep /a.ts @tc1']);
+	});
+
+	test('disables keeping and undoing a file while the agent writes it, as while local chat edits stream into it', async () => {
+		chatResponse = upcastPartial<IChatResponseModel>({ requestId: 'request' });
+		hostWrites('/a.ts', 'A\nb\n');
+		hostWrites('/b.ts', 'B\n');
+		const a = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'));
+		const b = workingSetFile('/b.ts', 'b\n', 'B\n', withWorkingSetVersion(undefined, 'tc2'));
+		host.setWorkingSet([a, b]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await Promise.all([getChanges(entry), getChanges(getEntry('/b.ts'))]);
+		const describe = async () => ({ beingModified: !!entry.isCurrentlyBeingModifiedBy.get(), waitsForLastEdits: entry.waitsForLastEdits.get(), original: entry.originalModel.getValue(), changes: await getChanges(entry) });
+
+		// The agent starts an edit of the first file.
+		host.setWorkingSet([{ ...a, _meta: withWorkingSetFileEditing(a._meta, true) }, b]);
+		await settle();
+		const whileWriting = await describe();
+		await review.accept();
+		const keptWhileWriting = [...host.invoked];
+		// Its edit is recorded before the document reloads what it wrote.
+		hostWritesWithoutReload('/a.ts', 'A\nB\n');
+		host.setWorkingSet([a, b]);
+		await settle();
+
+		assert.deepStrictEqual({ whileWriting, keptWhileWriting, afterWriting: await describe() }, {
+			whileWriting: { beingModified: true, waitsForLastEdits: true, original: 'a\nb\n', changes: ['[1,2)'] },
+			keptWhileWriting: ['keep /b.ts @tc2'],
+			// The reload counts as the agent's, as local chat counts its edits on disk.
+			afterWriting: { beingModified: false, waitsForLastEdits: false, original: 'a\nb\n', changes: ['[1,3)'] },
 		});
 	});
 
