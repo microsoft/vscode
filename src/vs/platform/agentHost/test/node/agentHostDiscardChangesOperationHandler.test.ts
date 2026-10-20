@@ -834,16 +834,16 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 			// The file is put back when the discard can't be committed after the file changed.
 			commitFails: async ({ trackedDb }) => {
 				trackedDb.storeFileEdits = async (_edits, beforeCommit) => {
-					await beforeCommit?.();
+					await beforeCommit?.((toolCallId, filePath) => trackedDb.readFileEditContent(toolCallId, filePath));
 					throw new Error('commit failed');
 				};
 				return {};
 			},
 			turnStartedWhileRecording: async ({ trackedDb, stateManager, chat }) => {
 				const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
-				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async () => {
+				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async readContent => {
 					startTurn(stateManager, chat, 'turn-2');
-					await beforeCommit?.();
+					await beforeCommit?.(readContent);
 				});
 				return {};
 			},
@@ -958,9 +958,9 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 			},
 			turnStartedWhileRecording: ({ trackedDb, stateManager }, chat) => {
 				const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
-				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async () => {
+				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async readContent => {
 					startTurn(stateManager, chat, 'turn-2');
-					await beforeCommit?.();
+					await beforeCommit?.(readContent);
 				});
 			},
 		};
@@ -1253,16 +1253,16 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 			// The file is put back when the discard can't be committed after the file changed.
 			commitFails: async ({ trackedDb }) => {
 				trackedDb.storeFileEdits = async (_edits, beforeCommit) => {
-					await beforeCommit?.();
+					await beforeCommit?.((toolCallId, filePath) => trackedDb.readFileEditContent(toolCallId, filePath));
 					throw new Error('commit failed');
 				};
 				return {};
 			},
 			turnStartedWhileRecording: async ({ trackedDb, stateManager, chat }) => {
 				const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
-				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async () => {
+				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async readContent => {
 					startTurn(stateManager, chat, 'turn-3');
-					await beforeCommit?.();
+					await beforeCommit?.(readContent);
 				});
 				return {};
 			},
@@ -1271,9 +1271,9 @@ suite('AgentHostDiscardChangesOperationHandler - session changes', () => {
 				const peer = buildChatUri(session.toString(), 'peer');
 				stateManager.addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer, buildDefaultChatUri(session.toString())), {});
 				const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
-				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async () => {
+				trackedDb.storeFileEdits = (edits, beforeCommit) => storeFileEdits(edits, async readContent => {
 					addTurn(stateManager, peer, 'peer-turn-1');
-					await beforeCommit?.();
+					await beforeCommit?.(readContent);
 				});
 				return {};
 			},
@@ -1448,6 +1448,34 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	});
 
+	for (const restored of [false, true]) {
+		test(`session discard still reverts accepted changes after a working set discard (restored: ${restored})`, async () => {
+			const { edit, accept, discard, describe, diskFileService, trackedDb, handler, session } = setupWorkingSet();
+			edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+			accept('turn-1', lines({ 0: 'L1' }));
+			if (restored) {
+				trackedDb.addEdit(createFileEditDiscardRecord('turn-1', target.fsPath, { start: encodeString(lines()), end: encodeString(lines({ 0: 'L1' })) }));
+				await diskFileService.writeFile(target, VSBuffer.fromString(lines()));
+			} else {
+				edit('turn-1', 'tc2', lines({ 0: 'L1' }), lines({ 0: 'L1', 4: 'L5' }));
+				await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+			}
+			await discard();
+			const afterWorkingSetDiscard = await describe();
+
+			await handler.invoke({
+				channel: buildSessionChangesetUri(session.toString()),
+				operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+				target: makeResourceTarget(target),
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual({ afterWorkingSetDiscard, afterSessionDiscard: await describe() }, {
+				afterWorkingSetDiscard: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
+				afterSessionDiscard: { content: lines(), workingSet: 1, session: 0, turns: [0, 0] },
+			});
+		});
+	}
+
 	test('rejects a file whose changes were all accepted without changing it', async () => {
 		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
 		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
@@ -1507,7 +1535,7 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 				lastTurn: [lastTurnConfirmation],
 				olderTurn: [],
 				session: ['discard-changes: Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone.'],
-				workingSet: ['discard-changes: Are you sure you want to discard the changes to \'{0}\' that have not been accepted? Accepted changes and changes made outside of the session will be kept. This action cannot be undone.'],
+				workingSet: ['discard-changes: undefined'],
 			},
 			running: {
 				runningTurn: [lastTurnConfirmation],

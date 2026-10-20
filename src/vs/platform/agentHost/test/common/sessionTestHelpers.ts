@@ -70,14 +70,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
-	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		const editsBefore = [...this._edits];
 		const turnsBefore = new Set(this._turns);
 		try {
 			for (const edit of edits) {
 				await this.storeFileEdit(edit);
 			}
-			await beforeCommit?.();
+			await beforeCommit?.((toolCallId, filePath) => this.readFileEditContent(toolCallId, filePath));
 		} catch (error) {
 			this._edits.splice(0, this._edits.length, ...editsBefore);
 			this._turns.clear();

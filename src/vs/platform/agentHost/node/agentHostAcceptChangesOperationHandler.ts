@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -96,11 +97,16 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			this._throwIfCancelled(token);
 
 			this._logService.info(`[AgentHostAcceptChangesOperationHandler] Accepting changes to '${resource.fsPath}' for ${owner}`);
-			await source.db.storeFileEdits([createFileEditAcceptRecord(last.turnId, last.filePath, accepted)], async () => {
+			await source.db.storeFileEdits([createFileEditAcceptRecord(last.turnId, last.filePath, accepted)], async readContent => {
 				this._throwIfTurnActive(session);
 				// Accepting must not cover an edit recorded since the file's rows were read.
 				const rows = (await source.db.getAllFileEdits()).filter(record => isFilePath(record.filePath, resource));
-				if (rows.at(-2)?.toolCallId !== last.toolCallId) {
+				const current = rows.at(-2);
+				const content = current && await readFileEditEndContent({ readFileEditContent: readContent }, current);
+				const contentMatches = accepted === undefined
+					? content === undefined
+					: content !== undefined && VSBuffer.wrap(accepted).equals(VSBuffer.wrap(content));
+				if (current?.toolCallId !== last.toolCallId || !contentMatches) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.changedDuringAccept', "'{0}' changed while its changes were being accepted. Try again.", basename(resource)));
 				}
 			});

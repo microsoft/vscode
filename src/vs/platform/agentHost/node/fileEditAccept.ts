@@ -37,7 +37,7 @@ export function getUnacceptedFileEditRecords(records: readonly IFileEditRecord[]
  * Reads the content that `record` leaves the file with, `undefined` meaning
  * the file doesn't exist.
  */
-export async function readFileEditEndContent(db: ISessionDatabase, record: IFileEditRecord): Promise<Uint8Array | undefined> {
+export async function readFileEditEndContent(db: Pick<ISessionDatabase, 'readFileEditContent'>, record: IFileEditRecord): Promise<Uint8Array | undefined> {
 	if (record.kind === FileEditKind.Delete) {
 		return undefined;
 	}

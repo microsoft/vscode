@@ -34,7 +34,7 @@ const OTHER_FILE = URI.file('/repo/src/other.ts');
 class RacingSessionDatabase extends SessionDatabase {
 	beforeStore: (() => Promise<void>) | undefined;
 
-	override async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+	override async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		const beforeStore = this.beforeStore;
 		this.beforeStore = undefined;
 		await beforeStore?.();
@@ -206,6 +206,10 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 				db.beforeStore = () => storeEdit(db, 't3', 'tc-late', FILE, FileEditKind.Edit, 'v1', 'v2');
 				return {};
 			},
+			rewrittenWhileAccepting: async ({ db }) => {
+				db.beforeStore = () => storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, 'v0', 'v2');
+				return {};
+			},
 		};
 		const results: Record<string, unknown> = {};
 		for (const [name, arrange] of Object.entries(cases)) {
@@ -227,6 +231,7 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			changedBySeveralChats: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedByAnotherChat: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
+			rewrittenWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
 		});
 	});
 });

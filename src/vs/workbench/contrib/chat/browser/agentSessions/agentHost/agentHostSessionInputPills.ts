@@ -23,7 +23,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
@@ -60,10 +60,11 @@ import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARA
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
+import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
+import { confirmUndoAllEdits } from '../../chatEditing/chatEditing.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
@@ -508,6 +509,16 @@ function isFileDiscardOperation(operation: ChangesetOperation): boolean {
 	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && operation.scopes.includes(ChangesetOperationScope.Resource);
 }
 
+/** Whether `operation` is the host's Accept Changes operation for single files. */
+function isFileAcceptOperation(operation: ChangesetOperation): boolean {
+	return operation.id === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID && operation.scopes.includes(ChangesetOperationScope.Resource);
+}
+
+/** Whether `operation` can be invoked now: it isn't disabled, as while a turn runs, or running already. */
+function isOperationAvailable(operation: ChangesetOperation | undefined): boolean {
+	return operation?.status !== ChangesetOperationStatus.Disabled && operation?.status !== ChangesetOperationStatus.Running;
+}
+
 /** How long Undo waits for Session Changes to finish updating before it gives up on the files left to undo. */
 const SESSION_CHANGES_READY_TIMEOUT = 30_000;
 
@@ -638,17 +649,26 @@ export class AgentHostSessionInputPills extends Disposable {
 			return resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader))
 				?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
 		});
+		// The session's Working Set, when its host advertises one, holds the changes that haven't been kept.
+		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
+			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
 		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
 		const workingSetEnabled = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
 			&& workingSetConfigured.read(reader)
 			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
 			&& !subagentChat.read(reader)
-			&& selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true);
+			&& (sessionWorkingSetChangeset.read(reader) !== undefined
+				|| selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
 			if (!currentResolution || !chat) {
 				return undefined;
+			}
+			// The working set shows the session's Working Set, or Session Changes on hosts without one.
+			const workingSetChangeset = workingSetEnabled.read(reader) ? sessionWorkingSetChangeset.read(reader) : undefined;
+			if (workingSetChangeset) {
+				return resolveAgentHostChangeset(currentResolution.backendSession, [workingSetChangeset]);
 			}
 			const selectableEntries = selectableChangesets.read(reader);
 			const defaultKind = workingSetEnabled.read(reader) ? ChangesetKind.Session : currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
@@ -709,33 +729,54 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			return changes.read(reader);
 		});
-		// Undo reverts a file's Session Changes with the host's file-level Discard Changes operation, when the host offers it.
-		const sessionChangesDiscard = derived<ChangesetOperation | undefined>(this, reader => {
-			if (!workingSetEnabled.read(reader) || changesetTarget.read(reader)?.changeset.changeKind !== ChangesetKind.Session) {
+		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
+		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
+			const kind = changesetTarget.read(reader)?.changeset.changeKind;
+			if (!workingSetEnabled.read(reader) || (kind !== ChangesetKind.Session && kind !== ChangesetKind.WorkingSet)) {
 				return undefined;
 			}
 			return changesetStateSource.read(reader).read(reader)?.operations?.find(isFileDiscardOperation);
 		});
-		const canDiscardSessionChanges = derived(this, reader => !!sessionChangesDiscard.read(reader));
-		// The Session Changes channels with an undo in flight; one for each undo, so overlapping undos on a channel each count.
+		const canDiscardWorkingSetChanges = derived(this, reader => !!workingSetDiscard.read(reader));
+		// The working set channels with an undo in flight; one for each undo, so overlapping undos on a channel each count.
 		const discardsInFlight = observableValue<readonly string[]>(this, []);
 		const workingSetUndo = derived<IChatSessionWorkingSetUndo | undefined>(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const channel = changesetTarget.read(reader)?.resource;
-			if (!currentResolution || !channel || !canDiscardSessionChanges.read(reader)) {
+			if (!currentResolution || !channel || !canDiscardWorkingSetChanges.read(reader)) {
 				return undefined;
 			}
 			return {
-				enabled: derived(enabledReader => {
-					const status = sessionChangesDiscard.read(enabledReader)?.status;
-					return !discardsInFlight.read(enabledReader).includes(channel.toString()) && status !== ChangesetOperationStatus.Disabled && status !== ChangesetOperationStatus.Running;
-				}),
-				undo: diffs => this._discardSessionChanges(currentResolution, channel, sessionChangesDiscard, discardsInFlight, diffs),
+				enabled: derived(enabledReader => !discardsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(workingSetDiscard.read(enabledReader))),
+				undo: (diffs, all) => this._discardSessionChanges(currentResolution, channel, workingSetDiscard, discardsInFlight, diffs, all),
 			};
 		});
+		// Keep accepts a file's changes in the session's Working Set with the host's file-level Accept Changes operation.
+		const workingSetAccept = derived<ChangesetOperation | undefined>(this, reader => {
+			if (!workingSetEnabled.read(reader) || changesetTarget.read(reader)?.changeset.changeKind !== ChangesetKind.WorkingSet) {
+				return undefined;
+			}
+			return changesetStateSource.read(reader).read(reader)?.operations?.find(isFileAcceptOperation);
+		});
+		const canAcceptWorkingSetChanges = derived(this, reader => !!workingSetAccept.read(reader));
+		const acceptsInFlight = observableValue<readonly string[]>(this, []);
+		const workingSetKeep = derived<IChatSessionWorkingSetKeep | undefined>(this, reader => {
+			const currentResolution = resolution.read(reader);
+			const channel = changesetTarget.read(reader)?.resource;
+			if (!currentResolution || !channel || !canAcceptWorkingSetChanges.read(reader)) {
+				return undefined;
+			}
+			return {
+				enabled: derived(enabledReader => !acceptsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(workingSetAccept.read(enabledReader))),
+				keep: diffs => this._keepWorkingSetChanges(currentResolution, channel, workingSetAccept, acceptsInFlight, diffs),
+			};
+		});
+		// The session's Working Set tracks what was kept, so it also offers Undo; Session Changes only once Undo ships.
+		const isSessionWorkingSet = derived(this, reader => changesetTarget.read(reader)?.changeset.changeKind === ChangesetKind.WorkingSet);
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
-				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, this.workingSetUndoEnabled ? workingSetUndo : undefined));
+				const undo = this.workingSetUndoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
 			}
 		}));
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {
@@ -955,9 +996,9 @@ export class AgentHostSessionInputPills extends Disposable {
 	}
 
 	/**
-	 * Whether the session working set offers Undo for the session's changes.
-	 * Undo is switched off, which hides its buttons, until it ships; overridable
-	 * so tests can turn it on.
+	 * Whether the session working set offers Undo when it shows Session Changes,
+	 * on hosts without a Working Set. Undo is switched off there, which hides its
+	 * buttons, until it ships; overridable so tests can turn it on.
 	 */
 	protected get workingSetUndoEnabled(): boolean {
 		return false;
@@ -1259,14 +1300,13 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	/**
 	 * Discards the session's changes to the files of `diffs`, one at a time, with
-	 * the host's `operation` on the Session Changes `channel`, after confirming
-	 * once if the host requires that. Each file is checked against up-to-date
-	 * Session Changes first, and a file whose changes differ from its diff, as
-	 * when a turn changed it after the confirmation, is left alone. Each file
-	 * leaves the working set once the host recomputes Session Changes. Resolves
-	 * to whether any file's changes were discarded.
+	 * the host's `operation` on the working set's `channel`, after confirming
+	 * once if the host requires that. Without the host's confirmation, as on the
+	 * Working Set, only undoing `all` files is confirmed, like Undo All Edits in
+	 * the editing session's working set. See {@link _invokeFileOperation} for how
+	 * each file is checked. Resolves to whether any file's changes were discarded.
 	 */
-	private async _discardSessionChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
+	private async _discardSessionChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], all: boolean): Promise<boolean> {
 		const discard = operation.get();
 		if (!discard || diffs.length === 0) {
 			return false;
@@ -1283,44 +1323,79 @@ export class AgentHostSessionInputPills extends Disposable {
 			if (!confirmed) {
 				return false;
 			}
+		} else if (all && !await confirmUndoAllEdits(this._dialogService, diffs.map(diff => diff.modifiedURI))) {
+			return false;
 		}
+		return this._invokeFileOperation(resolution, channel, discard, inFlight, diffs, {
+			unverified: localize('agentHostSessionPills.undoUnverified', "The session's changes couldn't be checked. Try again."),
+			changed: fileName => localize('agentHostSessionPills.undoChanged', "'{0}' changed after the undo was confirmed.", fileName),
+			failed: (fileNames, messages) => localize('agentHostSessionPills.undoFailed', "Could not undo changes to {0}: {1}", fileNames, messages),
+		});
+	}
+
+	/**
+	 * Keeps the session's changes to the files of `diffs`, one at a time, with
+	 * the host's Accept Changes `operation` on the session's Working Set
+	 * `channel`. See {@link _invokeFileOperation} for how each file is checked.
+	 * Resolves to whether any file's changes were kept.
+	 */
+	private async _keepWorkingSetChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
+		const accept = operation.get();
+		if (!accept || diffs.length === 0) {
+			return false;
+		}
+		return this._invokeFileOperation(resolution, channel, accept, inFlight, diffs, {
+			unverified: localize('agentHostSessionPills.keepUnverified', "The session's changes couldn't be checked. Try again."),
+			changed: fileName => localize('agentHostSessionPills.keepChanged', "'{0}' changed before its changes could be kept.", fileName),
+			failed: (fileNames, messages) => localize('agentHostSessionPills.keepFailed', "Could not keep changes to {0}: {1}", fileNames, messages),
+		});
+	}
+
+	/**
+	 * Invokes the host's file-level `operation` on `channel` for the files of
+	 * `diffs`, one at a time. Each file is first checked against the channel's
+	 * up-to-date files, and a file whose changes differ from its diff, as when a
+	 * turn changed it in the meantime, is left alone. Each file leaves the
+	 * working set once the host recomputes the channel. Failures are reported
+	 * together. Resolves to whether the operation succeeded for any file.
+	 */
+	private async _invokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
 		const { connection, connectionAuthority } = resolution;
 		const channelKey = channel.toString();
 		// Each file is checked against the channel's latest state, which outlasts a switch to another session.
-		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.undo');
+		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.fileOperation');
 		const failures: { readonly fileName: string; readonly message: string }[] = [];
-		let discarded = 0;
+		let succeeded = 0;
 		inFlight.set([...inFlight.get(), channelKey], undefined);
 		try {
 			for (let i = 0; i < diffs.length; i++) {
 				const diff = diffs[i];
 				const fileName = basename(diff.modifiedURI);
-				// Undoing a file updates Session Changes too, so each file waits for them.
+				// The operation updates the channel's files, so each file waits for them.
 				const state = await whenChangesetReady(changeset.object);
 				if (!state) {
-					// Without up-to-date changes, a file can't be checked against the confirmed ones, so none is undone.
-					const message = localize('agentHostSessionPills.undoUnverified', "The session's changes couldn't be checked. Try again.");
-					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message })));
+					// Without up-to-date changes, a file can't be checked against the expected ones, so none is changed.
+					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message: messages.unverified })));
 					break;
 				}
 				const current = state.files
 					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))
 					.find(candidate => candidate && isEqual(candidate.modifiedURI, diff.modifiedURI));
 				if (!current) {
-					// The session's changes to the file are already gone.
+					// The file's changes are already gone.
 					continue;
 				}
 				if (!isSameSessionFileChange(current, diff)) {
-					failures.push({ fileName, message: localize('agentHostSessionPills.undoChanged', "'{0}' changed after the undo was confirmed.", fileName) });
+					failures.push({ fileName, message: messages.changed(fileName) });
 					continue;
 				}
 				try {
 					await connection.invokeChangesetOperation({
 						channel: channelKey,
-						operationId: discard.id,
+						operationId: operation.id,
 						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
 					});
-					discarded++;
+					succeeded++;
 				} catch (error) {
 					failures.push({ fileName, message: toErrorMessage(error) });
 				}
@@ -1332,9 +1407,9 @@ export class AgentHostSessionInputPills extends Disposable {
 			inFlight.set(channels, undefined);
 		}
 		if (failures.length > 0) {
-			this._notificationService.error(localize('agentHostSessionPills.undoFailed', "Could not undo changes to {0}: {1}", failures.map(failure => failure.fileName).join(', '), distinct(failures.map(failure => failure.message)).join(' ')));
+			this._notificationService.error(messages.failed(failures.map(failure => failure.fileName).join(', '), distinct(failures.map(failure => failure.message)).join(' ')));
 		}
-		return discarded > 0;
+		return succeeded > 0;
 	}
 
 	private _browserEntry(input: BrowserEditorInput, sessionResource: URI | undefined): IChatPillEntry {

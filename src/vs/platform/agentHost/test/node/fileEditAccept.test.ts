@@ -51,7 +51,7 @@ async function readDiffs(sources: readonly ISessionDiffSource[], diffs: readonly
 		openDatabase: uri => ({ object: databases.get(uri.toString())!, dispose: () => { } }),
 	}, new InProcessDiffComputeService());
 	const read = async (contentUri: string | undefined) => contentUri ? (await provider.read(URI.parse(contentUri))).data : undefined;
-	return Promise.all(diffs.map(async diff => ({
+	return Promise.all([...diffs].sort((a, b) => (a.after?.uri ?? a.before?.uri ?? '').localeCompare(b.after?.uri ?? b.before?.uri ?? '')).map(async diff => ({
 		file: diff.after?.uri ?? diff.before?.uri,
 		before: await read(diff.before?.content.uri),
 		after: await read(diff.after?.content.uri),
