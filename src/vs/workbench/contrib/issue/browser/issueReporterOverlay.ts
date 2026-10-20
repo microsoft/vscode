@@ -9,6 +9,7 @@ import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
 import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -120,8 +121,6 @@ export class IssueReporterOverlay {
 	private screenshotAddCard: HTMLElement | undefined;
 	private attachmentStatus!: HTMLElement;
 	private pendingAttachmentImports = 0;
-	private importedAttachments = 0;
-	private attachmentTextAdded = false;
 	private readonly attachmentErrors: string[] = [];
 	private disposed = false;
 	private screenshotDelay = 0;
@@ -2059,8 +2058,6 @@ export class IssueReporterOverlay {
 			return;
 		}
 		if (this.pendingAttachmentImports === 0) {
-			this.importedAttachments = 0;
-			this.attachmentTextAdded = false;
 			this.attachmentErrors.length = 0;
 		}
 		if (this.uploading) {
@@ -2072,7 +2069,7 @@ export class IssueReporterOverlay {
 			const description = this.descriptionTextarea;
 			description.value += `${description.value ? '\n' : ''}${text}`;
 			description.dispatchEvent(new InputEvent(EventType.INPUT, { bubbles: true, inputType: 'insertFromPaste', data: text }));
-			this.attachmentTextAdded = true;
+			status(localize('attachmentTextAdded', "Text added to the description."));
 		}
 		const accepted: File[] = [];
 		for (const file of files) {
@@ -2107,7 +2104,6 @@ export class IssueReporterOverlay {
 			} else {
 				this.recordings.push(attachment.video);
 			}
-			this.importedAttachments++;
 			this.attachmentsChanged();
 		} else if (error) {
 			this.attachmentErrors.push(error);
@@ -2117,17 +2113,14 @@ export class IssueReporterOverlay {
 		this.updateAttachmentButtons();
 		this.updateStepUI();
 		this.updateAttachmentImportStatus();
+		if (accepted) {
+			status(localize('attachmentImported', "Attachment added."));
+		}
 		return accepted;
 	}
 
 	private updateAttachmentImportStatus(): void {
 		const messages: string[] = [];
-		if (this.importedAttachments) {
-			messages.push(localize('attachmentsImported', "Attached {0} file(s).", this.importedAttachments));
-		}
-		if (this.attachmentTextAdded) {
-			messages.push(localize('attachmentTextAdded', "Text added to the description."));
-		}
 		if (this.pendingAttachmentImports) {
 			messages.push(localize('attachmentsImporting', "Importing {0} file(s)...", this.pendingAttachmentImports));
 		}

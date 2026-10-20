@@ -7,6 +7,7 @@ import assert from 'assert';
 import { spy } from 'sinon';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -311,26 +312,74 @@ suite('IssueReporterOverlay', () => {
 				selection,
 				text: description.value,
 				images: overlay.getScreenshots().length,
+				status: container.querySelector('.wizard-attachment-status')?.textContent,
+				statusHidden: container.querySelector<HTMLElement>('.wizard-attachment-status')?.hidden,
 				step: container.querySelector('.wizard-step-indicator')?.textContent,
 				annotationOpen: !!container.querySelector('.issue-reporter-annotation-overlay'),
-			}, { requests: [1], claimedText: false, selection: [7, 15], text: 'before pasted text after', images: 1, step: 'Step 2 of 3', annotationOpen: false });
+			}, { requests: [1], claimedText: false, selection: [7, 15], text: 'before pasted text after', images: 1, status: '', statusHidden: true, step: 'Step 2 of 3', annotationOpen: false });
 		});
 
-		test('preserves mixed text in the description when pasting into the attachment area', () => {
-			const { overlay, container, back } = createRepositoryReporter();
-			back.click();
-			const requests: number[] = [];
-			store.add(overlay.onDidRequestAddAttachments(files => requests.push(files.length)));
-			const event = paste(container.querySelector<HTMLElement>('.wizard-screenshots')!, images(1), 'Useful context');
-			overlay.completeAttachmentImport(importedImage);
-			assert.deepStrictEqual({
-				requests,
-				prevented: event.defaultPrevented,
-				text: container.querySelector('textarea')!.value,
-				status: container.querySelector('.wizard-attachment-status')?.textContent,
-				step: container.querySelector('.wizard-step-indicator')?.textContent,
-			}, { requests: [1], prevented: true, text: 'Issue description\nUseful context', status: 'Attached 1 file(s).\nText added to the description.', step: 'Step 1 of 3' });
-		});
+		for (const input of ['paste', 'drop'] as const) {
+			test(`preserves mixed text and attachments from ${input} without persistent success messages`, () => {
+				const { overlay, container, back, next } = createRepositoryReporter();
+				back.click();
+				const ariaHost = container.appendChild(document.createElement('div'));
+				setARIAContainer(ariaHost);
+				const announcement = () => [...ariaHost.querySelectorAll('.monaco-status[aria-live="polite"]')].map(element => element.textContent).filter(Boolean);
+				const attachments = container.querySelector<HTMLElement>('.wizard-screenshots')!;
+				const attachmentStatus = container.querySelector<HTMLElement>('.wizard-attachment-status')!;
+				const readStatus = () => ({
+					text: attachmentStatus.textContent,
+					hidden: attachmentStatus.hidden,
+					inLayout: attachmentStatus.getClientRects().length > 0,
+					busy: attachments.getAttribute('aria-busy'),
+				});
+				const requests: number[] = [];
+				store.add(overlay.onDidRequestAddAttachments(files => requests.push(files.length)));
+				const transfer = new DataTransfer();
+				for (const file of images(2)) {
+					transfer.items.add(file);
+				}
+				transfer.setData('text/plain', 'Useful context');
+				const event = input === 'paste'
+					? new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true })
+					: new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true });
+				attachments.dispatchEvent(event);
+				const pending = readStatus();
+				const textAnnouncement = announcement();
+				overlay.completeAttachmentImport(importedImage);
+				const partial = readStatus();
+				overlay.completeAttachmentImport(importedImage);
+				const completed = [readStatus()];
+				const observer = new MutationObserver(() => { });
+				store.add(toDisposable(() => observer.disconnect()));
+				observer.observe(ariaHost, { childList: true, subtree: true });
+				for (const button of [next, next, back, back, next, next]) {
+					button.click();
+					completed.push(readStatus());
+				}
+				assert.deepStrictEqual({
+					requests, prevented: event.defaultPrevented, pending, partial, completed,
+					text: container.querySelector('textarea')!.value,
+					reviewText: container.querySelector('.review-description')?.textContent,
+					images: overlay.getScreenshots().length,
+					cards: attachments.querySelectorAll('.wizard-screenshot-card:not(.wizard-screenshot-add)').length,
+					reviewCards: container.querySelectorAll('.review-attachment-card').length,
+					step: container.querySelector('.wizard-step-indicator')?.textContent,
+					textAnnouncement, attachmentAnnouncement: announcement(),
+					navigationAnnouncements: observer.takeRecords().length,
+				}, {
+					requests: [2], prevented: true,
+					pending: { text: 'Importing 2 file(s)...', hidden: false, inLayout: true, busy: 'true' },
+					partial: { text: 'Importing 1 file(s)...', hidden: false, inLayout: true, busy: 'true' },
+					completed: Array(7).fill({ text: '', hidden: true, inLayout: false, busy: 'false' }),
+					text: 'Issue description\nUseful context', reviewText: 'Issue description\nUseful context',
+					images: 2, cards: 2, reviewCards: 2, step: 'Step 3 of 3',
+					textAnnouncement: ['Text added to the description.'], attachmentAnnouncement: ['Attachment added.'],
+					navigationAnnouncements: 0,
+				});
+			});
+		}
 
 		test('does not intercept pastes or text-editing drops in other inputs', () => {
 			const { overlay, container, back } = createRepositoryReporter();
@@ -415,14 +464,16 @@ suite('IssueReporterOverlay', () => {
 				...images(1),
 			]);
 			overlay.completeAttachmentImport(importedImage);
-			const status = container.querySelector('.wizard-attachment-status')!;
+			const status = container.querySelector<HTMLElement>('.wizard-attachment-status')!;
 			assert.deepStrictEqual({
 				requested,
 				unsupported: status.textContent?.includes('Cannot attach notes.txt.'),
 				empty: status.textContent?.includes('file is empty'),
-				added: status.textContent?.includes('Attached 1'),
+				images: overlay.getScreenshots().length,
+				successMessage: status.textContent?.includes('Attached 1'),
+				hidden: status.hidden,
 				live: status.getAttribute('role'),
-			}, { requested: ['image-0.png'], unsupported: true, empty: true, added: true, live: 'status' });
+			}, { requested: ['image-0.png'], unsupported: true, empty: true, images: 1, successMessage: false, hidden: false, live: 'status' });
 		});
 
 		test('reports a failed decode without adding a blank card and releases the reservation', () => {
