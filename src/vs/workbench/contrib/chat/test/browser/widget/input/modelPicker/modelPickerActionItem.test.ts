@@ -433,6 +433,27 @@ suite('ModelPickerActionItem', () => {
 		assert.strictEqual(getHoverContents(), 'Models • First\n\nCompare Models');
 	});
 
+	test('a chat on a HydraFusion model shown as a Fusion tier names that tier in its label and hover', () => {
+		const auto = createModel('auto');
+		const fusion: ILanguageModelChatMetadataAndIdentifier = {
+			...auto,
+			metadata: {
+				...auto.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true,
+				configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } },
+			},
+		};
+		const max = createModel('hydrafusion-max');
+		const hydraFusionMax: ILanguageModelChatMetadataAndIdentifier = { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined } };
+		const { domNode, getHoverContents } = renderPicker(hydraFusionMax, { models: [fusion, hydraFusionMax] });
+		assert.deepStrictEqual({
+			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
+			hover: getHoverContents(),
+		}, {
+			label: 'Fusion',
+			hover: 'Models • Fusion Max',
+		});
+	});
+
 	test('a directly selected on-device model reads "<model> · On-device", as in the Copilot CLI and app', () => {
 		const model = createModel('MAI Code 1.1 Flash');
 		const { domNode } = renderPicker({ ...model, metadata: { ...model.metadata, id: 'vscode-on-device/MAI-Code-1.1-Flash', targetChatSessionType: SessionType.AgentHostCopilot } });
