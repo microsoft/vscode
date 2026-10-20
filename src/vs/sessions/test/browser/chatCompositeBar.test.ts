@@ -216,7 +216,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 					instantiationService.createInstance(MenuItemAction, { id: 'sessions.chatCompositeBar.addChat', title: 'Add Chat', icon: Codicon.add }, undefined, menuOptions, undefined, undefined),
 					instantiationService.createInstance(MenuItemAction, { id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', icon: Codicon.screenFull }, undefined, menuOptions, undefined, undefined),
 				] : [
-					instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: options?.terminalControls ? Codicon.close : undefined }, undefined, menuOptions, undefined, undefined),
+					instantiationService.createInstance(MenuItemAction, { id: CLOSE_CHAT_COMMAND_ID, title: 'Close', icon: options?.terminalControls ? Codicon.closeSmall : undefined }, undefined, menuOptions, undefined, undefined),
 				]]],
 			};
 		}
@@ -356,6 +356,28 @@ suite('Sessions - ChatCompositeBar', () => {
 			shoulder: mainWindow.getComputedStyle(fill, '::after').content,
 			closeOpacity: mainWindow.getComputedStyle(actions.querySelector<HTMLElement>('.action-label')!).opacity,
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
+	});
+
+	test('keeps focused chat close icons transparent in all theme types', () => {
+		const harness = createHarness(disposables, { terminalControls: true });
+		const root = attachConnectedBar(harness);
+		const button = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label.codicon-close-small')!;
+		root.style.setProperty('--vscode-toolbar-hoverBackground', '#abcdef');
+		button.tabIndex = 0;
+		button.focus();
+
+		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].flatMap(theme => {
+			root.classList.add(theme);
+			const result = [false, true].map(connected => {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const style = mainWindow.getComputedStyle(button);
+				return { background: style.backgroundColor, focused: mainWindow.document.activeElement === button };
+			});
+			root.classList.remove(theme);
+			return result;
+		});
+
+		assert.deepStrictEqual(results, Array(8).fill({ background: 'rgba(0, 0, 0, 0)', focused: true }));
 	});
 
 	test('connected tabs and actions follow the inactive split group surface', () => {

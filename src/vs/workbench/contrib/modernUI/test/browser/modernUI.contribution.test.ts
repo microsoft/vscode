@@ -4497,6 +4497,38 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('keeps focused close icons transparent in all tab layouts and theme types', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui-tabs');
+		root.style.setProperty('--vscode-toolbar-hoverBackground', '#abcdef');
+		root.style.setProperty('--modern-ui-editor-tab-custom-action-active-background', '#123456');
+		store.add(toDisposable(() => root.remove()));
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const group = appendElement(content, 'editor-group-container active');
+		const title = appendElement(group, 'title tabs');
+		const tabs = appendElement(title, 'tabs-container');
+		const actions = appendElement(appendElement(tabs, 'tab active'), 'tab-actions');
+		const actionBar = appendElement(actions, 'monaco-action-bar');
+		const button = appendElement(appendElement(actionBar, 'action-item'), 'action-label codicon codicon-close-small');
+		button.tabIndex = 0;
+		button.focus();
+
+		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].flatMap(theme => {
+			root.classList.add(theme);
+			const result = [false, true].flatMap(connected => {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				return [false, true].map(reserveSpace => {
+					title.classList.toggle('tab-actions-reserve-space', reserveSpace);
+					const style = getWindow(button).getComputedStyle(button);
+					return { background: style.backgroundColor, focused: document.activeElement === button };
+				});
+			});
+			root.classList.remove(theme);
+			return result;
+		});
+
+		assert.deepStrictEqual(results, Array(16).fill({ background: 'rgba(0, 0, 0, 0)', focused: true }));
+	});
+
 	test('uses theme-defined action colors while preserving user overrides and default hover colors', () => {
 		const actionColors = {
 			[MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND]: '#0E3747',
