@@ -8,17 +8,21 @@ import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { ResourceLabels } from '../../../../../workbench/browser/labels.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IExplorerService } from '../../../../../workbench/contrib/files/browser/files.js';
 import { ExplorerView } from '../../../../../workbench/contrib/files/browser/views/explorerView.js';
-import { SESSIONS_FILES_VIEW_ID } from '../../../../../workbench/contrib/files/common/files.js';
+import { ExplorerDataSource, ExplorerFindProvider, explorerRootErrorEmitter, FilesFilter, FilesRenderer } from '../../../../../workbench/contrib/files/browser/views/explorerViewer.js';
+import { LexicographicOptions, SESSIONS_FILES_VIEW_ID, SortOrder } from '../../../../../workbench/contrib/files/common/files.js';
 import { ExplorerItem } from '../../../../../workbench/contrib/files/common/explorerModel.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { NullFilesConfigurationService, TestContextService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -118,7 +122,7 @@ suite('SessionsSingleRootExplorerView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('omits only a single healthy root while the workspace stays a multi-root workbench', async () => {
+	function createFixture() {
 		const instantiation = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({ explorer: { expandSingleFolderWorkspaces: false } }),
 		}, store);
@@ -127,54 +131,133 @@ suite('SessionsSingleRootExplorerView', () => {
 			getViewLocationById: () => ViewContainerLocation.AuxiliaryBar,
 		});
 		const roots: ExplorerItem[] = [];
-		instantiation.stub(IExplorerService, { roots, registerView: () => { } });
+		instantiation.stub(IExplorerService, {
+			roots,
+			registerView: () => { },
+			sortOrderConfiguration: { sortOrder: SortOrder.Default, lexicographicOptions: LexicographicOptions.Default, reverse: false },
+		});
 		const contextService = new TestContextService();
 		instantiation.stub(IWorkspaceContextService, contextService);
-		// The workspace folders follow the Explorer roots, as they do in the Agents window.
-		const setRoots = (...items: ExplorerItem[]) => {
-			roots.splice(0, roots.length, ...items);
-			contextService.setWorkspace(new Workspace('workspace', items.map((item, index) => new WorkspaceFolder({ uri: item.resource, name: item.name, index })), URI.file('/workspace.code-workspace')));
+		const createItem = (path: string, parent?: ExplorerItem, isDirectory = true) => new ExplorerItem(URI.file(path), instantiation.get(IFileService), instantiation.get(IConfigurationService), NullFilesConfigurationService, parent, isDirectory);
+		const root = createItem('/repo');
+		const second = createItem('/second');
+		return {
+			contextService,
+			root,
+			second,
+			createItem,
+			// The workspace folders follow the Explorer roots, as they do in the Agents window.
+			setRoots: (...items: ExplorerItem[]) => {
+				roots.splice(0, roots.length, ...items);
+				contextService.setWorkspace(new Workspace('workspace', items.map((item, index) => new WorkspaceFolder({ uri: item.resource, name: item.name, index })), URI.file('/workspace.code-workspace')));
+			},
+			createView: (ctor: typeof SessionsExplorerView) => {
+				const view = store.add(instantiation.createInstance(ctor, {
+					id: SESSIONS_FILES_VIEW_ID,
+					title: 'Files',
+					delegate: { willOpenElement: () => { }, didOpenElement: () => { } },
+				}));
+				const treeInputs: (ExplorerItem | ExplorerItem[])[] = [];
+				Reflect.set(view, 'tree', {
+					getInput: () => undefined,
+					setInput: async (input: ExplorerItem | ExplorerItem[]) => { treeInputs.push(Array.isArray(input) ? [...input] : input); },
+					expand: async () => true,
+				});
+				sinon.stub(view, 'isBodyVisible').returns(true);
+				// The instantiation service the view creates its tree, data source and renderer with.
+				const viewInstantiationService = Reflect.get(view, 'instantiationService') as IInstantiationService;
+				return { view, treeInputs, viewInstantiationService };
+			},
 		};
-		const root = new ExplorerItem(URI.file('/repo'), instantiation.get(IFileService), instantiation.get(IConfigurationService), NullFilesConfigurationService, undefined, true);
-		const second = new ExplorerItem(URI.file('/second'), instantiation.get(IFileService), instantiation.get(IConfigurationService), NullFilesConfigurationService, undefined, true);
+	}
+
+	const paths = (input: ExplorerItem | ExplorerItem[]) => Array.isArray(input) ? input.map(item => item.resource.path) : input.resource.path;
+
+	test('omits only a single healthy root while the workspace stays a multi-root workbench', async () => {
+		const fixture = createFixture();
 		const treeInputs = async (ctor: typeof SessionsExplorerView) => {
-			const view = store.add(instantiation.createInstance(ctor, {
-				id: SESSIONS_FILES_VIEW_ID,
-				title: 'Files',
-				delegate: { willOpenElement: () => { }, didOpenElement: () => { } },
-			}));
-			const inputs: (string | string[])[] = [];
-			Reflect.set(view, 'tree', {
-				getInput: () => undefined,
-				setInput: async (input: ExplorerItem | ExplorerItem[]) => {
-					inputs.push(Array.isArray(input) ? input.map(item => item.resource.path) : input.resource.path);
-				},
-				expand: async () => true,
-			});
-			sinon.stub(view, 'isBodyVisible').returns(true);
-
-			setRoots(root);
+			const { view, treeInputs } = fixture.createView(ctor);
+			fixture.setRoots(fixture.root);
 			await view.setTreeInput();
-			setRoots(root, second);
+			fixture.setRoots(fixture.root, fixture.second);
 			await view.setTreeInput();
-			setRoots(root);
-			root.error = new Error('Root unavailable');
+			fixture.setRoots(fixture.root);
+			fixture.root.error = new Error('Root unavailable');
 			await view.setTreeInput();
-			root.error = undefined;
-			setRoots();
+			fixture.root.error = undefined;
+			fixture.setRoots();
 			await view.setTreeInput();
-
-			return inputs;
+			return treeInputs.map(paths);
 		};
 
 		assert.deepStrictEqual({
 			classic: await treeInputs(SessionsExplorerView),
 			singleRoot: await treeInputs(SessionsSingleRootExplorerView),
-			workbenchState: contextService.getWorkbenchState(),
+			workbenchState: fixture.contextService.getWorkbenchState(),
 		}, {
 			classic: [['/repo'], ['/repo', '/second'], ['/repo'], []],
 			singleRoot: ['/repo', ['/repo', '/second'], ['/repo'], []],
 			workbenchState: WorkbenchState.WORKSPACE,
+		});
+	});
+
+	test('shows a failure to read the hidden root in the tree instead of decorating the hidden root', async () => {
+		const fixture = createFixture();
+		fixture.setRoots(fixture.root);
+		sinon.stub(fixture.root, 'fetchChildren').rejects(new Error('Root unavailable'));
+		const readRoot = async (ctor: typeof SessionsExplorerView) => {
+			const { view, treeInputs, viewInstantiationService } = fixture.createView(ctor);
+			const dataSource = viewInstantiationService.createInstance(ExplorerDataSource,
+				new class extends mock<FilesFilter>() { },
+				new class extends mock<ExplorerFindProvider>() { override isShowingFilterResults() { return false; } });
+			const decoratedRoots: string[] = [];
+			const listener = explorerRootErrorEmitter.event(resource => decoratedRoots.push(resource.path));
+			try {
+				await view.setTreeInput();
+				// The tree reads the children of the root, whether it is the input or listed in it.
+				const children = await dataSource.getChildren(fixture.root);
+				return {
+					input: paths(treeInputs[0]),
+					children: children.map(child => ({ path: child.resource.path, error: child.error?.message })),
+					decoratedRoots,
+				};
+			} finally {
+				listener.dispose();
+			}
+		};
+
+		assert.deepStrictEqual({
+			classic: await readRoot(SessionsExplorerView),
+			singleRoot: await readRoot(SessionsSingleRootExplorerView),
+		}, {
+			classic: { input: ['/repo'], children: [], decoratedRoots: ['/repo'] },
+			singleRoot: { input: '/repo', children: [{ path: '/repo', error: 'Root unavailable' }], decoratedRoots: [] },
+		});
+	});
+
+	test('uses accessibility levels that match the visible tree when switching between single and multiple roots', () => {
+		const fixture = createFixture();
+		const file = fixture.createItem('/repo/file.txt', fixture.root, false);
+		const fileLevels = (ctor: typeof SessionsExplorerView) => {
+			const { viewInstantiationService } = fixture.createView(ctor);
+			const renderer = store.add(viewInstantiationService.createInstance(FilesRenderer,
+				document.createElement('div'),
+				new class extends mock<ResourceLabels>() { },
+				new class extends mock<ConstructorParameters<typeof FilesRenderer>[2]>() { },
+				() => { }));
+			fixture.setRoots(fixture.root);
+			const singleRoot = renderer.getAriaLevel(file);
+			fixture.setRoots(fixture.root, fixture.second);
+			const multiRoot = renderer.getAriaLevel(file);
+			return { singleRoot, multiRoot };
+		};
+
+		assert.deepStrictEqual({
+			classic: fileLevels(SessionsExplorerView),
+			singleRootView: fileLevels(SessionsSingleRootExplorerView),
+		}, {
+			classic: { singleRoot: 2, multiRoot: 2 },
+			singleRootView: { singleRoot: 1, multiRoot: 2 },
 		});
 	});
 

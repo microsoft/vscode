@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, Dimension, reset } from '../../../../base/browser/dom.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor } from '../../../common/editor.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
@@ -52,6 +54,7 @@ export class EditorHeaderControl extends Disposable {
 		showHeader: boolean,
 		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -173,6 +176,11 @@ export class EditorHeaderControl extends Disposable {
 		// Run header actions with the same group context as the editor actions in the tab bar.
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
 		const actionRunner = store.add(new EditorCommandsContextActionRunner(context));
+		store.add(actionRunner.onDidRun(e => {
+			if (e.error && !isCancellationError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+		}));
 		const createToolbarOptions = (ariaLabel: string, trailingSeparator = false) => ({
 			ariaLabel,
 			trailingSeparator,

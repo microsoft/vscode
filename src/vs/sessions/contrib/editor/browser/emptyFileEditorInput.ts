@@ -7,6 +7,7 @@ import { localize } from '../../../../nls.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
@@ -52,7 +53,14 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 
 	setWorkspace(workspace: ISessionWorkspace | undefined): void {
 		if (this._workspace !== workspace) {
+			const previousResource = this.resource;
 			this._workspace = workspace;
+			if (!isEqual(previousResource, this.resource)) {
+				// Editor groups refresh their resource context keys (used by `resourcePath`
+				// and similar menu conditions) on capability changes, so report the resource
+				// change before the label change makes the editor header rebuild its actions.
+				this._onDidChangeCapabilities.fire();
+			}
 			this._onDidChangeLabel.fire();
 		}
 	}

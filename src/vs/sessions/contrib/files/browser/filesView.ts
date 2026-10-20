@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -101,8 +102,9 @@ export class SingleRootWorkspaceContextService implements IWorkspaceContextServi
 /**
  * Files view for the editor header layout, where the editor header breadcrumbs show a single
  * root folder, so the tree lists its contents directly. The Agents window is always a multi-root
- * workbench, so only the view itself sees a single root folder as a single folder workbench;
- * everything it creates, such as the tree and its renderers, uses the actual workspace.
+ * workbench, so the view and everything it creates, such as the tree's data source and renderer,
+ * see a single root folder as a single folder workbench: the tree then lists that folder's
+ * contents, shows a failure to read them in place, and uses matching accessibility levels.
  */
 export class SessionsSingleRootExplorerView extends SessionsExplorerView {
 
@@ -133,7 +135,10 @@ export class SessionsSingleRootExplorerView extends SessionsExplorerView {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(options, contextMenuService, viewDescriptorService, instantiationService, new SingleRootWorkspaceContextService(contextService), progressService, editorService, editorResolverService, layoutService, keybindingService, contextKeyService, configurationService, labelService, themeService, telemetryService, hoverService, explorerService, storageService, clipboardService, fileService, uriIdentityService, commandService, openerService, accessibilityService, environmentService);
+		const singleRootContextService = new SingleRootWorkspaceContextService(contextService);
+		const singleRootInstantiationService = instantiationService.createChild(new ServiceCollection([IWorkspaceContextService, singleRootContextService]));
+		super(options, contextMenuService, viewDescriptorService, singleRootInstantiationService, singleRootContextService, progressService, editorService, editorResolverService, layoutService, keybindingService, contextKeyService, configurationService, labelService, themeService, telemetryService, hoverService, explorerService, storageService, clipboardService, fileService, uriIdentityService, commandService, openerService, accessibilityService, environmentService);
+		this._register(singleRootInstantiationService);
 	}
 }
 

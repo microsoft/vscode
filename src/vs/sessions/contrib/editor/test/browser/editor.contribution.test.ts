@@ -17,13 +17,15 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -66,8 +68,8 @@ import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
 import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
-import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, ResourceContextKey } from '../../../../../workbench/common/contextkeys.js';
+import { createEditorPart, registerTestEditor, TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
@@ -1408,6 +1410,39 @@ suite('Sessions - Editor Contribution', () => {
 			multiRoot: undefined,
 			noWorkspace: undefined,
 			labelChanges: 2,
+		});
+	});
+
+	test('empty file editor refreshes resource-gated menus of its group when its workspace changes in place', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		store.add(registerTestEditor('test.emptyFileEditor', [new SyncDescriptor(EmptyFileEditorInput)]));
+		const menuId = new MenuId('test.emptyFileEditor.resourceMenu');
+		store.add(MenuRegistry.appendMenuItem(menuId, {
+			command: { id: 'test.emptyFileEditor.secondOnly', title: 'Second Only' },
+			when: ResourceContextKey.Path.isEqualTo(URI.file('/repo/second').fsPath),
+		}));
+		const part = await createEditorPart(instantiationService, store.add(new DisposableStore()));
+		const group = part.activeGroup;
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly desktopEditorHeaderLayout = true;
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean { return true; }
+		}));
+		await group.openEditor(input, { pinned: true });
+		const menu = store.add(instantiationService.get(IMenuService).createMenu(menuId, group.scopedContextKeyService));
+		const snapshot = () => ({
+			resourcePath: group.scopedContextKeyService.getContextKeyValue(ResourceContextKey.Path.key),
+			actions: menu.getActions().flatMap(([, actions]) => actions.map(action => action.id)),
+		});
+
+		const first = snapshot();
+		input.setWorkspace(createWorkspace(URI.file('/repo/second')));
+
+		assert.deepStrictEqual({ first, second: snapshot() }, {
+			first: { resourcePath: URI.file('/repo/first').fsPath, actions: [] },
+			second: { resourcePath: URI.file('/repo/second').fsPath, actions: ['test.emptyFileEditor.secondOnly'] },
 		});
 	});
 

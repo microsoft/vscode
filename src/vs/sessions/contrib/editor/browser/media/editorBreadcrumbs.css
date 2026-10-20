@@ -56,9 +56,12 @@
 	display: none;
 }
 
-/* With the editor header layout, root folder crumbs show a folder codicon (following the product icon theme) instead of a file icon theme icon. */
+/* With the editor header layout, root folder crumbs show a folder codicon (following the product icon theme) instead of a file icon theme icon. Mask-based file icon themes also fill the icon through a mask. */
 .agent-sessions-workbench.dock-detail-panel.editor-header-layout .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item.root_folder .monaco-icon-label.rootfolder-icon::before {
+	background-color: transparent;
 	background-image: none;
+	mask: none;
+	-webkit-mask: none;
 	content: var(--vscode-icon-folder-content);
 	font-family: var(--vscode-icon-folder-font-family);
 	font-size: var(--vscode-codiconFontSize);

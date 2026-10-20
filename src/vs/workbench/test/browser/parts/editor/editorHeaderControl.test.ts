@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -17,6 +18,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorGroupViewOptions } from '../../../../browser/parts/editor/editor.js';
 import { EditorHeaderControl } from '../../../../browser/parts/editor/editorHeaderControl.js';
 import { IActiveEditorChangeEvent } from '../../../../common/editor.js';
@@ -45,10 +47,20 @@ suite('EditorHeaderControl', () => {
 		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		const commands: { id: string; args: object[] }[] = [];
+		let commandError: Error | undefined;
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override async executeCommand<T>(id: string, ...args: object[]): Promise<T> {
 				commands.push({ id, args });
+				if (commandError) {
+					throw commandError;
+				}
 				return undefined!;
+			}
+		});
+		const notifiedErrors: NotificationMessage[] = [];
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: NotificationMessage): void {
+				notifiedErrors.push(message);
 			}
 		});
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
@@ -82,6 +94,8 @@ suite('EditorHeaderControl', () => {
 			heights,
 			hasActions,
 			commands,
+			notifiedErrors,
+			failCommands: (error: Error | undefined) => { commandError = error; },
 			runAction: () => container.querySelector<HTMLElement>('.action-label')!.click(),
 			state: () => ({
 				height: control.height,
@@ -112,6 +126,22 @@ suite('EditorHeaderControl', () => {
 			{ id: 'test.editorHeader.action', args: [URI.file('/first'), { groupId: 7 }] },
 			{ id: 'test.editorHeader.action', args: [URI.file('/second'), { groupId: 7 }] },
 		]);
+	}));
+
+	test('header actions report failures except cancellations, like the tab row', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const editor = store.add(new TestHeaderEditorInput());
+		const header = createHeader({ showHeader: true });
+		header.hasActions.set(true);
+		header.activate(editor);
+		const failure = new Error('Header action failed');
+		header.failCommands(failure);
+		header.runAction();
+		await timeout(0);
+		header.failCommands(new CancellationError());
+		header.runAction();
+		await timeout(0);
+
+		assert.deepStrictEqual(header.notifiedErrors, [failure]);
 	}));
 
 	for (const tabHeight of ['default', 'compact'] as const) {
