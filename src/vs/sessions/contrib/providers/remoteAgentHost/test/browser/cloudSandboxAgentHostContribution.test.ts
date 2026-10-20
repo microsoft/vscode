@@ -1180,7 +1180,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const provider = harness.contentProviders.get(sessionType)!;
 		const resource = URI.from({ scheme: sessionType, path: '/sess-1' });
 		const session = store.add(await provider.provideChatSessionContent(resource, CancellationToken.None));
-		const before = { readOnly: session.isReadOnly?.get(), connected: [...harness.connectedTo], status: session.historyStatus?.get() };
+		const before = { readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), connected: [...harness.connectedTo], status: session.historyStatus?.get() };
 		const live = store.add(new ReadOnlyChatSession(resource, [{
 			id: 'turn', type: 'request', prompt: 'Live history', participant: sessionType,
 		}], 'Live title', constObservable(false)));
@@ -1193,10 +1193,10 @@ suite('CloudSandboxAgentHostContribution', () => {
 			activated, before, sameProvider: harness.contentProviders.get(sessionType) === provider,
 			independentReference: reference !== session,
 			sameSession: reference.isReadOnly === session.isReadOnly && reference.history === session.history,
-			readOnly: session.isReadOnly?.get(), history: session.history, historyRequests: harness.historyRequests,
+			readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), history: session.history, historyRequests: harness.historyRequests,
 		}, {
-			activated: true, before: { readOnly: true, connected: ['env-1'], status: undefined }, sameProvider: true,
-			independentReference: true, sameSession: true, readOnly: false, history: live.history, historyRequests: ['task-1'],
+			activated: true, before: { readOnly: true, blocked: true, connected: ['env-1'], status: undefined }, sameProvider: true,
+			independentReference: true, sameSession: true, readOnly: false, blocked: false, history: live.history, historyRequests: ['task-1'],
 		});
 	});
 
