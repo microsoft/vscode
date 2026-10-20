@@ -23,6 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -30,11 +31,13 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -80,7 +83,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByRepository, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -105,6 +108,7 @@ import { TestSessionsList } from './testSessionsList.js';
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
 	workspaceResource?: URI;
+	folders?: ISessionFolder[];
 	createdAt?: Date;
 	updatedAt?: Date;
 	isArchived?: boolean;
@@ -132,7 +136,7 @@ function createSession(id: string, opts: {
 			uri: opts.workspaceResource ?? URI.parse(`session://workspace/${id}`),
 			label: opts.workspaceLabel,
 			icon: Codicon.folder,
-			folders: [],
+			folders: opts.folders ?? [],
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		} : undefined),
@@ -2212,6 +2216,42 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('groupByRepository', () => {
+		function folder(root: URI, repository?: string): ISessionFolder {
+			const [owner, repo] = repository?.split('/') ?? [];
+			return {
+				root,
+				workingDirectory: root,
+				name: root.path,
+				description: undefined,
+				gitRepository: repository ? { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ owner, repo }) } : undefined,
+			};
+		}
+
+		test('groups a repository across environments, names sections by repository, and keeps sessions without one in their workspace', () => {
+			const cloudRoot = URI.parse('github-remote-file://github/microsoft/vscode/main');
+			const sessions = [
+				// A cloud session names its repository only through its workspace.
+				createSession('cloud', { workspaceLabel: 'microsoft/vscode', workspaceResource: cloudRoot, folders: [folder(cloudRoot)] }),
+				createSession('local', { workspaceLabel: 'vscode', folders: [folder(URI.file('/src/vscode'), 'microsoft/vscode')] }),
+				createSession('remote', { workspaceLabel: 'vscode [Host]', folders: [folder(URI.parse('vscode-agent-host://host/src/vscode'), 'Microsoft/VSCode')] }),
+				createSession('fork', { workspaceLabel: 'vscode', folders: [folder(URI.file('/src/fork'), 'someone/vscode')] }),
+				createSession('docs', { workspaceLabel: 'docs', folders: [folder(URI.file('/src/docs'), 'microsoft/vscode-docs')] }),
+				createSession('scratch', { workspaceLabel: 'scratch', folders: [folder(URI.file('/tmp/scratch'))] }),
+				createSession('unknown', {}),
+			];
+
+			assert.deepStrictEqual(groupByRepository(sessions).map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId) })), [
+				// Repository names are shared by two repository sections, so they include their owner.
+				{ id: 'repository:microsoft/vscode', label: 'microsoft/vscode', sessions: ['cloud', 'local', 'remote'] },
+				{ id: 'workspace:scratch', label: 'scratch', sessions: ['scratch'] },
+				{ id: 'repository:someone/vscode', label: 'someone/vscode', sessions: ['fork'] },
+				{ id: 'repository:microsoft/vscode-docs', label: 'vscode-docs', sessions: ['docs'] },
+				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['unknown'] },
+			]);
+		});
+	});
+
 	suite('groupByDate', () => {
 
 		const DAY_MS = 86_400_000;
@@ -2618,6 +2658,155 @@ suite('Sessions - SessionsList', () => {
 				before: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
 				reset: { capped: true, excludeArchived: true, storedExcludeArchived: true },
 				undone: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
+			});
+		});
+	});
+
+	suite('repository grouping', () => {
+		function render(sessions: ISession[], options: IListHarnessOptions = {}, hostConnected = true) {
+			const providers = [
+				{ id: 'local-provider', environment: { id: 'local', label: 'This Computer' } },
+				{ id: 'cloud-provider', environment: { id: 'cloud', label: 'Cloud' } },
+				{ id: 'host-provider', environment: { id: 'host', label: 'My Host', isConnected: constObservable(hostConnected) } },
+			].map(provider => upcastPartial<ISessionsProvider>(provider));
+			const harness = createListHarness(disposables, sessions, options);
+			harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override readonly onDidChangeProviders = Event.None;
+				override getProviders() { return providers; }
+				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined { return providers.find(provider => provider.id === providerId) as T | undefined; }
+			});
+			const contextKeyService = harness.store.add(new ContextKeyService(new TestConfigurationService()));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			harness.instantiationService.stub(IContextKeyService, contextKeyService);
+			harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
+			const container = harness.createContainer(400, 800);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Repository,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			const rowOf = (label: string) => {
+				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.find(row => (row.querySelector('.session-section-label') ?? row.querySelector('.session-title'))?.textContent === label);
+				assert.ok(row, `Expected a row for "${label}"`);
+				return row;
+			};
+			return { harness, list, container, contextMenus, rowOf };
+		}
+
+		function repositorySession(title: string, environment: string, minutesAgo: number, repository = 'microsoft/vscode') {
+			return createTestSession(title, {
+				providerId: `${environment}-provider`,
+				environment,
+				repository,
+				workspaceLabel: repository.split('/')[1],
+				createdAt: new Date(Date.now() - minutesAgo * 60_000),
+			}).session;
+		}
+
+		/** Drags `source` onto the top quarter of `target`, as the tree's drag and drop reads it. */
+		function drag(source: HTMLElement, target: HTMLElement): void {
+			const dataTransfer = new DataTransfer();
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			const bounds = target.getBoundingClientRect();
+			const event = (type: string) => {
+				const dragEvent = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: bounds.left + 10, clientY: bounds.top + 1 });
+				Object.defineProperty(dragEvent, 'offsetY', { value: 1 });
+				return dragEvent;
+			};
+			target.dispatchEvent(event('dragover'));
+			target.dispatchEvent(event('drop'));
+			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		}
+
+		test('groups a repository across environments and names the environment of each row except this computer', () => {
+			const { container } = render([
+				repositorySession('In the cloud', 'cloud', 1),
+				repositorySession('On this computer', 'local', 2),
+				repositorySession('On my host', 'host', 3),
+				createTestSession('Scratch', { workspaceLabel: 'scratch', createdAt: new Date(Date.now() - 4 * 60_000) }).session,
+			]);
+
+			assert.deepStrictEqual([...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => {
+				const section = row.querySelector('.session-section-label')?.textContent;
+				const badge = row.querySelector('.session-badge')?.textContent;
+				return section ?? `${row.querySelector('.session-title')?.textContent}${badge ? ` (${badge})` : ''}`;
+			}), ['scratch', 'Scratch', 'vscode', 'In the cloud (Cloud)', 'On this computer', 'On my host (My Host)']);
+		});
+
+		for (const hostConnected of [true, false]) {
+			test(`New Session offers each available environment of a repository section that spans several (host ${hostConnected ? 'connected' : 'disconnected'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { harness, list, contextMenus, rowOf } = render([
+					repositorySession('Cloud session', 'cloud', 1),
+					repositorySession('Latest local session', 'local', 2),
+					repositorySession('Host session', 'host', 3),
+					repositorySession('Older local session', 'local', 4),
+					repositorySession('Docs session', 'local', 5, 'microsoft/vscode-docs'),
+				], {}, hostConnected);
+				// Other contributions, such as New Session from Pull Request, may add their own entries to the dropdown.
+				const environmentActions = (label: string) => {
+					const menuCount = contextMenus.length;
+					rowOf(label).querySelector('.monaco-dropdown .dropdown-label')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+					return (contextMenus[menuCount] ?? []).filter(action => action.id.startsWith(`${NEW_SESSION_IN_ENVIRONMENT_ACTION_ID}.`));
+				};
+				// The section toolbars update after their menus' debounced change events.
+				await timeout(100);
+				const actions = environmentActions('vscode');
+				await actions.find(action => action.label === 'New Session in Cloud')?.run();
+				const result = {
+					entries: actions.map(action => action.label),
+					singleEnvironment: {
+						newSession: !!rowOf('vscode-docs').querySelector('.action-label.codicon-plus'),
+						entries: environmentActions('vscode-docs').map(action => action.label),
+					},
+					started: harness.commandService.calls
+						.filter(call => call.commandId === NEW_SESSION_IN_ENVIRONMENT_ACTION_ID)
+						.map(call => [(call.args[0] as ISessionSection).label, call.args[1]]),
+				};
+				// The list's own timers (e.g. relative times) would keep the virtual clock running.
+				list.dispose();
+
+				assert.deepStrictEqual(result, {
+					entries: hostConnected
+						? ['New Session on This Computer', 'New Session in Cloud', 'New Session on My Host']
+						: ['New Session on This Computer', 'New Session in Cloud'],
+					singleEnvironment: { newSession: true, entries: [] },
+					started: [['vscode', 'cloud']],
+				});
+			}));
+		}
+
+		test('reorders repository sections and accepts their sessions like workspace sections', () => {
+			const group: ISessionGroup = { id: 'group', name: 'Group', createdAt: 1 };
+			const grouped = repositorySession('Grouped alpha session', 'local', 3, 'microsoft/alpha');
+			const { harness, rowOf } = render([
+				repositorySession('Alpha session', 'local', 1, 'microsoft/alpha'),
+				repositorySession('Beta session', 'cloud', 2, 'microsoft/beta'),
+				grouped,
+			], { groups: [group], memberships: new Map([[grouped.sessionId, group.id]]) });
+
+			drag(rowOf('beta'), rowOf('alpha'));
+			drag(rowOf('Grouped alpha session'), rowOf('beta'));
+			const ungroupedOutsideItsRepository = [...harness.removedFromGroups];
+			drag(rowOf('Grouped alpha session'), rowOf('alpha'));
+
+			assert.deepStrictEqual({ reorders: harness.sectionReorders, ungroupedOutsideItsRepository, ungrouped: harness.removedFromGroups }, {
+				reorders: [{
+					visibleOrder: ['group:group', 'repository:microsoft/alpha', 'repository:microsoft/beta'],
+					draggedId: 'repository:microsoft/beta',
+					targetId: 'repository:microsoft/alpha',
+					position: 'before',
+					promoteId: 'repository:microsoft/beta',
+				}],
+				ungroupedOutsideItsRepository: [],
+				ungrouped: [grouped.sessionId],
 			});
 		});
 	});

@@ -138,12 +138,16 @@ export interface ITestSession {
 
 export interface ITestSessionOptions {
 	readonly resourceId?: string;
+	/** Defaults to `test`. */
+	readonly providerId?: string;
 	readonly harness?: string;
 	readonly environment?: string;
 	readonly application?: string;
 	readonly workspaceLabel?: string;
 	/** Defaults to a resource unique to the session. */
 	readonly workspaceResource?: URI;
+	/** A GitHub repository, as `owner/name`, that the workspace's folder reports through its Git metadata. */
+	readonly repository?: string;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
@@ -174,11 +178,13 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 	const isArchived = observableValue(`archived-${resourceId}`, options.isArchived ?? false);
 	const isExternal = observableValue(`external-${resourceId}`, options.isExternal ?? false);
 	const workspaceLabel = options.workspaceLabel ?? 'Workspace';
+	const workspaceUri = options.workspaceResource ?? URI.parse(`test-workspace://${resourceId}`);
+	const [repositoryOwner, repositoryName] = options.repository?.split('/') ?? [];
 	const isQuickChat = options.isQuickChat ?? false;
 	const session: ISession = {
 		sessionId: resourceId,
 		resource,
-		providerId: 'test',
+		providerId: options.providerId ?? 'test',
 		sessionType: 'test',
 		harness: options.harness ?? 'copilot',
 		environment: options.environment ?? 'local',
@@ -186,10 +192,21 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		icon: Codicon.account,
 		createdAt: now,
 		workspace: constObservable(isQuickChat ? undefined : {
-			uri: options.workspaceResource ?? URI.parse(`test-workspace://${resourceId}`),
+			uri: workspaceUri,
 			label: workspaceLabel,
 			icon: Codicon.folder,
-			folders: [],
+			folders: options.repository ? [{
+				root: workspaceUri,
+				workingDirectory: workspaceUri,
+				name: workspaceLabel,
+				description: undefined,
+				gitRepository: {
+					uri: workspaceUri,
+					workTreeUri: undefined,
+					baseBranchName: undefined,
+					gitHubInfo: constObservable({ owner: repositoryOwner, repo: repositoryName }),
+				},
+			}] : [],
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		}),

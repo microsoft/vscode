@@ -18,7 +18,7 @@ import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
@@ -67,7 +67,8 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
@@ -190,6 +191,8 @@ export interface ISessionsListFixtureState {
 	readonly header?: ISessionsListFixtureHeader;
 	/** Configuration values by setting id. */
 	readonly settings?: Readonly<Record<string, unknown>>;
+	/** Environments, each served by a provider whose id is the environment's id, for sessions to name as their `providerId`. */
+	readonly environments?: readonly ISessionEnvironment[];
 	/** Room around the list, e.g. for an onboarding callout. */
 	readonly frame?: { readonly width: number; readonly height: number };
 }
@@ -644,9 +647,10 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override readonly selectedHost = undefined;
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				private readonly providers = (state.environments ?? []).map(environment => upcastPartial<ISessionsProvider>({ id: environment.id, environment }));
 				override readonly onDidChangeProviders = Event.None;
-				override getProviders() { return []; }
-				override getProvider() { return undefined; }
+				override getProviders() { return this.providers; }
+				override getProvider<T extends ISessionsProvider>(providerId: string): T | undefined { return this.providers.find(provider => provider.id === providerId) as T | undefined; }
 			}());
 			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
