@@ -123,6 +123,7 @@ export interface ICreateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 	/**
 	 * Ids of the {@link IAutomationCustomizationChoice | customizations} to sync.
 	 * Absent means the provider's default: every customization enabled for the target.
@@ -161,6 +162,8 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
+	/** Replaces end-date conditions while retaining other host-owned conditions; omission preserves all conditions. */
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 	/**
 	 * Ids of the customizations to sync. Selected entries that are outdated are refreshed.
 	 * Absent keeps the saved customizations unless the target changes.
@@ -213,6 +216,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		disableConditions: [...automation.disableConditions ?? []].sort((a, b) => a.kind.localeCompare(b.kind)),
 	});
 }
 

@@ -504,6 +504,9 @@ function validateLocalOptions(options: IUpdateAutomationOptions): void {
 	if (options.mode !== undefined || options.permissionLevel !== undefined) {
 		throw new Error(localize('cloudAutomations.localConfiguration', "Cloud automations do not support local mode or approval settings."));
 	}
+	if (options.disableConditions?.length) {
+		throw new Error(localize('cloudAutomations.endDates', "Cloud automations do not support end dates."));
+	}
 	if ((options.name !== undefined && !options.name.trim()) || (options.prompt !== undefined && !options.prompt.trim())) {
 		throw new Error(localize('cloudAutomations.requiredFields', "An automation name and prompt are required."));
 	}
