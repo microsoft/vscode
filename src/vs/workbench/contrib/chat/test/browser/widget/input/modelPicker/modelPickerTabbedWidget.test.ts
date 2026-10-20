@@ -668,7 +668,13 @@ suite('TabbedModelPicker', () => {
 			select: id => state.set({ ...state.get()!, selectedModelIds: [id], canGoNext: state.get()!.hasNextStep !== false, canFinish: true, status: { text: '1 selected' } }, undefined),
 			setCount: () => { },
 			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
-			back: () => state.set(attempts, undefined),
+			back: () => {
+				if (state.get()?.title === 'Synthesizer') {
+					state.set({ ...state.get()!, title: 'Judge', backLabel: 'Configure Attempts', nextLabel: 'Configure Synthesis' }, undefined);
+				} else {
+					state.set(attempts, undefined);
+				}
+			},
 			next: () => {
 				const toSynthesizer = state.get()?.title === 'Judge';
 				state.set({
@@ -734,7 +740,7 @@ suite('TabbedModelPicker', () => {
 			accessible: firstRow.getAttribute('aria-label'),
 			hover: firstRow.getAttribute('title'),
 		}, {
-			heading: 'Select models.', comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: '',
+			heading: 'Select models.', comparisonScope: true, routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Configure Judge (disabled)'], status: '',
 			badge: '25% off', configuration: 'Low · 32K', details: 'First Details, Low · 32K',
 			accessible: 'First, 25% off, Effort Level: Low, Context: 32K',
 			hover: 'First · Low · 32K',
@@ -763,8 +769,8 @@ suite('TabbedModelPicker', () => {
 			count: popup.querySelector('select'),
 			buttons: buttons(),
 			status: footerStatus(),
-		}, { visible: true, selected: 1, selections: [], checked: 1, count: null, buttons: ['Done', 'Next'], status: '1 selected' });
-		button('Next').click();
+		}, { visible: true, selected: 1, selections: [], checked: 1, count: null, buttons: ['Done', 'Configure Judge'], status: '1 selected' });
+		button('Configure Judge').click();
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			buttons: buttons(),
@@ -773,13 +779,15 @@ suite('TabbedModelPicker', () => {
 		}, { heading: 'Optional review.', buttons: ['Configure Attempts', 'Done', 'Configure Synthesis (disabled)'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
 		const judgeWithChoice = buttons();
-		button('Next').click();
+		button('Configure Synthesis').click();
 		assert.deepStrictEqual({
 			judgeWithChoice,
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			radios: offered('menuitemradio'),
 			buttons: buttons(),
-		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', radios: 3, buttons: ['Configure Attempts', 'Done'] });
+		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', radios: 3, buttons: ['Configure Judge', 'Done'] });
+		button('Configure Judge').click();
+		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Optional review.');
 		button('Configure Attempts').click();
 		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Select models.');
 		element(popup, '.chat-model-picker-model').click();
