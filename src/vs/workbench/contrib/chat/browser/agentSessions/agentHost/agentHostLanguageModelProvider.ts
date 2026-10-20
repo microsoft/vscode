@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
@@ -21,7 +22,7 @@ import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHo
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -53,6 +54,12 @@ export function agentHostProviderSupportsAutoModel(provider: string): boolean {
 export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguageModelIds' | 'lookupLanguageModel' | 'onDidChangeLanguageModels'>;
 
 /**
+ * Sends requests and token counts to workbench models. Lets extensions use an agent-host model
+ * directly by running the request on the workbench model the host model stands for.
+ */
+export type IAgentHostModelRequestTarget = IAgentHostModelCatalogue & Pick<ILanguageModelsService, 'sendChatRequest' | 'computeTokenLength'>;
+
+/**
  * Exposes models available from the agent host process as selectable
  * language models in the chat model picker. Models are provided from
  * root state (via {@link AgentInfo.models}) rather than via RPC.
@@ -69,6 +76,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
 		private readonly _catalogue?: IAgentHostModelCatalogue,
+		private readonly _requestTarget?: IAgentHostModelRequestTarget,
 	) {
 		super();
 
@@ -435,11 +443,49 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 
-	async sendChatRequest(): Promise<never> {
-		throw new Error('Agent-host models do not support direct chat requests');
+	async sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
+		const target = this._requestTargetFor(modelId);
+		if (!target || !this._requestTarget) {
+			throw new Error(`Agent-host model '${modelId}' does not support direct chat requests`);
+		}
+		// Keep only the configuration the target model understands; the service adds the target's own.
+		const properties = target.metadata.configurationSchema?.properties ?? {};
+		const configuration = options.configuration && Object.fromEntries(Object.entries(options.configuration).filter(([key]) => Object.hasOwn(properties, key)));
+		return this._requestTarget.sendChatRequest(target.identifier, from, messages, { ...options, configuration }, token);
 	}
 
-	async provideTokenCount(): Promise<number> {
-		return 0;
+	async provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
+		const target = this._requestTargetFor(modelId);
+		return target && this._requestTarget ? this._requestTarget.computeTokenLength(target.identifier, message, token) : 0;
+	}
+
+	/**
+	 * The workbench model that runs direct requests for an agent-host model: its BYOK original, or
+	 * the Copilot model with the same id. Auto and models without an exact counterpart have none,
+	 * so requests for them fail rather than silently running on a different model.
+	 */
+	private _requestTargetFor(modelId: string): { identifier: string; metadata: ILanguageModelChatMetadata } | undefined {
+		const target = this._requestTarget;
+		const prefix = `${this._vendor}:`;
+		const rawId = modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
+		const model = [...this._models, ...this._additionalModels].find(candidate => candidate.id === rawId);
+		if (!target || !model || model.id === AUTO_RAW_MODEL_ID || model.policyState === 'disabled') {
+			return undefined;
+		}
+		const byokIdentifier = readAgentModelByokIdentifier(model);
+		if (byokIdentifier !== undefined) {
+			const metadata = target.lookupLanguageModel(byokIdentifier);
+			return metadata && { identifier: byokIdentifier, metadata };
+		}
+		if (model.provider !== COPILOT_CLI_AGENT_PROVIDER_ID && this._modelGroupFor(model)?.id !== COPILOT_VENDOR_ID) {
+			return undefined;
+		}
+		for (const identifier of target.getLanguageModelIds()) {
+			const metadata = target.lookupLanguageModel(identifier);
+			if (metadata?.vendor === COPILOT_VENDOR_ID && metadata.id === model.id) {
+				return { identifier, metadata };
+			}
+		}
+		return undefined;
 	}
 }

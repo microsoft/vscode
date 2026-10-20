@@ -13,7 +13,7 @@ import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentH
 import { withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { createLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatRequestOptions, ILanguageModelChatResponse } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
 suite('AgentHostLanguageModelProvider', () => {
@@ -749,6 +749,78 @@ suite('AgentHostLanguageModelProvider', () => {
 			grouped: { byokModelIdentifier: 'openrouter/OpenRouter 2/aion-labs/aion-3.0', manageModelsId: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' },
 			groupless: { byokModelIdentifier: 'anthropic/claude-sonnet-4', manageModelsId: 'anthropic/claude-sonnet-4' },
 			native: { byokModelIdentifier: undefined, manageModelsId: undefined },
+		});
+	});
+
+	suite('direct requests', () => {
+		/** A workbench stand-in that records which model each direct request runs on. */
+		function requestTarget(calls: string[]) {
+			const models = new Map<string, ILanguageModelChatMetadata>([
+				['copilot/claude-opus-5.5', upcastPartial<ILanguageModelChatMetadata>({ id: 'claude-opus-5.5', vendor: 'copilot', configurationSchema: { properties: { reasoningEffort: { type: 'string' } } } })],
+				['copilot/auto', upcastPartial<ILanguageModelChatMetadata>({ id: 'auto', vendor: 'copilot' })],
+				['anthropic/claude-sonnet-4', upcastPartial<ILanguageModelChatMetadata>({ id: 'claude-sonnet-4', vendor: 'anthropic' })],
+			]);
+			const onDidChange = store.add(new Emitter<string>());
+			return {
+				getLanguageModelIds: () => [...models.keys()],
+				lookupLanguageModel: (identifier: string) => models.get(identifier),
+				onDidChangeLanguageModels: onDidChange.event,
+				sendChatRequest: async (identifier: string, _from: unknown, _messages: unknown, options: ILanguageModelChatRequestOptions) => {
+					calls.push(`request:${identifier}:${JSON.stringify(options.configuration)}`);
+					return upcastPartial<ILanguageModelChatResponse>({});
+				},
+				computeTokenLength: async (identifier: string) => { calls.push(`count:${identifier}`); return 5; },
+			};
+		}
+
+		test('runs on the exact workbench model and never on a different one', async () => {
+			const calls: string[] = [];
+			const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'agent-host-copilotcli', undefined, requestTarget(calls)));
+			provider.updateModels([
+				makeModel('claude-opus-5.5'),
+				makeModel('anthropic/claude-sonnet-4', { byokModelIdentifier: 'anthropic/claude-sonnet-4' }),
+				makeModel('auto'),
+				makeModel('unknown-model'),
+			]);
+
+			const outcome = async (id: string) => {
+				try {
+					await provider.sendChatRequest(`agent-host-copilotcli:${id}`, [], undefined, { configuration: { reasoningEffort: 'high', contextTier: 'long' } }, CancellationToken.None);
+					return 'sent';
+				} catch (error) {
+					return (error as Error).message;
+				}
+			};
+			const results = {
+				copilot: await outcome('claude-opus-5.5'),
+				byok: await outcome('anthropic/claude-sonnet-4'),
+				auto: await outcome('auto'),
+				unknown: await outcome('unknown-model'),
+				tokens: await provider.provideTokenCount('agent-host-copilotcli:claude-opus-5.5', 'hello', CancellationToken.None),
+				autoTokens: await provider.provideTokenCount('agent-host-copilotcli:auto', 'hello', CancellationToken.None),
+			};
+
+			assert.deepStrictEqual({ results, calls }, {
+				results: {
+					copilot: 'sent',
+					byok: 'sent',
+					auto: `Agent-host model 'agent-host-copilotcli:auto' does not support direct chat requests`,
+					unknown: `Agent-host model 'agent-host-copilotcli:unknown-model' does not support direct chat requests`,
+					tokens: 5,
+					autoTokens: 0,
+				},
+				calls: [
+					'request:copilot/claude-opus-5.5:{"reasoningEffort":"high"}',
+					'request:anthropic/claude-sonnet-4:{}',
+					'count:copilot/claude-opus-5.5',
+				],
+			});
+		});
+
+		test('rejects direct requests without a request target', async () => {
+			const provider = createProvider();
+			provider.updateModels([makeModel('claude-opus-5.5')]);
+			await assert.rejects(provider.sendChatRequest('copilotcli:claude-opus-5.5', [], undefined, {}, CancellationToken.None), /does not support direct chat requests/);
 		});
 	});
 });

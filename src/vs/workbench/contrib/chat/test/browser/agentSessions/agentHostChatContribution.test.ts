@@ -13355,10 +13355,10 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(models.length, 0);
 		});
 
-		test('sendChatRequest throws', async () => {
+		test('sendChatRequest throws without a request target', async () => {
 			const provider = disposables.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot'));
 
-			await assert.rejects(() => provider.sendChatRequest(), /do not support direct chat requests/);
+			await assert.rejects(() => provider.sendChatRequest('agent-host-copilot:missing', [], undefined, {}, CancellationToken.None), /does not support direct chat requests/);
 		});
 	});
 

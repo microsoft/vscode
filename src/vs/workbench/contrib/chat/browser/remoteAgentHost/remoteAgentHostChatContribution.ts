@@ -497,7 +497,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const vendorDescriptor = { vendor, displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		agentStore.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, this._languageModelsService));
 		connState.modelProviders.set(agent.provider, modelProvider);
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
