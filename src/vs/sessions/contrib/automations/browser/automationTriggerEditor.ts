@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { Button, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectBoxOptions, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -18,6 +15,7 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
+import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IAutomationCloudTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationTriggerCatalog } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -33,7 +31,7 @@ export interface IAutomationTriggerFormState {
 export class AutomationTriggerEditor extends Disposable {
 	private readonly controls = this._register(new DisposableStore());
 	private readonly fieldControls = this._register(new DisposableStore());
-	private readonly popup = this._register(new MutableDisposable());
+	private readonly eventPicker = this._register(new MutableDisposable<DisposableStore>());
 	private catalog: AutomationTriggerCatalog | undefined;
 	private choices: readonly IAutomationTriggerChoice[] = [];
 	private cloud = false;
@@ -53,6 +51,7 @@ export class AutomationTriggerEditor extends Disposable {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 	}
@@ -91,7 +90,7 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	private render(): void {
-		this.popup.clear();
+		this.eventPicker.clear();
 		this.controls.clear();
 		this.fieldControls.clear();
 		DOM.clearNode(this.container);
@@ -140,23 +139,14 @@ export class AutomationTriggerEditor extends Disposable {
 		DOM.append(this.eventContainer, DOM.$('span.automation-form-label', undefined, localize('automation.trigger.event', "Event")));
 		const host = DOM.append(this.eventContainer, DOM.$('.automation-form-schedule-select-container'));
 		if (choices[0].family === 'pullRequest') {
-			const button = this.controls.add(new Button(host, { ...unthemedButtonStyles }));
+			const button = this.controls.add(new Button(host, { ...defaultButtonStyles, secondary: true }));
 			this.eventsButton = button;
-			button.element.classList.add('automation-event-select');
-			button.element.setAttribute('role', 'combobox');
-			button.element.setAttribute('aria-haspopup', 'dialog');
-			button.element.setAttribute('aria-expanded', 'false');
+			button.element.classList.add('automation-event-button');
 			this.updateEventLabel();
 			this.controls.add(this.hoverService.setupDelayedHover(button.element, () => ({
 				content: automationTriggerSummary(this.state.cloudTrigger!.triggers) ?? '',
 			})));
 			this.controls.add(button.onDidClick(() => this.pickEvents(choices)));
-			this.controls.add(DOM.addDisposableListener(button.element, 'keydown', (event: KeyboardEvent) => {
-				if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-					DOM.EventHelper.stop(event, true);
-					this.pickEvents(choices);
-				}
-			}));
 		} else {
 			const selected = choices.findIndex(choice => this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type));
 			const picker = this.controls.add(new SelectBox(choices.map(choice => ({ text: choice.label })), selected, this.contextViewService, defaultSelectBoxStyles, { ...this.selectOptions, ariaLabel: localize('automation.trigger.event', "Event") }));
@@ -180,8 +170,8 @@ export class AutomationTriggerEditor extends Disposable {
 			return;
 		}
 		const summary = automationTriggerSummary(this.state.cloudTrigger!.triggers) ?? '';
-		this.eventsButton.element.setAttribute('aria-label', localize('automation.trigger.selectedEvents', "Event: {0}", summary));
-		DOM.reset(this.eventsButton.element, DOM.$('span.automation-event-select-label', undefined, summary), renderIcon(Codicon.chevronDown));
+		this.eventsButton.label = summary;
+		this.eventsButton.element.setAttribute('aria-label', localize('automation.trigger.selectedEvents', "Select events. Current selection: {0}", summary));
 	}
 
 	private renderSelectedFields(choices: readonly IAutomationTriggerChoice[]): void {
@@ -202,69 +192,37 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	private pickEvents(choices: readonly IAutomationTriggerChoice[]): void {
-		const button = this.eventsButton!;
-		if (button.element.getAttribute('aria-expanded') === 'true') {
-			return;
-		}
-		const checks: Checkbox[] = [];
-		let list: HTMLElement | undefined;
-		button.element.setAttribute('aria-expanded', 'true');
-		const popup = this.contextViewService.showContextView({
-			getAnchor: () => button.element,
-			anchorPosition: this.selectOptions.anchorPosition,
-			render: container => {
-				const store = new DisposableStore();
-				const renderedList = list = DOM.append(container, DOM.$('.automation-event-options', { role: 'dialog', 'aria-label': localize('automation.trigger.selectEvents', "Pull Request Events") }));
-				renderedList.style.minWidth = `${button.element.getBoundingClientRect().width}px`;
-				for (const choice of choices) {
-					const checked = this.state.cloudTrigger!.triggers[choice.name]?.types?.includes(choice.type) ?? false;
-					const row = DOM.append(renderedList, DOM.$('label.automation-event-option'));
-					const checkbox = store.add(new Checkbox(choice.label, checked, defaultCheckboxStyles));
-					checks.push(checkbox);
-					DOM.append(row, checkbox.domNode);
-					DOM.append(row, DOM.$('span', undefined, choice.label));
-					store.add(checkbox.onChange(() => {
-						if (!checks.some(check => check.checked)) {
-							checkbox.checked = true;
-							status(localize('automation.trigger.keepEvent', "At least one event must remain selected."));
-							return;
-						}
-						this.state.cloudTrigger = { ...this.state.cloudTrigger!, triggers: selectAutomationTriggerEvents(this.state.cloudTrigger!.triggers, choices.filter((_, index) => checks[index].checked)) };
-						this.updateEventLabel();
-						this.renderSelectedFields(choices);
-						this.changed();
-					}));
-				}
-				store.add(DOM.addDisposableListener(renderedList, 'keydown', (event: KeyboardEvent) => {
-					const index = checks.findIndex(check => check.domNode === DOM.getActiveElement());
-					if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
-						DOM.EventHelper.stop(event, true);
-						const next = event.key === 'Home' ? 0 : event.key === 'End' ? checks.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + checks.length) % checks.length;
-						checks[next].focus();
-					} else if (event.key === 'Escape' || event.key === 'Enter' || event.key === 'Tab') {
-						DOM.EventHelper.stop(event, true);
-						popup.close();
-						button.focus();
-					}
-				}));
-				store.add(DOM.addDisposableListener(renderedList, 'focusout', event => {
-					const target = event.relatedTarget;
-					if (target instanceof Node && !renderedList.contains(target)) {
-						popup.close();
-					}
-				}));
-				return store;
-			},
-			onDOMEvent: event => {
-				const target = event.target;
-				if (event.type === DOM.EventType.MOUSE_DOWN && target instanceof Node && !list?.contains(target) && !button.element.contains(target)) {
-					popup.close();
-				}
-			},
-			focus: () => checks[0]?.focus(),
-			onHide: () => button.element.setAttribute('aria-expanded', 'false'),
-		});
-		this.popup.value = toDisposable(() => popup.close());
+		const store = new DisposableStore();
+		this.eventPicker.value = store;
+		let disposing = false;
+		store.add(toDisposable(() => { disposing = true; }));
+		const picker = store.add(this.quickInputService.createQuickTree<IQuickTreeItem>());
+		picker.title = localize('automation.trigger.selectEvents', "Pull Request Events");
+		picker.placeholder = localize('automation.trigger.selectEventsPlaceholder', "Select at least one event");
+		picker.sortByLabel = false;
+		const items = () => choices.map((choice, index) => ({
+			id: String(index), label: choice.label, checked: this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type) ?? false,
+		}));
+		picker.setItemTree(items());
+		store.add(picker.onDidChangeCheckedLeafItems(selected => {
+			if (!selected.length) {
+				picker.setItemTree(items());
+				return;
+			}
+			this.state.cloudTrigger = { ...this.state.cloudTrigger!, triggers: selectAutomationTriggerEvents(this.state.cloudTrigger!.triggers, selected.map(item => choices[Number(item.id)])) };
+			this.updateEventLabel();
+			this.renderSelectedFields(choices);
+			this.changed();
+		}));
+		store.add(picker.onDidAccept(() => picker.hide()));
+		store.add(picker.onDidHide(() => {
+			if (disposing) {
+				return;
+			}
+			this.eventPicker.clear();
+			this.eventsButton?.focus();
+		}));
+		picker.show();
 	}
 
 	private renderFields(choice: IAutomationTriggerChoice): void {

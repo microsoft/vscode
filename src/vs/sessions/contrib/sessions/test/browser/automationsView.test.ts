@@ -4268,7 +4268,7 @@ suite('AutomationsCardsWidget', () => {
 			localWeekdays: content.includes('Monday through Friday at the same local time, without choosing a day of the week'),
 			cloudRestriction: content.includes('Weekdays is not available for Cloud automations'),
 			unifiedTrigger: content.includes('Trigger picker combines Weekly, Daily, Hourly, Issue, Pull Request, and Manual in one control'),
-			eventControls: content.includes('Issue uses one Event. For Pull Request, open the Event dropdown'),
+			eventControls: content.includes('Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist'),
 			preservation: content.includes('editing other fields keeps the saved triggers'),
 			eventColumn: content.includes('Event appears to the right of Trigger'),
 			advancedFilters: content.includes('Expand Advanced below the trigger row to configure filters'),
