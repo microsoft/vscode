@@ -62,12 +62,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 	});
 
 	suite('exit request', () => {
-		const processWithPort = process as unknown as { parentPort?: { on(event: 'message', listener: (e: { data: unknown }) => void): void } };
+		const processWithPort = process as unknown as { parentPort?: { on(event: 'message', listener: (e: { data: unknown }) => void): void; postMessage(message: unknown): void } };
 		const environmentKeys = ['VSCODE_GENERATE_NODE_COMPILE_CACHE', 'VSCODE_NODE_COMPILE_CACHE_KIND', 'VSCODE_NODE_COMPILE_CACHE_MEASUREMENTS'];
 		let previousEnvironment: (string | undefined)[];
 		let previousExit: typeof process.exit;
 		let listeners: ((e: { data: unknown }) => void)[];
 		let exitCodes: (string | number | null | undefined)[];
+		let posted: unknown[];
 
 		setup(async () => {
 			previousEnvironment = environmentKeys.map(key => process.env[key]);
@@ -78,7 +79,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 			await mkdir(join(root, 'shared-process'), { recursive: true });
 			listeners = [];
 			exitCodes = [];
-			processWithPort.parentPort = { on: (_event, listener) => listeners.push(listener) };
+			posted = [];
+			processWithPort.parentPort = { on: (_event, listener) => listeners.push(listener), postMessage: message => posted.push(message) };
 			previousExit = process.exit;
 			process.exit = (code => { exitCodes.push(code); }) as typeof process.exit;
 		});
@@ -95,16 +97,17 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 			});
 		});
 
-		test('a process outside cache generation neither writes a marker nor listens for the exit request', async () => {
+		test('a process outside cache generation neither writes a marker nor handles the exit request', async () => {
 			cache.markNodeCompileCacheReady();
 			assert.deepStrictEqual({
 				isGenerating: cache.isGeneratingNodeCompileCache(),
 				listeners: listeners.length,
+				posted,
 				marker: await exists(join(root, 'shared-process', '.ready')),
-			}, { isGenerating: false, listeners: 0, marker: false });
+			}, { isGenerating: false, listeners: 0, posted: [], marker: false });
 		});
 
-		test('a cache generator exits on the exit request only', async () => {
+		test('a cache generator announces and exits on the exit request only', async () => {
 			process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] = '1';
 			cache.markNodeCompileCacheReady();
 			listeners.forEach(listener => listener({ data: 'some other message' }));
@@ -113,10 +116,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 			assert.deepStrictEqual({
 				isGenerating: cache.isGeneratingNodeCompileCache(),
 				listeners: listeners.length,
+				posted,
 				marker: await exists(join(root, 'shared-process', '.ready')),
 				exitsBeforeRequest,
 				exitCodes,
-			}, { isGenerating: true, listeners: 1, marker: true, exitsBeforeRequest: 0, exitCodes: [0] });
+			}, { isGenerating: true, listeners: 1, posted: [cache.nodeCompileCacheExitRequestHandled], marker: true, exitsBeforeRequest: 0, exitCodes: [0] });
 		});
 	});
 });

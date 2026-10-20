@@ -25,12 +25,18 @@ export type NodeCompileCacheKind = typeof nodeCompileCacheKinds[number];
  */
 export const nodeCompileCacheExitRequest = 'vscode:nodeCompileCacheExit';
 
+/**
+ * Message a utility process posts to electron-main once it handles {@link nodeCompileCacheExitRequest}.
+ */
+export const nodeCompileCacheExitRequestHandled = 'vscode:nodeCompileCacheExitHandled';
+
 export function isGeneratingNodeCompileCache(): boolean {
 	return process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
 }
 
 interface IParentPort {
 	on(event: 'message', listener: (e: { readonly data: unknown }) => void): void;
+	postMessage(message: unknown): void;
 }
 
 let enabledKind: NodeCompileCacheKind | undefined;
@@ -173,11 +179,13 @@ export function markNodeCompileCacheReady(log?: (message: string) => void): void
 		// Node.js persists the cache of code this process compiles from now on only when it exits.
 		// Exit when electron-main asks, so that it can wait for that write before it quits instead of
 		// the process being torn down mid-write, which leaves a temporary `<entry>.XXXXXX` file behind.
-		(process as NodeJS.Process & { parentPort?: IParentPort }).parentPort?.on('message', e => {
+		const parentPort = (process as NodeJS.Process & { parentPort?: IParentPort }).parentPort;
+		parentPort?.on('message', e => {
 			if (e.data === nodeCompileCacheExitRequest) {
 				process.exit(0);
 			}
 		});
+		parentPort?.postMessage(nodeCompileCacheExitRequestHandled);
 	}
 
 	const measurementsDirectory = process.env['VSCODE_NODE_COMPILE_CACHE_MEASUREMENTS'];

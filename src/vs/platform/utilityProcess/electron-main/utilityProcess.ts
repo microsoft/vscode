@@ -18,7 +18,7 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
-import { getNodeCompileCacheKindForUtilityProcess, isGeneratingNodeCompileCache, nodeCompileCacheExitRequest } from '../../../base/node/nodeCompileCache.js';
+import { getNodeCompileCacheKindForUtilityProcess, isGeneratingNodeCompileCache, nodeCompileCacheExitRequest, nodeCompileCacheExitRequestHandled } from '../../../base/node/nodeCompileCache.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -160,6 +160,39 @@ export class UtilityProcess extends Disposable {
 		return Array.from(UtilityProcess.all.values());
 	}
 
+	private static readonly nodeCompileCacheProcesses = new Map<ElectronUtilityProcess, { handlesExitRequest: boolean }>();
+	private static isExitingNodeCompileCacheProcesses = false;
+
+	/**
+	 * While the build generates the Node.js compile cache: asks every running utility process that
+	 * writes a compile cache, except the extension host, to exit, and resolves once they all exited.
+	 * Node.js persists the cache of code a process compiled after `markNodeCompileCacheReady` only
+	 * when it exits, so a process still running when electron-main quits can be torn down in the
+	 * middle of that write, which leaves a temporary `<entry>.XXXXXX` file behind that fails the
+	 * build's validation. A process that cannot handle the request yet (it did not get to
+	 * `markNodeCompileCacheReady`) is not persisting anything and is killed right away, as is one
+	 * that does not exit within `maxWaitTimeMs`.
+	 *
+	 * Tracks the Electron processes directly, so it does not depend on their owners, which shutdown
+	 * may dispose first. Until it resolves, {@link kill} leaves these processes to it.
+	 */
+	static async exitNodeCompileCacheProcesses(maxWaitTimeMs: number): Promise<void> {
+		UtilityProcess.isExitingNodeCompileCacheProcesses = true;
+		await Promise.all(Array.from(UtilityProcess.nodeCompileCacheProcesses, ([child, { handlesExitRequest }]) => new Promise<void>(resolve => {
+			const handle = setTimeout(() => {
+				child.kill();
+				resolve();
+			}, handlesExitRequest ? maxWaitTimeMs : 0);
+			child.once('exit', () => {
+				clearTimeout(handle);
+				resolve();
+			});
+			if (handlesExitRequest) {
+				child.postMessage(nodeCompileCacheExitRequest);
+			}
+		})));
+	}
+
 	private readonly id = String(++UtilityProcess.ID_COUNTER);
 
 	private readonly _onStdout = this._register(new Emitter<string>());
@@ -271,20 +304,19 @@ export class UtilityProcess extends Disposable {
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
 
-		// While the build generates the Node.js compile cache, Node.js persists the cache of code a
-		// process compiled after `markNodeCompileCacheReady` only when that process exits. Make it exit
-		// and wait for it on shutdown: quitting first tears it down mid-write, which leaves its cache
-		// incomplete and a temporary `<entry>.XXXXXX` file behind that fails the build's validation.
-		// The extension host is excluded: its starter already waits for it to exit.
+		// See `exitNodeCompileCacheProcesses`. The extension host is excluded: it only accepts messages
+		// that carry a port, and its starter already waits for it to exit on shutdown.
 		const nodeCompileCacheKind = getNodeCompileCacheKindForUtilityProcess(configuration.type);
 		if (isGeneratingNodeCompileCache() && nodeCompileCacheKind && nodeCompileCacheKind !== 'extension-host') {
 			const child = this.process;
-			this._register(this.lifecycleMainService.onWillShutdown(e => {
-				if (this.process === child) {
-					child.postMessage(nodeCompileCacheExitRequest);
-					e.join(`utilityProcess.${configuration.type}`, this.waitForExit(10_000));
+			const state = { handlesExitRequest: false };
+			UtilityProcess.nodeCompileCacheProcesses.set(child, state);
+			child.on('message', (message: unknown) => {
+				if (message === nodeCompileCacheExitRequestHandled) {
+					state.handlesExitRequest = true;
 				}
-			}));
+			});
+			child.once('exit', () => UtilityProcess.nodeCompileCacheProcesses.delete(child));
 		}
 
 		return true;
@@ -444,6 +476,11 @@ export class UtilityProcess extends Disposable {
 	kill(): void {
 		if (!this.process) {
 			return; // already killed, crashed or never started
+		}
+
+		if (UtilityProcess.isExitingNodeCompileCacheProcesses && UtilityProcess.nodeCompileCacheProcesses.has(this.process)) {
+			this.log('not killing the process while it persists its Node.js compile cache...', Severity.Info);
+			return; // `exitNodeCompileCacheProcesses` ends it
 		}
 
 		this.log('attempting to kill the process...', Severity.Info);

@@ -129,6 +129,7 @@ import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
 import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
+import { UtilityProcess } from '../../platform/utilityProcess/electron-main/utilityProcess.js';
 import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { createLocalPtyChannel } from '../../platform/terminal/common/localPtyChannel.js';
@@ -832,6 +833,9 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 
 		if (isGeneratingNodeCompileCache) {
+			// Not registered with `this`: shutdown disposes this application first.
+			Event.once(this.lifecycleMainService.onWillShutdown)(e => e.join('nodeCompileCache', UtilityProcess.exitNodeCompileCacheProcesses(10_000)));
+
 			await Promise.all([
 				this.lifecycleMainService.when(LifecycleMainPhase.Eventually),
 				waitForNodeCompileCacheReady()
