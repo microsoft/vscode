@@ -58,11 +58,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 			parentContext: content.includes('In both single and multiple tab layouts, sub-sessions in separate panes show their title followed by a dot and parent context as a secondary description, like editor tabs.'),
 			independentDrag: content.includes('without moving its parent.'),
+			newSessionDrag: content.includes('drag its blank top area beside another pane.'),
 			independentVisibility: content.includes('Closing the parent pane leaves independent sub-session panes open.'),
 			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
 			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
 			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true });
+			markRead: content.includes('as read<keybinding:agentSession.markRead>'),
+			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
+			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -140,7 +144,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
 				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
 				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
 			};
@@ -801,12 +805,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
 
-		assert.deepStrictEqual([
-			'workbench.action.navigateLeft',
-			'workbench.action.navigateRight',
-			'workbench.action.navigateUp',
-			'workbench.action.navigateDown',
-		].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)), [true, true, true, true]);
+		assert.deepStrictEqual({
+			navigation: [
+				'workbench.action.navigateLeft',
+				'workbench.action.navigateRight',
+				'workbench.action.navigateUp',
+				'workbench.action.navigateDown',
+			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
+			openInGrid: content.includes('Open in Grid'),
+			openToTheSide: content.includes('choose Open to the Side from the session row\'s context menu'),
+		}, { navigation: [true, true, true, true], openInGrid: false, openToTheSide: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {
@@ -834,6 +842,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			optionalSynthesizer: enabledProvider.provideContent().includes('Without a Synthesizer, review is available but synthesis is not'),
 			done: enabledProvider.provideContent().includes('Done returns to the composer'),
 			configRefresh: enabledProvider.provideContent().includes('Comparison selections are kept while draft permissions or mode are updating.'),
+			discovery: enabledProvider.provideContent().includes('Send Query to Multiple Models at the bottom'),
+			folderless: enabledProvider.provideContent().includes('Folderless comparisons do not offer Judge or Synthesizer steps.'),
 			cancelSetup: enabledProvider.provideContent().includes('Escape or clicking outside the picker discards setup changes'),
 			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
 			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
@@ -862,6 +872,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			disabled: false,
 			enabled: true, doneAndNextGated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
+			discovery: true,
+			folderless: true,
 			cancelSetup: true,
 			opensAttemptsGrid: true,
 			twoPaneInputs: true,

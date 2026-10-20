@@ -9,7 +9,6 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -61,6 +60,7 @@ import { getFusionTierLabel, getHydraFusionTierLabel, getInlineFusionTierLabel, 
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
+	readonly startComparison?: boolean;
 	readonly initialFilterValue?: string;
 	readonly initialFocusItemId?: string;
 	/** Opens the "On This Device" tab at this family's detail page, including one that needs setup and has no model to select yet. */
@@ -204,7 +204,6 @@ export class ModelPickerWidget extends Disposable {
 		if (this._delegate.comparison) {
 			this._register(autorun(reader => {
 				this._delegate.comparison?.summary.read(reader);
-				this._delegate.comparison?.summaryModelIds?.read(reader);
 				if (!this._delegate.comparison?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
@@ -893,32 +892,14 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		// A comparison of distinct models shows one icon per attempt instead of the generic
-		// layers icon when every model resolves to one. Repeated models keep the labeled
-		// summary so configured variants remain distinguishable.
-		const summaryModelIds = comparisonSummary && this._delegate.getPresentationOptions().showModelIcon
-			? this._delegate.comparison?.summaryModelIds?.get()
-			: undefined;
-		const hasRepeatedSummaryModelIds = !!summaryModelIds && new Set(summaryModelIds).size !== summaryModelIds.length;
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const summaryIcons = summaryModelIds?.length
-			? summaryModelIds.map(modelId => {
-				const model = (this._delegate.getComparisonModels?.() ?? models).find(candidate => candidate.identifier === modelId);
-				return model && getCompactModelPickerIcon(model);
-			})
+		const modelIcon = comparisonSummary ? Codicon.trophy : shownModel
+			? (this._delegate.getPresentationOptions().showModelIcon
+				? getCompactModelPickerIcon(shownModel)
+				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;
-		const showSummaryIcons = !compact && !minimal && !hasRepeatedSummaryModelIds && !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
-		const modelIcon = showSummaryIcons
-			? undefined
-			: comparisonSummary ? Codicon.layers : shownModel
-				? (this._delegate.getPresentationOptions().showModelIcon
-					? getCompactModelPickerIcon(shownModel)
-					: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
-				: undefined;
-		if (showSummaryIcons && summaryIcons && !noModelsAvailable) {
-			nameChildren.push(dom.$('span.chat-input-picker-comparison-attempt-icons', undefined, ...summaryIcons.map(icon => renderIcon(icon))));
-		} else if (modelIcon && !noModelsAvailable) {
+		if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
@@ -932,7 +913,7 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		const showModelLabel = hasRepeatedSummaryModelIds || (!compact || !modelIcon || noModelsAvailable) && !showSummaryIcons;
+		const showModelLabel = (!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable);
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}

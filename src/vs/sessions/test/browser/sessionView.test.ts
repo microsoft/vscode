@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../base/browser/dom.js';
+import { $, append, EventType } from '../../../base/browser/dom.js';
 import { SessionView } from '../../browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -28,6 +28,8 @@ import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { Menus } from '../../browser/menus.js';
+import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +51,71 @@ suite('Sessions - Session View', () => {
 			this.disposed = true;
 			super.dispose();
 		}
+	}
+
+	for (const hasDraft of [false, true]) {
+		test(`new-session panes have a blank full-width drag area that preserves toolbar clicks and resize boundaries (draft: ${hasDraft})`, () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService, chatViews } = createSessionViewTestServices(store);
+			const session = hasDraft ? createTestActiveSession('draft', false) : undefined;
+			const view = store.add(instantiationService.createInstance(SessionView));
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			append(append(workbench, $('.part.sessionspart')), view.element);
+			store.add(toDisposable(() => workbench.remove()));
+			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+			store.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+			view.openSession(session, {});
+			view.layout(400, 200, 0, 0);
+			const dragArea = view.element.querySelector<HTMLElement>('.chat-composite-bar-toolbar-floating')!;
+			const toolbar = dragArea.querySelector<HTMLElement>('.chat-composite-bar-toolbar')!;
+			const bounds = view.element.getBoundingClientRect();
+			const dragFrom = (target: HTMLElement, x: number, y: number) => {
+				target.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, clientX: bounds.left + x, clientY: bounds.top + y }));
+				const event = new DragEvent(EventType.DRAG_START, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+				dragArea.dispatchEvent(event);
+				const result = {
+					blocked: event.defaultPrevented,
+					payload: event.dataTransfer!.getData(SessionsDataTransfers.SESSION),
+					identifier: transfer.getData(DraggedSessionIdentifier.prototype)?.[0],
+				};
+				dragArea.dispatchEvent(new DragEvent(EventType.DRAG_END));
+				return result;
+			};
+			const positions = [[5, 16], [6, 16], [395, 16], [394, 16], [100, 5], [100, 6], [100, 16]];
+			const results = positions.map(([x, y]) => dragFrom(dragArea, x, y));
+			const blocked = { blocked: true, payload: '', identifier: undefined };
+			const allowed = {
+				blocked: false,
+				payload: JSON.stringify({ sessionId: session?.sessionId, resource: session?.resource.toString() }),
+				identifier: new DraggedSessionIdentifier(session?.sessionId, session?.resource),
+			};
+			const snapshot = {
+				draggable: dragArea.draggable,
+				width: dragArea.getBoundingClientRect().width,
+				cursor: mainWindow.getComputedStyle(dragArea).cursor,
+				label: dragArea.getAttribute('aria-label'),
+				hasTitle: dragArea.querySelector('.chat-composite-bar-session-title') !== null,
+				hitTarget: mainWindow.document.elementFromPoint(bounds.left + 100, bounds.top + 16) === dragArea,
+				contentHeight: chatViews.at(-1)?.layouts.at(-1)?.height,
+				results,
+				toolbar: dragFrom(toolbar, 100, 16),
+				cleaned: !transfer.hasData(DraggedSessionIdentifier.prototype),
+			};
+			session?.isCreated.set(true, undefined);
+			assert.deepStrictEqual({ ...snapshot, hiddenAfterCreation: session ? dragArea.style.display === 'none' : false }, {
+				draggable: true,
+				width: 400,
+				cursor: 'grab',
+				label: 'New Session',
+				hasTitle: false,
+				hitTarget: true,
+				contentHeight: 200,
+				results: [blocked, allowed, blocked, allowed, blocked, allowed, allowed],
+				toolbar: blocked,
+				cleaned: true,
+				hiddenAfterCreation: hasDraft,
+			});
+		});
 	}
 
 	test('forwards workspace selection to the actual standalone or active group view', () => {

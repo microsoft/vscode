@@ -387,11 +387,11 @@ function pullRequestStatus(pullRequest: PullRequestCore): ILinkPresentationStatu
 	if (pullRequest.state === 'merged') {
 		return { kind: 'merged', label: localize('github.status.merged', "Merged") };
 	}
-	if (pullRequest.draft) {
-		return { kind: 'draft', label: localize('github.status.draft', "Draft") };
+	if (pullRequest.state === 'closed') {
+		return { kind: 'closed', label: localize('github.status.closed', "Closed") };
 	}
-	return pullRequest.state === 'closed'
-		? { kind: 'closed', label: localize('github.status.closed', "Closed") }
+	return pullRequest.draft
+		? { kind: 'draft', label: localize('github.status.draft', "Draft") }
 		: { kind: 'open', label: localize('github.status.open', "Open") };
 }
 

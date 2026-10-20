@@ -3543,7 +3543,8 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				|| chat.order !== undefined && chat.order !== visible.findIndex(entry => entry.uri === chat.chat)) {
 				throw new Error(`Normalization conflicts with verified per-chat source for ${chat.chat}`);
 			}
-			if (legacyChat && (legacyChat.is_read !== (actual.isRead === undefined ? null : actual.isRead ? 1 : 0)
+			// A legacy row that never recorded a read state (a peer never marked read or unread) reads as read.
+			if (legacyChat && ((legacyChat.is_read ?? 1) !== (actual.isRead === false ? 0 : 1)
 				|| (legacyChat.archived === 1) !== (actual.archived ?? false)
 				|| legacyChat.inherited_turn_id !== (actual.inheritedTurnId ?? null)
 				|| !equalOrigin(legacyChat.origin === null ? undefined : legacyChat.origin as string))) {
