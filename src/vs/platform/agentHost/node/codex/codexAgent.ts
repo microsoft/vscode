@@ -104,6 +104,7 @@ import { replayThreadToTurns, type ICodexReplayedCommand } from './codexReplayMa
 import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from './codexTerminalOutput.js';
 import { CodexChatDiffs, CodexTurnDiff } from './codexTurnDiff.js';
 import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDiffUpdatedNotification.js';
+import type { CollabAgentTool } from './protocol/generated/v2/CollabAgentTool.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodexSessionMetadataStore } from './codexSessionMetadataStore.js';
@@ -919,8 +920,6 @@ interface ICodexSubagent {
 	readonly parentSessionId: string;
 	/** Host-side toolCallId of the parent `spawnAgent` collab tool call (routing key). */
 	readonly toolCallId: string;
-	/** The host turn that spawned the child, retained across parent cancellation and replacement sends. */
-	readonly hostTurnId: string;
 	/**
 	 * Isolated session used to run the shared event mappers for the child
 	 * thread. Shares the parent's `sessionUri` and `acceptedForSession` memo so
@@ -929,6 +928,17 @@ interface ICodexSubagent {
 	 */
 	readonly session: ICodexSession;
 }
+
+/** Where a child thread's edits are recorded, for every turn of the child rather than only its presented first one. */
+interface ICodexChildDiffOwner {
+	readonly parentSessionId: string;
+	/** The parent host turn whose collab call started the child's current work, kept across cancellation and replacement sends. */
+	hostTurnId: string;
+	turnDiff?: CodexTurnDiff;
+}
+
+/** Collab calls that start work in a child thread. */
+const CODEX_CHILD_WORK_TOOLS: ReadonlySet<CollabAgentTool> = new Set(['spawnAgent', 'sendInput', 'resumeAgent', 'sendMessage', 'followupTask']);
 
 /**
  * Persistent connection state machine. The Codex process is retained only
@@ -1198,6 +1208,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _sessionIdByThreadId}. Removed on the child's `turn/completed`.
 	 */
 	private readonly _subagentsByThreadId = new Map<string, ICodexSubagent>();
+	/** Diff ownership of each child thread, kept until its parent session ends. */
+	private readonly _childDiffOwners = new Map<string, ICodexChildDiffOwner>();
 	private readonly _mcpInventory = new CodexMcpInventory();
 	private readonly _mcpPublisherSessionIdByConfiguration = new Map<string, string>();
 	private readonly _publishedMcpTopLevelIdsByConfiguration = new Map<string, Set<string>>();
@@ -2733,7 +2745,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		subscriptions.add(client.onNotification('skills/changed', () => this._queueSkillHookCustomizationRefresh(client)));
 		subscriptions.add(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
 		subscriptions.add(client.onNotification('turn/diff/updated', params => this._recordTurnDiff(params)));
-		subscriptions.add(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
+		subscriptions.add(client.onNotification('item/started', params => {
+			// A collab call names the child it starts before that child's turn can report edits.
+			const parentId = this._sessionIdByThreadId.get(params.threadId);
+			const parent = parentId ? this._sessions.get(parentId) : undefined;
+			if (parent) {
+				this._bindChildDiffOwners(parent, params.item, params.turnId);
+			}
+			this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params));
+		}));
 		subscriptions.add(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/fileChange/patchUpdated', params => this._dispatchByThread(params.threadId, s => mapFileChangePatchUpdated(s.mapState, this._withHostTurnId(s, params)))));
@@ -3208,27 +3228,22 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/** Persists each Codex patch's file changes as edits of the host turn active when Codex reported them. */
 	private _recordTurnDiff(params: TurnDiffUpdatedNotification): void {
-		const subagent = this._subagentsByThreadId.get(params.threadId);
-		const ownerId = subagent ? subagent.parentSessionId : this._sessionIdByThreadId.get(params.threadId);
+		const child = this._childDiffOwners.get(params.threadId);
+		const ownerId = child ? child.parentSessionId : this._sessionIdByThreadId.get(params.threadId);
 		const owner = ownerId ? this._sessions.get(ownerId) : undefined;
-		const session = subagent?.session ?? owner;
 		const storage = owner?.chatStorage;
 		const chat = owner?.chatChannel;
 		const cwd = owner?.workingDirectory;
-		if (!session || !owner || !storage || !chat || !cwd) {
+		if (!owner || !storage || !chat || !cwd) {
 			return;
 		}
 		// Resolve now: steering can move this native turn to a new host turn before the write runs.
-		const hostTurnId = subagent?.hostTurnId ?? this._hostTurnId(session, params.turnId);
-		if (session.turnDiff?.turnId !== params.turnId) {
-			let chatDiffs = this._chatDiffs.get(owner);
-			if (!chatDiffs) {
-				chatDiffs = new CodexChatDiffs();
-				this._chatDiffs.set(owner, chatDiffs);
-			}
-			session.turnDiff = new CodexTurnDiff(params.turnId, chatDiffs, this._fileService, this._logService);
+		const hostTurnId = child?.hostTurnId ?? this._hostTurnId(owner, params.turnId);
+		const tracked: { turnDiff?: CodexTurnDiff } = child ?? owner;
+		if (tracked.turnDiff?.turnId !== params.turnId) {
+			tracked.turnDiff = new CodexTurnDiff(params.turnId, this._getChatDiffs(owner), this._fileService, this._logService);
 		}
-		const turnDiff = session.turnDiff;
+		const turnDiff = tracked.turnDiff;
 		const previous = this._pendingChatProgress.get(owner);
 		this._pendingChatProgress.set(owner, (async () => {
 			await previous;
@@ -3255,6 +3270,43 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._onDidStoreTurnEdits.fire({ chat, turnId });
 			}
 		})().catch(error => this._logService.warn(`[Codex:${params.threadId}] Failed to record turn diff`, error)));
+	}
+
+	/** Releases a completed native turn's diff state after the diffs that arrived before its completion. */
+	private _completeTurnDiff(owner: ICodexSession | undefined, turnDiff: CodexTurnDiff): void {
+		if (!owner) {
+			return;
+		}
+		const previous = this._pendingChatProgress.get(owner);
+		this._pendingChatProgress.set(owner, (async () => {
+			await previous;
+			turnDiff.complete();
+		})());
+	}
+
+	private _getChatDiffs(owner: ICodexSession): CodexChatDiffs {
+		let chatDiffs = this._chatDiffs.get(owner);
+		if (!chatDiffs) {
+			chatDiffs = new CodexChatDiffs();
+			this._chatDiffs.set(owner, chatDiffs);
+		}
+		return chatDiffs;
+	}
+
+	/** Records a child's edits in the parent host turn whose collab call started its current work. */
+	private _bindChildDiffOwners(session: ICodexSession, item: ItemStartedNotification['item'], appTurnId: string): void {
+		if (item.type !== 'collabAgentToolCall' || !CODEX_CHILD_WORK_TOOLS.has(item.tool)) {
+			return;
+		}
+		const hostTurnId = this._hostTurnId(session, appTurnId);
+		for (const childThreadId of item.receiverThreadIds) {
+			const owner = this._childDiffOwners.get(childThreadId);
+			if (!owner) {
+				this._childDiffOwners.set(childThreadId, { parentSessionId: session.sessionId, hostTurnId });
+			} else if (owner.parentSessionId === session.sessionId) {
+				owner.hostTurnId = hostTurnId;
+			}
+		}
 	}
 
 	private _handleTurnCompletedNotification(session: ICodexSession, params: TurnCompletedNotification, retainRecoveredOutput = true): (SessionAction | ChatAction)[] {
@@ -3288,15 +3340,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const turnDiff = session.turnDiff;
 		if (turnDiff?.turnId === appTurnId) {
 			session.turnDiff = undefined;
-			const subagent = this._subagentsByThreadId.get(params.threadId);
-			const owner = subagent ? this._sessions.get(subagent.parentSessionId) : session;
-			if (owner) {
-				const previous = this._pendingChatProgress.get(owner);
-				this._pendingChatProgress.set(owner, (async () => {
-					await previous;
-					turnDiff.complete();
-				})());
-			}
+			this._completeTurnDiff(session, turnDiff);
 		}
 		// Any steering still buffered was never echoed as a `userMessage`
 		// item; clear the pending bubble now that the turn is over.
@@ -3788,6 +3832,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// may clear), and firing `subagent_started` first lets the orchestrator
 		// attach the child-conversation block to the still-open parent tool call.
 		this._maybeRegisterSubagents(session, params);
+		this._bindChildDiffOwners(session, params.item, params.turnId);
 		const retainedOutputResource = this._retainCommandOutput(session, params.item);
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), retainedOutputResource);
 		for (const action of actions) {
@@ -3843,6 +3888,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * tracking.
 	 */
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
+		const child = this._childDiffOwners.get(params.threadId);
+		if (child?.turnDiff?.turnId === params.turn.id) {
+			this._completeTurnDiff(this._sessions.get(child.parentSessionId), child.turnDiff);
+			child.turnDiff = undefined;
+		}
 		const subagent = this._subagentsByThreadId.get(params.threadId);
 		if (subagent) {
 			const actions = this._handleTurnCompletedNotification(subagent.session, params, false);
@@ -3892,7 +3942,6 @@ export class CodexAgent extends Disposable implements IAgent {
 			this._subagentsByThreadId.set(childThreadId, {
 				parentSessionId: session.sessionId,
 				toolCallId: entry.toolCallId,
-				hostTurnId: this._hostTurnId(session, params.turnId),
 				session: subSession,
 			});
 			this._emitChatProgress(session, {
@@ -4395,6 +4444,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			subagent.session.currentAppTurnId = undefined;
 		}
 		this._subagentsByThreadId.clear();
+		this._childDiffOwners.clear();
 		// Release resources. The proxy handle is refcounted and drops
 		// the underlying server once everyone releases.
 		this._disposeConnectionResources(connection);
@@ -6743,6 +6793,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._subagentsByThreadId.delete(childThreadId);
 			}
 		}
+		for (const [childThreadId, owner] of this._childDiffOwners) {
+			if (owner.parentSessionId === sessionId) {
+				this._childDiffOwners.delete(childThreadId);
+			}
+		}
 		const conn = this._connection;
 		if (conn.kind === 'ready' && session.threadId !== undefined) {
 			const threadId = session.threadId;
@@ -8880,6 +8935,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._configScopeChats.clear();
 		this._configScopeByChat.clear();
 		this._subagentsByThreadId.clear();
+		this._childDiffOwners.clear();
 		this._sessionMcpDiscoveries.clear();
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
