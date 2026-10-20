@@ -80,6 +80,13 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 	/** The width that a width change is compared against to detect a resize. */
 	private _lastObservedWidth: number | undefined;
+	/**
+	 * Set when a diff editor that shares its width based layout (i.e. is reused by a multi diff editor) shows other documents.
+	 * Its next layout places it at its new width (which might differ from a stale width it was last laid out with)
+	 * and must not be mistaken for a resize.
+	 */
+	private _takeWidthBaselineOnNextLayout = false;
+	private readonly _sharesWidthBasedLayout: boolean;
 
 
 	private readonly _sashLayout: SashLayout;
@@ -216,6 +223,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
 		this._options = this._instantiationService.createInstance(DiffEditorOptions, options, codeEditorWidgetOptions.widthBasedLayout);
+		this._sharesWidthBasedLayout = !!codeEditorWidgetOptions.widthBasedLayout;
 		let resizeStartWidth: number | undefined;
 		let windowResizeEventCount = 0;
 		let resizeWasPointerDriven = false;
@@ -251,7 +259,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._register(addDisposableListener(targetWindow, 'touchcancel', onPointerUp, true));
 		this._register(autorun(reader => {
 			const width = this._rootSizeObserver.width.read(reader);
-			const lastWidth = this._lastObservedWidth;
+			const lastWidth = this._takeWidthBaselineOnNextLayout ? undefined : this._lastObservedWidth;
+			this._takeWidthBaselineOnNextLayout = false;
 			let smoothResizeStartWidth: number | undefined;
 			if (lastWidth !== undefined && width !== lastWidth) {
 				if (resizeStartWidth === undefined) {
@@ -538,6 +547,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	override layout(dimension?: IDimension | undefined): void {
 		this._rootSizeObserver.observe(dimension);
+		if (this._takeWidthBaselineOnNextLayout) {
+			// The width did not change (so it was not observed) or its observation is batched in a transaction.
+			this._takeWidthBaselineOnNextLayout = false;
+			this._lastObservedWidth = this._rootSizeObserver.width.get();
+		}
 	}
 
 	override hasTextFocus(): boolean { return this._editors.original.hasTextFocus() || this._editors.modified.hasTextFocus(); }
@@ -597,9 +611,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 					currentModel?.model.original !== vm?.model.original
 					|| currentModel?.model.modified !== vm?.model.modified
 				) {
-					// The next width change comes from laying out the new documents (e.g. when a multi diff editor
-					// reuses this editor for another file), not from resizing the diff editor.
-					this._lastObservedWidth = undefined;
+					this._takeWidthBaselineOnNextLayout = this._sharesWidthBasedLayout;
 					this._options.resetWidthBasedLayoutForNewDocuments(tx);
 				}
 				/** @description DiffEditorWidget.setModel */

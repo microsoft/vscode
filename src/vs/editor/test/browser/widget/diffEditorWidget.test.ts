@@ -226,6 +226,39 @@ suite('DiffEditorWidget2', () => {
 				afterReset: { first: true, created: true, reused: true },
 			});
 		});
+
+		for (const sharesWidthBasedLayout of [true, false]) {
+			test(`keeps detecting a resize after showing other documents at the same width (shares width based layout: ${sharesWidthBasedLayout})`, async () => {
+				const services = new ServiceCollection();
+				services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+				services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+					override show() { return emptyProgressRunner; }
+				}());
+				services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+				const instantiationService = createCodeEditorServices(disposables, services);
+				const widthBasedLayout = sharesWidthBasedLayout ? observableValue<DiffEditorWidthBasedLayout>('widthBasedLayout', 'auto') : undefined;
+				const editor = disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, { widthBasedLayout }));
+				const createModel = () => disposables.add(RefCounted.create(editor.createViewModel({
+					original: disposables.add(instantiateTextModel(instantiationService, 'original')),
+					modified: disposables.add(instantiateTextModel(instantiationService, 'modified')),
+				})));
+
+				editor.setDiffModel(createModel());
+				editor.layout(new Dimension(900, 100));
+				editor.setDiffModel(createModel());
+				editor.layout(new Dimension(900, 100));
+				mainWindow.dispatchEvent(new MouseEvent('mousedown'));
+				editor.layout(new Dimension(901, 100));
+				editor.layout(new Dimension(920, 100));
+				mainWindow.dispatchEvent(new MouseEvent('mouseup'));
+				const renderSideBySideAfterEnlarging = editor.renderSideBySide;
+
+				await editor.waitForDiff();
+				editor.setDiffModel(null);
+
+				assert.deepStrictEqual({ renderSideBySideAfterEnlarging }, { renderSideBySideAfterEnlarging: false });
+			});
+		}
 	});
 
 	suite('UnchangedRegion', () => {
