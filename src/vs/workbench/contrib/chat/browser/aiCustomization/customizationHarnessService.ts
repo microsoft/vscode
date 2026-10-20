@@ -13,6 +13,8 @@ import {
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatWidgetService } from '../chat.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
 /**
  * Core implementation of the customization harness service.
@@ -20,15 +22,31 @@ import { URI } from '../../../../../base/common/uri.js';
  * Only the Local harness is registered statically. All other harnesses
  * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
-class CustomizationHarnessService extends CustomizationHarnessServiceBase {
+export class CustomizationHarnessService extends CustomizationHarnessServiceBase {
+	private readonly activeChatSessionListener: IDisposable;
+
 	constructor(
 		@IPromptsService promptsService: IPromptsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(
 			[createVSCodeHarnessDescriptor()],
 			SessionType.Local,
 			promptsService,
 		);
+		const updateActiveSession = () => {
+			const sessionResource = this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			if (sessionResource) {
+				this.setActiveSession(sessionResource);
+			}
+		};
+		this.activeChatSessionListener = this.chatWidgetService.onDidChangeFocusedSession(updateActiveSession);
+		updateActiveSession();
+	}
+
+	override dispose(): void {
+		this.activeChatSessionListener.dispose();
+		super.dispose();
 	}
 
 	override getSessionResourceForHarness(sessionType: string): URI {
@@ -46,4 +64,3 @@ class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 }
 
 registerSingleton(ICustomizationHarnessService, CustomizationHarnessService, InstantiationType.Delayed);
-
