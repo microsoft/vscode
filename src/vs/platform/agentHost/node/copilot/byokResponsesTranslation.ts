@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { localize } from '../../../../nls.js';
 import {
 	ByokLmImageMimeType,
 	IByokLmChatRequest,
 	IByokLmChatResult,
+	IByokLmChatProgress,
 	IByokLmContentPart,
 	IByokLmInputItem,
 	IByokLmOutputItem,
@@ -385,11 +387,11 @@ function toInProgressOutputItem(item: ResponsesOutputItem): object {
 	}
 }
 
-function toResponsesOutputItem(item: IByokLmOutputItem): ResponsesOutputItem {
+function toResponsesOutputItem(item: IByokLmOutputItem, id?: string): ResponsesOutputItem {
 	switch (item.type) {
 		case 'message':
 			return {
-				id: nextId('msg'),
+				id: id ?? nextId('msg'),
 				type: 'message',
 				role: 'assistant',
 				status: 'completed',
@@ -397,7 +399,7 @@ function toResponsesOutputItem(item: IByokLmOutputItem): ResponsesOutputItem {
 			};
 		case 'reasoning':
 			return {
-				id: item.id?.startsWith('rs') ? item.id : nextId('rs'),
+				id: id ?? (item.id?.startsWith('rs') ? item.id : nextId('rs')),
 				type: 'reasoning',
 				status: 'completed',
 				summary: item.summary.map(text => ({ type: 'summary_text', text })),
@@ -405,7 +407,7 @@ function toResponsesOutputItem(item: IByokLmOutputItem): ResponsesOutputItem {
 			};
 		case 'function_call':
 			return {
-				id: nextId('fc'),
+				id: id ?? nextId('fc'),
 				type: 'function_call',
 				status: 'completed',
 				call_id: item.callId,
@@ -414,7 +416,7 @@ function toResponsesOutputItem(item: IByokLmOutputItem): ResponsesOutputItem {
 			};
 		case 'custom_tool_call':
 			return {
-				id: nextId('ctc'),
+				id: id ?? nextId('ctc'),
 				type: 'custom_tool_call',
 				status: 'completed',
 				call_id: item.callId,
@@ -432,11 +434,11 @@ function outputText(items: readonly ResponsesOutputItem[]): string {
 		.join('');
 }
 
-function responseEnvelope(responseId: string, model: string, status: 'in_progress' | 'completed', output: readonly ResponsesOutputItem[], usage: unknown) {
+function responseEnvelope(responseId: string, model: string, status: 'in_progress' | 'completed', output: readonly ResponsesOutputItem[], usage: unknown, createdAt: number) {
 	return {
 		id: responseId,
 		object: 'response',
-		created_at: Math.floor(Date.now() / 1000),
+		created_at: createdAt,
 		status,
 		error: null,
 		incomplete_details: null,
@@ -453,9 +455,9 @@ function responseEnvelope(responseId: string, model: string, status: 'in_progres
 	};
 }
 
-function prepareResponse(result: IByokLmChatResult, model: string) {
+function prepareResponse(result: IByokLmChatResult, model: string, createdAt: number = Math.floor(Date.now() / 1000)) {
 	const responseId = result.responseId ?? nextId('resp');
-	const output = result.output.map(toResponsesOutputItem);
+	const output = result.output.map(item => toResponsesOutputItem(item));
 	const inputTokens = result.usage?.inputTokens ?? 0;
 	const outputTokens = result.usage?.outputTokens ?? 0;
 	const usage = {
@@ -468,7 +470,7 @@ function prepareResponse(result: IByokLmChatResult, model: string) {
 	return {
 		responseId,
 		output,
-		completed: responseEnvelope(responseId, model, 'completed', output, usage),
+		completed: responseEnvelope(responseId, model, 'completed', output, usage, createdAt),
 	};
 }
 
@@ -476,25 +478,27 @@ export function bridgeResultToResponsesBody(result: IByokLmChatResult, model: st
 	return JSON.stringify(prepareResponse(result, model).completed);
 }
 
-function reasoningFrames(item: Extract<ResponsesOutputItem, { type: 'reasoning' }>, outputIndex: number, sequence: { value: number }): string[] {
+function reasoningFrames(item: Extract<ResponsesOutputItem, { type: 'reasoning' }>, outputIndex: number, sequence: { value: number }, includeDeltas = true): string[] {
 	const frames: string[] = [];
 	item.summary.forEach((part, summaryIndex) => {
-		frames.push(sseEvent('response.reasoning_summary_part.added', {
-			type: 'response.reasoning_summary_part.added',
-			sequence_number: sequence.value++,
-			item_id: item.id,
-			output_index: outputIndex,
-			summary_index: summaryIndex,
-			part: { type: 'summary_text', text: '' },
-		}));
-		frames.push(sseEvent('response.reasoning_summary_text.delta', {
-			type: 'response.reasoning_summary_text.delta',
-			sequence_number: sequence.value++,
-			item_id: item.id,
-			output_index: outputIndex,
-			summary_index: summaryIndex,
-			delta: part.text,
-		}));
+		if (includeDeltas) {
+			frames.push(sseEvent('response.reasoning_summary_part.added', {
+				type: 'response.reasoning_summary_part.added',
+				sequence_number: sequence.value++,
+				item_id: item.id,
+				output_index: outputIndex,
+				summary_index: summaryIndex,
+				part: { type: 'summary_text', text: '' },
+			}));
+			frames.push(sseEvent('response.reasoning_summary_text.delta', {
+				type: 'response.reasoning_summary_text.delta',
+				sequence_number: sequence.value++,
+				item_id: item.id,
+				output_index: outputIndex,
+				summary_index: summaryIndex,
+				delta: part.text,
+			}));
+		}
 		frames.push(sseEvent('response.reasoning_summary_text.done', {
 			type: 'response.reasoning_summary_text.done',
 			sequence_number: sequence.value++,
@@ -515,26 +519,28 @@ function reasoningFrames(item: Extract<ResponsesOutputItem, { type: 'reasoning' 
 	return frames;
 }
 
-function messageFrames(item: Extract<ResponsesOutputItem, { type: 'message' }>, outputIndex: number, sequence: { value: number }): string[] {
+function messageFrames(item: Extract<ResponsesOutputItem, { type: 'message' }>, outputIndex: number, sequence: { value: number }, includeDeltas = true): string[] {
 	const frames: string[] = [];
 	item.content.forEach((part, contentIndex) => {
-		frames.push(sseEvent('response.content_part.added', {
-			type: 'response.content_part.added',
-			sequence_number: sequence.value++,
-			item_id: item.id,
-			output_index: outputIndex,
-			content_index: contentIndex,
-			part: { type: 'output_text', text: '', annotations: [], logprobs: [] },
-		}));
-		frames.push(sseEvent('response.output_text.delta', {
-			type: 'response.output_text.delta',
-			sequence_number: sequence.value++,
-			item_id: item.id,
-			output_index: outputIndex,
-			content_index: contentIndex,
-			delta: part.text,
-			logprobs: [],
-		}));
+		if (includeDeltas) {
+			frames.push(sseEvent('response.content_part.added', {
+				type: 'response.content_part.added',
+				sequence_number: sequence.value++,
+				item_id: item.id,
+				output_index: outputIndex,
+				content_index: contentIndex,
+				part: { type: 'output_text', text: '', annotations: [], logprobs: [] },
+			}));
+			frames.push(sseEvent('response.output_text.delta', {
+				type: 'response.output_text.delta',
+				sequence_number: sequence.value++,
+				item_id: item.id,
+				output_index: outputIndex,
+				content_index: contentIndex,
+				delta: part.text,
+				logprobs: [],
+			}));
+		}
 		frames.push(sseEvent('response.output_text.done', {
 			type: 'response.output_text.done',
 			sequence_number: sequence.value++,
@@ -556,16 +562,16 @@ function messageFrames(item: Extract<ResponsesOutputItem, { type: 'message' }>, 
 	return frames;
 }
 
-function callFrames(item: Extract<ResponsesOutputItem, { type: 'function_call' | 'custom_tool_call' }>, outputIndex: number, sequence: { value: number }): string[] {
+function callFrames(item: Extract<ResponsesOutputItem, { type: 'function_call' | 'custom_tool_call' }>, outputIndex: number, sequence: { value: number }, includeDeltas = true): string[] {
 	if (item.type === 'function_call') {
 		return [
-			sseEvent('response.function_call_arguments.delta', {
+			...(includeDeltas ? [sseEvent('response.function_call_arguments.delta', {
 				type: 'response.function_call_arguments.delta',
 				sequence_number: sequence.value++,
 				item_id: item.id,
 				output_index: outputIndex,
 				delta: item.arguments,
-			}),
+			})] : []),
 			sseEvent('response.function_call_arguments.done', {
 				type: 'response.function_call_arguments.done',
 				sequence_number: sequence.value++,
@@ -576,13 +582,13 @@ function callFrames(item: Extract<ResponsesOutputItem, { type: 'function_call' |
 		];
 	}
 	return [
-		sseEvent('response.custom_tool_call_input.delta', {
+		...(includeDeltas ? [sseEvent('response.custom_tool_call_input.delta', {
 			type: 'response.custom_tool_call_input.delta',
 			sequence_number: sequence.value++,
 			item_id: item.id,
 			output_index: outputIndex,
 			delta: item.input,
-		}),
+		})] : []),
 		sseEvent('response.custom_tool_call_input.done', {
 			type: 'response.custom_tool_call_input.done',
 			sequence_number: sequence.value++,
@@ -597,7 +603,7 @@ export function bridgeResultToResponsesSseFrames(result: IByokLmChatResult, mode
 	const { responseId, output, completed } = prepareResponse(result, model);
 	const sequence = { value: 0 };
 	const frames: string[] = [];
-	const skeleton = responseEnvelope(responseId, model, 'in_progress', [], undefined);
+	const skeleton = responseEnvelope(responseId, model, 'in_progress', [], undefined, completed.created_at);
 	frames.push(sseEvent('response.created', { type: 'response.created', sequence_number: sequence.value++, response: skeleton }));
 	frames.push(sseEvent('response.in_progress', { type: 'response.in_progress', sequence_number: sequence.value++, response: skeleton }));
 
@@ -634,6 +640,132 @@ export function bridgeResultToResponsesSseFrames(result: IByokLmChatResult, mode
 		response: completed,
 	}));
 	return frames;
+}
+
+/** Encodes live bridge deltas without replaying them when the final result arrives. */
+export class ByokResponsesStream {
+	readonly responseId = nextId('resp');
+	private readonly _createdAt = Math.floor(Date.now() / 1000);
+	private readonly _sequence = { value: 0 };
+	private readonly _bridgeOutput: IByokLmOutputItem[] = [];
+	private readonly _output: ResponsesOutputItem[] = [];
+	private _started = false;
+
+	constructor(private readonly _model: string, private readonly _write: (frame: string) => void) { }
+
+	get started(): boolean { return this._started; }
+
+	progress(progress: IByokLmChatProgress): void {
+		const previous = this._bridgeOutput[progress.outputIndex];
+		let item = progress.item;
+		if (previous?.type === 'message' && item.type === 'message') {
+			item = { type: 'message', content: [{ type: 'text', text: previous.content.map(part => part.text).join('') + item.content.map(part => part.text).join('') }] };
+		} else if (previous?.type === 'reasoning' && item.type === 'reasoning') {
+			const summary = [...previous.summary];
+			if (progress.appendToLastSummary && summary.length > 0) {
+				summary[summary.length - 1] += item.summary.join('');
+			} else {
+				summary.push(...item.summary);
+			}
+			item = { ...item, summary };
+		}
+		this._bridgeOutput[progress.outputIndex] = item;
+		if (!this._started) {
+			// Metadata-only thinking must not commit HTTP 200 before an empty/error result.
+			if (!hasVisibleBridgeOutput([item])) {
+				return;
+			}
+			this._bridgeOutput.forEach((output, index) => this._syncItem(index, output));
+			return;
+		}
+		this._syncItem(progress.outputIndex, item);
+	}
+
+	complete(result: IByokLmChatResult): void {
+		result.output.forEach((item, index) => this._syncItem(index, item));
+		this._output.forEach((item, outputIndex) => {
+			const frames = item.type === 'message' ? messageFrames(item, outputIndex, this._sequence, false)
+				: item.type === 'reasoning' ? reasoningFrames(item, outputIndex, this._sequence, false)
+					: callFrames(item, outputIndex, this._sequence, false);
+			frames.forEach(frame => this._write(frame));
+			this._event('response.output_item.done', { output_index: outputIndex, item });
+		});
+		const { completed } = prepareResponse(result, this._model, this._createdAt);
+		this._event('response.completed', { response: { ...completed, id: this.responseId, output: this._output } });
+	}
+
+	fail(message: string): void {
+		this._event('response.failed', {
+			response: { ...responseEnvelope(this.responseId, this._model, 'in_progress', this._output, undefined, this._createdAt), status: 'failed', error: { code: 'server_error', message } },
+		});
+	}
+
+	private _event(type: string, data: Record<string, unknown>): void {
+		this._write(sseEvent(type, { type, sequence_number: this._sequence.value++, ...data }));
+	}
+
+	private _syncItem(outputIndex: number, bridgeItem: IByokLmOutputItem): void {
+		if (!this._started) {
+			this._started = true;
+			const response = responseEnvelope(this.responseId, this._model, 'in_progress', [], undefined, this._createdAt);
+			this._event('response.created', { response });
+			this._event('response.in_progress', { response });
+		}
+		const previous = this._output[outputIndex];
+		const item = toResponsesOutputItem(bridgeItem, previous?.id);
+		if (!previous) {
+			this._event('response.output_item.added', { output_index: outputIndex, item: toInProgressOutputItem(item) });
+		}
+		const common = { item_id: item.id, output_index: outputIndex };
+		switch (item.type) {
+			case 'message':
+				item.content.forEach((part, contentIndex) => {
+					const oldPart = previous?.type === 'message' ? previous.content[contentIndex] : undefined;
+					if (!oldPart) {
+						this._event('response.content_part.added', { ...common, content_index: contentIndex, part: { ...part, text: '' } });
+					}
+					const delta = this._suffix(oldPart?.text, part.text);
+					if (delta) {
+						this._event('response.output_text.delta', { ...common, content_index: contentIndex, delta, logprobs: [] });
+					}
+				});
+				break;
+			case 'reasoning':
+				item.summary.forEach((part, summaryIndex) => {
+					const oldPart = previous?.type === 'reasoning' ? previous.summary[summaryIndex] : undefined;
+					if (!oldPart) {
+						this._event('response.reasoning_summary_part.added', { ...common, summary_index: summaryIndex, part: { type: 'summary_text', text: '' } });
+					}
+					const delta = this._suffix(oldPart?.text, part.text);
+					if (delta) {
+						this._event('response.reasoning_summary_text.delta', { ...common, summary_index: summaryIndex, delta });
+					}
+				});
+				break;
+			case 'function_call': {
+				const delta = this._suffix(previous?.type === 'function_call' ? previous.arguments : undefined, item.arguments);
+				if (delta) {
+					this._event('response.function_call_arguments.delta', { ...common, delta });
+				}
+				break;
+			}
+			case 'custom_tool_call': {
+				const delta = this._suffix(previous?.type === 'custom_tool_call' ? previous.input : undefined, item.input);
+				if (delta) {
+					this._event('response.custom_tool_call_input.delta', { ...common, delta });
+				}
+				break;
+			}
+		}
+		this._output[outputIndex] = item;
+	}
+
+	private _suffix(previous = '', current: string): string {
+		if (!current.startsWith(previous)) {
+			throw new Error(localize('byokOutputChanged', 'The model output changed after it was streamed. Please try again.'));
+		}
+		return current.slice(previous.length);
+	}
 }
 
 export function responsesErrorBody(message: string, type = 'api_error'): string {

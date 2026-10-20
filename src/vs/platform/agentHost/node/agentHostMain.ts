@@ -55,7 +55,7 @@ import { createAgentHostRuntime, type IAgentHostRuntime } from './agentHostBoots
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
-import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
+import { createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
@@ -277,7 +277,7 @@ async function startAgentHost(): Promise<void> {
 				const proxyConnection = createAgentHostClientProxyConnection(getChannel(AGENT_HOST_CLIENT_PROXY_CHANNEL));
 				connectionStore.add(proxyResolver.register(clientId, proxyConnection));
 				if (byokLmBridgeRegistry) {
-					const byokLmConnection = createAgentHostClientByokLmConnection(getChannel(AGENT_HOST_CLIENT_BYOK_LM_CHANNEL));
+					const byokLmConnection = createAgentHostClientByokLmConnection(connection.channelClient);
 					connectionStore.add(byokLmBridgeRegistry.register(clientId, byokLmConnection));
 				}
 				authorityRegistrations.set(connection, connectionStore);

@@ -548,6 +548,8 @@ Each additional chat is backed by a fresh top-level SDK session (`sdkSessionId =
 
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
+Agent Host BYOK uses a request-scoped IPC progress subscription alongside the cancellable chat RPC. The renderer sends text and reasoning deltas as the LM API produces them; the loopback proxy forwards them as Responses SSE and retains final usage and opaque reasoning state. A streamed response keeps one public response ID throughout its lifecycle. The proxy maps that ID to the provider continuation ID (which may arrive only at completion), scoped to the SDK session, vendor and model, with a bounded in-memory cache. Non-streaming callers still receive the completed JSON response. HTTP disconnects and proxy teardown cancel the renderer request through the same RPC token.
+
 Copilot also has no AH-session container:
 - `_chatEntriesBySdkId: DisposableMap<string, CopilotChatEntry>` owns every live SDK conversation and its MCP/customization subscriptions.
 - `_chatBackings: Map<string, IPersistedChat>` maps each concrete host chat URI to exactly one provider-owned SDK backing record; SDK callbacks route directly through `_chatEntriesBySdkId`.
