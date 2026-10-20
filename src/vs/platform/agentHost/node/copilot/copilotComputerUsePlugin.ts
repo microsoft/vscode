@@ -39,12 +39,12 @@ export interface IComputerUsePluginRelease {
  * from other hosts. An older pin is safe. A modified plugin is not.
  */
 export const COMPUTER_USE_PLUGIN_RELEASE: IComputerUsePluginRelease = {
-	version: '0.1.94',
+	version: '0.1.95',
 	sha256: {
-		'darwin-arm64': 'a625140b3b0cff6cec122eb6db954374577cb21dec21783b3eb9a3236257c4c6',
-		'darwin-x64': 'dd1d2a2ac4e8595c6a7edcae9b9f5029585b7479d1e9a8c1865b6b800a4be0c9',
-		'win32-arm64': 'da605d8c3359fc0a7062dfeb2edb6acc414a3234184935886e8ba62d6a696a62',
-		'win32-x64': '9cd4a91f585d48a8fb42f3157046f49b0e0980fed47eed689f8a761e3593254a',
+		'darwin-arm64': '91c5ab5f1de9f7d2dcde4e2c29764e031193bccbd127aa03527c331c9cfa6721',
+		'darwin-x64': '2ac6c1432f3b392cea67a71c443fad7349bc4d1a08320df953a0873275ff8042',
+		'win32-arm64': '95ac1dfd28bd4e1d316d8ac4b36efd64025e4927e22168bb2877cd18a80e9b8f',
+		'win32-x64': '669ab37e30ff826b1f23dd1ca90868796c6b3b3b80eab9f0338e9f1efb6993f5',
 	},
 	urlTemplate: 'https://github.com/github/computer-use-plugin/releases/download/v{version}/computer-use-v{version}-{target}.zip',
 };
