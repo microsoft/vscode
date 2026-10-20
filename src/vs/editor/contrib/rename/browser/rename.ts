@@ -511,7 +511,7 @@ registerAction2(class FocusPreviousRenameSuggestion extends Action2 {
 
 registerModelAndPositionCommand('_executeDocumentRenameProvider', function (accessor, model, position, ...args) {
 	const [newName] = args;
-	assertType(typeof newName === 'string');
+	assertType(typeof newName === 'string', 'string');
 	const { renameProvider } = accessor.get(ILanguageFeaturesService);
 	return rename(renameProvider, model, position, newName);
 });
