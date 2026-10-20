@@ -526,6 +526,68 @@ suite('AgentHostAutomationService', () => {
 		}, { deleted: 102, entries: [], runs: [], acknowledged: ['ahp-session:/0'], missingOwner: [] });
 	});
 
+	for (const existingOwner of [false, true]) {
+		test(`migrates retained provider identity with ${existingOwner ? 'an existing' : 'a missing'} owner`, async () => {
+			const automation = createAction().resource;
+			const run: AutomationRunState = {
+				resource: 'ahp-automation-run:/legacy', automation,
+				origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+				primarySession: 'opaque:/unavailable', sessions: ['opaque:/unavailable', 'opaque:/retained'],
+			};
+			storageService.set('automations', {
+				catalog: { automations: existingOwner ? [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] : [] },
+				runs: [run],
+			});
+			await storageService.whenIdle();
+			const service = createService({
+				getRecoverableSessionProvider: async session => {
+					if (session.toString() === 'opaque:/unavailable') {
+						throw new Error('optional lookup unavailable');
+					}
+					return 'codex';
+				},
+			});
+			await service.handleConfigurationChanged();
+			const owner = stateManager.getAutomationCatalogState()!.entries[0];
+			assert.deepStrictEqual({
+				providers: storageService.get<{ runProviders: Record<string, string> }>('automations')?.runProviders,
+				origin: service.getLegacySessionOrigin('opaque:/retained', 'codex'),
+				owner: { title: owner.definition.title, enabled: owner.definition.enabled, state: getAgentHostAutomationHistoryState(owner) },
+			}, {
+				providers: { [run.resource]: 'codex' },
+				origin: { kind: SessionOriginKind.Automation, automation, run: run.resource },
+				owner: existingOwner ? { title: 'Review changes', enabled: true, state: undefined } : { title: 'Deleted automation', enabled: false, state: 'retained' },
+			});
+		});
+	}
+
+	test('persists resolved legacy deletion identity before deleting and isolates unsupported rows', async () => {
+		const automation = createAction().resource;
+		const observations: object[] = [];
+		const service = createService({
+			getRecoverableSessionProvider: async session => session.toString() === 'opaque:/supported' ? 'codex' : undefined,
+			deleteSession: async (session, provider) => {
+				observations.push({
+					session: session.toString(), provider,
+					intent: storageService.get<{ historyDeletions: { sessions: object[] }[] }>('automations')?.historyDeletions[0].sessions,
+				});
+			},
+		});
+		await enableAndCreate(service);
+		await assert.rejects(service.deleteAutomation(automation, true, [URI.parse('opaque:/unsupported'), URI.parse('opaque:/supported')]), /Cannot resolve the persisted provider/);
+		assert.deepStrictEqual({
+			observations,
+			remaining: storageService.get<{ historyDeletions: object[] }>('automations')?.historyDeletions,
+		}, {
+			observations: [{
+				session: 'opaque:/supported', provider: 'codex',
+				intent: [{ session: 'opaque:/unsupported' }, { session: 'opaque:/supported', provider: 'codex' }],
+			}],
+			remaining: [{ automation, sessions: [{ session: 'opaque:/unsupported' }] }],
+		});
+	});
+
 	test('logs creation once after persistence, excluding retries and failed writes', async () => {
 		const service = createService();
 		const action = {
