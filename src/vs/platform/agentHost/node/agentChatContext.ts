@@ -117,12 +117,21 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, auth
 	const sessionUri = toUri(session);
 	const sessionSettings = createAgentChatSessionSettings(sessionState);
 	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
+	const chatEntry = sessionState?.chats.get(chatKey);
+	const primaryFolder = launch?.[0] ?? chatEntry?.workingDirectories?.[0];
+	const defaultEntry = sessionState && [...sessionState.chats.values()].find(entry => entry.isDefault);
+	const defaultFolder = defaultEntry?.launchWorkingDirectories?.[0] ?? defaultEntry?.workingDirectories?.[0];
+	// A chat is workspace-less when its own primary folder is a recorded scratch folder; a chat with no folder of its
+	// own, or one sharing the default chat's folder, follows the session's marker.
+	const workspaceless = primaryFolder !== undefined && stateManager.isScratchFolder(primaryFolder)
+		|| sessionSettings?.workspaceless === true && (primaryFolder === undefined || primaryFolder === defaultFolder);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
 		sessionSettings,
-		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
+		workspaceless,
+		launchWorkingDirectories: isToolChat || workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
 		...(credentials ? { credentials } : {}),

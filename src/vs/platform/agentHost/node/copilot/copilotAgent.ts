@@ -2695,7 +2695,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			owner,
 			resource: this._resolveChatStorageScope(chat),
 			sessionSettings: undefined,
-			launchWorkingDirectories: undefined,
+			launchWorkingDirectories: undefined, workspaceless: false,
 		});
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		// An MCP request must never materialize an unsent draft, but it may address the draft's early launch.
@@ -6298,6 +6298,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			owner: operationContext.owner,
 			sessionSettings: operationContext.sessionSettings,
 			launchWorkingDirectories: operationContext.launchWorkingDirectories,
+			workspaceless: operationContext.workspaceless,
 		};
 		const initial = this._resolveChatContext(chat, operationContext);
 		return this._queueChat(initial.lifetimeId, initial.sequencerKey, 'warmChat', async () => {
@@ -7136,7 +7137,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()}: its parent ${spawnedFrom.chat.toString()} is not restored; no turns to reconstruct`);
 			return [];
 		}
-		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: parentStorage });
+		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner, resource: parentStorage });
 		if (!parentContext.target && parentContext.credentials && parentContext.sdkSessionId) {
 			const history = await this._readPersistedChatHistory(parentContext, parentContext.sdkSessionId);
 			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
@@ -7282,7 +7283,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// this chat, which is also the scope its runtime reads and writes.
 			const storageScope = context.resource;
 			// The host-owned flag resume reads too, so this chat's system prompt matches its parent's and survives resume.
-			const workspaceless = this._sessionSettings.get(session)?.workspaceless;
+			const workspaceless = context.workspaceless;
 
 			// Forking: mint the new chat's backing by forking the source chat's
 			// SDK conversation at the requested turn (copying its database into
@@ -7294,7 +7295,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sourceEntry: CopilotAgentSession | undefined;
 			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
-				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source) }));
+				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
 					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
