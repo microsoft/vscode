@@ -256,7 +256,7 @@
 	gap: var(--vscode-spacing-size60);
 	height: var(--vscode-spacing-size240);
 	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background: transparent;
 	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -783,8 +783,8 @@
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker .new-chat-repo-config-container .action-label:not(.separator) {
-	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size40);
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size60);
 }
 
 .sessions-workspace-category-picker:empty {
