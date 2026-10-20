@@ -300,7 +300,6 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 	}
 
 	async initialize(): Promise<void> {
-		await this.refresh();
 		let initial = true;
 		this._register(autorun(reader => {
 			const registrations = this.registry.integrations.read(reader);
@@ -320,6 +319,7 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 			}
 			initial = false;
 		}));
+		await this.refresh();
 		this._register(autorun(reader => {
 			this.bindingsChanged.read(reader);
 			const state = this.ledger.state.read(reader);
@@ -369,6 +369,10 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 					if (this._store.isDisposed) {
 						binding.dispose();
 						throw error;
+					}
+					if (!this.registry.integrations.get().includes(registration)) {
+						binding.dispose();
+						continue;
 					}
 					binding.setError(error);
 					this.bindings.set(registration.id, binding);

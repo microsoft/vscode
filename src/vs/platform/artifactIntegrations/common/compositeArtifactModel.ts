@@ -99,17 +99,22 @@ export class CompositeArtifactModel implements IArtifactModel {
 	}
 
 	private async forRun(id: string): Promise<IArtifactModel> {
-		const known = this.runOwners.get(id) ?? this.models().find(model => model.snapshot.get().runs.some(run => run.id === id));
+		const models = this.models();
+		const cached = this.runOwners.get(id);
+		const known = cached && models.includes(cached) ? cached : models.find(model => model.snapshot.get().runs.some(run => run.id === id));
 		if (known) {
+			this.runOwners.set(id, known);
 			return known;
 		}
+		this.runOwners.delete(id);
 		let cursor: string | undefined;
 		do {
 			const page = await this.getRuns(cursor, 200);
 			const owner = this.runOwners.get(id);
-			if (owner) {
+			if (owner && this.models().includes(owner)) {
 				return owner;
 			}
+			this.runOwners.delete(id);
 			cursor = page.next;
 		} while (cursor);
 		throw new Error('Artifact run not found');

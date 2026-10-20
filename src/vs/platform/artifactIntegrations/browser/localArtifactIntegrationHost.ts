@@ -19,16 +19,19 @@ import { IArtifactIntegrationStorage } from '../common/artifactRuntime.js';
 
 type LocalMessage =
 	| { readonly kind: 'hello' | 'goodbye'; readonly client: string }
-	| { readonly kind: 'ready'; readonly owner: string }
-	| { readonly kind: 'request'; readonly client: string; readonly owner: string; readonly id: string; readonly request: ArtifactIntegrationRequest }
-	| { readonly kind: 'response'; readonly client: string; readonly owner: string; readonly id: string; readonly response?: ArtifactIntegrationResponse; readonly error?: string }
-	| { readonly kind: 'update'; readonly client: string; readonly owner: string; readonly update: ArtifactIntegrationUpdate };
+	| { readonly kind: 'owner'; readonly owner: string }
+	| { readonly kind: 'ready'; readonly client: string; readonly owner: string; readonly generation: string }
+	| { readonly kind: 'request'; readonly client: string; readonly owner: string; readonly generation: string; readonly id: string; readonly request: ArtifactIntegrationRequest }
+	| { readonly kind: 'response'; readonly client: string; readonly owner: string; readonly generation: string; readonly id: string; readonly response?: ArtifactIntegrationResponse; readonly error?: string }
+	| { readonly kind: 'update'; readonly client: string; readonly owner: string; readonly generation: string; readonly update: ArtifactIntegrationUpdate };
+
+type LocalChannel = Pick<BroadcastDataChannel<LocalMessage>, 'onDidReceiveData' | 'postData' | 'dispose'>;
 
 function isLocalMessage(value: unknown): value is LocalMessage {
 	if (!value || typeof value !== 'object' || !('kind' in value)) {
 		return false;
 	}
-	if (value.kind === 'ready') {
+	if (value.kind === 'owner') {
 		return 'owner' in value && typeof value.owner === 'string';
 	}
 	if (!('client' in value) || typeof value.client !== 'string') {
@@ -37,8 +40,11 @@ function isLocalMessage(value: unknown): value is LocalMessage {
 	if (value.kind === 'hello' || value.kind === 'goodbye') {
 		return true;
 	}
-	if (!('owner' in value) || typeof value.owner !== 'string') {
+	if (!('owner' in value) || typeof value.owner !== 'string' || !('generation' in value) || typeof value.generation !== 'string') {
 		return false;
+	}
+	if (value.kind === 'ready') {
+		return true;
 	}
 	if (value.kind === 'update') {
 		return 'update' in value && isArtifactIntegrationUpdate(value.update);
@@ -76,7 +82,7 @@ class BrowserArtifactIntegrationStorage implements IArtifactIntegrationStorage {
 /** Windows share one Web Lock owner and a machine-local ledger, never a Settings Sync entry. */
 export class LocalArtifactIntegrationHost extends Disposable implements IArtifactIntegrationTransport {
 	private readonly clientId = generateUuid();
-	private readonly channel: BroadcastDataChannel<LocalMessage>;
+	private readonly channel: LocalChannel;
 	private readonly updates = this._register(new Emitter<ArtifactIntegrationUpdate>());
 	readonly onDidUpdate = this.updates.event;
 	private readonly reset = this._register(new Emitter<void>());
@@ -86,6 +92,7 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 	private readonly released = new DeferredPromise<void>();
 	private readonly abort = new AbortController();
 	private ownerId: string | undefined;
+	private generation: string | undefined;
 	private failure: Error | undefined;
 	private localReceiver: ((message: LocalMessage) => void) | undefined;
 	readonly client: ArtifactIntegrationClient;
@@ -96,12 +103,13 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 		private readonly logService: ILogService,
 		locks: LockManager | undefined = mainWindow.navigator.locks,
 		readonly authenticate?: ArtifactAuthenticationHandler,
+		createChannel: (name: string) => LocalChannel = name => new BroadcastDataChannel<LocalMessage>(name),
 	) {
 		super();
 		if (!locks) {
 			throw new Error(localize('artifactLocalCoordinationUnavailable', "Local artifact automation requires a browser that supports cross-window execution locks."));
 		}
-		this.channel = this._register(new BroadcastDataChannel<LocalMessage>(`vscode-artifact-integrations:${scope}`));
+		this.channel = this._register(createChannel(`vscode-artifact-integrations:${scope}`));
 		this._register(this.channel.onDidReceiveData(message => this.receive(message)));
 		const heartbeat = this._register(new IntervalTimer());
 		heartbeat.cancelAndSet(() => this.post({ kind: 'hello', client: this.clientId }), 10_000);
@@ -132,14 +140,29 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 				if (this._store.isDisposed) {
 					return;
 				}
-				const serverChannel = lifetime.add(new BroadcastDataChannel<LocalMessage>(`vscode-artifact-integrations:${scope}`));
+				const serverChannel = lifetime.add(createChannel(`vscode-artifact-integrations:${scope}`));
 				const servers = lifetime.add(new DisposableMap<string, DisposableStore>());
-				const endpoints = new Map<string, { endpoint: ArtifactIntegrationServer; seen: number }>();
+				const endpoints = new Map<string, { endpoint: ArtifactIntegrationServer; generation: string; seen: number }>();
 				const send = (message: LocalMessage) => {
 					if (!lifetime.isDisposed) {
 						this.receive(message);
 						serverChannel.postData(message);
 					}
+				};
+				const acquireClient = (id: string) => {
+					let client = endpoints.get(id);
+					if (!client) {
+						const store = new DisposableStore();
+						servers.set(id, store);
+						const endpoint = store.add(new ArtifactIntegrationServer(coordinator));
+						const generation = generateUuid();
+						client = { endpoint, generation, seen: Date.now() };
+						endpoints.set(id, client);
+						store.add(toDisposable(() => endpoints.delete(id)));
+						store.add(endpoint.onDidUpdate(update => send({ kind: 'update', client: id, owner, generation, update })));
+					}
+					client.seen = Date.now();
+					return client;
 				};
 				const receive = (message: unknown) => {
 					if (!isLocalMessage(message)) {
@@ -147,28 +170,19 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 						return;
 					}
 					if (message.kind === 'hello') {
-						const client = endpoints.get(message.client);
-						if (client) {
-							client.seen = Date.now();
-						}
-						send({ kind: 'ready', owner });
+						const client = acquireClient(message.client);
+						send({ kind: 'ready', client: message.client, owner, generation: client.generation });
 					} else if (message.kind === 'goodbye') {
 						servers.deleteAndDispose(message.client);
 					} else if (message.kind === 'request' && message.owner === owner) {
-						let client = endpoints.get(message.client);
-						if (!client) {
-							const store = new DisposableStore();
-							servers.set(message.client, store);
-							const endpoint = store.add(new ArtifactIntegrationServer(coordinator));
-							client = { endpoint, seen: Date.now() };
-							endpoints.set(message.client, client);
-							store.add(toDisposable(() => endpoints.delete(message.client)));
-							store.add(endpoint.onDidUpdate(update => send({ kind: 'update', client: message.client, owner, update })));
+						const client = acquireClient(message.client);
+						if (message.generation !== client.generation) {
+							send({ kind: 'ready', client: message.client, owner, generation: client.generation });
+							return;
 						}
-						client.seen = Date.now();
 						void client.endpoint.request(message.request).then(
-							response => send({ kind: 'response', client: message.client, owner, id: message.id, response }),
-							error => send({ kind: 'response', client: message.client, owner, id: message.id, error: toErrorMessage(error) }),
+							response => send({ kind: 'response', client: message.client, owner, generation: client.generation, id: message.id, response }),
+							error => send({ kind: 'response', client: message.client, owner, generation: client.generation, id: message.id, error: toErrorMessage(error) }),
 						);
 					}
 				};
@@ -182,7 +196,7 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 						}
 					}
 				}, 15_000);
-				send({ kind: 'ready', owner });
+				send({ kind: 'owner', owner });
 				await this.released.p;
 			} finally {
 				this.localReceiver = undefined;
@@ -216,10 +230,13 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 			this.logService.error('[ArtifactIntegrations] Invalid local coordinator response');
 			return;
 		}
-		if (message.kind === 'ready') {
+		if (message.kind === 'owner') {
+			this.post({ kind: 'hello', client: this.clientId });
+		} else if (message.kind === 'ready' && message.client === this.clientId) {
 			this.failure = undefined;
-			const changed = this.ownerId !== undefined && this.ownerId !== message.owner;
+			const changed = this.ownerId !== undefined && (this.ownerId !== message.owner || this.generation !== message.generation);
 			this.ownerId = message.owner;
+			this.generation = message.generation;
 			void this.ready.complete();
 			if (changed) {
 				for (const request of this.pending.values()) {
@@ -227,7 +244,7 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 				}
 				this.reset.fire();
 			}
-		} else if ((message.kind === 'update' || message.kind === 'response') && message.client === this.clientId && message.owner === this.ownerId) {
+		} else if ((message.kind === 'update' || message.kind === 'response') && message.client === this.clientId && message.owner === this.ownerId && message.generation === this.generation) {
 			if (message.kind === 'update') {
 				if (isArtifactIntegrationUpdate(message.update)) {
 					this.updates.fire(message.update);
@@ -252,7 +269,7 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 		if (!ready || this.failure) {
 			throw this.failure ?? new Error('Local artifact coordinator did not become ready');
 		}
-		if (!this.ownerId || this._store.isDisposed) {
+		if (!this.ownerId || !this.generation || this._store.isDisposed) {
 			throw new Error('Local artifact coordinator is unavailable');
 		}
 		const id = generateUuid();
@@ -260,7 +277,7 @@ export class LocalArtifactIntegrationHost extends Disposable implements IArtifac
 		this.pending.set(id, response);
 		const timeout = new TimeoutTimer(() => void response.error(new Error('Artifact request timed out; its outcome may be uncertain')), 30_000);
 		try {
-			this.post({ kind: 'request', client: this.clientId, owner: this.ownerId, id, request });
+			this.post({ kind: 'request', client: this.clientId, owner: this.ownerId, generation: this.generation, id, request });
 			return await response.p;
 		} finally {
 			timeout.dispose();
