@@ -87,6 +87,9 @@ import type { IDevContainerAgentHostMainService } from '../common/devContainerAg
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
+/** The first protocol version whose hosts may advertise `multipleChatProviders`. */
+const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
+
 /**
  * After this much inbound silence, send an application-level `ping` to
  * the remote so we have something to time out on. Reset on any inbound
@@ -95,9 +98,6 @@ const AHP_CLIENT_CONNECTION_CLOSED = -32000;
  * Mirrors {@link ProtocolConstants.KeepAliveSendTime} from the regular
  * remote extension host stack.
  */
-/** The first protocol version whose hosts may advertise `multipleChatProviders`. */
-const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
-
 const PING_INTERVAL_MS = 5_000;
 
 /**
