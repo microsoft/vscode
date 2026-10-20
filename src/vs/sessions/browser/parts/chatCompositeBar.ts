@@ -38,7 +38,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -587,11 +587,19 @@ export class ChatCompositeBar extends Disposable {
 			this._delegate?.onTabDragEnd?.();
 		}));
 
-		const renameAction = this._tabDisposables.add(new Action(RENAME_CHAT_COMMAND_ID, localize('renameChat', "Rename..."), undefined, true, async () => {
-			if (session) {
-				await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
-			}
-		}));
+		// The main chat's title is the session title, so its tab renames the session (as F2 does).
+		const renameLabel = localize('renameChat', "Rename...");
+		const renameAction = this._tabDisposables.add(isMainChat
+			? new Action(RENAME_SESSION_COMMAND_ID, renameLabel, undefined, true, async () => {
+				if (session) {
+					await this._commandService.executeCommand(RENAME_SESSION_COMMAND_ID, session);
+				}
+			})
+			: new Action(RENAME_CHAT_COMMAND_ID, renameLabel, undefined, true, async () => {
+				if (session) {
+					await this._commandService.executeCommand(RENAME_CHAT_COMMAND_ID, { session, chat, inline: true });
+				}
+			}));
 
 		const copyLinkAction = this._tabDisposables.add(new Action(COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, localize('copyChatLink', "Copy Link"), undefined, true, async () => {
 			if (session) {
@@ -642,8 +650,9 @@ export class ChatCompositeBar extends Disposable {
 				getActions: () => {
 					const capabilities = getChatCapabilities(chat, session, undefined);
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
+					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					return Separator.join(
-						capabilities.canRename ? [renameAction] : [],
+						canRename ? [renameAction] : [],
 						capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : [],
 						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],

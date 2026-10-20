@@ -17,6 +17,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createActiveTurn, createChatState, createDefaultChatSummary, createSessionState, MessageKind, ResponsePartKind, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -986,5 +987,31 @@ suite('CloudSandboxSessionHandler', () => {
 			triggers: await triggers,
 			uri: handler.resolveChatResponseUri(resource, 'file.txt', 'link'),
 		}, { triggers: ['@', '/'], uri: 'resolved:file.txt' });
+	});
+
+	test('keeps recorded file links and images scoped to the sandbox before connecting', async () => {
+		const history = recordedHistory();
+		history.sessions[0].state.workingDirectories = ['file:///sandbox/project'];
+		history.sessions[0].chats.get(peerChat)!.workingDirectories = ['file:///sandbox/peer'];
+		const handler = createHandler(async () => history);
+		await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const peer = resource.with({ query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() });
+		await handler.provideChatSessionContent(peer, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			link: handler.resolveChatResponseUri(resource, 'file:///tmp/image.png', 'link'),
+			image: handler.resolveChatResponseUri(resource, 'file:///tmp/image.png', 'image'),
+			relative: handler.resolveChatResponseUri(resource, 'images/robot.png', 'image'),
+			peer: handler.resolveChatResponseUri(peer, 'images/robot.png', 'image'),
+			external: handler.resolveChatResponseUri(resource, 'https://github.com/image.png', 'image'),
+			relativeLink: handler.resolveChatResponseUri(resource, 'images/robot.png', 'link'),
+		}, {
+			link: toAgentHostUri(URI.file('/tmp/image.png'), 'test').toString(),
+			image: toAgentHostUri(URI.file('/tmp/image.png'), 'test').toString(),
+			relative: toAgentHostUri(URI.file('/sandbox/project/images/robot.png'), 'test').toString(),
+			peer: toAgentHostUri(URI.file('/sandbox/peer/images/robot.png'), 'test').toString(),
+			external: 'https://github.com/image.png',
+			relativeLink: 'images/robot.png',
+		});
 	});
 });

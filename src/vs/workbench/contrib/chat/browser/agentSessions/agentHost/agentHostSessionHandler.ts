@@ -8054,8 +8054,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			: this._ensureAdditionalChatSubscription(chatUri);
 	}
 
-	resolveChatResponseUri(_sessionResource: URI, href: string, _kind: 'link' | 'image'): string {
-		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris);
+	resolveChatResponseUri(sessionResource: URI, href: string, kind: 'link' | 'image'): string {
+		const session = this._resolveSessionUri(sessionResource);
+		const directory = kind === 'image'
+			? this._getSessionState(session.toString(), this._getChatURIOrDefault(sessionResource, session))?.workingDirectories?.[0]
+			: undefined;
+		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, this._config.connection.resourceUris, directory ? URI.parse(directory) : undefined);
 	}
 
 	/**

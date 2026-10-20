@@ -38,10 +38,17 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	failures = 0;
 	outcome: WorktreeRemovalOutcome = 'removed';
 	removal: DeferredPromise<void> | undefined;
+	/** Completes when the first removal starts. */
+	readonly removalStarted = new DeferredPromise<void>();
+	/** Completes with the key of the first task queued while another task holds that key's lock. */
+	readonly queuedBehindLock = new DeferredPromise<string>();
 	reconcileGuard: DetachedWorktreeRemovalGuard | undefined;
 	private readonly _sequencer = new SequencerByKey<string>();
 
 	override runExclusive<T>(key: string, task: () => Promise<T>): Promise<T> {
+		if (this._sequencer.peek(key)) {
+			this.queuedBehindLock.complete(key);
+		}
 		return this._sequencer.queue(key, task);
 	}
 	override async readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined> {
@@ -56,6 +63,7 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	}
 	override async removeRecordedWorktree(key: string, worktree: IRecordedWorktree, mode: WorktreeRemovalMode, canRemove?: () => Promise<boolean>): Promise<WorktreeRemovalOutcome> {
 		this.calls.push(`remove:${key}:${mode}:${worktree.branchName}`);
+		this.removalStarted.complete();
 		await this.removal?.p;
 		if (this.failures > 0) {
 			this.failures--;
@@ -110,6 +118,13 @@ suite('AgentHostWorktreeCleanupService', () => {
 
 	async function pending(database: AgentHostDatabase): Promise<string[]> {
 		return (await database.listPendingWorktreeRemovals()).map(removal => `${removal.kind}:${removal.mode}:${removal.attempts}`);
+	}
+
+	/** Waits for a pass the service runs on its own (at start, debounced or periodic) to start a removal, then for that pass to complete. */
+	async function scheduledPassRemoval(worktree: RecordingWorktreeIsolation, cleanup: AgentHostWorktreeCleanupService): Promise<void> {
+		await worktree.removalStarted.p;
+		// The pass is still running, so runPass() returns that pass's promise.
+		await cleanup.runPass();
 	}
 
 	async function useWorktree(database: AgentHostDatabase, session: URI, worktree: IRecordedWorktree, archived = false): Promise<void> {
@@ -174,9 +189,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		worktree.removal = new DeferredPromise<void>();
 
 		const pass = cleanup.runPass();
-		while (!worktree.calls.length) {
-			await timeout(0);
-		}
+		await worktree.removalStarted.p;
 		// The second session is unarchived while the first one's removal runs.
 		await cleanup.restoreSessionWorktree(second);
 		// The first session's unarchive waits for its running removal, then recreates the worktree.
@@ -205,9 +218,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		assert.ok(state);
 		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
 		// The periodic re-check removes it without another request.
-		for (let attempt = 0; attempt < 400 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
-			await timeout(5);
-		}
+		await scheduledPassRemoval(worktree, cleanup);
 
 		assert.deepStrictEqual({ whileInUse, calls: worktree.calls, pending: await pending(database) }, {
 			whileInUse: { calls: ['reconcileUnclaimed'], pending: ['session:commit:0'] },
@@ -267,9 +278,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await timeout(20);
 		const beforeStart = { calls: [...worktree.calls], pending: (await pending(database)).sort() };
 		cleanup.start();
-		for (let attempt = 0; attempt < 200 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
-			await timeout(5);
-		}
+		await scheduledPassRemoval(worktree, cleanup);
 
 		assert.deepStrictEqual({ beforeStart, calls: worktree.calls }, {
 			beforeStart: { calls: [], pending: ['detached:delete:0', 'session:commit:0'] },
@@ -366,9 +375,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		worktree.removal = new DeferredPromise<void>();
 
 		const pass = cleanup.runPass();
-		while (!worktree.calls.length) {
-			await timeout(0);
-		}
+		await worktree.removalStarted.p;
 		// Another session attaches the folder after the in-use query, while Git commits its changes.
 		await useWorktree(database, OTHER_SESSION, recorded('archived'));
 		worktree.removal.complete();
@@ -409,9 +416,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
 		// The other session has no worktree of its own, yet its archive triggers a pass.
 		await cleanup.requestSessionWorktreeRemoval(OTHER_SESSION, 'commit');
-		for (let attempt = 0; attempt < 400 && (await database.listPendingWorktreeRemovals()).length; attempt++) {
-			await timeout(5);
-		}
+		await scheduledPassRemoval(worktree, cleanup);
 
 		assert.deepStrictEqual({ whileInUse, calls: worktree.calls, pending: await pending(database) }, {
 			whileInUse: ['reconcileUnclaimed'],
@@ -638,23 +643,17 @@ suite('AgentHostWorktreeCleanupService', () => {
 			worktree.removal = new DeferredPromise<void>();
 
 			const pass = cleanup.runPass();
-			while (!worktree.calls.length) {
-				await timeout(0);
-			}
+			await worktree.removalStarted.p;
 			const restore = cleanup.restoreSessionWorktree(OTHER_SESSION);
-			// The unarchive recreates its own worktree first, then its share: give it ample time to reach the share's recreate,
-			// which only the folder's lock (held by the running removal) holds back.
-			for (let i = 0; i < 20 && !worktree.calls.includes(`recreate:${AgentSession.id(OTHER_SESSION)}`); i++) {
-				await timeout(10);
-			}
-			for (let i = 0; i < 5; i++) {
-				await timeout(10);
-			}
+			// The unarchive recreates its own worktree first, then its share, which only the folder's lock (held by the running
+			// removal) holds back: wait until it queues behind a held lock, or completes if nothing holds it back.
+			const waitingOnLock = await Promise.race([worktree.queuedBehindLock.p, restore]);
 			const callsWhileRemoving = [...worktree.calls];
 			worktree.removal.complete();
 			await Promise.all([pass, restore]);
 
-			assert.deepStrictEqual({ callsWhileRemoving, calls: worktree.calls }, {
+			assert.deepStrictEqual({ waitingOnLock, callsWhileRemoving, calls: worktree.calls }, {
+				waitingOnLock: sharedKey,
 				callsWhileRemoving: [`remove:${sessionId}:commit:agents/archived`, `recreate:${AgentSession.id(OTHER_SESSION)}`],
 				calls: [`remove:${sessionId}:commit:agents/archived`, `recreate:${AgentSession.id(OTHER_SESSION)}`, `recreateShared:${sharedKey}:agents/archived`],
 			});

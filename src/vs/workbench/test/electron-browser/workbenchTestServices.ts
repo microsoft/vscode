@@ -26,7 +26,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipResult, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -206,7 +206,7 @@ export class TestNativeHostService implements INativeHostService {
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
-	async createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void> { }
+	async createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<INativeZipResult> { return { skippedFiles: [] }; }
 	readonly onDidProgressZipFile = Event.None;
 	async cancelZipFile(operationId: string): Promise<void> { }
 	async profileRenderer(): Promise<any> { throw new Error(); }

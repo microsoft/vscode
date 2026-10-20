@@ -983,19 +983,10 @@ export default defineConfig(
 					'exclude': [
 						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostWorktreeCleanupService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
-						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
-						'src/vs/sessions/contrib/automations/test/browser/automationDialog.test.ts',
-						'src/vs/sessions/contrib/editor/test/browser/editor.contribution.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-						'src/vs/workbench/api/test/browser/mainThreadCustomEditors.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentHostCustomizationSidecar.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentHostUsageSidecar.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentSessions/agentHostClientTools.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/agentSessions/syncedCustomizationBundler.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
@@ -1003,7 +994,6 @@ export default defineConfig(
 						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/plugins/fileBackedInstalledPluginsStore.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/plugins/pluginMarketplaceService.test.ts',
-						'src/vs/workbench/services/configuration/test/browser/configurationService.test.ts',
 					]
 				}
 			]
