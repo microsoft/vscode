@@ -8,6 +8,7 @@ import { $, append, getWindow } from '../../../../../base/browser/dom.js';
 import { List } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ResizableHTMLElement } from '../../../../../base/browser/ui/resizable/resizable.js';
 import { range } from '../../../../../base/common/arrays.js';
+import { retry } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import '../../../../../editor/contrib/suggest/browser/media/suggest.css';
@@ -22,6 +23,18 @@ suite('Modern UI suggestion menu corners', () => {
 		const style = getWindow(element).getComputedStyle(element);
 		return [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
 	}
+
+	suiteSetup(async () => {
+		const root = append(document.body, $('.modern-ui'));
+		root.style.setProperty('--vscode-cornerRadius-small', '4px');
+		const row = append(append(root, $('.monaco-list')), $('.monaco-list-row'));
+		try {
+			// Browser CSS imports can still be loading when the module resolves.
+			await retry(async () => assert.deepStrictEqual(corners(row), controlCorners), 10, 100);
+		} finally {
+			root.remove();
+		}
+	});
 
 	for (const kind of ['editor', 'workbench']) {
 		function createList(count: number, withStatusBar = false, theme = 'vs') {
@@ -99,19 +112,22 @@ suite('Modern UI suggestion menu corners', () => {
 				list.setFocus([1]);
 				list.scrollTop = 30;
 				const bounds = listElement.getBoundingClientRect();
-				const hit = (x: number, y: number) => listElement.contains(document.elementFromPoint(x, y));
+				const style = getWindow(listElement).getComputedStyle(listElement);
+				const focusedRow = listElement.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+				const rowBounds = focusedRow.getBoundingClientRect();
 				assert.deepStrictEqual({
 					corners: corners(listElement),
-					cornerHits: [
-						hit(bounds.left + 0.5, bounds.top + 0.5),
-						hit(bounds.right - 0.5, bounds.top + 0.5),
-						hit(bounds.right - 0.5, bounds.bottom - 0.5),
-						hit(bounds.left + 0.5, bounds.bottom - 0.5),
-					],
-					interiorHit: hit(bounds.left + 8, bounds.top + 1),
+					overflow: [style.overflowX, style.overflowY],
+					viewport: [bounds.width, bounds.height],
+					scrollTop: list.scrollTop,
+					focusedRow: [focusedRow.dataset.index, rowBounds.top - bounds.top, rowBounds.height],
+					interiorHit: listElement.contains(document.elementFromPoint(bounds.left + 8, bounds.top + 1)),
 				}, {
 					corners: withStatusBar ? ['8px', '8px', '0px', '0px'] : ['8px', '8px', '8px', '8px'],
-					cornerHits: [false, false, withStatusBar, withStatusBar],
+					overflow: ['hidden', 'hidden'],
+					viewport: [200, 60],
+					scrollTop: 30,
+					focusedRow: ['1', -10, 20],
 					interiorHit: true,
 				});
 			});
