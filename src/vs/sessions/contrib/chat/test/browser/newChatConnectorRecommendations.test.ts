@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -12,6 +14,7 @@ import { type IConfigurationChangeEvent, type IConfigurationOverrides, IConfigur
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -25,15 +28,15 @@ import { NewChatConnectorRecommendations } from '../../browser/newChatConnectorR
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../../common/constants.js';
 
 const connectorRecommendations: NonNullable<IProductService['connectorRecommendations']> = {
-	linear: { name: 'Linear', description: 'Plan and track product work.', iconUrl: 'https://example.com/linear.png', urlDomains: ['linear.app'] },
-	notion: { name: 'Notion', description: 'Search team knowledge and documentation.', iconUrl: 'https://example.com/notion.png', urlDomains: ['notion.so', 'notion.site'] },
-	'workiq-mail': { name: 'WorkIQ', description: 'Bring Microsoft 365 work context into chats.', iconUrl: 'https://example.com/workiq.png', urlDomains: ['microsoft365.com', 'teams.microsoft.com'] },
+	linear: { name: 'Linear', description: 'Triage your open issues in Linear', iconUrl: 'https://example.com/linear.png', urlDomains: ['linear.app'] },
+	notion: { name: 'Notion', description: 'Turn a Notion spec into an implementation plan', iconUrl: 'https://example.com/notion.png', urlDomains: ['notion.so', 'notion.site'] },
+	'workiq-mail': { name: 'WorkIQ', description: 'Find action items in your Outlook email', iconUrl: 'https://example.com/workiq.png', urlDomains: ['microsoft365.com', 'teams.microsoft.com'] },
 };
 
 suite('NewChatConnectorRecommendations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(marketplaceEnabled: boolean, connectorsEnabled: boolean, fromDefault = true, productRecommendations: IProductService['connectorRecommendations'] | null = connectorRecommendations, recommendationsEnabled = connectorsEnabled) {
+	function setup(marketplaceEnabled: boolean, connectorsEnabled: boolean, fromDefault = true, productRecommendations: IProductService['connectorRecommendations'] | null = connectorRecommendations, recommendationsEnabled = connectorsEnabled, random = () => 0) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = new class extends TestConfigurationService {
 			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
@@ -52,12 +55,19 @@ suite('NewChatConnectorRecommendations', () => {
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const errors: unknown[][] = [];
 		const notifications: string[] = [];
+		const hovers: Omit<IHoverOptions, 'target'>[] = [];
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		const onDidChangeInput = store.add(new Emitter<void>());
 		let inputValue = '';
 		let inputReadCount = 0;
 		let focusCount = 0;
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: (_target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) => {
+				hovers.push(typeof options === 'function' ? options() : options);
+				return Disposable.None;
+			},
+		});
 		instantiationService.stub(ICommandService, {
 			executeCommand: async (id: string, ...args: unknown[]) => {
 				commands.push({ id, args });
@@ -80,7 +90,7 @@ suite('NewChatConnectorRecommendations', () => {
 				return inputValue;
 			},
 			onDidChangeInputValue: onDidChangeInput.event,
-		}));
+		}, random));
 		document.body.appendChild(recommendations.element);
 		return {
 			recommendations,
@@ -88,6 +98,7 @@ suite('NewChatConnectorRecommendations', () => {
 			commands,
 			errors,
 			notifications,
+			hovers,
 			telemetryService,
 			setInput(value: string) {
 				inputValue = value;
@@ -125,33 +136,39 @@ suite('NewChatConnectorRecommendations', () => {
 	});
 
 	test('renders product recommendations and opens the selected connector detail', async () => {
-		const fixture = setup(true, true);
+		const fixture = setup(true, true, true, connectorRecommendations, true, () => 0.999);
 		fixture.setInput('Compare https://linear.app/acme/issue/ENG-1, notion.so/acme, and https://microsoft365.com.');
 		await Promise.resolve();
 		await Promise.resolve();
 		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		cards[2].querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')!.click();
+		const visibleCard = cards.find(card => !card.hidden)!;
+		visibleCard.querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')!.click();
 		await Promise.resolve();
 
 		assert.deepStrictEqual({
 			hidden: fixture.recommendations.element.hidden,
 			role: fixture.recommendations.element.getAttribute('role'),
-			names: cards.map(card => card.querySelector('.new-session-connector-recommendation-name')?.textContent),
-			descriptions: cards.map(card => card.querySelector('.new-session-connector-recommendation-description')?.textContent),
-			icons: cards.map(card => card.querySelector<HTMLImageElement>('img')?.src),
+			visibleId: visibleCard.dataset.connectorId,
+			nameHeadings: cards.map(card => card.querySelector('.new-session-connector-recommendation-name')?.textContent),
+			description: visibleCard.querySelector('.new-session-connector-recommendation-description')?.textContent,
+			icon: visibleCard.querySelector<HTMLImageElement>('img')?.src,
+			iconAriaHidden: visibleCard.querySelector('.new-session-connector-recommendation-icon')?.getAttribute('aria-hidden'),
+			hover: fixture.hovers[2],
 			commands: fixture.commands,
 			errors: fixture.errors,
 			triggers: fixture.telemetryService.triggers,
 		}, {
 			hidden: false,
 			role: 'group',
-			names: ['Linear', 'Notion', 'WorkIQ'],
-			descriptions: [
-				'Plan and track product work.',
-				'Search team knowledge and documentation.',
-				'Bring Microsoft 365 work context into chats.',
-			],
-			icons: ['https://example.com/linear.png', 'https://example.com/notion.png', 'https://example.com/workiq.png'],
+			visibleId: 'workiq-mail',
+			nameHeadings: [undefined, undefined, undefined],
+			description: 'Find action items in your Outlook email',
+			icon: 'https://example.com/workiq.png',
+			iconAriaHidden: 'true',
+			hover: {
+				content: 'Review the WorkIQ connector in Copilot Connectors',
+				persistence: { hideOnKeyDown: true },
+			},
 			commands: [{
 				id: AICustomizationManagementCommands.OpenMarketplace,
 				args: [{
@@ -189,16 +206,16 @@ suite('NewChatConnectorRecommendations', () => {
 		}
 
 		assert.deepStrictEqual(states, [
-			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear'] },
 			{ hidden: false, visibleCards: ['notion'] },
-			{ hidden: false, visibleCards: ['linear', 'notion'] },
-			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
-			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
-			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
-			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: false, visibleCards: ['linear'] },
 			{ hidden: false, visibleCards: ['notion'] },
 			{ hidden: false, visibleCards: ['notion'] },
-			{ hidden: false, visibleCards: ['linear', 'notion', 'workiq-mail'] },
+			{ hidden: false, visibleCards: ['linear'] },
 		]);
 	});
 
@@ -225,7 +242,7 @@ suite('NewChatConnectorRecommendations', () => {
 			'workiq-mail': connectorRecommendations['workiq-mail'],
 			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png', showStatically: false, urlDomains: ['sentry.io'] },
 			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png', showStatically: false },
-		});
+		}, true, () => 0);
 		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
 			.filter(card => !card.hidden)
 			.map(card => card.dataset.connectorId);
@@ -244,26 +261,20 @@ suite('NewChatConnectorRecommendations', () => {
 			'https://figma.com/file/abc',
 		].join(' '));
 
-		assert.deepStrictEqual(visibleCards(), [
-			'kusto',
-			'linear',
-			'notion',
-			'workiq-mail',
-			'sentry',
-		]);
+		assert.deepStrictEqual(visibleCards(), ['kusto']);
 
 		fixture.setInput('');
-		assert.deepStrictEqual(visibleCards(), ['linear', 'notion', 'workiq-mail']);
+		assert.deepStrictEqual(visibleCards(), ['linear']);
 	});
 
 	test('keeps static and dynamic dismissals independent', () => {
-		const beforeStaticDismissal = setup(true, true);
+		const beforeStaticDismissal = setup(true, true, true, connectorRecommendations, true, () => 0.5);
 		const beforeCards = [...beforeStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
 		const staticAfterDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
 		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
 		const dynamicAfterStaticDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
-		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
+		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
 		const dynamicAfterDynamicDismissal = {
 			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
 			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
@@ -278,9 +289,7 @@ suite('NewChatConnectorRecommendations', () => {
 
 		const afterStaticDismissal = setup(true, true);
 		const afterCards = [...afterStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		for (const card of afterCards) {
-			card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!.click();
-		}
+		afterCards.find(card => !card.hidden)!.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
 		const allStaticDismissed = afterStaticDismissal.recommendations.element.hidden === true;
 		afterStaticDismissal.setInput('Open notion.so/acme/project.');
 		const dynamicAfterAllStaticDismissed = afterCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
@@ -294,10 +303,10 @@ suite('NewChatConnectorRecommendations', () => {
 			allStaticDismissed,
 			dynamicAfterAllStaticDismissed,
 		}, {
-			staticAfterDismissal: ['linear', 'workiq-mail'],
+			staticAfterDismissal: [],
 			dynamicAfterStaticDismissal: ['notion'],
 			dynamicAfterDynamicDismissal: { hidden: true, visibleCards: [] },
-			restoredStatic: ['linear', 'workiq-mail'],
+			restoredStatic: [],
 			repeatedDynamic: { hidden: true, visibleCards: [] },
 			allStaticDismissed: true,
 			dynamicAfterAllStaticDismissed: ['notion'],
@@ -317,12 +326,7 @@ suite('NewChatConnectorRecommendations', () => {
 		assert.strictEqual(fixture.recommendations.element.hidden, false);
 
 		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		const dismissButtons = cards.map(card => card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!);
-		dismissButtons[1].click();
-		const focusAfterMiddleDismiss = document.activeElement === cards[2].querySelector('.new-session-connector-recommendation-card-primary');
-		dismissButtons[2].click();
-		const focusAfterLastDismiss = document.activeElement === cards[0].querySelector('.new-session-connector-recommendation-card-primary');
-		dismissButtons[0].click();
+		cards.find(card => !card.hidden)!.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		fixture.configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
@@ -334,14 +338,10 @@ suite('NewChatConnectorRecommendations', () => {
 		assert.deepStrictEqual({
 			hidden: fixture.recommendations.element.hidden,
 			dismissedCards: cards.map(card => card.hidden),
-			focusAfterMiddleDismiss,
-			focusAfterLastDismiss,
 			focusCount: fixture.focusCount,
 		}, {
 			hidden: true,
 			dismissedCards: [true, true, true],
-			focusAfterMiddleDismiss: true,
-			focusAfterLastDismiss: true,
 			focusCount: 1,
 		});
 	});

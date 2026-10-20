@@ -898,7 +898,7 @@ export class NewChatWidget extends Disposable {
 			focusInput: () => this.focusInput(),
 			getInputValue: () => this._newChatInput.getInputValue(),
 			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
-		}));
+		}, undefined));
 		belowInputSurfaces.appendChild(connectorRecommendations.element);
 
 		// In the experimental composer the getting-started tip is demoted to a standalone

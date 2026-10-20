@@ -32,6 +32,8 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -128,7 +130,7 @@ const fixtureConnectors: readonly ICustomizationMarketplaceResource[] = [
 		sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
 		identifier: 'linear',
 		displayName: 'Linear',
-		description: 'Plan and track product work.',
+		description: 'Triage your open issues in Linear',
 		mediaType: 'application/mcp-server+json',
 		tags: [],
 		capabilities: [],
@@ -139,7 +141,7 @@ const fixtureConnectors: readonly ICustomizationMarketplaceResource[] = [
 		sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
 		identifier: 'notion',
 		displayName: 'Notion',
-		description: 'Search team knowledge and documentation.',
+		description: 'Turn a Notion spec into an implementation plan',
 		mediaType: 'application/mcp-server+json',
 		tags: [],
 		capabilities: [],
@@ -150,7 +152,7 @@ const fixtureConnectors: readonly ICustomizationMarketplaceResource[] = [
 		sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
 		identifier: 'workiq-mail',
 		displayName: 'Work IQ',
-		description: 'Bring Microsoft 365 work context into chats.',
+		description: 'Find action items in your Outlook email',
 		mediaType: 'application/mcp-server+json',
 		tags: [],
 		capabilities: [],
@@ -205,10 +207,10 @@ interface INewChatWidgetFixtureOptions {
 	readonly connectorRecommendations?: boolean;
 	readonly connectorRecommendationsSetting?: boolean;
 	readonly connectorPrompt?: string;
-	readonly expectedConnectorIds?: readonly string[];
-	readonly staticDismissedConnectorIds?: readonly string[];
+	readonly connectorId?: 'linear' | 'notion' | 'workiq-mail';
+	readonly dismissStaticBeforePrompt?: boolean;
+	readonly dismissConnector?: boolean;
 	readonly connectorProductIcons?: boolean;
-	readonly dismissedConnectorCount?: number;
 	readonly focusConnectorRecommendations?: boolean;
 	readonly expectBelowInputSurfacesScrollable?: boolean;
 }
@@ -415,10 +417,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		connectorRecommendations = false,
 		connectorRecommendationsSetting = connectorRecommendations,
 		connectorPrompt,
-		expectedConnectorIds = [],
-		staticDismissedConnectorIds = [],
+		connectorId = 'linear',
+		dismissStaticBeforePrompt = false,
+		dismissConnector = false,
 		connectorProductIcons = true,
-		dismissedConnectorCount = 0,
 		focusConnectorRecommendations = false,
 		expectBelowInputSurfacesScrollable = false,
 	} = options;
@@ -476,12 +478,24 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(IActionViewItemService, actionViewItems);
 			reg.define(IChatService, FixtureComposerChatService);
 			reg.defineInstance(ILanguageModelToolsService, disposableStore.add(new MockLanguageModelToolsService()));
+			if (connectorRecommendations) {
+				reg.define(IHoverService, HoverService);
+				reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+					override readonly mainContainer = container;
+					override readonly activeContainer = container;
+					override readonly onDidLayoutContainer = Event.None;
+					override getContainer() { return container; }
+				}());
+			}
 			reg.defineInstance(IConfigurationService, configurationService);
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
 				override readonly connectorRecommendations = connectorRecommendations
-					? connectorProductIcons
-						? fixtureConnectorRecommendations
-						: Object.fromEntries(Object.entries(fixtureConnectorRecommendations).map(([id, recommendation]) => [id, { ...recommendation, iconUrl: '' }]))
+					? {
+						[connectorId]: {
+							...fixtureConnectorRecommendations[connectorId],
+							iconUrl: connectorProductIcons ? fixtureConnectorRecommendations[connectorId].iconUrl : '',
+						},
+					}
 					: undefined;
 			}());
 			reg.defineInstance(IStorageService, storageService);
@@ -1029,28 +1043,23 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	if (connectorRecommendations) {
 		const recommendations = view.element.querySelector<HTMLElement>('.new-session-connector-recommendations');
 		const cards = recommendations?.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card');
-		assert(!!recommendations && cards?.length === 3);
-		for (const connectorId of staticDismissedConnectorIds) {
-			const card = [...cards].find(card => card.dataset.connectorId === connectorId);
-			card?.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')?.click();
+		assert(!!recommendations && cards?.length === 1);
+		const card = cards[0];
+		const dismiss = card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label');
+		if (dismissStaticBeforePrompt) {
+			dismiss?.click();
 		}
 		if (connectorPrompt !== undefined) {
 			view.prefillInput(connectorPrompt);
 			if (connectorRecommendationsSetting) {
-				await waitForFixtureCondition(() => {
-					const visibleConnectorIds = [...cards]
-						.filter(card => !card.hidden)
-						.map(card => card.dataset.connectorId);
-					return visibleConnectorIds.length === expectedConnectorIds.length
-						&& visibleConnectorIds.every((id, index) => id === expectedConnectorIds[index]);
-				}, 'URL-triggered connector recommendations did not settle.');
+				await waitForFixtureCondition(() => !card.hidden, 'URL-triggered connector recommendation did not settle.');
 			}
 		}
 		const visibleCards = [...cards].filter(card => !card.hidden);
-		assert(visibleCards.length === expectedConnectorIds.length
-			&& visibleCards.every((card, index) => card.dataset.connectorId === expectedConnectorIds[index]),
-			'Only connector recommendations associated with prompt URLs must be visible.');
-		const connectorSurfaceVisible = expectedConnectorIds.length > 0 && connectorRecommendationsSetting;
+		const connectorSurfaceVisible = connectorRecommendationsSetting;
+		assert(visibleCards.length === 1
+			&& visibleCards[0].dataset.connectorId === connectorId,
+			'Only the selected connector recommendation must be visible.');
 		assert((targetWindow.getComputedStyle(recommendations).display !== 'none') === connectorSurfaceVisible);
 		if (connectorProductIcons && connectorSurfaceVisible) {
 			await waitForFixtureCondition(() => visibleCards.every(card => card.querySelector('img')), 'Visible connector recommendation icons did not load.');
@@ -1059,12 +1068,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(visibleCards.every(card => card.querySelector('.codicon-ai-customization-mcp-server')),
 				'Every visible recommendation without a product image must use the MCP server fallback icon.');
 		}
-		const dismissButtons = visibleCards.map(card => card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss')!);
-		for (let index = 0; index < dismissedConnectorCount; index++) {
-			dismissButtons[index]?.click();
-		}
-		assert([...cards].filter(card => !card.hidden).length === expectedConnectorIds.length - dismissedConnectorCount,
-			'Dismissed connector recommendations must collapse while the remaining cards stay visible.');
 		if (connectorSurfaceVisible) {
 			assert(recommendations.getBoundingClientRect().bottom <= container.getBoundingClientRect().bottom,
 				'Connector recommendations must fit below the input.');
@@ -1075,11 +1078,15 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(!!input && composerGap >= 20,
 				'Connector recommendations must have at least 20px of breathing room next to the composer.');
 			if (width >= DEFAULT_WIDTH) {
-				assert(visibleCards.every(card => card.getBoundingClientRect().height <= 80),
-					'Wide connector cards must stay compact at no more than 80px tall.');
+				assert(visibleCards.every(card => card.getBoundingClientRect().height <= 44),
+					'Wide connector recommendations must stay compact at no more than 44px tall.');
 			}
 			if (focusConnectorRecommendations) {
 				context.focus({ focus: () => visibleCards[0]?.querySelector<HTMLElement>('.new-session-connector-recommendation-card-primary')?.focus() });
+			}
+			if (dismissConnector) {
+				dismiss?.click();
+				assert(recommendations.hidden === true, 'Dismissing a recommendation must hide the surface without a replacement.');
 			}
 		}
 	}
@@ -1373,62 +1380,62 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	ConnectorRecommendationsBefore: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With no URL in the prompt, the centered new-session composer retains the static Linear, Notion, and WorkIQ recommendation cards below it.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['With no URL in the prompt, one full-width minimal static recommendation shows a small Linear icon, muted task text, and a compact close action below the centered composer.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['With a known Notion URL in the prompt but connector recommendations disabled, the centered new-session composer shows no recommendation card.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorRecommendationsSetting: false, connectorPrompt: 'Summarize https://www.notion.so/acme/Project-123', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorRecommendationsSetting: false, connectorPrompt: 'Summarize https://www.notion.so/acme/Project-123', connectorId: 'notion', experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendations: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		deferPaint: true,
-		expectedVisualDescriptions: ['A Notion URL in the prompt reveals one full-width Notion recommendation card below the centered composer, with its product image, short benefit, and independent dismiss control.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Summarize https://www.notion.so/acme/Project-123', expectedConnectorIds: ['notion'], experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['A Notion URL in the prompt reveals one full-width minimal recommendation with a 16px Notion icon, muted description-only copy, and a compact close action below the centered composer.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorId: 'notion', connectorPrompt: 'Summarize https://www.notion.so/acme/Project-123', experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['In a narrow Agents window, a Linear URL reveals one readable Linear recommendation card without compressing its product image or copy.'],
-		render: context => renderNewChatWidget(context, { width: 420, height: 760, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Fix linear.app/acme/issue/ENG-1', expectedConnectorIds: ['linear'], experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['In a narrow Agents window, the single Notion recommendation wraps its muted task copy without overlapping the 16px icon or compact close action.'],
+		render: context => renderNewChatWidget(context, { width: 420, height: 760, withWorkspace: true, connectorRecommendations: true, connectorId: 'notion', connectorPrompt: 'Summarize notion.so/acme/project', experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsMultiple: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Three URL matches reveal undismissed Linear, Notion, and WorkIQ recommendation cards in one evenly sized row below the composer.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['When the prompt contains multiple matching URLs, one stable full-width recommendation is shown without rendering replacement cards beside it.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsAfterStaticDismissal: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A Notion URL reveals the dynamic Notion recommendation even though its static card was dismissed first.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, staticDismissedConnectorIds: ['notion'], connectorPrompt: 'Summarize notion.so/acme/project', expectedConnectorIds: ['notion'], experimentalComposerLayout: true }),
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorId: 'notion', dismissStaticBeforePrompt: true, connectorPrompt: 'Summarize notion.so/acme/project', experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsOneDismissed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['After dismissing Linear, the Notion and WorkIQ recommendation cards remain and expand evenly across the available row without leaving an empty slot.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], dismissedConnectorCount: 1, experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['Dismissing the selected recommendation hides the recommendation surface and returns focus to the composer without showing a replacement.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, dismissConnector: true, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsTwoDismissed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['After dismissing Linear and Notion, the WorkIQ recommendation card remains as one full-width card without leaving empty slots.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], dismissedConnectorCount: 2, experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['A dismissed URL-driven recommendation leaves the surface hidden without selecting another matching connector.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', dismissConnector: true, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsFallbackIcons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['When connector catalog images are unavailable, all three recommendation cards use the same standard MCP server fallback icon while retaining their names, benefits, and actions.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], connectorProductIcons: false, experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['When the selected connector image is unavailable, the minimal recommendation uses the standard 16px MCP server fallback icon with muted task copy and compact close action.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorProductIcons: false, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Over a loud repeating background, the URL-triggered Notion card remains legible on an opaque neutral card surface and visually subordinate to the composer.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Summarize notion.so/acme/project', expectedConnectorIds: ['notion'], experimentalComposerLayout: true, chatBackground: 'loud' }),
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorId: 'notion', connectorPrompt: 'Summarize notion.so/acme/project', experimentalComposerLayout: true, chatBackground: 'loud' }),
 	}),
 	ConnectorRecommendationsWithNotices: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		deferPaint: true,
-		expectedVisualDescriptions: ['The compact three-card connector recommendation section appears first, followed by the getting-started tip and then the migration notice in a consistently spaced stack below the composer.'],
-		render: context => renderNewChatWidget(context, { height: 820, withWorkspace: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['The single minimal connector recommendation appears first, followed by the getting-started tip and migration notice in a consistently spaced stack below the composer.'],
+		render: context => renderNewChatWidget(context, { height: 820, withWorkspace: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsShortAfterLayoutToggle: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1440,7 +1447,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 			showTip: true,
 			connectorRecommendations: true,
 			connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c',
-			expectedConnectorIds: ['linear', 'notion', 'workiq-mail'],
 			unifiedWorkspacePicker: true,
 			toggleExperimentalComposerLayout: true,
 			expectBelowInputSurfacesScrollable: true,
@@ -1449,18 +1455,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	ConnectorRecommendationsFocused: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['Keyboard focus is visible around the first connector card primary action with the standard focus treatment while each card retains a separate reachable dismiss control.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Summarize notion.so/acme/project', expectedConnectorIds: ['notion'], focusConnectorRecommendations: true, experimentalComposerLayout: true }),
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorId: 'notion', connectorPrompt: 'Summarize notion.so/acme/project', focusConnectorRecommendations: true, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsPhone: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['On a phone-sized Agents window, the connector section sits immediately above the bottom-pinned composer and preserves readable cards in a horizontally scrollable row within the viewport.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true, phoneLayout: true }),
+		expectedVisualDescriptions: ['On a phone-sized Agents window, the single minimal recommendation sits immediately above the bottom-pinned composer without horizontal scrolling.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true, phoneLayout: true }),
 	}),
 	ConnectorRecommendationsPhoneWithNotices: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
-		expectedVisualDescriptions: ['On a phone-sized Agents window, the connector cards, getting-started tip, and migration notice form a compact stack immediately above the bottom-pinned composer, without covering the workspace controls or overflowing the viewport.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', expectedConnectorIds: ['linear', 'notion', 'workiq-mail'], experimentalComposerLayout: true, phoneLayout: true }),
+		expectedVisualDescriptions: ['On a phone-sized Agents window, the single minimal recommendation, getting-started tip, and migration notice form a compact stack immediately above the bottom-pinned composer.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true, phoneLayout: true }),
 	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },

@@ -6,15 +6,19 @@
 import './media/newChatConnectorRecommendations.css';
 import * as dom from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
+import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -64,7 +68,11 @@ export class NewChatConnectorRecommendations extends Disposable {
 	private readonly recommendationDomains = new Map<string, readonly string[]>();
 	private readonly staticDismissed = new Set<string>();
 	private readonly dynamicDismissed = new Set<string>();
-	private visibleDynamic = new Set<string>();
+	private readonly staticRecommendationId: string | undefined;
+	private dynamicRecommendationId: string | undefined;
+	private dynamicMatchKey = '';
+	private suppressedDynamicMatchKey = '';
+	private visibleDynamicId: string | undefined;
 	private mode: 'static' | 'dynamic' = 'static';
 
 	constructor(
@@ -73,8 +81,10 @@ export class NewChatConnectorRecommendations extends Disposable {
 			readonly getInputValue: () => string;
 			readonly onDidChangeInputValue: Event<void>;
 		},
+		private readonly random: () => number = Math.random,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService productService: IProductService,
@@ -88,7 +98,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 		}
 
 		this.element.setAttribute('role', 'group');
-		this.element.setAttribute('aria-label', localize('newSession.connectorRecommendations.ariaLabel', "Recommended connectors"));
+		this.element.setAttribute('aria-label', localize('newSession.connectorRecommendations.ariaLabel', "Recommended connector"));
 		const cards = dom.append(this.element, dom.$('.new-session-connector-recommendation-cards'));
 		for (const [id, recommendation] of Object.entries(productService.connectorRecommendations ?? {})) {
 			this.recommendationDomains.set(id, recommendation.urlDomains ?? []);
@@ -100,6 +110,11 @@ export class NewChatConnectorRecommendations extends Disposable {
 				showStatically: recommendation.showStatically !== false,
 			});
 		}
+		this.staticRecommendationId = this.selectRecommendation(
+			[...this.cards.values()]
+				.filter(card => card.definition.showStatically)
+				.map(card => card.definition.id)
+		);
 
 		this.updateVisibility(false);
 		this._register(this.options.onDidChangeInputValue(() => this.updateVisibility(true)));
@@ -118,19 +133,23 @@ export class NewChatConnectorRecommendations extends Disposable {
 		const card = dom.append(container, dom.$('.new-session-connector-recommendation-card'));
 		card.dataset.connectorId = definition.id;
 		const primary = this._register(new Button(card, { ...quietButtonStyles, ariaLabel }));
+		this._register(this.hoverService.setupDelayedHover(primary.element, {
+			content: localize('newSession.connectorRecommendations.tooltip', "Review the {0} connector in Copilot Connectors", definition.name),
+			persistence: { hideOnKeyDown: true },
+		}));
 		primary.element.classList.add('new-session-connector-recommendation-card-primary');
 		const icon = dom.append(primary.element, dom.$('.new-session-connector-recommendation-icon'));
-		const content = dom.append(primary.element, dom.$('.new-session-connector-recommendation-content'));
-		dom.append(content, dom.$('.new-session-connector-recommendation-name', undefined, definition.name));
-		dom.append(content, dom.$('.new-session-connector-recommendation-description', undefined, definition.description));
+		icon.setAttribute('aria-hidden', 'true');
+		dom.append(primary.element, dom.$('.new-session-connector-recommendation-description', undefined, definition.description));
 		this._register(primary.onDidClick(() => this.openConnector(definition)));
-		const dismiss = this._register(new Button(card, {
-			...quietButtonStyles,
-			ariaLabel: localize('newSession.connectorRecommendations.dismissOne', "Dismiss {0} Connector Recommendation for This Session", definition.name),
-		}));
-		dismiss.element.classList.add('new-session-connector-recommendation-dismiss');
-		dismiss.icon = Codicon.close;
-		this._register(dismiss.onDidClick(() => this.dismissCard(definition.id)));
+		const actions = this._register(new ActionBar(dom.append(card, dom.$('.new-session-connector-recommendation-dismiss'))));
+		actions.push(this._register(new Action(
+			'newSession.connectorRecommendations.dismiss',
+			localize('newSession.connectorRecommendations.dismissOne', "Dismiss {0} Connector Recommendation for This Session", definition.name),
+			ThemeIcon.asClassName(Codicon.closeCompact),
+			true,
+			() => this.dismissCard(definition.id),
+		)), { icon: true, label: false });
 		const iconDisposables = this._register(new DisposableStore());
 		const recommendationCard = { definition, element: card, primary, icon, iconDisposables };
 		this.cards.set(definition.id, recommendationCard);
@@ -138,18 +157,15 @@ export class NewChatConnectorRecommendations extends Disposable {
 	}
 
 	private dismissCard(id: string): void {
-		const cards = [...this.cards.values()];
-		const dismissedIndex = cards.findIndex(card => card.definition.id === id);
-		(this.mode === 'dynamic' ? this.dynamicDismissed : this.staticDismissed).add(id);
-		this.updateVisibility(false);
-		const nextCard = cards.slice(dismissedIndex + 1).find(card => !card.element.hidden);
-		const previousCard = cards.slice(0, dismissedIndex).reverse().find(card => !card.element.hidden);
-		const focusTarget = nextCard ?? previousCard;
-		if (focusTarget) {
-			focusTarget.primary.focus();
+		if (this.mode === 'dynamic') {
+			this.dynamicDismissed.add(id);
+			this.suppressedDynamicMatchKey = this.dynamicMatchKey;
+			this.dynamicRecommendationId = undefined;
 		} else {
-			this.options.focusInput();
+			this.staticDismissed.add(id);
 		}
+		this.updateVisibility(false);
+		this.options.focusInput();
 	}
 
 	private async openConnector(definition: IConnectorRecommendation): Promise<void> {
@@ -174,25 +190,45 @@ export class NewChatConnectorRecommendations extends Disposable {
 			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.recommendationDomains)
 			: new Set<string>();
 		this.mode = matching.size > 0 ? 'dynamic' : 'static';
-		const dismissed = this.mode === 'dynamic' ? this.dynamicDismissed : this.staticDismissed;
-		const nextVisible = new Set<string>();
+		const visibleId = this.mode === 'dynamic'
+			? this.getDynamicRecommendationId(matching)
+			: this.staticRecommendationId && !this.staticDismissed.has(this.staticRecommendationId)
+				? this.staticRecommendationId
+				: undefined;
 		for (const card of this.cards.values()) {
-			const visible = (this.mode === 'static' ? card.definition.showStatically : matching.has(card.definition.id)) && !dismissed.has(card.definition.id);
-			card.element.hidden = !visible;
-			if (visible) {
-				nextVisible.add(card.definition.id);
-			}
+			card.element.hidden = card.definition.id !== visibleId;
 		}
-		this.element.hidden = !enabled || nextVisible.size === 0;
-		if (!this.element.hidden && announce && this.mode === 'dynamic') {
-			const newlyVisible = [...nextVisible].filter(id => !this.visibleDynamic.has(id));
-			if (newlyVisible.length === 1) {
-				aria.status(localize('newSession.connectorRecommendations.available', "{0} connector recommendation available.", this.cards.get(newlyVisible[0])!.definition.name));
-			} else if (newlyVisible.length > 1) {
-				aria.status(localize('newSession.connectorRecommendations.availableMany', "{0} connector recommendations available.", newlyVisible.length));
-			}
+		this.element.hidden = !enabled || !visibleId;
+		if (!this.element.hidden && announce && this.mode === 'dynamic' && visibleId && visibleId !== this.visibleDynamicId) {
+			aria.status(localize('newSession.connectorRecommendations.available', "{0} connector recommendation available.", this.cards.get(visibleId)!.definition.name));
 		}
-		this.visibleDynamic = this.mode === 'dynamic' ? nextVisible : new Set();
+		this.visibleDynamicId = this.mode === 'dynamic' ? visibleId : undefined;
+		if (this.mode === 'static') {
+			this.dynamicRecommendationId = undefined;
+			this.dynamicMatchKey = '';
+			this.suppressedDynamicMatchKey = '';
+		}
+	}
+
+	private getDynamicRecommendationId(matching: ReadonlySet<string>): string | undefined {
+		const available = [...this.cards.keys()].filter(id => matching.has(id) && !this.dynamicDismissed.has(id));
+		const matchKey = [...matching].sort().join('\0');
+		if (matchKey !== this.dynamicMatchKey) {
+			this.dynamicMatchKey = matchKey;
+			this.suppressedDynamicMatchKey = '';
+			this.dynamicRecommendationId = undefined;
+		}
+		if (this.suppressedDynamicMatchKey === matchKey) {
+			return undefined;
+		}
+		if (!this.dynamicRecommendationId || !available.includes(this.dynamicRecommendationId)) {
+			this.dynamicRecommendationId = this.selectRecommendation(available);
+		}
+		return this.dynamicRecommendationId;
+	}
+
+	private selectRecommendation(ids: readonly string[]): string | undefined {
+		return ids.length > 0 ? ids[Math.floor(this.random() * ids.length)] : undefined;
 	}
 
 	private updateCardIcons(): void {
