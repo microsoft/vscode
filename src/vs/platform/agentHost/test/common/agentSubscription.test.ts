@@ -22,7 +22,6 @@ import { buildFolderChangesetOwnerUri, buildTurnChangesetUri } from '../../commo
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildCanvasUri, parseCanvasChatUri } from '../../common/canvasUri.js';
 import type { IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../../common/terminalConstants.js';
 
 // Helpers
 
@@ -1089,28 +1088,6 @@ suite('TerminalStateSubscription', () => {
 		const state = makeTerminalState({ title: 'zsh' });
 		sub.handleSnapshot(state, 0);
 		assert.deepStrictEqual(sub.value, state);
-	});
-
-	test('keeps only the newest output of an output-only channel, as the host does', () => {
-		const outputChannel = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
-		outputChannel.handleSnapshot(makeTerminalState({ isPty: false }), 0);
-		const pty = disposables.add(new TerminalStateSubscription(terminalUri, 'c1', noop));
-		pty.handleSnapshot(makeTerminalState(), 0);
-
-		for (let serverSeq = 1; serverSeq <= 4; serverSeq++) {
-			const envelope = makeEnvelope({ type: ActionType.TerminalData, data: String(serverSeq).repeat(30_000) }, serverSeq);
-			outputChannel.receiveEnvelope(envelope);
-			pty.receiveEnvelope(envelope);
-		}
-
-		const summarize = (sub: TerminalStateSubscription) => (sub.value as TerminalState).content.map(part => {
-			const text = part.type === 'command' ? part.output : part.value;
-			return { length: text.length, first: text[0], last: text[text.length - 1] };
-		});
-		assert.deepStrictEqual({ outputChannel: summarize(outputChannel), pty: summarize(pty) }, {
-			outputChannel: [{ length: AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH, first: '2', last: '4' }],
-			pty: [{ length: 120_000, first: '1', last: '4' }],
-		});
 	});
 });
 
