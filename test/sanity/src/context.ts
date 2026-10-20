@@ -706,9 +706,11 @@ export class TestContext {
 		}
 
 		const body = JSON.stringify({ records: [{ recordName: `2/2/${cdhash}` }] });
+		// curl truncates an --output file before each retry, unlike stdout, so a retried response is never concatenated.
+		const responsePath = path.join(this.createTempDir(), 'ticket.json');
 		const lookup = this.run(
 			'curl', '-fsS', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '--max-time', '30',
-			'-H', 'Content-Type: application/json', '-d', body,
+			'-H', 'Content-Type: application/json', '-d', body, '--output', responsePath,
 			'https://api.apple-cloudkit.com/database/1/com.apple.gk.ticket-delivery/production/public/records/lookup'
 		);
 		if (lookup.error !== undefined || lookup.status !== 0) {
@@ -717,7 +719,7 @@ export class TestContext {
 		}
 
 		try {
-			const record = JSON.parse(lookup.stdout).records?.[0];
+			const record = JSON.parse(fs.readFileSync(responsePath, 'utf-8')).records?.[0];
 			const found = typeof record?.fields?.signedTicket?.value === 'string';
 			this.log(`Notarization ticket for ${cdhash}: ${found ? 'found' : record?.serverErrorCode ?? 'missing'}`);
 			return found;
