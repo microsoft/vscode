@@ -104,6 +104,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _exitMessage: string | undefined;
 	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
+	private _parentWindow: number | undefined;
 	private _currentTitle: string = '';
 	private _processStartupComplete: Promise<void> | undefined;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
@@ -168,10 +169,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			useConpty,
 			useConptyDll,
 			// This option will force conpty to not redraw the whole viewport on launch
-			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText,
-			// Recovers the window when a modal dialog dies with its process. Safe because VS Code only
-			// disables its windows while showing a window they own
-			conptyReenableParentWindowOnExit: useConptyDll
+			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
@@ -322,6 +320,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
+		// node-pty only launches the shell after spawn() returns, so this is sent before it starts
+		if (this._parentWindow !== undefined) {
+			this._sendParentWindow(ptyProcess, this._parentWindow);
+		}
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
 		this._register(this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value })));
 		this._processStartupComplete = new Promise<void>(c => {
@@ -587,12 +589,16 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (!hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConptyDll) {
 			return;
 		}
-		// Also picked up by spawn when the pty hasn't started yet
-		this._ptyOptions.conptyParentWindow = handle;
+		// Also sent right after spawn when the pty hasn't started yet
+		this._parentWindow = handle;
 		if (this._ptyProcess) {
-			const sent = this._ptyProcess.setParentWindow?.(handle);
-			this._logService.trace('node-pty.IPty#setParentWindow', handle, sent);
+			this._sendParentWindow(this._ptyProcess, handle);
 		}
+	}
+
+	private _sendParentWindow(ptyProcess: IPty, handle: number): void {
+		const sent = ptyProcess.setParentWindow?.(handle);
+		this._logService.trace('node-pty.IPty#setParentWindow', handle, sent);
 	}
 
 	acknowledgeDataEvent(charCount: number): void {
