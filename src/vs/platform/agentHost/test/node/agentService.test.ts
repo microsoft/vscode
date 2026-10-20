@@ -34578,7 +34578,7 @@ suite('AgentService (node dispatcher)', () => {
 					await service.createChat(source, nested);
 					await timeout(0);
 					const database = getTestAgentHostDatabase(service);
-					return { service, source, target, nested, sessionFolder, database };
+					return { service, source, target, nested, sessionFolder, database, files };
 				}
 
 				test('a nested chat with its own scratch folder moves to a foldered session, keeping the folder and its record', async () => {
@@ -34625,6 +34625,20 @@ suite('AgentService (node dispatcher)', () => {
 						rows: (await database.listScratchFolders()).filter(entry => entry.state === 'owned').map(entry => ({ folder: entry.folder, chat: entry.chatUri, state: entry.state })),
 						scratch: getStateManager(service).isScratchFolder(sessionFolder.toString()),
 					}, { rows: [{ folder: sessionFolder.toString(), chat: defaultChat, state: 'owned' }], scratch: true });
+				});
+
+				test('a chat whose scratch folder is missing still moves (recreated on use), while a missing provider-managed folder refuses', async () => {
+					const { service, source, target, nested, database, files } = await setupWorkspaceless();
+					const [row] = await database.listScratchFolders();
+					await files.del(URI.parse(row.folder), { recursive: true });
+					const managed = URI.parse(buildChatUri(source, 'managed'));
+					await service.createChat(source, managed, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, URI.file('/tmp/vscode-agent-codex/chat-x'), { isolation: 'folder' })] });
+					getStateManager(service).setScratchFolder(URI.file('/tmp/vscode-agent-codex/chat-x').toString(), true);
+
+					const refusedManaged = await refusalOf(service.moveChat(source, managed, { kind: 'session', session: target, after: undefined }));
+					await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({ refusedManaged, moved: getStateManager(service).getSessionState(target.toString())?.chats.some(chat => chat.resource === nested.toString()) }, { refusedManaged: AgentChatMoveRefusal.SessionNotReady, moved: true });
 				});
 
 				test('a promoted chat working in a scratch folder becomes a workspace-less session; one with a folder does not', async () => {

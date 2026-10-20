@@ -7894,6 +7894,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _checkMovedFoldersExist(chat: string, folders: readonly string[]): Promise<void> {
 		for (const folder of folders) {
 			const resource = URI.parse(folder);
+			// A host-allocated scratch folder is recreated by its provider when the chat next runs; a provider-managed one (Codex) can't be.
+			if (this._stateManager.isScratchFolder(folder) && isEqualOrParent(resource, workspacelessChatsRoot(this._environmentService.userHome))) {
+				continue;
+			}
 			if (this._fileService.hasProvider(resource) && !await this._fileService.exists(resource)) {
 				throw new AgentChatMoveRefusedError(AgentChatMoveRefusal.SessionNotReady, `Chat ${chat}'s folder ${resource.scheme === Schemas.file ? resource.fsPath : folder} no longer exists; open the chat to repair it, then move it.`);
 			}
