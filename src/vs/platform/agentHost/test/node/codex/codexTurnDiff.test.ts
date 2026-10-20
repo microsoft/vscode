@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { createHash } from 'crypto';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
@@ -356,18 +356,22 @@ suite('Codex turn diff readiness', () => {
 		});
 	}
 
-	test('a timed-out child fails its checkpoint and releases later persistence', async () => {
-		const stored: string[] = [];
-		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(...captures.map(capture => capture.notification.turnId)); }));
+	test('a slow child keeps its checkpoint and later persistence follows it', async () => {
+		const stored: string[][] = [];
+		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
 		tracker.start('parent', 'cancelled-native', 'cancelled-host');
 		tracker.trackChild('child', 'cancelled-host');
-		const cancelled = assert.rejects(tracker.complete('cancelled-native'), /timed out/);
-		const waiting = assert.rejects(tracker.waitForTurnEdits('cancelled-host'), /timed out/);
+		const cancelled = tracker.complete('cancelled-native');
 		tracker.start('parent', 'replacement-native', 'replacement-host');
 		const replacement = tracker.complete('replacement-native');
-		tracker.failWaitingTurn('cancelled-host', new Error('timed out'));
-		await Promise.all([cancelled, waiting, replacement]);
-		await assert.rejects(tracker.waitForTurnEdits('cancelled-host'), /timed out/);
-		assert.deepStrictEqual(stored, ['replacement-native']);
+		await timeout(0);
+		const beforeChildCompletes = [...stored];
+		tracker.update({ threadId: 'child', turnId: 'child-native', diff: '' });
+		await tracker.complete('child-native');
+		await Promise.all([cancelled, replacement, tracker.waitForTurnEdits('cancelled-host')]);
+		assert.deepStrictEqual({ beforeChildCompletes, stored }, {
+			beforeChildCompletes: [],
+			stored: [['cancelled-native', 'child-native'], ['replacement-native']],
+		});
 	});
 });

@@ -3307,9 +3307,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			const tracker = this._turnDiffs.get(session);
 			const ready = await raceTimeout(tracker?.waitForTurnEdits(turnId).then(() => true) ?? Promise.resolve(true), 30_000);
 			if (!ready) {
-				const error = new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
-				tracker?.failWaitingTurn(turnId, error);
-				throw error;
+				// The snapshots are still stored once the native turn completes, and storing them refreshes the turn's changesets.
+				throw new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
 			}
 		}
 	}

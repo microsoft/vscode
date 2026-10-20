@@ -246,27 +246,6 @@ export class CodexTurnDiffTracker implements IDisposable {
 			.map(turn => this.complete(turn.notification.turnId)));
 	}
 
-	/** A stuck child must fail its checkpoint instead of holding all future persistence behind it. */
-	failWaitingTurn(hostTurnId: string, error: Error): void {
-		const turn = this._hostTurns.get(hostTurnId)?.values().next().value;
-		if (!turn) {
-			return;
-		}
-		const group = this._relatedTurns(turn);
-		if ([...group].some(member => member.status === 'storing')) {
-			return;
-		}
-		for (const member of group) {
-			member.status = 'failed';
-			member.initialDiffs.clear();
-			member.ready.error(error);
-			if (this._pendingChildren.get(member.notification.threadId) === member) {
-				this._pendingChildren.delete(member.notification.threadId);
-			}
-		}
-		this._flushNextGroup();
-	}
-
 	async waitForTurnEdits(hostTurnId: string): Promise<void> {
 		let turns: Set<INativeTurn> | undefined;
 		while ((turns = this._hostTurns.get(hostTurnId))?.size) {
