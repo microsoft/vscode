@@ -2063,6 +2063,7 @@ export function renderForm(
 		getBranch: () => isolationModel.persistedBranch,
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
+			scheduleError.classList.toggle('automation-visually-hidden', message !== undefined && message === state.triggerError);
 			setAutomationControlVisible(scheduleError, message !== undefined);
 		},
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),

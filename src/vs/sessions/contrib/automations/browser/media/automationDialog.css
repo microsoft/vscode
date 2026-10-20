@@ -67,7 +67,8 @@
  * empty space above our titlebar.
  */
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message,
-.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text,
+.automation-dialog .automation-visually-hidden {
 	position: absolute;
 	width: 1px;
 	height: 1px;
