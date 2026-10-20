@@ -25,6 +25,33 @@ export interface IDetailedDiffResult {
 	hitTimeout: boolean;
 }
 
+/**
+ * A run of changed lines, as a diff editor shows it, with the exact
+ * replacements on the original text that make its changes.
+ */
+export interface IDiffHunk {
+	/** One-based first line of the hunk in the original text. */
+	readonly originalStartLineNumber: number;
+	/** One-based line after the hunk in the original text; the start line when the hunk only inserts lines. */
+	readonly originalEndLineNumberExclusive: number;
+	/** One-based first line of the hunk in the modified text. */
+	readonly modifiedStartLineNumber: number;
+	/** One-based line after the hunk in the modified text; the start line when the hunk only removes lines. */
+	readonly modifiedEndLineNumberExclusive: number;
+	/** Sorted, disjoint replacements on the original text. */
+	readonly replacements: readonly IArcTextReplacement[];
+}
+
+export interface IDiffHunksResult {
+	/**
+	 * Hunks in the order of their lines. Applying the replacements of any of
+	 * them to the original text makes their changes and keeps the rest of it;
+	 * applying all of them yields the modified text.
+	 */
+	readonly hunks: readonly IDiffHunk[];
+	readonly hitTimeout: boolean;
+}
+
 export const IDiffComputeService = createDecorator<IDiffComputeService>('diffComputeService');
 
 /** Default timeout for diff computation in milliseconds. */
@@ -50,4 +77,10 @@ export interface IDiffComputeService {
 	 * Computes whitespace-sensitive offset replacements between two text strings.
 	 */
 	computeDetailedDiff(original: string, modified: string, timeoutMs?: number): Promise<IDetailedDiffResult>;
+
+	/**
+	 * Computes the whitespace-sensitive hunks between two text strings. A change
+	 * only to line breaks makes the whole text one hunk.
+	 */
+	computeDiffHunks(original: string, modified: string, timeoutMs?: number): Promise<IDiffHunksResult>;
 }

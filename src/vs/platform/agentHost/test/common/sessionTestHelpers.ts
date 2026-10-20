@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
-import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
 import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -694,6 +694,19 @@ export class TestDiffComputeService implements IDiffComputeService {
 			added: counts.added,
 			removed: counts.removed,
 			replacements: original === modified ? [] : [{ start: 0, endExclusive: original.length, text: modified }],
+			hitTimeout: false,
+		};
+	}
+
+	async computeDiffHunks(original: string, modified: string): Promise<IDiffHunksResult> {
+		return {
+			hunks: original === modified ? [] : [{
+				originalStartLineNumber: 1,
+				originalEndLineNumberExclusive: original.split('\n').length + 1,
+				modifiedStartLineNumber: 1,
+				modifiedEndLineNumberExclusive: modified.split('\n').length + 1,
+				replacements: [{ start: 0, endExclusive: original.length, text: modified }],
+			}],
 			hitTimeout: false,
 		};
 	}

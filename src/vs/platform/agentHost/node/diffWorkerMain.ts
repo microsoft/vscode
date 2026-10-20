@@ -8,7 +8,7 @@ import { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 import { DefaultLinesDiffComputer } from '../../../editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import type { ILinesDiffComputerOptions } from '../../../editor/common/diff/linesDiffComputer.js';
 import type { RangeMapping } from '../../../editor/common/diff/rangeMapping.js';
-import type { IDetailedDiffResult, IDiffCountResult } from '../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffCountResult, IDiffHunk, IDiffHunksResult } from '../common/diffComputeService.js';
 
 export function computeDiffCounts(originalText: string, modifiedText: string, timeoutMs: number): IDiffCountResult {
 	const originalLines = originalText.split(/\r\n|\r|\n/);
@@ -68,6 +68,16 @@ function getOffset(range: { readonly startLineNumber: number; readonly startColu
 }
 
 export function computeDetailedDiff(originalText: string, modifiedText: string, timeoutMs: number): IDetailedDiffResult {
+	const { added, removed, hunks, hitTimeout } = computeHunks(originalText, modifiedText, timeoutMs);
+	return { added, removed, replacements: hunks.flatMap(hunk => hunk.replacements), hitTimeout };
+}
+
+export function computeDiffHunks(originalText: string, modifiedText: string, timeoutMs: number): IDiffHunksResult {
+	const { hunks, hitTimeout } = computeHunks(originalText, modifiedText, timeoutMs);
+	return { hunks, hitTimeout };
+}
+
+function computeHunks(originalText: string, modifiedText: string, timeoutMs: number): IDiffHunksResult & { readonly added: number; readonly removed: number } {
 	const originalLines = originalText.split(/\r\n|\r|\n/);
 	const modifiedLines = modifiedText.split(/\r\n|\r|\n/);
 	const diffComputer = new DefaultLinesDiffComputer();
@@ -79,23 +89,33 @@ export function computeDetailedDiff(originalText: string, modifiedText: string, 
 
 	let added = 0;
 	let removed = 0;
-	let replacements: IArcTextReplacement[] = [];
 	const originalOffsets = new LineOffsetConverter(originalText);
 	const modifiedOffsets = new LineOffsetConverter(modifiedText);
-	for (const change of result.changes) {
+	let hunks: IDiffHunk[] = result.changes.map(change => {
 		removed += change.original.length;
 		added += change.modified.length;
 		const mappings = change.innerChanges ?? [change.toRangeMapping2(originalLines, modifiedLines)];
-		for (const mapping of mappings) {
-			replacements.push(toReplacement(mapping, originalText, modifiedText, originalOffsets, modifiedOffsets));
-		}
+		return {
+			originalStartLineNumber: change.original.startLineNumber,
+			originalEndLineNumberExclusive: change.original.endLineNumberExclusive,
+			modifiedStartLineNumber: change.modified.startLineNumber,
+			modifiedEndLineNumberExclusive: change.modified.endLineNumberExclusive,
+			replacements: mappings.map(mapping => toReplacement(mapping, originalText, modifiedText, originalOffsets, modifiedOffsets)),
+		};
+	});
+
+	// The line diff misses changes to line breaks alone, so the whole text is one hunk then.
+	if (applyReplacements(originalText, hunks.flatMap(hunk => hunk.replacements)) !== modifiedText) {
+		hunks = [{
+			originalStartLineNumber: 1,
+			originalEndLineNumberExclusive: originalLines.length + 1,
+			modifiedStartLineNumber: 1,
+			modifiedEndLineNumberExclusive: modifiedLines.length + 1,
+			replacements: [{ start: 0, endExclusive: originalText.length, text: modifiedText }],
+		}];
 	}
 
-	if (applyReplacements(originalText, replacements) !== modifiedText) {
-		replacements = [{ start: 0, endExclusive: originalText.length, text: modifiedText }];
-	}
-
-	return { added, removed, replacements, hitTimeout: result.hitTimeout };
+	return { added, removed, hunks, hitTimeout: result.hitTimeout };
 }
 
 function toReplacement(
@@ -157,6 +177,9 @@ function main() {
 				port.postMessage({ id, res });
 			} else if (fn === 'computeDetailedDiff') {
 				const res = computeDetailedDiff(args[0] as string, args[1] as string, args[2] as number);
+				port.postMessage({ id, res });
+			} else if (fn === 'computeDiffHunks') {
+				const res = computeDiffHunks(args[0] as string, args[1] as string, args[2] as number);
 				port.postMessage({ id, res });
 			} else {
 				port.postMessage({ id, err: { message: `Unknown function: ${fn}` } });
