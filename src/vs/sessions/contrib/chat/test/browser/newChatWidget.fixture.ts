@@ -901,10 +901,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const promptBounds = promptBox.getBoundingClientRect();
 		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
 			'The tray must precede the prompt in reading and keyboard order.');
-		if (!phoneLayout) {
-			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-				'The collapsed tray must sit flush with the prompt.');
-		}
+		assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
+			'The collapsed tray must sit flush with the prompt.');
 		if (phoneLayout) {
 			assert(Math.abs(collapsedTrayBounds.left - promptBounds.left) < 1
 				&& Math.abs(collapsedTrayBounds.right - promptBounds.right) < 1,
@@ -939,10 +937,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
 				'Expanding the tray must compact pickers rather than increase its height.');
 		}
-		if (!phoneLayout) {
-			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-				'The tray must remain flush with the prompt after expansion.');
-		}
+		assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
+			'The tray must remain flush with the prompt after expansion.');
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		const inputArea = promptBox.querySelector<HTMLElement>('.chat-input-container');
 		assert(!!inputArea);
