@@ -8,6 +8,7 @@ import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
@@ -16,10 +17,15 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../services/sessions/common/sessionsProvider.js';
+import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
+import { NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
@@ -36,8 +42,9 @@ const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
 
 /**
  * A widget for composing a secondary chat within an existing session.
- * Reuses the new-session composer input but without workspace/session type pickers,
- * since the session already exists.
+ * Reuses the new-session composer input. There is no harness (session type) or environment
+ * picker: the nested chat uses the parent session's agent and host. Where the host supports it,
+ * folder, isolation and branch pickers choose the nested chat's own workspace.
  */
 export class NewChatInSessionWidget extends Disposable {
 
@@ -50,12 +57,16 @@ export class NewChatInSessionWidget extends Disposable {
 	 * picker is right-aligned, keeping both surfaces consistent.
 	 */
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	private readonly _workspaceSupport: IObservable<INestedChatWorkspaceSupport | undefined>;
+	private readonly _workspaceControls: NestedChatWorkspaceControls;
 
 	constructor(
 		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -74,6 +85,30 @@ export class NewChatInSessionWidget extends Disposable {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			return activeSession;
 		});
+
+		// Read per session update (folders, capabilities), never per keystroke.
+		this._workspaceSupport = derived(reader => {
+			const session = this._session.read(reader);
+			if (!session) {
+				return undefined;
+			}
+			session.workspace.read(reader);
+			session.capabilities.read(reader);
+			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId);
+		});
+		this._workspaceControls = this._register(this.instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: this._workspaceSupport,
+			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
+			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
+		}));
+		let lastSessionId: string | undefined;
+		this._register(autorun(reader => {
+			const sessionId = this._session.read(reader)?.sessionId;
+			if (sessionId !== lastSessionId) {
+				lastSessionId = sessionId;
+				this._workspaceControls.reset();
+			}
+		}));
 
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
@@ -108,6 +143,15 @@ export class NewChatInSessionWidget extends Disposable {
 		this._register(autorun(reader => {
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', this._useExperimentalComposerLayout.read(reader));
 		}));
+
+		// Like New Session, the workspace pickers sit above the input. Hidden when the host can't
+		// give a nested chat its own workspace: then the composer is unchanged.
+		const workspaceRow = dom.$('.new-chat-in-session-workspace');
+		chatWidgetContainer.insertBefore(workspaceRow, chatWidgetContent);
+		this._register(autorun(reader => {
+			workspaceRow.classList.toggle('hidden', !this._workspaceSupport.read(reader));
+		}));
+		this._workspaceControls.render(workspaceRow);
 
 		this._newChatInput.render(chatWidgetContent, parent);
 		// Rendered after the composer: the tip docks inside the composer's stack,
@@ -197,6 +241,22 @@ export class NewChatInSessionWidget extends Disposable {
 		this._tipDisposable.value = store;
 	}
 
+	private _requireSession(): IActiveSession {
+		const session = this._session.get();
+		if (!session) {
+			throw new NestedChatWorkspaceError('notSupported', localize('nestedChat.noSession', "There is no session to add a nested session to."));
+		}
+		return session;
+	}
+
+	private _requireProvider() {
+		const provider = this.sessionsProvidersService.getProvider(this._requireSession().providerId);
+		if (!provider) {
+			throw new NestedChatWorkspaceError('notSupported', localize('nestedChat.noProvider', "The agent of this session is not available."));
+		}
+		return provider;
+	}
+
 	// --- Send ---
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
@@ -205,6 +265,10 @@ export class NewChatInSessionWidget extends Disposable {
 			return false;
 		}
 		const activeChat = activeSession.activeChat.get();
+		const workspace = this._workspaceSupport.get() ? this._workspaceControls.getWorkspace() : undefined;
+		if (workspace) {
+			return this._sendInNewWorkspace(activeSession, activeChat, workspace, query, attachedContext, background, userInteraction);
+		}
 		try {
 			// Reset the composer before dispatching the send: both touch shared
 			// chat-session state for chats in the same group, and running them
@@ -224,6 +288,56 @@ export class NewChatInSessionWidget extends Disposable {
 			this.logService.error('Failed to send secondary chat request:', e);
 			return false;
 		}
+	}
+
+	/**
+	 * Sends the first request of a nested chat whose workspace differs from the default: creates the
+	 * chat in that workspace first, sends the draft there, then drops the untitled chat the composer
+	 * opened with. A background send keeps that chat as the composer instead. A refused creation
+	 * keeps the draft and leaves the composer's chat untouched.
+	 */
+	private async _sendInNewWorkspace(activeSession: IActiveSession, placeholder: IChat, workspace: INestedChatWorkspace, query: string, attachedContext: IChatRequestVariableEntry[] | undefined, background: boolean | undefined, userInteraction: NewChatUserInteraction | undefined): Promise<boolean> {
+		let chat: IChat | undefined;
+		try {
+			const options = { forceNew: true, workspace: { workspace, prompt: query } };
+			if (background) {
+				chat = await this.sessionsManagementService.createNewChatInSession(activeSession, options);
+			} else {
+				await this.sessionsService.openNewChatInSession(activeSession, options);
+				chat = activeSession.activeChat.get();
+			}
+		} catch (e) {
+			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
+			if (!isCancellationError(e)) {
+				this.logService.error('Failed to create a nested chat in the chosen workspace:', e);
+				this.notificationService.error(e instanceof NestedChatWorkspaceError
+					? e.message
+					: localize('nestedChat.createFailed', "The nested session could not be created: {0}", toErrorMessage(e)));
+			}
+			return false;
+		}
+		if (!chat || chat === placeholder) {
+			userInteraction?.cancel('error');
+			return false;
+		}
+		try {
+			userInteraction?.handoff(activeSession, chat);
+			await this.sessionsManagementService.sendRequest(activeSession, chat, {
+				query, attachedContext, background,
+				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
+			});
+		} catch (e) {
+			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
+			this.logService.error('Failed to send secondary chat request:', e);
+			return false;
+		} finally {
+			// The placeholder never held a turn; one that did is never dropped.
+			if (!background && placeholder.status.get() === SessionStatus.Untitled) {
+				this.sessionsManagementService.deleteChat(activeSession, placeholder.resource, { skipConfirmation: true }).catch(e => this.logService.error('Failed to remove the untitled nested chat:', e));
+			}
+		}
+		this._workspaceControls.reset();
+		return true;
 	}
 
 	layout(height: number, width: number): void {

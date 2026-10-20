@@ -715,6 +715,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.logService.warn(`[SessionsManagement] createNewChatInSession: provider '${session.providerId}' not found`);
 			return undefined;
 		}
+		if (options?.workspace) {
+			return provider.createNewChatInWorkspace(session.sessionId, options.workspace.workspace, options.workspace.prompt);
+		}
 		// `forceNew` skips reuse so callers can reset the composer right after
 		// sending a chat (which may still transiently report `Untitled`).
 		if (!options?.forceNew) {
@@ -1464,6 +1467,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		if (options?.skipConfirmation && !this._isUnsentChat(session, chatUri)) {
+			// Deleting without confirmation is only for drafts with nothing to lose.
+			this.logService.warn(`[SessionsManagement] deleteChat: refusing to delete chat '${chatUri.toString()}' without confirmation: it has been sent`);
+			return false;
+		}
 		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
@@ -1471,6 +1479,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;
+	}
+
+	/** Whether `chatUri` is an `Untitled` chat of `session` without any request. */
+	private _isUnsentChat(session: ISession, chatUri: URI): boolean {
+		const chat = session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatUri));
+		return chat?.status.get() === SessionStatus.Untitled && !this.chatService.getSession(chatUri)?.hasRequests;
 	}
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
