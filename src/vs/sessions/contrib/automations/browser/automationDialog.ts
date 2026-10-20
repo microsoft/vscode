@@ -279,8 +279,8 @@ interface IRenderFormHandle {
 	readonly getCustomizationIds: () => readonly string[] | undefined;
 	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
-	/** Returns the reason Create is blocked because cloud automations are unavailable, with the id of the element showing it. */
-	readonly getSaveBlockedReason: (message: string | undefined) => { readonly message: string; readonly elementId: string } | undefined;
+	/** Returns the reason Create is blocked, with the id of the element showing it. */
+	readonly getSaveBlockedReason: (targetMessage: string | undefined, scheduleMessage: string | undefined) => { readonly message: string; readonly elementId: string } | undefined;
 	readonly showScheduleValidationError: (message: string | undefined) => void;
 	readonly showSaveError: (message: string | undefined) => void;
 	readonly focusSaveError: () => void;
@@ -1179,6 +1179,7 @@ export function renderForm(
 	const eventGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-event-group'));
 	const triggerFields = $('.automation-trigger-fields');
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error', { role: 'status', 'aria-live': 'polite' }));
+	scheduleError.id = 'automation-schedule-error';
 	DOM.hide(scheduleError);
 	const customizationSelection = disposables.add(new AutomationCustomizationSelection(
 		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
@@ -2095,9 +2096,11 @@ export function renderForm(
 				targetError.textContent = text;
 			}
 		},
-		getSaveBlockedReason: message => !isEdit && message === cloudUnavailableMessage()
-			? { message, elementId: targetError.id }
-			: undefined,
+		getSaveBlockedReason: (targetMessage, scheduleMessage) => scheduleMessage
+			? { message: scheduleMessage, elementId: scheduleError.id }
+			: !isEdit && targetMessage === cloudUnavailableMessage()
+				? { message: targetMessage, elementId: targetError.id }
+				: undefined,
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);

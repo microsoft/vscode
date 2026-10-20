@@ -416,7 +416,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
 						handle.showTargetValidationError(validation.sessionTypeError);
 						handle.showScheduleValidationError(validation.scheduleError);
-						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError);
+						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError);
 						if (saveButton && blocked?.message !== saveBlockedMessage) {
 							saveBlockedMessage = blocked?.message;
 							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message }) : undefined;

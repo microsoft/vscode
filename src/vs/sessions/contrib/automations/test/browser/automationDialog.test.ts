@@ -323,7 +323,7 @@ suite('Automation dialog creation', () => {
 	const prCatalog = [
 		{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'paths', label: 'Paths', required: false }] },
 		{ name: 'pull_request_comment', title: 'Comment', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', label: 'Comment text', required: false }] },
-		{ name: 'pull_request_review_submitted', title: 'Review', description: '', fields: [{ name: 'types', required: true, options: ['submitted'] }, { name: 'states', label: 'Review states', required: true, options: ['approved', 'changes_requested', 'commented'] }] },
+		{ name: 'pull_request_review_submitted', title: 'Review', description: '', fields: [{ name: 'types', required: true, options: ['submitted'] }, { name: 'states', label: 'Review state', required: true, options: ['approved', 'changes_requested', 'commented'] }] },
 	];
 
 	test('unified Trigger dropdown lists schedules and event families without a Schedule category', async () => {
@@ -417,10 +417,13 @@ suite('Automation dialog creation', () => {
 		const advancedFields = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
 		const requiredLayout = {
 			reviewStatePresent: !!requiredFields.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]'),
+			label: Array.from(requiredFields.querySelectorAll('.automation-form-label')).at(-1)?.textContent,
 			requiredDisplay: requiredFields.style.display,
 			outsideAdvanced: !advancedFields.contains(requiredFields.querySelector('[role="checkbox"][aria-label="approved"]')),
 			advancedExpanded: dialog.container.querySelector('.automation-advanced-disclosure')?.getAttribute('aria-expanded'),
 			advancedDisplay: advancedFields.style.display,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+			saveTooltip: dialog.getSaveTooltip(),
 		};
 		requiredFields.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]')!.click();
 		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
@@ -433,7 +436,7 @@ suite('Automation dialog creation', () => {
 		const result = await dialog.result;
 		assert.deepStrictEqual({ labels: { oneEvent, twoEvents, fourEvents }, requiredLayout, trigger: result?.value.cloudTrigger }, {
 			labels: { oneEvent: 'Pull request opened', twoEvents: '2 events selected', fourEvents: '4 events selected' },
-			requiredLayout: { reviewStatePresent: true, requiredDisplay: '', outsideAdvanced: true, advancedExpanded: 'false', advancedDisplay: 'none' },
+			requiredLayout: { reviewStatePresent: true, label: 'Review state', requiredDisplay: '', outsideAdvanced: true, advancedExpanded: 'false', advancedDisplay: 'none', saveDisabled: 'true', saveTooltip: 'Review state is required.' },
 			trigger: {
 				triggers: {
 					pull_request_opened: { types: ['opened'], paths: ['src/**', '!src/generated/**'] },

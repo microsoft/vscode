@@ -239,7 +239,7 @@ export class AutomationTriggerEditor extends Disposable {
 			DOM.append(target, DOM.$('span.automation-form-label', undefined, choice.label));
 		}
 		for (const field of fields) {
-			const container = this.row(target, field.required ? localize('automation.trigger.requiredLabel', "{0} (required)", field.label) : field.label);
+			const container = this.row(target, field.label);
 			if (field.name === 'paths') {
 				DOM.append(target, DOM.$('span', undefined, localize('automation.trigger.pathsHelp', "Match changed files with gitignore-style patterns, separated by commas.")));
 			}
