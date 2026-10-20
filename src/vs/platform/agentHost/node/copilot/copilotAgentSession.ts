@@ -1276,6 +1276,8 @@ export class CopilotAgentSession extends Disposable {
 	 * undid, from before its snapshots until its edit is recorded.
 	 */
 	private readonly _runningFileEdits = new Map<string, IDisposable[]>();
+	/** Changes whenever every running edit tool call ends, so one that waited to start meanwhile doesn't hold its file. */
+	private _runningFileEditsGeneration = 0;
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -2698,6 +2700,7 @@ export class CopilotAgentSession extends Disposable {
 		// A background subagent can settle after the root turn already went idle. Report idleness
 		// again so work deferred while it ran, such as a CLI client restart, is not stranded.
 		if (agentId && !this.hasActiveTurn && !this.hasActiveSubagents) {
+			this._endIdleFileEdits();
 			this._reportTurnEnded();
 		}
 	}
@@ -3385,7 +3388,6 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
-		this._endRunningFileEdits();
 		this._clearPendingFusionEvents();
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
@@ -3407,6 +3409,7 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
+		this._endIdleFileEdits();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
@@ -8068,8 +8071,19 @@ export class CopilotAgentSession extends Disposable {
 				const mode = this._getConfiguredAgentMode();
 				// A change of a file by the host, like discarding changes the user undid, finishes before the edit
 				// snapshots it, and the next one waits until the edit is recorded (see `_endRunningFileEdit`).
-				await Promise.all(filePaths.map(async p => this._addRunningFileEdit(p, await this._fileEditCoordinator.beginEdit(URI.file(p)))));
-				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
+				const generation = this._runningFileEditsGeneration;
+				const token = this._abortToken;
+				const isCurrent = () => !this._store.isDisposed && !token.isCancellationRequested && generation === this._runningFileEditsGeneration;
+				await Promise.all(filePaths.map(async p => this._addRunningFileEdit(p, await this._fileEditCoordinator.beginEdit(URI.file(p)), generation, token)));
+				if (isCurrent()) {
+					await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
+				}
+				if (!isCurrent()) {
+					return {
+						permissionDecision: 'deny',
+						permissionDecisionReason: localize('copilotAgent.cancelledFileEdit', "The edit was cancelled because its turn ended."),
+					};
+				}
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
@@ -8095,8 +8109,9 @@ export class CopilotAgentSession extends Disposable {
 		return this._takeDiscardedEditNotes();
 	}
 
-	private _addRunningFileEdit(filePath: string, edit: IDisposable): void {
-		if (this._store.isDisposed) {
+	private _addRunningFileEdit(filePath: string, edit: IDisposable, generation: number, token: CancellationToken): void {
+		if (this._store.isDisposed || token.isCancellationRequested || generation !== this._runningFileEditsGeneration) {
+			// The edit waited to start while the running edits ended, as when its turn was cancelled.
 			edit.dispose();
 			return;
 		}
@@ -8117,8 +8132,16 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/** Ends every running edit tool call, as when a turn ends: one that was denied or never completed would hold its file. */
+	/** Releases orphaned leases only after root, subagents and pending snapshots settle. */
+	private _endIdleFileEdits(): void {
+		if (!this.hasActiveTurn && !this.hasActiveSubagents && this._pendingSubagentToolCompletions.size === 0) {
+			this._endRunningFileEdits();
+		}
+	}
+
+	/** Releases all leases and invalidates hooks still waiting to acquire theirs. */
 	private _endRunningFileEdits(): void {
+		this._runningFileEditsGeneration++;
 		const edits = [...this._runningFileEdits.values()].flat();
 		this._runningFileEdits.clear();
 		dispose(edits);
@@ -9020,6 +9043,7 @@ export class CopilotAgentSession extends Disposable {
 				if (this._pendingSubagentToolCompletions.get(e.data.toolCallId) === deferred) {
 					this._pendingSubagentToolCompletions.delete(e.data.toolCallId);
 				}
+				this._endIdleFileEdits();
 			});
 			if (outputFilePath || hasResources) {
 				this._pendingOutputCaptures.add(completion);

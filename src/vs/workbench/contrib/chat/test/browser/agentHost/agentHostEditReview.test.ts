@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { equals } from '../../../../../../base/common/arrays.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
@@ -51,7 +51,6 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/ag
 import { ChatEditingModifiedDocumentEntry } from '../../../browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 import { IChatService, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import type { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 
 function createOperations(status = ChangesetOperationStatus.Idle): ChangesetOperation[] {
 	return [AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID].map(id => ({
@@ -91,8 +90,8 @@ class TestAgentHost extends mock<IAgentConnection>() {
 	}
 
 	/** The host updates the Working Set, as at the end of a turn or after an operation. */
-	setWorkingSet(files: ChangesetFile[], operations = createOperations()): void {
-		this.workingSet = { status: ChangesetStatus.Ready, files, operations };
+	setWorkingSet(files: ChangesetFile[], operations = createOperations(), status = ChangesetStatus.Ready): void {
+		this.workingSet = { status, files, operations };
 		this.onDidChangeWorkingSet.fire(this.workingSet);
 	}
 
@@ -132,9 +131,8 @@ suite('AgentHostEditReview', () => {
 	let encodings: ResourceMap<string>;
 	/** How long diffs take. */
 	let diffDelay: number;
+	let diffGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
 	let version: number;
-	/** The response of the chat's latest request, if it has one. */
-	let chatResponse: IChatResponseModel | undefined;
 	/** The diff editors that are open. */
 	let diffEditors: IEditorIdentifier[];
 	/** The diff editors closed, and whether the original they compared with was still open then. */
@@ -247,8 +245,8 @@ suite('AgentHostEditReview', () => {
 		failingSaves = new ResourceSet();
 		encodings = new ResourceMap<string>();
 		diffDelay = 0;
+		diffGate = undefined;
 		version = 0;
-		chatResponse = undefined;
 		diffEditors = [];
 		closedEditors = [];
 		host = new TestAgentHost();
@@ -256,6 +254,10 @@ suite('AgentHostEditReview', () => {
 
 		class TestDelayedWorkerService extends TestWorkerService {
 			override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+				if (diffGate) {
+					diffGate.started.complete();
+					await diffGate.release.p;
+				}
 				if (diffDelay) {
 					await timeout(diffDelay);
 				}
@@ -354,8 +356,7 @@ suite('AgentHostEditReview', () => {
 		collection.set(IEditorWorkerService, new SyncDescriptor(TestDelayedWorkerService));
 		collection.set(IChatService, new class extends mock<IChatService>() {
 			override getSession() {
-				// The chat's latest request, whose turn runs while the agent edits files.
-				return chatResponse && upcastPartial<IChatModel>({ getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'request', response: chatResponse })] });
+				return undefined;
 			}
 			override notifyUserAction(_event: IChatUserActionEvent): void { }
 		}());
@@ -609,7 +610,7 @@ suite('AgentHostEditReview', () => {
 	});
 
 	test('disables keeping and undoing a file while the agent writes it, as while local chat edits stream into it', async () => {
-		chatResponse = upcastPartial<IChatResponseModel>({ requestId: 'request' });
+		// The chat has no response that the agent host could name as the one writing the file.
 		hostWrites('/a.ts', 'A\nb\n');
 		hostWrites('/b.ts', 'B\n');
 		const a = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'));
@@ -627,15 +628,56 @@ suite('AgentHostEditReview', () => {
 		await review.accept();
 		const keptWhileWriting = [...host.invoked];
 		// Its edit is recorded before the document reloads what it wrote.
+		const gate = diffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 		hostWritesWithoutReload('/a.ts', 'A\nB\n');
 		host.setWorkingSet([a, b]);
+		await gate.started.p;
 		await settle();
+		const waitingForDiff = { beingModified: !!entry.isCurrentlyBeingModifiedBy.get(), waitsForLastEdits: entry.waitsForLastEdits.get() };
+		diffGate = undefined;
+		gate.release.complete();
+		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
 
-		assert.deepStrictEqual({ whileWriting, keptWhileWriting, afterWriting: await describe() }, {
+		assert.deepStrictEqual({ whileWriting, keptWhileWriting, waitingForDiff, afterWriting: await describe() }, {
 			whileWriting: { beingModified: true, waitsForLastEdits: true, original: 'a\nb\n', changes: ['[1,2)'] },
 			keptWhileWriting: ['keep /b.ts @tc2'],
+			waitingForDiff: { beingModified: true, waitsForLastEdits: true },
 			// The reload counts as the agent's, as local chat counts its edits on disk.
 			afterWriting: { beingModified: false, waitsForLastEdits: false, original: 'a\nb\n', changes: ['[1,3)'] },
+		});
+	});
+
+	test('marks an edit during recomputation immediately and an earlier diff cannot unlock a later edit', async () => {
+		hostWrites('/a.ts', 'A\nb\n');
+		const initial = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'));
+		host.setWorkingSet([initial]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+
+		host.setWorkingSet([{ ...initial, _meta: withWorkingSetFileEditing(initial._meta, true) }], createOperations(), ChangesetStatus.Recomputing);
+		const duringRecomputation = !!entry.isCurrentlyBeingModifiedBy.get();
+		hostWritesWithoutReload('/a.ts', 'A\nB\n');
+		const updated = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', withWorkingSetVersion(undefined, 'tc2'));
+		const gate = diffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		host.setWorkingSet([updated]);
+		await gate.started.p;
+		const duringDiff = !!entry.isCurrentlyBeingModifiedBy.get();
+
+		host.setWorkingSet([{ ...updated, _meta: withWorkingSetFileEditing(updated._meta, true) }], createOperations(), ChangesetStatus.Recomputing);
+		diffGate = undefined;
+		gate.release.complete();
+		await settle();
+		const duringNextEdit = !!entry.isCurrentlyBeingModifiedBy.get();
+		host.setWorkingSet([updated]);
+		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
+
+		assert.deepStrictEqual({
+			duringRecomputation, duringDiff, duringNextEdit,
+			after: { beingModified: !!entry.isCurrentlyBeingModifiedBy.get(), original: entry.originalModel.getValue(), changes: await getChanges(entry) },
+		}, {
+			duringRecomputation: true, duringDiff: true, duringNextEdit: true,
+			after: { beingModified: false, original: 'a\nb\n', changes: ['[1,3)'] },
 		});
 	});
 
@@ -733,5 +775,19 @@ suite('AgentHostEditReview', () => {
 		const original = entry.originalModel.getValue();
 
 		assert.deepStrictEqual({ original, changes: await getChanges(entry) }, { original: 'base\n', changes: ['[1,2)'] });
+	});
+
+	test('typing between the agent\'s changes before the first diff is computed stays the user\'s', async () => {
+		diffDelay = 30;
+		hostWrites('/a.ts', 'AAA\nmiddle\nZ\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nmiddle\nz\n', 'AAA\nmiddle\nZ\n')]);
+		await settle();
+		const entry = getEntry('/a.ts');
+
+		// The user types into the line between the agent's changes while the first diff is computed.
+		userTypes('/a.ts', 2, 1, 'X');
+		const original = entry.originalModel.getValue();
+
+		assert.deepStrictEqual({ original, changes: await getChanges(entry) }, { original: 'a\nXmiddle\nz\n', changes: ['[1,2)', '[3,4)'] });
 	});
 });

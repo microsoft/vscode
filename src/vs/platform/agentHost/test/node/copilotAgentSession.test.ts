@@ -18302,6 +18302,92 @@ Use the attached image as context.
 			});
 		});
 
+		test('edits running when the root turn ends hold their files until background subagents settle too', async () => {
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
+			session.resetTurnState('turn-parent');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'Research', agentDescription: 'Research',
+			}, { agentId: 'agent-1' });
+			const file = URI.file('/repo/file.txt');
+			await capturedRuntime.current!.handlePreToolUse({ sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'edit', toolArgs: { path: file.fsPath, old_str: 'before', new_str: 'after' } });
+
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const afterRootTurn = fileEditCoordinator.isEditing(file);
+			mockSession.backgroundTasks = [{
+				type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Research',
+				status: 'completed', agentType: 'research', prompt: 'Research', startedAt: new Date(0).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => signal.kind === 'subagent_completed');
+
+			assert.deepStrictEqual({ afterRootTurn, afterSubagent: fileEditCoordinator.isEditing(file) }, { afterRootTurn: true, afterSubagent: false });
+		});
+
+		test('a completed background subagent holds its file until its edit is recorded', async () => {
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const write = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+			const sessionDatabase = new class extends TestSessionDatabase {
+				override async storeFileEdit(...args: Parameters<ISessionDatabase['storeFileEdit']>): Promise<void> {
+					write.started.complete();
+					await write.release.p;
+					await super.storeFileEdit(...args);
+				}
+			}();
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator });
+			session.resetTurnState('turn-parent');
+			const child = { agentId: 'agent-1' };
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'Research', agentDescription: 'Research',
+			}, child);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			const file = URI.file('/repo/file.txt');
+			const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'edit', toolArgs: { path: file.fsPath, old_str: 'before', new_str: 'after' } };
+			await capturedRuntime.current!.handlePreToolUse(hook);
+			await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-edit', toolName: hook.toolName, arguments: hook.toolArgs }, child);
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-edit', success: true }, child);
+			await write.started.p;
+			mockSession.backgroundTasks = [{
+				type: 'agent', id: child.agentId, toolCallId: 'tc-subagent', description: 'Research',
+				status: 'completed', agentType: 'research', prompt: 'Research', startedAt: new Date(0).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			const beforeRecording = { activeTurn: session.hasActiveTurn, activeSubagents: session.hasActiveSubagents, editing: fileEditCoordinator.isEditing(file) };
+			write.release.complete();
+			await waitForSignal(signal => signal.kind === 'subagent_completed');
+			await fileEditCoordinator.runExclusive(file, async () => { });
+
+			assert.deepStrictEqual({ beforeRecording, afterRecording: fileEditCoordinator.isEditing(file) }, {
+				beforeRecording: { activeTurn: false, activeSubagents: false, editing: true },
+				afterRecording: false,
+			});
+		});
+
+		test('an edit that waits for a change of its file by the host while its turn ends does not hold the file', async () => {
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session, mockSession } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
+			session.resetTurnState('turn-edit');
+			const file = URI.file('/repo/file.txt');
+			const change = new DeferredPromise<void>();
+			const exclusive = fileEditCoordinator.runExclusive(file, () => change.p);
+
+			const preToolUse = capturedRuntime.current!.handlePreToolUse({ sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'edit', toolArgs: { path: file.fsPath, old_str: 'before', new_str: 'after' } });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await change.complete();
+			await exclusive;
+			const result = await preToolUse;
+
+			assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, editing: fileEditCoordinator.isEditing(file), result }, {
+				hasActiveTurn: false, editing: false,
+				result: { permissionDecision: 'deny', permissionDecisionReason: 'The edit was cancelled because its turn ended.' },
+			});
+		});
+
 		test('tells the agent about its changes the user undid, once, with its next tool result or prompt', async () => {
 			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};

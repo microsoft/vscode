@@ -16,6 +16,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { StringEdit, StringReplacement } from '../../../../../../editor/common/core/edits/stringEdit.js';
 import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../../../editor/common/core/text/abstractText.js';
 import { LinesDiff } from '../../../../../../editor/common/diff/linesDiffComputer.js';
 import { linesDiffComputers } from '../../../../../../editor/common/diff/linesDiffComputers.js';
@@ -44,7 +45,6 @@ import { isTextFileEditorModel, ITextFileService } from '../../../../../services
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import type { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
@@ -112,6 +112,7 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		this._file = file;
 		// Before the first diff starts, the original takes the document's line endings, which edits map onto.
 		this._matchLineEndings();
+		this._mapOriginalToModified(getOriginalToModifiedEdit(this.originalModel.getValue(), this.modifiedModel.getValue()));
 		this._register(this.modifiedModel.onDidChangeContent(e => {
 			if (e.isEolChange) {
 				this._matchLineEndings();
@@ -122,9 +123,11 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	/** Compares the document with the latest version of its Working Set file. */
 	async update(file: IWorkingSetFile): Promise<void> {
 		this._file = file;
-		const reset = this._resetOriginalContent(getReviewedOriginal(file, this.modifiedModel));
+		const original = getReviewedOriginal(file, this.modifiedModel);
+		const reset = this._resetOriginalContent(original);
 		// The reset replaced the original synchronously, and its diff starts after this.
 		this._matchLineEndings();
+		this._mapOriginalToModified(getOriginalToModifiedEdit(original, this.modifiedModel.getValue()));
 		await reset;
 	}
 
@@ -168,22 +171,22 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	private _agentReloads = 0;
 
 	/**
-	 * Marks the file as being written by an agent's edit tool call of
-	 * `response`, or not. As while local chat edits stream into a file, the
-	 * editor is read-only, the changes can't be kept or undone, and changes
-	 * of the document, as when it reloads what the agent wrote, are the
-	 * agent's meanwhile.
+	 * Marks the file as being written by an agent's edit tool call, or not.
+	 * As while local chat edits stream into a file, the editor is read-only,
+	 * the changes can't be kept or undone, and changes of the document, as
+	 * when it reloads what the agent wrote, are the agent's meanwhile. The
+	 * agent host reports which file is written, not which chat response
+	 * writes it.
 	 */
-	setEditing(editing: boolean, response: IChatResponseModel | undefined): void {
+	setEditing(editing: boolean): void {
 		this._agentEditing = editing;
 		this._updateExternalEdit();
-		const modifiedBy = editing ? response : undefined;
-		if (this._isCurrentlyBeingModifiedByObs.get()?.responseModel === modifiedBy) {
+		if (!!this._isCurrentlyBeingModifiedByObs.get() === editing) {
 			return;
 		}
 		transaction(tx => {
-			this._isCurrentlyBeingModifiedByObs.set(modifiedBy && { responseModel: modifiedBy, undoStopId: undefined }, tx);
-			this._waitsForLastEdits.set(!!modifiedBy, tx);
+			this._isCurrentlyBeingModifiedByObs.set(editing ? { responseModel: undefined, undoStopId: undefined } : undefined, tx);
+			this._waitsForLastEdits.set(editing, tx);
 		});
 	}
 
@@ -301,11 +304,17 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		this._register(autorun(reader => {
 			const current = this._workingSet.read(reader);
 			const state = current?.state.read(reader);
+			const files = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
+			for (const file of files) {
+				if (file.editing) {
+					// An edit starts immediately, even while an earlier update is being read or diffed.
+					this._entries.get(this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI))?.setEditing(true);
+				}
+			}
 			if (current && state?.status !== ChangesetStatus.Ready) {
 				// While the Working Set updates, its files are the previous ones.
 				return;
 			}
-			const files = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
 			this._updates.queue(() => this._update(files));
 		}));
 	}
@@ -376,17 +385,24 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			listed.add(resource);
 			try {
 				await this._updateFile(resource, file);
+				const entry = this._entries.get(resource);
+				if (entry) {
+					if (file.editing) {
+						entry.setEditing(true);
+					} else if (entry.isAgentEditing) {
+						await entry.runAsAgentEdit(() => this._reloadFromDisk(resource));
+						await entry.getDiffInfo();
+						const workingSet = this._workingSet.get();
+						const state = workingSet?.state.get();
+						const latest = workingSet && state ? this._findWorkingSetFile(state, workingSet, entry) : undefined;
+						// A later edit must not be unlocked by this update finishing.
+						if (state?.status === ChangesetStatus.Ready && latest && !latest.editing && isSameWorkingSetFile(latest, file)) {
+							entry.setEditing(false);
+						}
+					}
+				}
 			} catch (error) {
 				this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
-			}
-			const entry = this._entries.get(resource);
-			if (entry) {
-				if (entry.isAgentEditing && !file.editing) {
-					// The agent's edit was recorded, so the document reloads what it wrote, as when local chat edits on disk end.
-					await entry.runAsAgentEdit(() => this._reloadFromDisk(resource));
-				}
-				// Like local chat edits while they stream into a file, the agent's edit can't be kept or undone while it writes the file.
-				entry.setEditing(file.editing, file.editing ? this._getLatestResponse() : undefined);
 			}
 		}
 		for (const entry of [...this._entries.values()]) {
@@ -453,6 +469,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			getReviewedOriginal(file, ref.object.textEditorModel),
 		);
 		entry.connect(this, file);
+		entry.setEditing(file.editing);
 		// Agent changes wait for a decision, whatever the auto-accept delay.
 		entry.enableReviewModeUntilSettled();
 		this._entries.set(entry.modifiedURI, entry);
@@ -566,6 +583,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		if (!isSameWorkingSetFile(file, shown)) {
 			throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
 		}
+		if (file.editing || entry.isCurrentlyBeingModifiedBy.get()) {
+			throw new Error(localize('agentHostEditReview.editing', "The agent is editing this file. Try again once it has finished."));
+		}
 		await this._invokeOperation(workingSet, entry, shown, operationId, state, change && !file.diff.isCreated ? change : undefined);
 		return true;
 	}
@@ -675,11 +695,6 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			feature: 'sideBarChat',
 		};
 	}
-
-	/** The response of the chat's latest request, whose turn runs while the agent edits files. */
-	private _getLatestResponse(): IChatResponseModel | undefined {
-		return this._chatService.getSession(this.chatSessionResource)?.getRequests().at(-1)?.response;
-	}
 }
 
 /**
@@ -752,6 +767,17 @@ function computeEdit(original: string, modified: string): StringEdit | undefined
 	const modifiedText = new StringText(modified);
 	return new StringEdit(diff.changes.flatMap(change => change.innerChanges!).map(inner =>
 		new StringReplacement(originalText.getTransformer().getOffsetRange(inner.originalRange), modifiedText.getValueOfRange(inner.modifiedRange))));
+}
+
+/**
+ * The edit through which a user edit applies to the original until the
+ * original and the document are diffed: the one that turns `original` into
+ * `modified`. If that diff times out, everything that differs counts as one
+ * change, which a user edit meanwhile joins rather than applying to the
+ * original at offsets that don't match.
+ */
+function getOriginalToModifiedEdit(original: string, modified: string): StringEdit {
+	return computeEdit(original, modified) ?? StringEdit.replace(OffsetRange.ofLength(original.length), modified).removeCommonSuffixAndPrefix(original);
 }
 
 /** Diffs texts like the agent host diffs a Working Set into hunks. */

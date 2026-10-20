@@ -17,7 +17,6 @@ import { EditOperation, ISingleEditOperation } from '../../../../../editor/commo
 import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
-import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
@@ -145,19 +144,17 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this._register(autorun(r => this.updateLineChangeCount(this._diffInfo.read(r))));
 
 		if (!originalModel.equalsTextBuffer(modifiedModel.getTextBuffer())) {
-			this._mapAllDifferencesUntilDiffed();
 			this._updateDiffInfoSeq();
 		}
 	}
 
 	/**
-	 * Until a diff tells the changes apart, everything that differs between
-	 * the documents counts as one change. A user edit meanwhile then joins it,
-	 * instead of being applied to the original at offsets that don't match.
+	 * Maps the original to the modified document with `edit` until their diff
+	 * is computed, so that a user edit meanwhile applies to the original where
+	 * it should. Otherwise the mapping is the last diff's.
 	 */
-	private _mapAllDifferencesUntilDiffed(): void {
-		const original = this.originalModel.getValue();
-		this._originalToModifiedEdit = StringEdit.replace(OffsetRange.ofLength(original.length), this.modifiedModel.getValue()).removeCommonSuffixAndPrefix(original);
+	public setOriginalToModifiedEdit(edit: StringEdit): void {
+		this._originalToModifiedEdit = edit;
 	}
 
 	private updateLineChangeCount(diff: IDocumentDiff) {
@@ -358,7 +355,6 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			didChange = true;
 		}
 		if (didChange) {
-			this._mapAllDifferencesUntilDiffed();
 			await this._updateDiffInfoSeq();
 		}
 	}

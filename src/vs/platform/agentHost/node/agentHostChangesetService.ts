@@ -560,7 +560,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			const tracked = computeDisposables.add(this.openTrackedSessionDatabases(owner));
 			const sources = tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db }));
 			const files = await computeWorkingSetFiles(sources, this._diffComputeService, tracked.folderScope);
-			if (!this._store.isDisposed) {
+			// A queued refresh may include a completed edit that these snapshots missed.
+			if (!this._store.isDisposed && !this._queuedWorkingSets.has(owner)) {
 				// Clients send a file's version back with an operation on it, so the operation only covers changes they showed.
 				// They also disable operations on a file while an agent edits it, see `_publishWorkingSetEditing`.
 				const versions = new Map(files.map(file => [file.diff, file.version]));
@@ -599,11 +600,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	/**
-	 * Marks the published Working Set files of `resource` while an agent's edit
-	 * tool call writes it, and unmarks them once it's recorded, so clients
-	 * disable keeping and undoing its changes meanwhile.
-	 */
+	/** Marks files at edit start, and clears the mark only with a freshly computed Working Set. */
 	private _publishWorkingSetEditing(resource: URI): void {
 		const editing = this._fileEditCoordinator.isEditing(resource);
 		for (const changesetUri of this._publishedWorkingSets) {
@@ -615,10 +612,17 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			for (const file of state.files) {
 				const id = file.edit.after?.uri ?? file.edit.before?.uri;
 				if (id && isWorkingSetFileEditing(file) !== editing && extUriBiasedIgnorePathCase.isEqual(URI.parse(id), resource)) {
-					this._stateManager.dispatchServerAction(changesetUri, {
-						type: ActionType.ChangesetFileSet,
-						file: { ...file, _meta: withWorkingSetFileEditing(file._meta, editing) },
-					});
+					if (editing) {
+						this._stateManager.dispatchServerAction(changesetUri, {
+							type: ActionType.ChangesetFileSet,
+							file: { ...file, _meta: withWorkingSetFileEditing(file._meta, true) },
+						});
+					} else {
+						const parsed = parseChangesetUri(changesetUri);
+						if (parsed) {
+							this.refreshWorkingSetChangeset(parsed.ownerUri);
+						}
+					}
 				}
 			}
 		}

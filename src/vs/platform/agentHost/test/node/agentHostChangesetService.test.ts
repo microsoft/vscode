@@ -19,6 +19,7 @@ import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportK
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, buildWorkingSetChangesetUri } from '../../common/changesetUri.js';
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agentWorkspaceContinuationMeta.js';
+import { isWorkingSetFileEditing, readWorkingSetVersion } from '../../common/meta/agentWorkingSetFileMeta.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -2209,15 +2210,72 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await waitForChangesetReady(stateManager, workingSet);
 		const afterEdit = files();
 
-		const writing = await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt'));
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
 		const whileWriting = files();
 		writing.dispose();
+		const awaitingRefresh = files();
+		await waitForChangesetReady(stateManager, workingSet);
 
-		assert.deepStrictEqual({ initial, afterEdit, whileWriting, afterWriting: files() }, {
+		assert.deepStrictEqual({ initial, afterEdit, whileWriting, awaitingRefresh, afterWriting: files() }, {
 			initial: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc1' } }],
 			afterEdit: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2' } }],
 			whileWriting: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2', 'vscode.workingSetEditing': true } }],
+			awaitingRefresh: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2', 'vscode.workingSetEditing': true } }],
 			afterWriting: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2' } }],
+		});
+	});
+
+	test('a Working Set clears the editing mark with the recorded version, not an older in-flight computation', async () => {
+		const staleRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const freshRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const db = new class extends TestSessionDatabase {
+			gate: typeof staleRead | undefined;
+			override async getAllFileEdits() {
+				const edits = [...await super.getAllFileEdits()];
+				const gate = this.gate;
+				this.gate = undefined;
+				if (gate) {
+					gate.started.complete();
+					await gate.release.p;
+				}
+				return edits;
+			}
+		}();
+		const record = (toolCallId: string, before: string, after: string) => db.addEdit({
+			turnId: 'turn-1', toolCallId, filePath: '/repo/pending.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after),
+		});
+		record('tc1', 'a', 'a\nb');
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+
+		const published: { version: string | undefined; editing: boolean }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === workingSet) {
+				const files = envelope.action.type === ActionType.ChangesetContentChanged ? envelope.action.files
+					: envelope.action.type === ActionType.ChangesetFileSet ? [envelope.action.file] : [];
+				published.push(...files.map(file => ({ version: readWorkingSetVersion(file), editing: isWorkingSetFileEditing(file) })));
+			}
+		}));
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
+		db.gate = staleRead;
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await staleRead.started.p;
+		record('tc2', 'a\nb', 'a\nb\nc');
+		svc.onToolCallEditsApplied(sessionStr, 'turn-1');
+		writing.dispose();
+		db.gate = freshRead;
+		staleRead.release.complete();
+		await freshRead.started.p;
+		const awaitingFreshResult = [...published];
+		freshRead.release.complete();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ awaitingFreshResult, published }, {
+			awaitingFreshResult: [{ version: 'tc1', editing: true }],
+			published: [{ version: 'tc1', editing: true }, { version: 'tc2', editing: false }],
 		});
 	});
 

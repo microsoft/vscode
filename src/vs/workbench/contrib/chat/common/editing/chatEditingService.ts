@@ -428,7 +428,11 @@ export interface IModifiedFileEntry {
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
-	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>;
+	/**
+	 * Set while an agent writes the file. The response is unknown when the
+	 * agent runs elsewhere, like an agent host's, which only reports the file.
+	 */
+	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel | undefined; undoStopId: string | undefined } | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
 
