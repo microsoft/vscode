@@ -3791,7 +3791,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const model = this.viewModel.model;
-		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
+		if (options.cancelCurrentRequest && model.hasActiveRequest.get() && !cancelledCurrentRequest) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
 			cancelledCurrentRequest = true;
 			options.queue = undefined;

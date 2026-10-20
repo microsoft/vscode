@@ -800,25 +800,29 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				'The tray must remain flush with the prompt after expansion.');
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
+		const inputArea = promptBox.querySelector<HTMLElement>('.new-chat-input-area');
+		assert(!!inputArea);
 		const hasRoundedTopCorners = parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0;
-		if (hasChatBackground && experimentalComposerLayoutEnabled) {
-			assert(hasRoundedTopCorners
-				&& parseFloat(trayStyle.borderBottomLeftRadius) === 0 && parseFloat(trayStyle.borderBottomRightRadius) === 0,
-				'The custom-background experimental tray must have rounded top corners and square bottom corners.');
-		} else {
-			assert(hasRoundedTopCorners
-				&& parseFloat(trayStyle.borderBottomLeftRadius) > 0 && parseFloat(trayStyle.borderBottomRightRadius) > 0,
-				'The floating tray must round every corner.');
-		}
+		assert(hasRoundedTopCorners
+			&& parseFloat(trayStyle.borderBottomLeftRadius) === 0 && parseFloat(trayStyle.borderBottomRightRadius) === 0
+			&& trayStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
+			&& (!isHighContrast(context.theme.type) || trayStyle.backgroundColor === targetWindow.getComputedStyle(inputArea).backgroundColor),
+			'The experimental tray must have a filled background and joined corners, preserving the solid input background in high contrast.');
 		assert(trayBounds.left >= promptBounds.left - 1 && trayBounds.right <= promptBounds.right + 1,
 			'The tray must fit within the prompt width.');
 		if (phoneLayout) {
 			assert(Math.abs(trayBounds.left + trayBounds.width / 2 - promptBounds.left - promptBounds.width / 2) < 1,
 				'The phone workspace picker must retain its centered layout.');
 		} else {
-			assert(Math.abs(trayBounds.left - promptBounds.left) < 1
+			const inputEditor = inputArea.querySelector<HTMLElement>('.sessions-chat-editor');
+			const attachIcon = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button .codicon');
+			assert(!!inputEditor && !!attachIcon);
+			assert(trayBounds.left > promptBounds.left
 				&& Math.abs(collapsedTrayBounds.left - trayBounds.left) < 1,
-				'The tray must stay left-aligned with the prompt when expanded or collapsed.');
+				'The tray must retain its inset when expanded or collapsed.');
+			assert(Math.abs(trayBounds.left - inputEditor.getBoundingClientRect().left) < 1
+				&& Math.abs(trayBounds.left - attachIcon.getBoundingClientRect().left) <= 1,
+				'The tray edge must align with the placeholder text and attach context icon.');
 		}
 		const toggleStyle = targetWindow.getComputedStyle(optionsToggle);
 		assert(toggleStyle.display === 'flex' && toggleStyle.alignItems === 'center' && toggleStyle.justifyContent === 'center',

@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
@@ -61,6 +62,10 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { serverToolAllowList } from '../../node/claude/claudeServerToolMcpServer.js';
+import { moveSessionToolDefinition } from '../../node/shared/sessionMoveTools.js';
+import { sessionToolRequiresConfirmation } from '../../node/shared/sessionServerTools.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1898,7 +1903,7 @@ suite('ClaudeAgent', () => {
 					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
 				}
 				return Response.json({ data: ALL_MODELS });
-			}, logService, FakeProductService, endpoints));
+			}, logService, FakeProductService, endpoints, NullTelemetryService));
 			const proxy = disposables.add(new ClaudeProxyService(logService, api));
 			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
 			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
@@ -7142,6 +7147,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
 		canRequireConfirmation(): boolean { return true; }
 		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
+		getConfirmationDisplay(): undefined { return undefined; }
 		executeTool(): string { return 'ok'; }
 	}
 
@@ -7282,6 +7288,42 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
+		});
+	});
+
+	test('move_session is kept out of the auto-approve allow-list and asks through canUseTool', async () => {
+		// The production confirmation policy over the real move_session definition, next to a tool that never confirms.
+		const host = new class implements IAgentServerToolHost {
+			readonly definitions: readonly ToolDefinition[] = [
+				{ name: SessionServerToolName.ListSessions, description: 'List sessions', inputSchema: { type: 'object', properties: {} } },
+				{ name: moveSessionToolDefinition.name, description: moveSessionToolDefinition.description, inputSchema: moveSessionToolDefinition.inputSchema },
+			];
+			readonly toolNames = this.definitions.map(definition => definition.name);
+			advertise(): void { }
+			getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
+			canRequireConfirmation(toolName: string): boolean { return sessionToolRequiresConfirmation(toolName); }
+			requiresConfirmation(_chat: string, toolName: string): boolean { return sessionToolRequiresConfirmation(toolName); }
+			getConfirmationDisplay(): undefined { return undefined; }
+			executeTool(): string { return 'ok'; }
+		}();
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const input = { session: 'agent-host-session://claude/s1?chat=peer', into: 'agent-host-session://claude/s2' };
+		const resultPromise = canUseTool(serverToolAllowList([SessionServerToolName.MoveSession])[0], input, makeOptions('tu_move_session'));
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_move_session', true);
+		const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+
+		assert.deepStrictEqual({
+			allowedTools: ctx.sdk.capturedStartupOptions[0]?.allowedTools,
+			result: await resultPromise,
+			confirmationTitle: confirmation?.kind === 'pending_confirmation' ? confirmation.state.confirmationTitle : undefined,
+		}, {
+			allowedTools: serverToolAllowList([SessionServerToolName.ListSessions]),
+			result: { behavior: 'allow', updatedInput: input },
+			confirmationTitle: 'Move Nested Session?',
 		});
 	});
 
@@ -11404,6 +11446,7 @@ suite('ClaudeAgent — host seams', () => {
 			getDefinitionsForSession: () => [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: chatUri => {
 				executedChatUri = chatUri;
 				return 'done';
@@ -11443,6 +11486,7 @@ suite('ClaudeAgent — host seams', () => {
 			},
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: () => 'done',
 		});
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -11481,6 +11525,7 @@ suite('ClaudeAgent — host seams', () => {
 			},
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: () => 'done',
 		});
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

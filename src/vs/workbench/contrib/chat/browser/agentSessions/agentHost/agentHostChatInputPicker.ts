@@ -23,7 +23,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
+import { getCodexApprovalsPickerListOptions, showCodexPermissionsChangeNotice } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, preserveAgentHostSandboxToggleSelection } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -1308,6 +1308,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}
 		await this._setValue(context, value, property);
+		const viewModel = this._widget.viewModel;
+		if (property === CodexSessionConfigKey.PermissionsPreset && this._isCurrentTarget(context) && viewModel?.model.hasActiveRequest.get()) {
+			const requestId = viewModel.model.lastRequest?.id;
+			const message = await showCodexPermissionsChangeNotice(this._dialogService, context.value, value);
+			if (message && this._isCurrentTarget(context) && this._widget.viewModel === viewModel
+				&& this._readContext(property)?.value === value && viewModel.model.lastRequest?.id === requestId) {
+				await this._widget.acceptInput(message, { cancelCurrentRequest: true, preserveInput: true });
+			}
+		}
 	}
 
 	private async _setValue(
