@@ -2274,8 +2274,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	/**
-	 * Whether the chat works in a host scratch folder that another chat of this session (other than its nested chats)
-	 * also works in, so the host refuses to move it on its own. Read from summaries when explaining a refusal only.
+	 * Whether the chat works in a host scratch folder that another chat of this session (other than its subagent chats,
+	 * which move with it) also works in, so the host refuses to move it on its own. Forks of the chat share its folder
+	 * and stay. Read from summaries when explaining a refusal only.
 	 */
 	chatSharesScratchFolder(chatResource: URI): boolean {
 		const scratch = this._scratchFolders.get();
@@ -2292,7 +2293,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return false;
 		}
 		const others = [this._defaultChatWorkingDirectories.get(), ...[...this._additionalChats.values()]
-			.filter(chat => chat !== moved && !isEqual(chat.chat.parentChat, chatResource))
+			.filter(chat => chat !== moved && !(chat.chat.origin?.kind === ChatOriginKind.Tool && isEqual(chat.chat.origin.parentChat, chatResource)))
 			.map(chat => chat.ownWorkingDirectories)];
 		return others.some(directories => foldersOf(directories).some(folder => movedScratch.some(movedFolder => isEqual(folder, movedFolder))));
 	}
