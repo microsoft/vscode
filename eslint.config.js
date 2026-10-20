@@ -1001,9 +1001,6 @@ export default defineConfig(
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/plugins/fileBackedInstalledPluginsStore.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/plugins/pluginMarketplaceService.test.ts',
 					]
 				}
 			]
