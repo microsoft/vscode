@@ -7,6 +7,7 @@ import { IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
 import { getErrorCode } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { packErrorForTelemetry } from '../../telemetry/common/errorTelemetry.js';
 
 /**
@@ -86,29 +87,37 @@ export function formatAgentHostExit(path: Exclude<AgentHostExitPath, 'abrupt'>, 
 
 /**
  * Reduces the first frame of `stack` to a bounded module identifier: the
- * containing `node_modules` package, the VS Code module name, or `node` for
- * Node internals. Paths never leave the process.
+ * containing `node_modules` package, the module name of a file in VS Code's
+ * installation at `appRoot`, `node` for Node internals, or `external` for any
+ * other file, whose name may be user-chosen. Paths never leave the process.
  */
-export function identifyAgentHostExitCaller(stack: string | undefined): string {
+export function identifyAgentHostExitCaller(stack: string | undefined, appRoot: string): string {
 	const frame = stack?.split('\n').find(line => line.trimStart().startsWith('at '));
 	const location = frame ? /(?:\((?<parenthesized>[^()]+?):\d+:\d+\)|at (?<bare>[^()\s]+?):\d+:\d+)\s*$/.exec(frame)?.groups : undefined;
-	const path = (location?.parenthesized ?? location?.bare)?.replace(/\\/g, '/');
-	if (!path) {
+	const rawPath = location?.parenthesized ?? location?.bare;
+	if (!rawPath) {
 		return 'unknown';
 	}
-	if (path.startsWith('node:')) {
+	if (rawPath.startsWith('node:')) {
 		return 'node';
 	}
 
+	const path = normalizeCallerPath(rawPath);
 	let caller: string;
 	const nodeModulesIndex = path.lastIndexOf('/node_modules/');
 	if (nodeModulesIndex >= 0) {
 		const segments = path.slice(nodeModulesIndex + '/node_modules/'.length).split('/');
 		caller = segments[0].startsWith('@') && segments.length > 1 ? `${segments[0]}/${segments[1]}` : segments[0];
-	} else {
+	} else if (path.toLowerCase().startsWith(`${normalizeCallerPath(appRoot).replace(/\/$/, '').toLowerCase()}/`)) {
 		caller = path.slice(path.lastIndexOf('/') + 1).replace(/\.[cm]?js$/, '');
+	} else {
+		return 'external';
 	}
 	return /^[@\w.-]+(?:\/[\w.-]+)?$/.test(caller) && caller.length <= maxCallerLength ? caller : 'other';
+}
+
+function normalizeCallerPath(path: string): string {
+	return (path.startsWith('file:') ? URI.parse(path).fsPath : path).replace(/\\/g, '/');
 }
 
 /** Diagnostics recognized in the agent host's final stderr output. */

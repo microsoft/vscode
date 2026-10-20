@@ -63,20 +63,22 @@ suite('AgentHostProcessExit', () => {
 		]);
 	});
 
-	test('reduces process.exit callers to package or module names', () => {
+	test('reduces process.exit callers to package names or VS Code module names', () => {
 		assert.deepStrictEqual([
-			identifyAgentHostExitCaller('Error\n    at Object.<anonymous> (C:\\Users\\me\\AppData\\Local\\Programs\\Code\\resources\\app\\node_modules\\@anthropic-ai\\claude-agent-sdk\\sdk.mjs:12:3)'),
-			identifyAgentHostExitCaller('Error\n    at file:///Users/me/Applications/Code.app/Contents/Resources/app/node_modules/koffi/index.js:1:2'),
-			identifyAgentHostExitCaller('Error\n    at Timeout._onTimeout (/home/me/vscode/out/bootstrap-fork.js:181:13)'),
-			identifyAgentHostExitCaller('Error\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)'),
-			identifyAgentHostExitCaller('Error\n    at /home/me/project/my file.js:1:1'),
-			identifyAgentHostExitCaller(undefined),
+			identifyAgentHostExitCaller('Error\n    at Object.<anonymous> (C:\\Users\\me\\AppData\\Roaming\\Code\\agent-host\\sdk-cache\\claude\\node_modules\\@anthropic-ai\\claude-agent-sdk\\sdk.mjs:12:3)', 'C:\\Program Files\\Code\\resources\\app'),
+			identifyAgentHostExitCaller('Error\n    at file:///Applications/Code.app/Contents/Resources/app/node_modules/koffi/index.js:1:2', '/Applications/Code.app/Contents/Resources/app'),
+			identifyAgentHostExitCaller('Error\n    at Timeout._onTimeout (C:\\Program Files\\Code\\resources\\app\\out\\bootstrap-fork.js:181:13)', 'c:\\program files\\code\\resources\\app'),
+			identifyAgentHostExitCaller('Error\n    at file:///home/me/vscode/out/vs/platform/agentHost/node/agentHostMain.js:70:3', '/home/me/vscode/'),
+			identifyAgentHostExitCaller('Error\n    at run (/home/me/jsmith-secret-project/run.js:1:1)', '/home/me/vscode'),
+			identifyAgentHostExitCaller('Error\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)', '/home/me/vscode'),
+			identifyAgentHostExitCaller(undefined, '/home/me/vscode'),
 		], [
 			'@anthropic-ai/claude-agent-sdk',
 			'koffi',
 			'bootstrap-fork',
+			'agentHostMain',
+			'external',
 			'node',
-			'unknown',
 			'unknown',
 		]);
 	});
