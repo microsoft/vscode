@@ -13,68 +13,17 @@ use anyhow::Result;
 use rayon::prelude::*;
 
 use crate::analyze::{FileFacts, analyze};
+use crate::config::Config;
 use crate::deps::DepImpact;
 use crate::git::{BlobReader, Change, ls_tree};
-use crate::graph::{Entry, Graph, Scratch, Snapshot, is_code, is_integration_test, is_unit_test};
-
-/// Product entry points. A suite that exercises an entry point (smoke tests, extension host API
-/// tests, the Monaco editor checks) only needs to run when the entry point reaches a change.
-pub const ENTRIES: &[(&str, &str)] = &[
-	("editor", "src/vs/editor/editor.main.ts"),
-	("workbench", "src/vs/workbench/workbench.desktop.main.ts"),
-	("web", "src/vs/workbench/workbench.web.main.ts"),
-	(
-		"extensionHost",
-		"src/vs/workbench/api/node/extensionHostProcess.ts",
-	),
-	("main", "src/vs/code/electron-main/main.ts"),
-	("server", "src/vs/server/node/server.main.ts"),
-	("sessions", "src/vs/sessions/sessions.desktop.main.ts"),
-	(
-		"agentHost",
-		"src/vs/platform/agentHost/node/agentHostMain.ts",
-	),
-];
-
-/// Changes outside the module graph that can affect the outcome of every unit test.
-pub fn global_trigger(path: &str) -> Option<&'static str> {
-	match path {
-		".npmrc" | ".nvmrc" | "build/checksums/electron.txt" | "build/lib/electron.ts" => {
-			Some("runtime version")
-		}
-		// The test launchers read the application name from product.json.
-		"scripts/test.sh" | "scripts/test.bat" | "product.json" => Some("test launcher"),
-		// `npm run gulp transpile-client-esbuild` runs build/next through these files.
-		"build/gulpfile.ts" | "build/lib/esbuild.ts" | "build/lib/compilation.ts" => {
-			Some("transpiler")
-		}
-		// The macOS and Windows unit test jobs and the actions they use.
-		".github/workflows/pr.yml"
-		| ".github/workflows/pr-darwin-test.yml"
-		| ".github/workflows/pr-win32-test.yml" => Some("test job definition"),
-		_ if path.starts_with(".github/actions/setup-electron/")
-			|| path.starts_with(".github/actions/restore-node-modules/")
-			|| path.starts_with(".github/workflows/node_modules_cache/") =>
-		{
-			Some("test job definition")
-		}
-		_ if path.starts_with("test/unit/") && !path.ends_with(".md") => Some("test runner"),
-		_ if path.starts_with("build/next/") || path.starts_with("build/lib/gulp/") => {
-			Some("transpiler")
-		}
-		_ if path.starts_with("build/npm/") => Some("dependency installation"),
-		_ if path.starts_with("src/tsconfig") => Some("compiler options"),
-		_ => None,
-	}
-}
-
-/// Changes to the CI definition itself. They need a run of the changed jobs, not of every test.
-pub fn is_ci_definition(path: &str) -> bool {
-	path.starts_with(".github/workflows/") || path.starts_with(".github/actions/")
-}
+use crate::graph::{Entry, Graph, Scratch, Snapshot};
 
 /// The impact of `package.json` and `package-lock.json` changes, if any.
-pub fn dependency_impact(repo: &Path, changes: &[Change]) -> Result<Option<DepImpact>> {
+pub fn dependency_impact(
+	config: &Config,
+	repo: &Path,
+	changes: &[Change],
+) -> Result<Option<DepImpact>> {
 	let manifests: Vec<&Change> = changes
 		.iter()
 		.filter(|c| c.path == "package.json" || c.path == "package-lock.json")
@@ -93,38 +42,45 @@ pub fn dependency_impact(repo: &Path, changes: &[Change]) -> Result<Option<DepIm
 	for c in manifests {
 		let (before, after) = (read(&c.old)?, read(&c.new)?);
 		if c.path == "package.json" {
-			impact.add_package_json(before.as_deref(), after.as_deref());
+			impact.add_package_json(config, before.as_deref(), after.as_deref());
 		} else {
 			impact.add_lockfile(before.as_deref(), after.as_deref());
 		}
 	}
-	impact.finish();
+	impact.finish(config);
 	Ok(Some(impact))
 }
 
-pub struct Engine {
+pub struct Engine<'c> {
 	pub repo: PathBuf,
+	pub config: &'c Config,
 	cache: HashMap<Arc<str>, Arc<FileFacts>>,
 	pub analyzed: usize,
 }
 
-impl Engine {
-	pub fn new(repo: PathBuf) -> Self {
+impl<'c> Engine<'c> {
+	pub fn new(repo: PathBuf, config: &'c Config) -> Self {
 		Self {
 			repo,
+			config,
 			cache: HashMap::new(),
 			analyzed: 0,
+		}
+	}
+
+	fn entry(&self, path: &str, oid: &str) -> Entry {
+		Entry {
+			path: path.into(),
+			oid: oid.into(),
+			role: self.config.role(path),
+			facts: None,
 		}
 	}
 
 	pub fn snapshot(&mut self, rev: &str) -> Result<Snapshot> {
 		let mut entries: Vec<Entry> = ls_tree(&self.repo, rev, &[])?
 			.into_iter()
-			.map(|(p, o)| Entry {
-				path: p.into(),
-				oid: o.into(),
-				facts: None,
-			})
+			.map(|(p, o)| self.entry(&p, &o))
 			.collect();
 		entries.sort_by(|a, b| a.path.cmp(&b.path));
 		let mut snap = Snapshot { entries };
@@ -139,21 +95,11 @@ impl Engine {
 		let mut added = Vec::new();
 		for c in changes {
 			match (snap.find(&c.path), &c.new) {
-				(Some(i), Some(new)) => {
-					entries[i as usize] = Entry {
-						path: c.path.as_str().into(),
-						oid: new.as_str().into(),
-						facts: None,
-					}
-				}
+				(Some(i), Some(new)) => entries[i as usize] = self.entry(&c.path, new),
 				(Some(i), None) => {
 					removed.insert(i as usize);
 				}
-				(None, Some(new)) => added.push(Entry {
-					path: c.path.as_str().into(),
-					oid: new.as_str().into(),
-					facts: None,
-				}),
+				(None, Some(new)) => added.push(self.entry(&c.path, new)),
 				(None, None) => {}
 			}
 		}
@@ -170,20 +116,20 @@ impl Engine {
 		Ok(snap)
 	}
 
-	/// Analyzes every code file that is not cached yet, in parallel, one `git cat-file` per worker.
+	/// Analyzes every module that is not cached yet, in parallel, one `git cat-file` per worker.
 	fn fill(&mut self, snap: &mut Snapshot) -> Result<()> {
 		let mut seen = HashSet::new();
 		let missing: Vec<(Arc<str>, Arc<str>)> = snap
 			.entries
 			.iter()
 			.filter(|e| {
-				is_code(&e.path) && !self.cache.contains_key(&e.oid) && seen.insert(e.oid.clone())
+				e.role.is_module() && !self.cache.contains_key(&e.oid) && seen.insert(e.oid.clone())
 			})
 			.map(|e| (e.path.clone(), e.oid.clone()))
 			.collect();
 		if !missing.is_empty() {
 			let chunk = (missing.len() / (rayon::current_num_threads() * 4)).max(1);
-			let repo = &self.repo;
+			let (repo, config) = (&self.repo, self.config);
 			let results: Vec<Vec<(Arc<str>, Arc<FileFacts>)>> = missing
 				.par_chunks(chunk)
 				.map(|files| -> Result<Vec<(Arc<str>, Arc<FileFacts>)>> {
@@ -194,7 +140,7 @@ impl Engine {
 							let data = reader.read(oid)?;
 							Ok((
 								oid.clone(),
-								Arc::new(analyze(path, &String::from_utf8_lossy(&data))),
+								Arc::new(analyze(path, &String::from_utf8_lossy(&data), config)),
 							))
 						})
 						.collect()
@@ -206,7 +152,7 @@ impl Engine {
 			}
 		}
 		for e in &mut snap.entries {
-			if is_code(&e.path) {
+			if e.role.is_module() {
 				e.facts = self.cache.get(&e.oid).cloned();
 			}
 		}
@@ -382,54 +328,15 @@ pub struct Selection {
 	pub changed_decls: usize,
 	/// Why every test must run, if a change reaches outside the module graph.
 	pub run_all: Option<String>,
-	pub ci_definition: bool,
 	/// npm packages whose resolved version changed.
 	pub packages: usize,
-	/// Runtime code outside of tests changed (not only tests, types, comments or documentation).
-	pub product_changed: bool,
-	/// Product entry points that reach a change.
-	pub entries: Vec<(&'static str, bool)>,
-	/// The change needs macOS and Windows: changed code with OS-dependent behavior, shell
-	/// scripts, built-in extensions, native packages, or a run-everything trigger.
-	pub os_sensitive: bool,
-	/// The change touches browser-layer code or style sheets, so browser tests should also run in WebKit.
-	pub webkit: bool,
-	/// The first reason the change is OS-sensitive.
-	pub os_reason: String,
-}
-
-const OS_SCRIPTS: &[&str] = &[
-	".ps1", ".psm1", ".sh", ".bash", ".zsh", ".fish", ".bat", ".cmd",
-];
-
-fn seed_is_os(snap: &Snapshot, graph: &Graph, v: u32) -> bool {
-	let f = graph.node_file[v as usize];
-	if f == u32::MAX {
-		return false;
-	}
-	let e = &snap.entries[f as usize];
-	match &e.facts {
-		Some(facts) => facts
-			.decls
-			.get((v - graph.base[f as usize]) as usize)
-			.is_some_and(|d| d.os),
-		None => OS_SCRIPTS.iter().any(|x| e.path.ends_with(x)),
-	}
-}
-
-fn seed_is_browser(snap: &Snapshot, graph: &Graph, v: u32) -> bool {
-	let f = graph.node_file[v as usize];
-	f != u32::MAX && {
-		let p = &*snap.entries[f as usize].path;
-		p.contains("/browser/") && (p.ends_with(".ts") || p.ends_with(".css"))
-	}
 }
 
 fn collect(snap: &Snapshot, marks: &[bool], out: &mut HashSet<Arc<str>>) {
 	for (i, m) in marks.iter().enumerate() {
-		let p = &snap.entries[i].path;
-		if *m && (is_unit_test(p) || is_integration_test(p)) {
-			out.insert(p.clone());
+		let e = &snap.entries[i];
+		if *m && e.role.is_test() {
+			out.insert(e.path.clone());
 		}
 	}
 }
@@ -451,17 +358,15 @@ fn dependent_tests(snap: &Snapshot, graph: &Graph, seeds: &[u32], out: &mut Hash
 	}
 	let mut scratch = Scratch::default();
 	for (i, c) in candidates.iter().enumerate() {
-		let p = &snap.entries[i].path;
-		if *c
-			&& (is_unit_test(p) || is_integration_test(p))
-			&& graph.reaches(i as u32, &targets, &mut scratch)
-		{
-			out.insert(p.clone());
+		let e = &snap.entries[i];
+		if *c && e.role.is_test() && graph.reaches(i as u32, &targets, &mut scratch) {
+			out.insert(e.path.clone());
 		}
 	}
 }
 
 pub fn select(
+	config: &Config,
 	repo: &Path,
 	base: &Snapshot,
 	bg: &Graph,
@@ -471,124 +376,44 @@ pub fn select(
 ) -> Result<Selection> {
 	let paths: Vec<&str> = changes.iter().map(|c| c.path.as_str()).collect();
 	let (mut head_seeds, mut base_seeds) = changed_nodes(base, bg, head, hg, &paths);
-	let mut run_all = paths
-		.iter()
-		.find_map(|p| global_trigger(p).map(|reason| format!("{reason} ({p})")));
+	let mut run_all = paths.iter().find_map(|p| {
+		config
+			.run_everything(p)
+			.map(|reason| format!("{reason} ({p})"))
+	});
+	let deps = dependency_impact(config, repo, changes)?;
 	let mut packages = 0;
-	let mut native = false;
-	if let Some(deps) = dependency_impact(repo, changes)? {
-		run_all = run_all.or(deps.run_all);
+	if let Some(deps) = &deps {
+		run_all = run_all.or_else(|| deps.run_all.clone());
 		packages = deps.packages.len();
-		native = deps.native;
 		for name in &deps.packages {
 			head_seeds.extend(hg.packages.get(name));
 			base_seeds.extend(bg.packages.get(name));
 		}
-		if deps.package_json {
-			head_seeds.extend(hg.globals.get("_VSCODE_PACKAGE_JSON"));
-			base_seeds.extend(bg.globals.get("_VSCODE_PACKAGE_JSON"));
+	}
+	// An injected global changes with its file, and with package.json only when a field that code
+	// can read changes.
+	for (name, file) in &config.injected_globals {
+		let changed = if file == "package.json" {
+			deps.as_ref().is_some_and(|d| d.package_json)
+		} else {
+			paths.contains(&file.as_str())
+		};
+		if changed {
+			head_seeds.extend(hg.globals.get(name));
+			base_seeds.extend(bg.globals.get(name));
 		}
 	}
-	let is_product = |snap: &Snapshot, graph: &Graph, v: u32| -> bool {
-		let f = graph.node_file[v as usize];
-		if f == u32::MAX {
-			return true;
-		}
-		let p = &*snap.entries[f as usize].path;
-		!p.contains("/test/")
-			&& (p.starts_with("src/")
-				|| (p.starts_with("extensions/") && !p.ends_with(".md"))
-				|| p.starts_with("resources/")
-				|| p == "product.json")
-	};
-	let product_changed = run_all.is_some()
-		|| head_seeds.iter().any(|&v| is_product(head, hg, v))
-		|| base_seeds.iter().any(|&v| is_product(base, bg, v));
-	let extension_code = paths.iter().any(|p| {
-		p.starts_with("extensions/") && !p.starts_with("extensions/copilot/") && !p.ends_with(".md")
-	});
-	let seed_reason = |snap: &Snapshot, graph: &Graph, seeds: &[u32]| -> Option<String> {
-		seeds
-			.iter()
-			.find(|&&v| seed_is_os(snap, graph, v))
-			.map(|&v| {
-				let f = graph.node_file[v as usize] as usize;
-				let key = snap.entries[f]
-					.facts
-					.as_ref()
-					.map_or("<asset>".to_owned(), |facts| {
-						facts.decls[(v - graph.base[f]) as usize].key.clone()
-					});
-				format!("{}#{key}", snap.entries[f].path)
-			})
-	};
-	let os_reason = if run_all.is_some() {
-		Some("run everything".to_owned())
-	} else if native {
-		Some("native package".to_owned())
-	} else if extension_code {
-		Some("extension code".to_owned())
-	} else if let Some(p) = paths
-		.iter()
-		.find(|p| OS_SCRIPTS.iter().any(|x| p.ends_with(x)))
-	{
-		Some(format!("script {p}"))
-	} else {
-		seed_reason(head, hg, &head_seeds).or_else(|| seed_reason(base, bg, &base_seeds))
-	};
-	let os_sensitive = os_reason.is_some();
-	let os_reason = os_reason.unwrap_or_default();
-	if std::env::var_os("RIPPLE_DEBUG").is_some() {
-		for (snap, graph, seeds) in [(head, hg, &head_seeds), (base, bg, &base_seeds)] {
-			for &v in seeds.iter().filter(|&&v| seed_is_os(snap, graph, v)) {
-				let f = graph.node_file[v as usize] as usize;
-				let key = snap.entries[f]
-					.facts
-					.as_ref()
-					.map_or("<asset>".to_owned(), |facts| {
-						facts.decls[(v - graph.base[f]) as usize].key.clone()
-					});
-				eprintln!("os seed: {}#{key}", snap.entries[f].path);
-			}
-		}
-	}
-	let webkit = run_all.is_some()
-		|| head_seeds.iter().any(|&v| seed_is_browser(head, hg, v))
-		|| base_seeds.iter().any(|&v| seed_is_browser(base, bg, v));
 	let mut sel = Selection {
-		os_sensitive,
-		os_reason,
-		webkit,
-		product_changed,
-		entries: Vec::new(),
 		file_all: HashSet::new(),
 		file_runtime: HashSet::new(),
 		decl: HashSet::new(),
 		changed_decls: head_seeds.len() + base_seeds.len(),
 		run_all,
-		ci_definition: paths.iter().any(|p| is_ci_definition(p)),
 		packages,
 	};
 	dependent_tests(head, hg, &head_seeds, &mut sel.decl);
 	dependent_tests(base, bg, &base_seeds, &mut sel.decl);
-	let targets = |graph: &Graph, seeds: &[u32]| -> Vec<bool> {
-		let mut t = vec![false; graph.node_count()];
-		for &s in seeds {
-			t[s as usize] = true;
-		}
-		t
-	};
-	let (head_targets, base_targets) = (targets(hg, &head_seeds), targets(bg, &base_seeds));
-	let mut scratch = Scratch::default();
-	for &(name, path) in ENTRIES {
-		let affected = sel.run_all.is_some()
-			|| head.find(path).is_some_and(|f| {
-				!head_seeds.is_empty() && hg.reaches(f, &head_targets, &mut scratch)
-			}) || base
-			.find(path)
-			.is_some_and(|f| !base_seeds.is_empty() && bg.reaches(f, &base_targets, &mut scratch));
-		sel.entries.push((name, affected));
-	}
 	let head_files: Vec<u32> = paths
 		.iter()
 		.filter_map(|p| head.find(p))
@@ -627,25 +452,34 @@ pub fn select(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::config::for_tests;
 	use xxhash_rust::xxh3::xxh3_64;
 
 	fn snapshot(files: &[(&str, &str)]) -> Snapshot {
+		let config = for_tests();
 		let mut entries: Vec<Entry> = files
 			.iter()
-			.map(|(path, content)| Entry {
-				path: (*path).into(),
-				oid: format!("{:016x}", xxh3_64(content.as_bytes())).into(),
-				facts: is_code(path).then(|| Arc::new(analyze(path, content))),
+			.map(|(path, content)| {
+				let role = config.role(path);
+				Entry {
+					path: (*path).into(),
+					oid: format!("{:016x}", xxh3_64(content.as_bytes())).into(),
+					role,
+					facts: role
+						.is_module()
+						.then(|| Arc::new(analyze(path, content, config))),
+				}
 			})
 			.collect();
 		entries.sort_by(|a, b| a.path.cmp(&b.path));
 		Snapshot { entries }
 	}
 
-	/// The test files selected for the change from `base` to `head`.
-	fn selected(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<String> {
+	/// The selection for the change from `base` to `head`.
+	fn selection(base: &[(&str, &str)], head: &[(&str, &str)]) -> Selection {
+		let config = for_tests();
 		let (bs, hs) = (snapshot(base), snapshot(head));
-		let (bg, hg) = (Graph::build(&bs), Graph::build(&hs));
+		let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
 		let mut paths: Vec<&str> = bs
 			.entries
 			.iter()
@@ -666,14 +500,22 @@ mod tests {
 				})
 			})
 			.collect();
-		let sel = select(Path::new("."), &bs, &bg, &hs, &hg, &changes).unwrap();
-		let mut tests: Vec<String> = sel.decl.iter().map(|p| p.to_string()).collect();
+		select(config, Path::new("."), &bs, &bg, &hs, &hg, &changes).unwrap()
+	}
+
+	/// The test files selected for the change from `base` to `head`.
+	fn selected(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<String> {
+		let mut tests: Vec<String> = selection(base, head)
+			.decl
+			.iter()
+			.map(|p| p.to_string())
+			.collect();
 		tests.sort();
 		tests
 	}
 
 	const TEST_A: (&str, &str) = (
-		"src/vs/test/a.test.ts",
+		"src/app/test/a.test.ts",
 		"import { a } from '../lib.js';\ntest('a', () => a);\n",
 	);
 
@@ -681,34 +523,34 @@ mod tests {
 	fn reordering_load_time_declarations_selects_their_users() {
 		let base = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"let n = 0;\nexport const a = ++n;\nexport const b = ++n;\n",
 			),
 			TEST_A,
 		];
 		let head = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"let n = 0;\nexport const b = ++n;\nexport const a = ++n;\n",
 			),
 			TEST_A,
 		];
-		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
 	}
 
 	#[test]
 	fn reordering_effectful_imports_selects_their_importers() {
 		let x = (
-			"src/vs/x.ts",
+			"src/app/x.ts",
 			"globalThis.order = (globalThis.order ?? '') + 'x';\n",
 		);
 		let y = (
-			"src/vs/y.ts",
+			"src/app/y.ts",
 			"globalThis.order = (globalThis.order ?? '') + 'y';\n",
 		);
 		let base = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"import './x.js';\nimport './y.js';\nexport const a = 1;\n",
 			),
 			x,
@@ -717,28 +559,28 @@ mod tests {
 		];
 		let head = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"import './y.js';\nimport './x.js';\nexport const a = 1;\n",
 			),
 			x,
 			y,
 			TEST_A,
 		];
-		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
 	}
 
 	#[test]
 	fn adding_and_moving_pure_declarations_selects_nothing() {
 		let base = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"export const a = 1;\nexport const b = 2;\nexport function f() { return 3; }\n",
 			),
 			TEST_A,
 		];
 		let head = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"export function f() { return 3; }\nexport const a = 1;\nexport const c = 4;\nexport const b = 2;\n",
 			),
 			TEST_A,
@@ -749,52 +591,52 @@ mod tests {
 	#[test]
 	fn retargeting_an_export_selects_its_users() {
 		let test = (
-			"src/vs/test/a.test.ts",
+			"src/app/test/a.test.ts",
 			"import { value } from '../lib.js';\ntest('a', () => value);\n",
 		);
 		let base = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"const a = 1;\nconst b = 2;\nexport { a as value, b };\n",
 			),
 			test,
 		];
 		let head = [
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				"const a = 1;\nconst b = 2;\nexport { b as value, b };\n",
 			),
 			test,
 		];
-		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
 	}
 
 	#[test]
 	fn retargeting_a_re_export_selects_its_users() {
 		let modules = [
-			("src/vs/x.ts", "export const a = 1;\n"),
-			("src/vs/y.ts", "export const a = 2;\n"),
+			("src/app/x.ts", "export const a = 1;\n"),
+			("src/app/y.ts", "export const a = 2;\n"),
 		];
 		let base = [
-			("src/vs/lib.ts", "export { a } from './x.js';\n"),
+			("src/app/lib.ts", "export { a } from './x.js';\n"),
 			modules[0],
 			modules[1],
 			TEST_A,
 		];
 		let head = [
-			("src/vs/lib.ts", "export { a } from './y.js';\n"),
+			("src/app/lib.ts", "export { a } from './y.js';\n"),
 			modules[0],
 			modules[1],
 			TEST_A,
 		];
-		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
 	}
 
 	#[test]
 	fn deleted_and_renamed_tests_are_not_selected() {
 		let helper = |v: &str| {
 			(
-				"src/vs/lib.ts",
+				"src/app/lib.ts",
 				format!("export function a() {{ return {v}; }}\n"),
 			)
 		};
@@ -802,18 +644,68 @@ mod tests {
 		let t = |p: &'static str| (p, "import { a } from '../lib.js';\ntest('a', () => a());\n");
 		let base = [
 			(old.0, old.1.as_str()),
-			t("src/vs/test/a.test.ts"),
-			t("src/vs/test/b.test.ts"),
-			t("src/vs/test/c.test.ts"),
+			t("src/app/test/a.test.ts"),
+			t("src/app/test/b.test.ts"),
+			t("src/app/test/c.test.ts"),
 		];
 		let head = [
 			(new.0, new.1.as_str()),
-			t("src/vs/test/a.test.ts"),
-			t("src/vs/test/renamed.test.ts"),
+			t("src/app/test/a.test.ts"),
+			t("src/app/test/renamed.test.ts"),
 		];
 		assert_eq!(
 			selected(&base, &head),
-			vec!["src/vs/test/a.test.ts", "src/vs/test/renamed.test.ts"]
+			vec!["src/app/test/a.test.ts", "src/app/test/renamed.test.ts"]
 		);
+	}
+
+	#[test]
+	fn injected_globals_select_the_code_reading_them() {
+		let files = [
+			(
+				"src/app/lib.ts",
+				"export function a() { return globalThis._PRODUCT.name; }\nexport function b() { return 1; }\n",
+			),
+			(
+				"src/app/test/a.test.ts",
+				"import { a } from '../lib.js';\ntest('a', () => a());\n",
+			),
+			(
+				"src/app/test/b.test.ts",
+				"import { b } from '../lib.js';\ntest('b', () => b());\n",
+			),
+		];
+		let with = |product: &'static str| -> Vec<(&str, &str)> {
+			[("product.json", product)]
+				.into_iter()
+				.chain(files)
+				.collect()
+		};
+		assert_eq!(
+			selected(&with(r#"{"name":"a"}"#), &with(r#"{"name":"b"}"#)),
+			vec!["src/app/test/a.test.ts"]
+		);
+	}
+
+	#[test]
+	fn path_aliases_resolve_imports() {
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { x } from 'lib/x.js';\ntest('a', () => x);\n",
+		);
+		let base = [("src/lib/x.ts", "export const x = 1;\n"), test];
+		let head = [("src/lib/x.ts", "export const x = 2;\n"), test];
+		assert_eq!(selected(&base, &head), vec!["src/app/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn run_everything_triggers_report_their_reason() {
+		let runner = |content: &'static str| [("test/unit/index.js", content), TEST_A];
+		assert_eq!(
+			selection(&runner("1"), &runner("2")).run_all.as_deref(),
+			Some("test runner (test/unit/index.js)")
+		);
+		let docs = |content: &'static str| [("test/unit/README.md", content), TEST_A];
+		assert_eq!(selection(&docs("1"), &docs("2")).run_all, None);
 	}
 }

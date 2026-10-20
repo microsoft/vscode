@@ -12,25 +12,13 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::analyze::{ExportTarget, FileFacts, IMPLICIT_METHODS, Imported, Ref, name_id};
-
-/// Files analyzed as modules. Everything else in the tree is an opaque asset node.
-pub fn is_code(path: &str) -> bool {
-	path.starts_with("src/")
-		&& ((path.ends_with(".ts") && !path.ends_with(".d.ts")) || path.ends_with(".mts"))
-}
-
-pub fn is_unit_test(path: &str) -> bool {
-	path.starts_with("src/") && path.ends_with(".test.ts") && path.contains("/test/")
-}
-
-pub fn is_integration_test(path: &str) -> bool {
-	path.starts_with("src/") && path.ends_with(".integrationTest.ts")
-}
+use crate::config::{Config, Role};
 
 #[derive(Clone)]
 pub struct Entry {
 	pub path: Arc<str>,
 	pub oid: Arc<str>,
+	pub role: Role,
 	pub facts: Option<Arc<FileFacts>>,
 }
 
@@ -46,6 +34,12 @@ impl Snapshot {
 			.binary_search_by(|e| (*e.path).cmp(path))
 			.ok()
 			.map(|i| i as u32)
+	}
+
+	/// The role of a path in this snapshot, `Asset` if it does not exist.
+	pub fn role(&self, path: &str) -> Role {
+		self.find(path)
+			.map_or(Role::Asset, |i| self.entries[i as usize].role)
 	}
 
 	/// Entries inside a directory.
@@ -123,6 +117,7 @@ fn join(dir: &str, rel: &str) -> Option<String> {
 
 struct Linker<'s> {
 	snap: &'s Snapshot,
+	config: &'s Config,
 	base: &'s [u32],
 	res: Vec<Option<Box<[Res]>>>,
 	memo: HashMap<(u32, Box<str>), Vec<u32>>,
@@ -219,10 +214,10 @@ impl<'s> Linker<'s> {
 				return Res::Dir(d);
 			}
 			// Tests that read a folder read data (fixtures, media, scripts). Strings that name a
-			// folder of source code are almost always path manipulation, such as 'vs/base'.
+			// folder of source code are almost always path manipulation.
 			let code = self.snap.entries[range.clone()]
 				.iter()
-				.filter(|e| is_code(&e.path))
+				.filter(|e| e.role.is_module())
 				.count();
 			if code * 2 > range.len() && range.len() > 30 {
 				return Res::None;
@@ -242,8 +237,8 @@ impl<'s> Linker<'s> {
 				Some(p) => self.resolve_path(&p),
 				None => Res::None,
 			}
-		} else if spec.starts_with("vs/") {
-			self.resolve_path(&format!("src/{spec}"))
+		} else if let Some(p) = self.config.resolve_alias(spec) {
+			self.resolve_path(&p)
 		} else if spec.starts_with('/') || spec.starts_with('.') || spec.contains("://") {
 			Res::None
 		} else {
@@ -443,18 +438,20 @@ pub struct Graph {
 	files_runtime: Csr,
 	/// Nodes and files that read a directory by path, keyed by directory.
 	dirs: HashMap<Box<str>, (Vec<u32>, Vec<u32>)>,
-	/// Ambient inputs, such as `_VSCODE_PRODUCT_JSON`, and the nodes standing for them.
+	/// Globals injected by the test runners, and the nodes standing for them.
 	pub globals: HashMap<String, u32>,
 	/// Modules loaded by each entry's initializer.
 	pub loads: Vec<Box<[u32]>>,
 	/// Loading the entry has effects outside of it, directly or through modules it loads.
 	pub effectful: Vec<bool>,
+	/// Name ids of the methods code calls without naming them (see `IMPLICIT_METHODS`).
+	implicit: Vec<u64>,
 	pub edges: usize,
 	pub unresolved: u32,
 }
 
 impl Graph {
-	pub fn build(snap: &Snapshot) -> Self {
+	pub fn build(snap: &Snapshot, config: &Config) -> Self {
 		let n = snap.entries.len();
 		let mut base = Vec::with_capacity(n);
 		let mut next = 0u32;
@@ -464,6 +461,7 @@ impl Graph {
 		}
 		let mut linker = Linker {
 			snap,
+			config,
 			base: &base,
 			res: vec![None; n],
 			memo: HashMap::new(),
@@ -614,6 +612,11 @@ impl Graph {
 			globals,
 			loads,
 			effectful,
+			implicit: IMPLICIT_METHODS
+				.iter()
+				.map(|m| name_id(m))
+				.chain(config.implicit_methods.iter().map(|m| name_id(m)))
+				.collect(),
 			forward: Csr::group(total, &swapped),
 			gate,
 			uses: Csr::group(total, &uses),
@@ -657,61 +660,6 @@ impl Graph {
 		(files, gated)
 	}
 
-	/// Every node the code of an entry can execute: the forward closure from its nodes, entering
-	/// an instance method only once the closure uses its name.
-	pub fn closure(&self, file: u32, scratch: &mut Scratch) -> Vec<u32> {
-		scratch.stamp += 1;
-		if scratch.visited.len() < self.node_file.len() {
-			scratch.visited.resize(self.node_file.len(), 0);
-		}
-		let stamp = scratch.stamp;
-		scratch.used.clear();
-		scratch
-			.used
-			.extend(IMPLICIT_METHODS.iter().map(|m| name_id(m)));
-		scratch.pending.clear();
-		let mut stack: Vec<u32> = self.file_nodes(file as usize).collect();
-		for &n in &stack {
-			scratch.visited[n as usize] = stamp;
-		}
-		let mut out = Vec::new();
-		while let Some(n) = stack.pop() {
-			out.push(n);
-			for &name in self.uses.of(n) {
-				if scratch.used.insert(name) {
-					if let Some(waiting) = scratch.pending.remove(&name) {
-						for v in waiting {
-							if scratch.visited[v as usize] != stamp {
-								scratch.visited[v as usize] = stamp;
-								stack.push(v);
-							}
-						}
-					}
-				}
-			}
-			for &v in self.forward.of(n) {
-				if scratch.visited[v as usize] == stamp {
-					continue;
-				}
-				let g = self.gate[v as usize];
-				if g != 0 && !scratch.used.contains(&g) {
-					scratch.pending.entry(g).or_default().push(v);
-					continue;
-				}
-				scratch.visited[v as usize] = stamp;
-				stack.push(v);
-			}
-		}
-		out
-	}
-
-	/// Directories read by path, with the nodes that read each of them.
-	pub fn dir_readers(&self) -> impl Iterator<Item = (&str, &[u32])> {
-		self.dirs
-			.iter()
-			.map(|(d, (nodes, _))| (&**d, nodes.as_slice()))
-	}
-
 	/// Entries a module loads when it is evaluated, transitively, excluding the module itself
 	/// unless it is part of a cycle.
 	pub fn load_closure(&self, f: u32) -> Vec<bool> {
@@ -735,9 +683,7 @@ impl Graph {
 		}
 		let stamp = scratch.stamp;
 		scratch.used.clear();
-		scratch
-			.used
-			.extend(IMPLICIT_METHODS.iter().map(|m| name_id(m)));
+		scratch.used.extend(self.implicit.iter().copied());
 		scratch.pending.clear();
 		let mut stack: Vec<u32> = self.file_nodes(file as usize).collect();
 		for &n in &stack {

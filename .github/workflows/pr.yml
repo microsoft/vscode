@@ -84,7 +84,10 @@ jobs:
         id: plan
         continue-on-error: true
         timeout-minutes: 5
-        run: build/ripple/target/release/ripple plan --base HEAD^1 --head HEAD --lists .build/unit-test-plan > /dev/null
+        run: |
+          set -e
+          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/unit-test-plan > /dev/null
+          echo "Linux runs every unit test; macOS and Windows run the selected files. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload unit test plan
         id: upload-unit-test-plan

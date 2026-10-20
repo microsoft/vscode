@@ -26,7 +26,7 @@ const { execFile } = require('node:child_process');
 
 /**
  * @type {{
- * run: string | string[];
+ * run: string;
  * runList: string;
  * grep: string;
  * runGlob: string;
@@ -60,7 +60,7 @@ const args = minimist(process.argv.slice(2), {
 	describe: {
 		build: 'run with build output (out-build)',
 		run: 'only run tests matching <relative_file_path>',
-		runList: 'only run tests from the files listed in <file>, one per line',
+		runList: 'only run tests whose files are listed in <file>, one per line',
 		grep: 'only run tests matching <pattern>',
 		debug: 'do not run browsers headless',
 		sequential: 'only run suites for a single browser at a time',
@@ -79,7 +79,7 @@ if (args.help) {
 Options:
 --build              run with build output (out-build)
 --run <relative_file_path> only run tests matching <relative_file_path>
---runList <file>     only run tests from the files listed in <file>, one per line
+--runList <file>     only run tests whose files are listed in <file>, one per line
 --grep, -g, -f <pattern> only run tests matching <pattern>
 --debug, --debug-browser do not run browsers headless
 --sequential         only run suites for a single browser at a time
@@ -92,11 +92,8 @@ Options:
 	process.exit(0);
 }
 
-// Treat the files listed in --runList as --run values
-if (args.runList) {
-	const listed = fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
-	args.run = [...ensureIsArray(args.run || []), ...listed];
-}
+// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
+const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js'))) : undefined;
 
 const isDebug = !!args.debug;
 const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
@@ -140,8 +137,7 @@ const testModules = (async function () {
 		promise = Promise.resolve(ensureIsArray(args.run).map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
-			// module ids use forward slashes on all platforms, like the glob results below
-			return path.relative(out, file).replace(/\\/g, '/');
+			return path.relative(out, file);
 		}));
 
 	} else {
@@ -155,7 +151,7 @@ const testModules = (async function () {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(files);
+					resolve(runList ? files.filter(file => runList.has(file)) : files);
 				}
 			});
 		});
@@ -567,6 +563,13 @@ class EchoRunner extends events.EventEmitter {
 }
 
 testModules.then(async modules => {
+
+	if (runList) {
+		console.log(`Running the ${modules.length} browser test files of the ${runList.size} files listed in ${args.runList}`);
+		if (modules.length === 0) {
+			process.exit(0);
+		}
+	}
 
 	// run tests in selected browsers
 	const browsers = Array.isArray(args.browser)

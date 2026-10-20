@@ -1,0 +1,152 @@
+// What ripple needs to know about this repository: pass it with `--config build/ripple/vscode.jsonc`.
+// See README.md.
+//
+// Paths are relative to the repository root. In glob patterns, `*` and `?` match within one path
+// segment, `**` matches any number of segments and `{a,b}` matches either alternative. In a list of
+// patterns, a pattern starting with `!` excludes the paths it matches.
+{
+	// The modules ripple analyzes. Every other file is opaque: changing it affects the modules that
+	// load it or read it by path. Declaration files (`.d.ts`) are never analyzed.
+	"modules": [
+		"src/**/*.ts",
+		"src/**/*.mts"
+	],
+
+	// Non-relative module specifiers that name repository files, by prefix (like `paths` in
+	// tsconfig.json). String literals with such a prefix are also read as module paths, for example
+	// worker entry points.
+	"pathAliases": {
+		"vs/": "src/vs/"
+	},
+
+	// Test files, which must also be modules. `ripple plan` selects unit tests; `ripple affected` and
+	// `ripple blame` also report integration tests. Each test runner then runs the selected files it
+	// would run by default (see `--runList` in test/unit/README.md).
+	"tests": {
+		"unit": [
+			"src/**/test/**/*.test.ts"
+		],
+		"integration": [
+			"src/**/*.integrationTest.ts"
+		]
+	},
+
+	// Files outside the module graph that every unit test depends on, by the reason the plan reports:
+	// changing one of them runs every unit test.
+	"runEverything": {
+		"runtime version": [
+			".npmrc",
+			".nvmrc",
+			"build/checksums/electron.txt",
+			"build/lib/electron.ts"
+		],
+		// The test launchers read the application name from product.json.
+		"test launcher": [
+			"scripts/test.sh",
+			"scripts/test.bat",
+			"product.json"
+		],
+		"test runner": [
+			"test/unit/**",
+			"!test/unit/**/*.md"
+		],
+		// `npm run gulp transpile-client-esbuild` runs build/next through these files.
+		"transpiler": [
+			"build/gulpfile.ts",
+			"build/lib/esbuild.ts",
+			"build/lib/compilation.ts",
+			"build/lib/gulp/**",
+			"build/next/**"
+		],
+		"compiler options": [
+			"src/tsconfig*"
+		],
+		"dependency installation": [
+			"build/npm/**"
+		],
+		// The macOS and Windows unit test jobs and the actions they use.
+		"test job definition": [
+			".github/workflows/pr.yml",
+			".github/workflows/pr-darwin-test.yml",
+			".github/workflows/pr-win32-test.yml",
+			".github/workflows/node_modules_cache/**",
+			".github/actions/setup-electron/**",
+			".github/actions/restore-node-modules/**"
+		],
+		// ripple and this file decide what runs.
+		"test planner": [
+			"build/ripple/**",
+			"!build/ripple/**/*.md"
+		]
+	},
+
+	"packages": {
+		// npm packages that build or run every test: a version change runs every unit test.
+		"toolchain": [
+			"electron",
+			"esbuild",
+			"mocha",
+			"playwright",
+			"playwright-core",
+			"@playwright/test",
+			"typescript",
+			"@typescript/native",
+			"jsdom",
+			"source-map-support",
+			"@vscode/test-web",
+			"@vscode/test-electron",
+			"mocha-junit-reporter",
+			"mocha-multi-reporters",
+			"minimist",
+			"glob"
+		],
+		// npm scripts that install, build or run the unit tests in CI, with their `pre` and `post`
+		// hooks: changing one runs every unit test. Changing any other script affects no test.
+		"testScripts": [
+			"install",
+			"prepare",
+			"gulp",
+			"electron",
+			"test-node",
+			"test-browser",
+			"test-browser-no-install"
+		],
+		// package.json fields that no test reads, besides npm metadata and scripts. Changing any other
+		// field affects the code that reads package.json through `injectedGlobals`.
+		"ignoredFields": [
+			"distro"
+		]
+	},
+
+	// Files the test runners inject as globals (`globalThis.<name>`): changing the file affects the
+	// code that reads the global.
+	"injectedGlobals": {
+		"_VSCODE_PACKAGE_JSON": "package.json",
+		"_VSCODE_PRODUCT_JSON": "product.json"
+	},
+
+	// Calls without side effects, besides JavaScript built-ins: functions by name, and the methods of
+	// objects by the object's name. Calling one at module load does not tie a declaration to its
+	// module's evaluation, and the properties of an object literal passed to one are tracked as members.
+	"pure": {
+		"functions": [
+			"localize",
+			"localize2",
+			"createDecorator",
+			"refineServiceDecorator"
+		],
+		"objects": [
+			"URI",
+			"nls",
+			"ThemeIcon",
+			"Codicon",
+			"ContextKeyExpr"
+		]
+	},
+
+	// Methods that code calls without naming them at the call site, besides the JavaScript protocols
+	// (such as `toString`, `then` and iterators): code that reaches a class also reaches these methods.
+	"implicitMethods": [
+		"dispose"
+	]
+}

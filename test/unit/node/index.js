@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
 
 /**
- * @type {{ build: boolean; run: string | string[]; runList: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; }}
+ * @type {{ build: boolean; run: string; runList: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
@@ -37,7 +37,7 @@ const args = minimist(process.argv.slice(2), {
 	description: {
 		build: 'Run from out-build',
 		run: 'Run a single file',
-		runList: 'Run the files listed in a file, one per line',
+		runList: 'Only run the tests whose files are listed in a file, one per line',
 		coverage: 'Generate a coverage report',
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
@@ -52,19 +52,15 @@ if (args.help) {
 Options:
 --build          Run from out-build
 --run <file>     Run a single file
---runList <file> Run the files listed in <file>, one per line
+--runList <file> Only run the tests whose files are listed in <file>, one per line
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
 --help           Show help`);
 	process.exit(0);
 }
 
-// Treat the files listed in --runList as --run values
-if (args.runList) {
-	const listed = fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
-	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
-	args.run = [...existing, ...listed];
-}
+// --runList: the listed test files as compiled modules relative to the output folder (src/vs/a.test.ts is vs/a.test.js)
+const runList = args.runList ? new Set(fs.readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim().replace(/\\/g, '/')).filter(line => line.length > 0).map(line => line.replace(/^src\//, '').replace(/\.ts$/, '.js'))) : undefined;
 
 const TEST_GLOB = '**/test/**/*.test.js';
 const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
@@ -211,9 +207,12 @@ function main() {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
-					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob))) {
+					if (!excludeGlobs.some(excludeGlob => minimatch(file, excludeGlob)) && (!runList || runList.has(file))) {
 						modules.push(file.replace(/\.js$/, ''));
 					}
+				}
+				if (runList) {
+					console.log(`Running the ${modules.length} node.js test files of the ${runList.size} files listed in ${args.runList}`);
 				}
 				loadModules(modules).then(() => cb(null), cb);
 			});

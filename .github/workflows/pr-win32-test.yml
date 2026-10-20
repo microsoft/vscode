@@ -190,24 +190,24 @@ jobs:
           path: .build/unit-test-plan
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/electron.txt') != '') }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 15
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/electron.txt' || '' }}
+        run: .\scripts\test.bat --tfs "Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/node.txt') != '') }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 15
         shell: pwsh
-        run: npm run test-node -- ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/node.txt' || '' }}
+        run: npm run test-node -- ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/browser.txt') != '') }}
+        if: ${{ inputs.browser_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 20
         shell: pwsh
-        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/browser.txt' || '' }}
+        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 

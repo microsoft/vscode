@@ -22,8 +22,11 @@ use oxc_syntax::{
 };
 use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
+use crate::config::Config;
+
 /// A module specifier: from an import or export, a dynamic import, `require`, or a string literal
-/// that looks like a module or file path (such as `'vs/base/worker/x.js'` or a fixture folder).
+/// that looks like a module or file path (a relative path or one starting with a path alias, such
+/// as a worker entry point or a fixture folder).
 #[derive(Debug, Clone)]
 pub struct ImportSpec {
 	pub specifier: String,
@@ -56,7 +59,7 @@ pub enum Ref {
 	},
 	/// Everything a module exports (dynamic imports, path strings, opaque namespace use).
 	All(u32),
-	/// An ambient input injected by the host, such as `globalThis._VSCODE_PRODUCT_JSON`.
+	/// A global injected by the test runners (see `injectedGlobals` in the configuration).
 	Global(Box<str>),
 }
 
@@ -87,9 +90,6 @@ pub struct Decl {
 	pub gate: u64,
 	/// Property names (as name ids) this declaration accesses: `x.name`, `{ name } = x`, 'name'.
 	pub uses: Vec<u64>,
-	/// The declaration's own code behaves differently per operating system: it uses the file
-	/// system, paths, processes, OS facts or Electron main-process APIs.
-	pub os: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -140,51 +140,14 @@ pub fn name_id(name: &str) -> u64 {
 	xxh3_64(name.as_bytes()) | 1
 }
 
-/// Node.js modules whose behavior differs per operating system.
-const OS_NODE_MODULES: &[&str] = &[
-	"fs",
-	"fs/promises",
-	"path",
-	"os",
-	"child_process",
-	"net",
-	"tty",
-	"process",
-	"url",
-	"readline",
-	"dgram",
-];
-
-/// Repository modules that encode OS differences (paths, platform facts, processes).
-const OS_REPO_MODULES: &[&str] = &[
-	"/base/common/platform.js",
-	"/base/common/path.js",
-	"/base/common/extpath.js",
-	"/base/common/labels.js",
-	"/base/common/processes.js",
-	"/base/common/process.js",
-];
-
-/// Properties whose values differ per operating system.
-const OS_PROPERTIES: &[&str] = &["fsPath", "sep", "delimiter", "EOL"];
-
-/// Whether an import specifier names a module with OS-dependent behavior.
-fn is_os_module(spec: &str) -> bool {
-	let bare = spec.strip_prefix("node:").unwrap_or(spec);
-	OS_NODE_MODULES.contains(&bare)
-		|| spec == "electron"
-		|| spec.contains("/base/node/")
-		|| OS_REPO_MODULES.iter().any(|m| spec.ends_with(m))
-}
-
-/// Methods the runtime calls without the name appearing in source.
+/// Methods the runtime calls without the name appearing in source. The configuration can add
+/// methods that a repository's conventions call this way.
 pub const IMPLICIT_METHODS: &[&str] = &[
 	"constructor",
 	"toString",
 	"toJSON",
 	"valueOf",
 	"then",
-	"dispose",
 	"handleEvent",
 	"next",
 	"return",
@@ -296,30 +259,25 @@ fn runtime_names(decl: &Declaration) -> Option<Vec<String>> {
 	}
 }
 
-/// Calls at load time that are known not to have observable global side effects.
-fn is_pure_callee(callee: &Expression) -> bool {
+/// Calls at load time that are known not to have observable global side effects: JavaScript
+/// built-ins, and the functions and objects the configuration declares pure.
+fn is_pure_callee(callee: &Expression, config: &Config) -> bool {
 	match callee {
-		Expression::Identifier(id) => matches!(
-			id.name.as_str(),
-			"localize"
-				| "localize2"
-				| "Symbol" | "createDecorator"
-				| "refineServiceDecorator"
-				| "Number" | "String"
-				| "Boolean" | "parseInt"
-				| "parseFloat"
-		),
+		Expression::Identifier(id) => {
+			let name = id.name.as_str();
+			matches!(
+				name,
+				"Symbol" | "Number" | "String" | "Boolean" | "parseInt" | "parseFloat"
+			) || config.is_pure_function(name)
+		}
 		Expression::StaticMemberExpression(m) => match &m.object {
 			Expression::Identifier(o) => {
-				matches!(
-					o.name.as_str(),
-					"Object"
-						| "URI" | "nls" | "Math"
-						| "JSON" | "Array" | "Number"
-						| "String" | "ThemeIcon"
-						| "Codicon" | "ContextKeyExpr"
-						| "Date"
-				) && m.property.name.as_str() != "assign"
+				let name = o.name.as_str();
+				(matches!(
+					name,
+					"Object" | "Math" | "JSON" | "Array" | "Number" | "String" | "Date"
+				) || config.is_pure_object(name))
+					&& m.property.name.as_str() != "assign"
 					&& m.property.name.as_str() != "defineProperty"
 			}
 			_ => false,
@@ -443,13 +401,18 @@ fn is_literal(e: &Expression) -> bool {
 	}
 }
 
-fn object_literal<'b, 'a>(e: &'b Expression<'a>) -> Option<&'b ObjectExpression<'a>> {
+fn object_literal<'b, 'a>(
+	e: &'b Expression<'a>,
+	config: &Config,
+) -> Option<&'b ObjectExpression<'a>> {
 	match e {
 		Expression::ObjectExpression(o) => Some(o),
-		Expression::TSAsExpression(x) => object_literal(&x.expression),
-		Expression::TSSatisfiesExpression(x) => object_literal(&x.expression),
-		Expression::ParenthesizedExpression(x) => object_literal(&x.expression),
-		Expression::CallExpression(c) if is_pure_callee(&c.callee) && c.arguments.len() == 1 => {
+		Expression::TSAsExpression(x) => object_literal(&x.expression, config),
+		Expression::TSSatisfiesExpression(x) => object_literal(&x.expression, config),
+		Expression::ParenthesizedExpression(x) => object_literal(&x.expression, config),
+		Expression::CallExpression(c)
+			if is_pure_callee(&c.callee, config) && c.arguments.len() == 1 =>
+		{
 			match c.arguments.first() {
 				Some(Argument::ObjectExpression(o)) => Some(o),
 				_ => None,
@@ -505,7 +468,7 @@ fn class_members(c: &Class, out: &mut Vec<Member>) {
 
 /// Members of a declaration that are tracked as declarations of their own. Everything else in
 /// the declaration (class constructors and fields, spreads, computed keys) stays with the parent.
-fn member_list(decl: &Declaration) -> Vec<Member> {
+fn member_list(decl: &Declaration, config: &Config) -> Vec<Member> {
 	let mut out = Vec::new();
 	match decl {
 		Declaration::TSEnumDeclaration(e) => {
@@ -530,9 +493,10 @@ fn member_list(decl: &Declaration) -> Vec<Member> {
 			if v.kind == VariableDeclarationKind::Const && v.declarations.len() == 1 =>
 		{
 			let d = &v.declarations[0];
-			if let (BindingPattern::BindingIdentifier(_), Some(o)) =
-				(&d.id, d.init.as_ref().and_then(object_literal))
-			{
+			if let (BindingPattern::BindingIdentifier(_), Some(o)) = (
+				&d.id,
+				d.init.as_ref().and_then(|e| object_literal(e, config)),
+			) {
 				for p in &o.properties {
 					if let ObjectPropertyKind::ObjectProperty(p) = p {
 						if !p.computed {
@@ -614,10 +578,10 @@ fn memberize(
 	facts.decls[parent as usize].children = children;
 }
 
-fn looks_like_path(s: &str) -> bool {
+fn looks_like_path(s: &str, config: &Config) -> bool {
 	s.len() > 3
 		&& s.len() < 240
-		&& (s.starts_with("vs/") || s.starts_with("./") || s.starts_with("../"))
+		&& (s.starts_with("./") || s.starts_with("../") || config.has_alias(s))
 		&& !s
 			.bytes()
 			.any(|b| b.is_ascii_whitespace() || b == b'*' || b == b'$' || b == b'{')
@@ -634,7 +598,7 @@ fn is_identifier_like(s: &str) -> bool {
 
 /// Analyzes one module. Never fails: on a fatal parse error the whole file becomes a single
 /// initializer node whose hash covers the full source.
-pub fn analyze(path: &str, source: &str) -> FileFacts {
+pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	let allocator = Allocator::default();
 	let source_type = SourceType::from_path(path).unwrap_or_else(|_| SourceType::ts());
 	let ret = Parser::new(&allocator, source, source_type)
@@ -834,7 +798,12 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 									namespace_scopes.push(scope);
 								}
 							}
-							memberize(&mut facts, idx, member_list(decl), &mut member_spans);
+							memberize(
+								&mut facts,
+								idx,
+								member_list(decl, config),
+								&mut member_spans,
+							);
 						}
 					}
 					None => owners[i] = Owner::Init,
@@ -1084,7 +1053,7 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 	};
 
 	// One pass over all nodes: TypeScript-only spans to leave out of the hashes, load-time side
-	// effects, property name uses, dynamic imports, path strings, ambient inputs and test counts.
+	// effects, property name uses, dynamic imports, path strings, injected globals and test counts.
 	// Node ids are assigned in traversal order, so a parent is always visited before its children.
 	let mut excluded: Vec<Span> = Vec::new();
 	let mut deferred = vec![false; nodes.len()];
@@ -1092,7 +1061,6 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 	let mut dynamic: Vec<(u32, String)> = Vec::new();
 	let mut globals: Vec<(u32, String)> = Vec::new();
 	let mut uses: Vec<(u32, u64)> = Vec::new();
-	let mut os_marks: Vec<u32> = Vec::new();
 	// Effects of the code inside each declaration (function bodies included), and direct calls
 	// of local functions, at load time (by statement) and later (by declaration).
 	let mut escaping = vec![false; facts.decls.len()];
@@ -1209,16 +1177,7 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 			AstKind::StaticMemberExpression(m) => {
 				let name = m.property.name.as_str();
 				uses.push((m.span.start, name_id(name)));
-				if let Expression::Identifier(o) = m.object.get_inner_expression() {
-					if o.name.as_str() == "process"
-						&& o.reference_id
-							.get()
-							.is_some_and(|r| scoping.get_reference(r).symbol_id().is_none())
-					{
-						os_marks.push(m.span.start);
-					}
-				}
-				if name.starts_with("_VSCODE_") {
+				if config.is_injected_global(name) {
 					if let Expression::Identifier(o) = m.object.get_inner_expression() {
 						if matches!(o.name.as_str(), "globalThis" | "self" | "window") {
 							globals.push((m.span.start, name.to_owned()));
@@ -1252,7 +1211,7 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 				if is_identifier_like(&value) {
 					uses.push((s.span.start, name_id(&value)));
 				}
-				if looks_like_path(&value) {
+				if looks_like_path(&value, config) {
 					match nodes.parent_kind(id) {
 						AstKind::ImportDeclaration(_)
 						| AstKind::ExportAllDeclaration(_)
@@ -1269,7 +1228,7 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 			// mutable module state at load time.
 			let relevant = match kind {
 				AstKind::CallExpression(c) => {
-					!is_pure_callee(&c.callee)
+					!is_pure_callee(&c.callee, config)
 						&& !matches!(&c.callee, Expression::StaticMemberExpression(m) if PURE_METHODS.contains(&m.property.name.as_str()))
 				}
 				AstKind::IdentifierReference(r) => {
@@ -1317,7 +1276,7 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 		// Effects that can be observed outside this module. Effects on module-local state only
 		// reach other code through the declarations holding that state.
 		let escape = match kind {
-			AstKind::CallExpression(c) if is_pure_callee(&c.callee) => Escape::No,
+			AstKind::CallExpression(c) if is_pure_callee(&c.callee, config) => Escape::No,
 			AstKind::CallExpression(c) if matches!(&c.callee, Expression::StaticMemberExpression(m) if PURE_METHODS.contains(&m.property.name.as_str())) => {
 				Escape::No
 			}
@@ -1471,11 +1430,6 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 			}
 		}
 	}
-	for pos in os_marks {
-		if let Some(src) = node_at(pos) {
-			facts.decls[src as usize].os = true;
-		}
-	}
 
 	// Content hashes over the tokens of each declaration, skipping TypeScript-only spans. Comments
 	// and whitespace are not tokens, so they never affect a hash.
@@ -1548,20 +1502,6 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 		if let Some(d) = node_at(kind.span().start) {
 			hashers[d as usize].update(&[0xfb, kind.ty() as u8]);
 		}
-	}
-	// OS-dependent behavior: OS modules, OS properties, Electron main-process code. (`URI.file` is
-	// not counted: tests use it everywhere with POSIX-style fixture paths.)
-	let main_process = path.contains("/electron-main/") || path.contains("/electron-utility/");
-	let os_properties: Vec<u64> = OS_PROPERTIES.iter().map(|p| name_id(p)).collect();
-	for decl in facts.decls.iter_mut() {
-		decl.os |= main_process
-			|| decl.uses.iter().any(|u| os_properties.contains(u))
-			|| decl.refs.iter().any(|r| match r {
-				Ref::Import { binding, .. } => is_os_module(
-					&facts.specs[facts.bindings[*binding as usize].spec as usize].specifier,
-				),
-				_ => false,
-			});
 	}
 
 	// Retargeting an import changes the behavior of every declaration that uses it.
@@ -1687,6 +1627,10 @@ fn add_export_decls(facts: &mut FileFacts) {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	fn analyze(path: &str, source: &str) -> FileFacts {
+		super::analyze(path, source, crate::config::for_tests())
+	}
 
 	fn key_hashes(f: &FileFacts) -> Vec<(String, u64)> {
 		f.decls.iter().map(|d| (d.key.clone(), d.hash)).collect()
@@ -1883,7 +1827,7 @@ mod tests {
 	}
 
 	#[test]
-	fn global_effects_and_ambient_inputs() {
+	fn global_effects_and_injected_globals() {
 		let pure = analyze(
 			"a.ts",
 			"let isWindows = false;\nif (typeof process === 'object') { isWindows = process.platform === 'win32'; }\nexport { isWindows };\n",
@@ -1896,11 +1840,11 @@ mod tests {
 		assert!(registers.global_effects);
 		let product = analyze(
 			"a.ts",
-			"export const product = globalThis._VSCODE_PRODUCT_JSON;\n",
+			"export const product = globalThis._PRODUCT;\nexport const other = globalThis._OTHER;\n",
 		);
 		assert_eq!(
-			product.decls[1].refs,
-			vec![Ref::Global("_VSCODE_PRODUCT_JSON".into())]
+			(&product.decls[1].refs, &product.decls[2].refs),
+			(&vec![Ref::Global("_PRODUCT".into())], &vec![])
 		);
 	}
 
@@ -1908,7 +1852,7 @@ mod tests {
 	fn load_time_calls_of_local_functions_depend_on_their_effects() {
 		let pure = analyze(
 			"a.ts",
-			"function lang() { return globalThis._VSCODE_NLS_LANGUAGE; }\nconst isPseudo = lang() === 'pseudo';\nexport function f() { return isPseudo; }\n",
+			"function lang() { return globalThis._LANGUAGE; }\nconst isPseudo = lang() === 'pseudo';\nexport function f() { return isPseudo; }\n",
 		);
 		assert!(!pure.global_effects);
 		let registers = analyze(
@@ -1934,29 +1878,17 @@ mod tests {
 	}
 
 	#[test]
-	fn os_dependent_declarations() {
+	fn configured_pure_calls_do_not_pin_declarations() {
 		let f = analyze(
 			"a.ts",
-			"import * as fs from 'fs';\nimport { URI } from '../base/common/uri.js';\nimport { isWindows } from '../base/common/platform.js';\nexport function read(p: string) { return fs.readFileSync(p); }\nexport function toUri(p: string) { return URI.file(p); }\nexport function label(u: URI) { return u.fsPath; }\nexport function eol() { return isWindows ? '\\r\\n' : '\\n'; }\nexport function plat() { return process.platform; }\nexport function pure(u: URI) { return u.path + URI.parse('x').scheme; }\n",
+			"export const a = localize('a', 'b');\nexport const b = URI.parse('x');\nexport const c = translate('a', 'b');\nexport const D = URI.from({ x: 1, y: 2 });\n",
 		);
-		let os: Vec<(&str, bool)> = f
-			.decls
+		let pinned: Vec<(&str, bool)> = ["a", "b", "c"]
 			.iter()
-			.skip(1)
-			.filter(|d| !d.key.starts_with("<export>"))
-			.map(|d| (d.key.as_str(), d.os))
+			.map(|k| (*k, find(&f, k).1.pinned))
 			.collect();
-		assert_eq!(
-			os,
-			vec![
-				("read", true),
-				("toUri", false),
-				("label", true),
-				("eol", true),
-				("plat", true),
-				("pure", false)
-			]
-		);
+		assert_eq!(pinned, vec![("a", false), ("b", false), ("c", true)]);
+		assert_eq!(find(&f, "D").1.members.len(), 2);
 	}
 
 	#[test]

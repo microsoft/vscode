@@ -164,21 +164,21 @@ jobs:
           path: .build/unit-test-plan
 
       - name: 🧪 Run unit tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/electron.txt') != '') }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/electron.txt' || '' }}
+        run: ./scripts/test.sh --tfs "Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/node.txt') != '') }}
+        if: ${{ inputs.electron_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 15
-        run: npm run test-node -- ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/node.txt' || '' }}
+        run: npm run test-node -- ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/unit.txt' || '' }}
 
       - name: 🧪 Run unit tests (Browser, Webkit)
-        if: ${{ inputs.browser_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/browser.txt') != '') }}
+        if: ${{ inputs.browser_tests && inputs.unit_tests && (steps.unit-test-plan.outcome != 'success' || hashFiles('.build/unit-test-plan/unit.txt') != '') }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/browser.txt' || '' }}
+        run: npm run test-browser-no-install -- --browser webkit --tfs "Browser Unit Tests" ${{ steps.unit-test-plan.outcome == 'success' && '--runList .build/unit-test-plan/unit.txt' || '' }}
         env:
           DEBUG: "*browser*"
 

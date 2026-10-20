@@ -10,44 +10,11 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 use serde_json::{Map, Value};
 
-/// Packages that run or build every test: a change to any of them affects all tests.
-const TOOLCHAIN: &[&str] = &[
-	"electron",
-	"esbuild",
-	"mocha",
-	"playwright",
-	"playwright-core",
-	"@playwright/test",
-	"typescript",
-	"@typescript/native",
-	"jsdom",
-	"source-map-support",
-	"@vscode/test-web",
-	"@vscode/test-electron",
-	"mocha-junit-reporter",
-	"mocha-multi-reporters",
-	"minimist",
-	"glob",
-];
+use crate::config::Config;
 
-/// npm scripts that install, build or run the unit tests in CI (including their `pre` and `post`
-/// hooks). Changing one of them changes how every unit test runs.
-const TEST_SCRIPTS: &[&str] = &[
-	"install",
-	"prepare",
-	"gulp",
-	"electron",
-	"test-node",
-	"test-browser",
-	"test-browser-no-install",
-];
-
-/// `package.json` fields that are not visible to tests. The test runners inject the rest of the file
-/// as `globalThis._VSCODE_PACKAGE_JSON`, which the product configuration reads. Scripts other than
-/// `TEST_SCRIPTS` are not run by the unit tests.
-const BENIGN_FIELDS: &[&str] = &[
-	"scripts",
-	"distro",
+/// `package.json` fields that only describe the package. Code that reads the manifest at runtime
+/// (see `injectedGlobals` in the configuration) can see the other fields, except `scripts`.
+const METADATA_FIELDS: &[&str] = &[
 	"description",
 	"repository",
 	"bugs",
@@ -71,10 +38,8 @@ const DEP_FIELDS: &[&str] = &[
 pub struct DepImpact {
 	pub run_all: Option<String>,
 	pub packages: HashSet<String>,
-	/// A field visible to tests through `_VSCODE_PACKAGE_JSON` changed.
+	/// A `package.json` field that code can read at runtime changed.
 	pub package_json: bool,
-	/// A changed package ships platform-specific binaries or builds native code on install.
-	pub native: bool,
 }
 
 fn changed_keys(a: Option<&Map<String, Value>>, b: Option<&Map<String, Value>>) -> Vec<String> {
@@ -97,7 +62,7 @@ fn parse(text: Option<&str>) -> Value {
 }
 
 impl DepImpact {
-	pub fn add_package_json(&mut self, before: Option<&str>, after: Option<&str>) {
+	pub fn add_package_json(&mut self, config: &Config, before: Option<&str>, after: Option<&str>) {
 		let (a, b) = (parse(before), parse(after));
 		for key in changed_keys(a.as_object(), b.as_object()) {
 			if key == "allowScripts" {
@@ -115,8 +80,8 @@ impl DepImpact {
 					let bare = script
 						.strip_prefix("pre")
 						.or_else(|| script.strip_prefix("post"));
-					if TEST_SCRIPTS.contains(&script.as_str())
-						|| bare.is_some_and(|s| TEST_SCRIPTS.contains(&s))
+					if config.test_scripts.contains(&script)
+						|| bare.is_some_and(|s| config.test_scripts.contains(s))
 					{
 						self.run_all
 							.get_or_insert_with(|| format!("package.json script '{script}'"));
@@ -127,7 +92,9 @@ impl DepImpact {
 				for dep in changed_keys(a[&key].as_object(), b[&key].as_object()) {
 					self.packages.insert(dep);
 				}
-			} else if !BENIGN_FIELDS.contains(&key.as_str()) {
+			} else if !METADATA_FIELDS.contains(&key.as_str())
+				&& !config.ignored_fields.contains(&key)
+			{
 				self.package_json = true;
 			}
 		}
@@ -179,21 +146,6 @@ impl DepImpact {
 				}
 			}
 		}
-		let is_native = |e: &Value| {
-			e.get("os").is_some()
-				|| e.get("cpu").is_some()
-				|| e["hasInstallScript"].as_bool() == Some(true)
-				|| e["optionalDependencies"].as_object().is_some_and(|o| {
-					o.keys()
-						.any(|k| k.contains("darwin") || k.contains("win32") || k.contains("linux"))
-				})
-		};
-		let native: HashSet<String> = pa
-			.iter()
-			.chain(pb.iter())
-			.filter(|(_, e)| is_native(e))
-			.filter_map(|(p, _)| name_of(p))
-			.collect();
 		let mut seen: HashSet<String> = HashSet::new();
 		while let Some(name) = queue.pop_front() {
 			if !seen.insert(name.clone()) {
@@ -203,16 +155,15 @@ impl DepImpact {
 				queue.extend(ds.iter().cloned());
 			}
 		}
-		self.native |= seen.iter().any(|n| native.contains(n));
 		self.packages.extend(seen);
 	}
 
-	pub fn finish(&mut self) {
+	pub fn finish(&mut self, config: &Config) {
 		if self.run_all.is_none() {
 			if let Some(p) = self
 				.packages
 				.iter()
-				.find(|p| TOOLCHAIN.contains(&p.as_str()))
+				.find(|p| config.toolchain.contains(p.as_str()))
 			{
 				self.run_all = Some(format!("toolchain package '{p}'"));
 			}
@@ -223,15 +174,17 @@ impl DepImpact {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::config::for_tests;
 
 	#[test]
 	fn scripts_changes_are_benign_and_dependency_bumps_are_precise() {
 		let mut i = DepImpact::default();
 		i.add_package_json(
+			for_tests(),
 			Some(r#"{"scripts":{"a":"1"},"dependencies":{"x":"1","y":"1"}}"#),
 			Some(r#"{"scripts":{"a":"2"},"dependencies":{"x":"2","y":"1"}}"#),
 		);
-		i.finish();
+		i.finish(for_tests());
 		assert_eq!(
 			(i.run_all, i.packages.into_iter().collect::<Vec<_>>()),
 			(None, vec!["x".to_owned()])
@@ -240,15 +193,30 @@ mod tests {
 
 	#[test]
 	fn test_scripts_run_everything() {
-		for script in ["test-node", "pretest-node", "postinstall", "gulp"] {
+		for script in ["test", "pretest", "postinstall", "install"] {
 			let mut i = DepImpact::default();
 			i.add_package_json(
+				for_tests(),
 				Some(r#"{"scripts":{}}"#),
 				Some(&format!(r#"{{"scripts":{{"{script}":"x"}}}}"#)),
 			);
-			i.finish();
+			i.finish(for_tests());
 			assert_eq!(i.run_all, Some(format!("package.json script '{script}'")));
 		}
+	}
+
+	#[test]
+	fn metadata_and_ignored_fields_are_not_read_by_code() {
+		let changed = |before: &str, after: &str| {
+			let mut i = DepImpact::default();
+			i.add_package_json(for_tests(), Some(before), Some(after));
+			i.package_json
+		};
+		assert!(!changed(
+			r#"{"description":"a","build":"1","version":"1"}"#,
+			r#"{"description":"b","build":"2","version":"1"}"#
+		));
+		assert!(changed(r#"{"version":"1"}"#, r#"{"version":"2"}"#));
 	}
 
 	#[test]
@@ -266,10 +234,11 @@ mod tests {
 	fn toolchain_bumps_run_everything() {
 		let mut i = DepImpact::default();
 		i.add_package_json(
-			Some(r#"{"devDependencies":{"electron":"1"}}"#),
-			Some(r#"{"devDependencies":{"electron":"2"}}"#),
+			for_tests(),
+			Some(r#"{"devDependencies":{"mocha":"1"}}"#),
+			Some(r#"{"devDependencies":{"mocha":"2"}}"#),
 		);
-		i.finish();
+		i.finish(for_tests());
 		assert!(i.run_all.is_some());
 	}
 }
