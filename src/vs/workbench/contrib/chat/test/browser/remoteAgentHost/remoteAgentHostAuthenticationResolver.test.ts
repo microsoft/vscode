@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -132,6 +133,40 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 			ongoing: requests,
 		});
 	});
+
+	for (const lifetime of [1, 5, undefined]) {
+		test(`credential lifetime accounts for later resource lookups (expiresIn=${lifetime})`, async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date'] });
+			const secondLookup = new DeferredPromise<readonly AuthenticationSession[]>();
+			const started = new DeferredPromise<void>();
+			let lookups = 0;
+			const { resolver, extensions } = fixture({
+				lookup: async () => {
+					if (++lookups === 1) {
+						return [{ ...session, expiresAfter: lifetime === undefined ? undefined : lifetime * 1000 }];
+					}
+					started.complete();
+					return secondLookup.p;
+				},
+			});
+			try {
+				await extensions.complete(true);
+				const second = { ...resource, resource: 'https://api.example.com/second' };
+				const pending = resolver.resolve([{ ...agents[0], protectedResources: [resource, second] }]);
+				await started.p;
+				clock.tick(1_500);
+				await secondLookup.complete([{ ...session, accessToken: 'second-token', expiresAfter: 10_000 }]);
+				const requests = await pending;
+				assert.deepStrictEqual(requests.map(request => ({ token: request.token, expiresIn: request.expiresIn })), [
+					{ token: session.accessToken, expiresIn: lifetime === undefined ? undefined : lifetime === 1 ? 0 : 4 },
+					{ token: 'second-token', expiresIn: 10 },
+				]);
+			} finally {
+				await secondLookup.complete([]);
+				clock.restore();
+			}
+		});
+	}
 
 	for (const sessionError of [false, true]) {
 		test(`keeps signed-out and unusable-credential hosts available without prompting (sessionError=${sessionError})`, async () => {

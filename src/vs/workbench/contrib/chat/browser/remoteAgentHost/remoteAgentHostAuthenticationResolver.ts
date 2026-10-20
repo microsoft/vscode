@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { getExpirationTime, getRemainingTimeInSeconds } from '../../../../../base/common/date.js';
 import { IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAdvertisedAuthentication, type IAgentHostAuthenticationSessionRemoval } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import type { AuthenticateParams } from '../../../../../platform/agentHost/common/agent.js';
 import type { AgentInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -94,13 +95,16 @@ export class RemoteAgentHostAuthenticationResolver implements IAgentHostAdvertis
 			return [...resources.values()].map(resource => ({ resource: resource.resource, scopes: resource.scopes_supported ?? [], token: testToken }));
 		}
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const requests: AuthenticateParams[] = [];
+		const requests: { readonly request: AuthenticateParams; readonly expiresAt: number | undefined }[] = [];
 		for (const resource of resources.values()) {
 			const request = await this._instantiationService.invokeFunction(resolveProtectedResourceAuthentication, resource, '[RemoteAgentHost]');
 			if (request) {
-				requests.push(request);
+				requests.push({ request, expiresAt: getExpirationTime(request.expiresIn) });
 			}
 		}
-		return requests;
+		return requests.map(({ request, expiresAt }) => expiresAt === undefined ? request : {
+			...request,
+			expiresIn: getRemainingTimeInSeconds(expiresAt) ?? 0,
+		});
 	}
 }
