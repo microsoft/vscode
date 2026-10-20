@@ -1322,102 +1322,102 @@ export class PromptValidator {
 		}
 	}
 
-		private validateCopilotMcpServers(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
-			const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.mcpServers);
-			if (!attribute || isNullScalar(attribute.value) || attribute.value.type !== 'map') {
-				return;
+	private validateCopilotMcpServers(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		const attribute = attributes.find(attr => attr.key === GithubPromptHeaderAttributes.mcpServers);
+		if (!attribute || isNullScalar(attribute.value) || attribute.value.type !== 'map') {
+			return;
+		}
+		for (const server of attribute.value.properties) {
+			if (server.value.type !== 'map') {
+				report(toMarker(localize('promptValidator.mcpServerMustBeObject', "MCP server '{0}' must be an object.", server.key.value), server.value.range, MarkerSeverity.Error));
+				continue;
 			}
-			for (const server of attribute.value.properties) {
-				if (server.value.type !== 'map') {
-					report(toMarker(localize('promptValidator.mcpServerMustBeObject', "MCP server '{0}' must be an object.", server.key.value), server.value.range, MarkerSeverity.Error));
-					continue;
-				}
-				this.validateCopilotMcpServer(server.key.value, server.value, report);
+			this.validateCopilotMcpServer(server.key.value, server.value, report);
+		}
+	}
+
+	private validateCopilotMcpServer(name: string, server: IMapValue, report: (markers: IMarkerData) => void): void {
+		const properties = new Map(server.properties.map(property => [property.key.value, property]));
+		const type = properties.get('type')?.value;
+		const typeValue = type?.type === 'scalar' ? type.value : undefined;
+		const isRemote = properties.has('url') || typeValue === 'http' || typeValue === 'sse';
+		const required = isRemote ? ['type', 'url', 'tools'] : ['command', 'args', 'tools'];
+		for (const property of required) {
+			if (!properties.has(property)) {
+				report(toMarker(localize('promptValidator.mcpServerPropertyRequired', "MCP server '{0}' requires the '{1}' property.", name, property), server.range, MarkerSeverity.Error));
 			}
 		}
 
-		private validateCopilotMcpServer(name: string, server: IMapValue, report: (markers: IMarkerData) => void): void {
-			const properties = new Map(server.properties.map(property => [property.key.value, property]));
-			const type = properties.get('type')?.value;
-			const typeValue = type?.type === 'scalar' ? type.value : undefined;
-			const isRemote = properties.has('url') || typeValue === 'http' || typeValue === 'sse';
-			const required = isRemote ? ['type', 'url', 'tools'] : ['command', 'args', 'tools'];
-			for (const property of required) {
-				if (!properties.has(property)) {
-					report(toMarker(localize('promptValidator.mcpServerPropertyRequired', "MCP server '{0}' requires the '{1}' property.", name, property), server.range, MarkerSeverity.Error));
-				}
+		const allowed = new Set(isRemote
+			? ['type', 'url', 'tools', 'headers', 'timeout', 'deferTools']
+			: ['type', 'command', 'args', 'tools', 'cwd', 'env', 'timeout', 'deferTools']);
+		for (const property of server.properties) {
+			const propertyName = property.key.value;
+			if (!allowed.has(propertyName)) {
+				report(toMarker(localize('promptValidator.unknownMcpServerProperty', "Unknown property '{0}' in MCP server '{1}'.", propertyName, name), property.key.range, MarkerSeverity.Warning));
+				continue;
 			}
-
-			const allowed = new Set(isRemote
-				? ['type', 'url', 'tools', 'headers', 'timeout', 'deferTools']
-				: ['type', 'command', 'args', 'tools', 'cwd', 'env', 'timeout', 'deferTools']);
-			for (const property of server.properties) {
-				const propertyName = property.key.value;
-				if (!allowed.has(propertyName)) {
-					report(toMarker(localize('promptValidator.unknownMcpServerProperty', "Unknown property '{0}' in MCP server '{1}'.", propertyName, name), property.key.range, MarkerSeverity.Warning));
-					continue;
-				}
-				switch (propertyName) {
-					case 'type': {
-						const validTypes = isRemote ? ['http', 'sse'] : ['local', 'stdio'];
-						if (property.value.type !== 'scalar' || !validTypes.includes(property.value.value)) {
-							report(toMarker(localize('promptValidator.invalidMcpServerType', "The 'type' property for MCP server '{0}' must be one of: {1}.", name, validTypes.join(', ')), property.value.range, MarkerSeverity.Error));
-						}
-						break;
+			switch (propertyName) {
+				case 'type': {
+					const validTypes = isRemote ? ['http', 'sse'] : ['local', 'stdio'];
+					if (property.value.type !== 'scalar' || !validTypes.includes(property.value.value)) {
+						report(toMarker(localize('promptValidator.invalidMcpServerType', "The 'type' property for MCP server '{0}' must be one of: {1}.", name, validTypes.join(', ')), property.value.range, MarkerSeverity.Error));
 					}
-					case 'command':
-					case 'cwd':
-					case 'url':
-						if (property.value.type !== 'scalar') {
-							report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
-						}
-						break;
-					case 'args':
-					case 'tools':
-						this.validateStringArray(propertyName, name, property.value, report);
-						break;
-					case 'env':
-					case 'headers':
-						this.validateStringMap(propertyName, name, property.value, report);
-						break;
-					case 'timeout':
-						if (property.value.type !== 'scalar' || !/^[1-9]\d*$/.test(property.value.value) || property.value.format !== 'none') {
-							report(toMarker(localize('promptValidator.mcpServerTimeoutMustBePositiveInteger', "The 'timeout' property for MCP server '{0}' must be a positive integer.", name), property.value.range, MarkerSeverity.Error));
-						}
-						break;
-					case 'deferTools':
-						if (property.value.type !== 'scalar' || (property.value.value !== 'auto' && property.value.value !== 'never')) {
-							report(toMarker(localize('promptValidator.mcpServerDeferToolsInvalid', "The 'deferTools' property for MCP server '{0}' must be 'auto' or 'never'.", name), property.value.range, MarkerSeverity.Error));
-						}
-						break;
+					break;
 				}
-			}
-		}
-
-		private validateStringArray(propertyName: string, serverName: string, value: IValue, report: (markers: IMarkerData) => void): void {
-			if (value.type !== 'sequence') {
-				report(toMarker(localize('promptValidator.mcpServerPropertyMustBeStringArray', "The '{0}' property for MCP server '{1}' must be an array of strings.", propertyName, serverName), value.range, MarkerSeverity.Error));
-				return;
-			}
-			for (const item of value.items) {
-				if (item.type !== 'scalar') {
-					report(toMarker(localize('promptValidator.mcpServerPropertyItemMustBeString', "Each item in the '{0}' property for MCP server '{1}' must be a string.", propertyName, serverName), item.range, MarkerSeverity.Error));
-				}
-			}
-		}
-
-		private validateStringMap(propertyName: string, serverName: string, value: IValue, report: (markers: IMarkerData) => void): void {
-			if (value.type !== 'map') {
-				report(toMarker(localize('promptValidator.mcpServerPropertyMustBeStringMap', "The '{0}' property for MCP server '{1}' must be an object with string values.", propertyName, serverName), value.range, MarkerSeverity.Error));
-				return;
-			}
-			for (const property of value.properties) {
-				if (property.value.type !== 'scalar') {
-					report(toMarker(localize('promptValidator.mcpServerPropertyValueMustBeString', "Each value in the '{0}' property for MCP server '{1}' must be a string.", propertyName, serverName), property.value.range, MarkerSeverity.Error));
-				}
+				case 'command':
+				case 'cwd':
+				case 'url':
+					if (property.value.type !== 'scalar') {
+						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
+				case 'args':
+				case 'tools':
+					this.validateStringArray(propertyName, name, property.value, report);
+					break;
+				case 'env':
+				case 'headers':
+					this.validateStringMap(propertyName, name, property.value, report);
+					break;
+				case 'timeout':
+					if (property.value.type !== 'scalar' || !/^[1-9]\d*$/.test(property.value.value) || property.value.format !== 'none') {
+						report(toMarker(localize('promptValidator.mcpServerTimeoutMustBePositiveInteger', "The 'timeout' property for MCP server '{0}' must be a positive integer.", name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
+				case 'deferTools':
+					if (property.value.type !== 'scalar' || (property.value.value !== 'auto' && property.value.value !== 'never')) {
+						report(toMarker(localize('promptValidator.mcpServerDeferToolsInvalid', "The 'deferTools' property for MCP server '{0}' must be 'auto' or 'never'.", name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
 			}
 		}
 	}
+
+	private validateStringArray(propertyName: string, serverName: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'sequence') {
+			report(toMarker(localize('promptValidator.mcpServerPropertyMustBeStringArray', "The '{0}' property for MCP server '{1}' must be an array of strings.", propertyName, serverName), value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of value.items) {
+			if (item.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.mcpServerPropertyItemMustBeString', "Each item in the '{0}' property for MCP server '{1}' must be a string.", propertyName, serverName), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
+	private validateStringMap(propertyName: string, serverName: string, value: IValue, report: (markers: IMarkerData) => void): void {
+		if (value.type !== 'map') {
+			report(toMarker(localize('promptValidator.mcpServerPropertyMustBeStringMap', "The '{0}' property for MCP server '{1}' must be an object with string values.", propertyName, serverName), value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const property of value.properties) {
+			if (property.value.type !== 'scalar') {
+				report(toMarker(localize('promptValidator.mcpServerPropertyValueMustBeString', "Each value in the '{0}' property for MCP server '{1}' must be a string.", propertyName, serverName), property.value.range, MarkerSeverity.Error));
+			}
+		}
+	}
+}
 
 export const githubPermissionScopes: Record<string, { allowedValues: string[]; description: string }> = {
 	'actions': { allowedValues: ['read', 'write', 'none'], description: localize('githubPermission.actions', "Access to GitHub Actions workflows and runs") },
