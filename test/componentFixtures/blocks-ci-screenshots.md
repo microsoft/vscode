@@ -175,10 +175,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/f42a0f833c857ea204c962b46aee410bd8466c054dc4c0b4b66450fd44150b24)
 
 #### sessions/sessionsList/SessionsList_ArchivedNestedChat/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/35a21ea76e17222fe3540b27aa2f73712155fd385986747428def909d23513ce)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ff8c3f01d7176e8ccc6124ed5514314ed39fecd306c001e084ea5a8aa7491b0f)
 
 #### sessions/sessionsList/SessionsList_CompactArchivedNestedChat/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/00755bbb9f478b7fe3720b508d1c0b53897fa6e4511eb3a241284e5dcd0c6d55)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7c4c3c5a3300fdcd3998b7634a1c01ad55d2d0ef7cc87598fe49f4d3cedd85c2)
 
 #### sessions/sessionsList/SessionsList_CompactChatRename/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/133b77cee2dd44df7906261b12cbf019eb0a4dbc2dc9d88a865d04687cdbbf8f)
@@ -196,7 +196,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ed18223f207e2dd6968527c3594213879ca07b1462e6e91b6cfc233d8578cf20)
 
 #### sessions/sessionsList/SessionsList_CompactNestedChats/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/2197f5c2a02d884d58beb442fa0d11ebdff904d931e54cb9130fe7e499d19bba)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f19102a0fda2488cb430211399995392dc1fa4832d084e0902fed869de64ec5b)
 
 #### sessions/sessionsList/SessionsList_CompactSessionRename/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/eae654d7b4ff4c5fc8fb397d7e4439e26cf8db259f67a1c49acbb872b1f63200)
