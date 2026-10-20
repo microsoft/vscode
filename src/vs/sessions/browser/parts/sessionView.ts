@@ -161,7 +161,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this.element.appendChild(this._floatingToolbar.element);
 
 		this._register(autorun(reader => {
-			this._standaloneView.read(reader);
+			this._contentContainer.classList.toggle('standalone-chat', !!this._standaloneView.read(reader));
 			this._preparationView.read(reader);
 			this._updateStandaloneSessionActivityBar();
 		}));
@@ -271,8 +271,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 			this._showSessionGroups(session, options);
 		} else {
 			this._groupsView.setSession(undefined, options);
-			const view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
-			this._standaloneView.set(view, undefined);
+			let view = this._standaloneView.get();
+			if (!view?.preserveOnSessionClear) {
+				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
+				this._standaloneView.set(view, undefined);
+			}
 			this._contentContainer.replaceChildren(view.element);
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);

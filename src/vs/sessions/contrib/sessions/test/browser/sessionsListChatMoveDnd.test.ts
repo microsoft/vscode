@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
@@ -28,7 +28,12 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionChatItem, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import '../../browser/views/sessionsViewActions.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { TestSessionsList } from './testSessionsList.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { PROMOTE_CHAT_TO_SESSION_ACTION_ID } from '../../browser/sessionsActions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -452,8 +457,11 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		(session.chats as ISettableObservable<readonly IChat[]>).set(chats, undefined);
 	}
 
-	/** Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly confirm?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean }) {
+	/**
+	 * Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. With
+	 * `realListModel`, the list keeps its state in the real list model service, recording the storage keys it writes.
+	 */
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly confirm?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
@@ -482,10 +490,17 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		harness.instantiationService.stub(ISessionsManagementService, new class extends TestSessionsManagementService {
 			override readonly onDidChangeSessions = sessionsChanged.event;
 			override readonly onDidMoveChat = chatMoved.event;
-			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get(); }
+			override readonly onDidDeleteSession = Event.None;
+			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get() && !options?.fixed?.includes(chat.title.get()); }
 			override canMoveSessionUnder(session: ISession): boolean { return session.chats.get().length <= 1; }
 			override async moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void> {
 				moves.push(`${chat.title.get()} -> ${destination.kind === 'session' ? `${destination.session.title.get()} after ${destination.after?.title.get() ?? '(first)'}` : 'new session'}`);
+				if (options?.simulateMoves && destination.kind === 'session' && destination.session === session) {
+					// The provider reorders its chats, which is the only order the list shows.
+					setChats(session, insertAfter(session.chats.get().filter(candidate => candidate !== chat), chat, destination.after));
+					sessionsChanged.fire({ added: [], removed: [], changed: [session] });
+					return;
+				}
 				if (!options?.simulateMoves || destination.kind !== 'newSession') {
 					return;
 				}
@@ -509,9 +524,15 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 				chatMoved.fire({ from: { session, chat: main.resource }, to: { session: destination, chat: arrived.resource } });
 			}
 		}(sessions));
+		const writtenStorageKeys: string[] = [];
+		if (options?.realListModel) {
+			const storageService = harness.instantiationService.get(IStorageService);
+			harness.store.add(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, harness.store)(e => writtenStorageKeys.push(e.key)));
+			harness.instantiationService.stub(ISessionsListModelService, harness.store.add(harness.instantiationService.createInstance(SessionsListModelService)));
+		}
 		const container = harness.createContainer(300, 600);
 		const findWidgetContainer = harness.createContainer(300, 40);
-		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 			grouping: () => SessionsGrouping.Date,
 			sorting: () => options?.sorting ?? SessionsSorting.Created,
 			findWidgetContainer,
@@ -592,7 +613,13 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			rows: labels(),
 			selected: [...container.querySelectorAll<HTMLElement>('.monaco-list-row.selected')].map(labelOf),
 		});
-		return { list, instantiationService: harness.instantiationService, moves, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
+		/** The nested chat rows of the list, top to bottom. */
+		const chatRows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+			.filter(row => row.querySelector('.session-chat-title'))
+			.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+			.map(labelOf)
+			.join(' ');
+		return { list, instantiationService: harness.instantiationService, moves, writtenStorageKeys, chatRows, setExpanded, expandSection, dragOver, nestedFeedback, find, closeFind, labels, rendered, sortChanges: harness.sortChanges, rowOf, dispose: () => harness.store.dispose() };
 	}
 
 	test('a nested session dropped anywhere on a session row goes to its end, highlighting the session like a folder', async () => {
@@ -673,6 +700,92 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			emptyFeedback: { moveDrag: true, list: true, rows: [] },
 			headerFeedback: { moveDrag: true, list: true, rows: [] },
 			moves: ['a -> new session', 'b -> new session'],
+		});
+	});
+
+	test('each provider reorder of a nested chat shows where it was dropped, and the list stores no order of its own', async () => {
+		const own = listSession('Own', ['a', 'b', 'c', 'd', 'e']);
+		const list = render([own], { simulateMoves: true, realListModel: true });
+		list.setExpanded('Own', true);
+
+		const rows: string[] = [list.chatRows()];
+		// Any earlier interaction (here, moves the provider already applied) must not make a later reorder snap back.
+		for (const [source, target] of [['e', 'c'], ['e', 'b'], ['a', 'd'], ['d', 'e']] as const) {
+			await list.dragOver(source, target, 0.3).drop();
+			rows.push(list.chatRows());
+		}
+
+		assert.deepStrictEqual({ moves: list.moves, rows, chatOrderWrites: list.writtenStorageKeys.filter(key => key.includes('chatOrder')) }, {
+			moves: ['e -> Own after b', 'e -> Own after a', 'a -> Own after c', 'd -> Own after Own main'],
+			rows: ['a b c d e', 'a b e c d', 'a e b c d', 'e b c a d', 'd e b c a'],
+			chatOrderWrites: [],
+		});
+	});
+
+	test('a nested chat its provider can\'t move is not dropped, so a reorder of its movable siblings keeps the arrangement', async () => {
+		const own = listSession('Own', ['a', 'fixed', 'c', 'd', 'e']);
+		const list = render([own], { simulateMoves: true, fixed: ['fixed'], realListModel: true });
+		list.setExpanded('Own', true);
+
+		const fixedDrag = list.dragOver('fixed', 'd', 0.7);
+		const fixedFeedback = fixedDrag.feedback;
+		await fixedDrag.drop();
+		const afterFixedDrop = list.chatRows();
+		await list.dragOver('e', 'c', 0.3).drop();
+
+		assert.deepStrictEqual({ fixedFeedback, afterFixedDrop, moves: list.moves, rows: list.chatRows(), chatOrderWrites: list.writtenStorageKeys.filter(key => key.includes('chatOrder')) }, {
+			// No drop line and no move: only the provider orders nested chats.
+			fixedFeedback: { moveDrag: false, list: false, rows: [] },
+			afterFixedDrop: 'a fixed c d e',
+			// The row above the drop line is the chat the provider places it after, so nothing snaps back.
+			moves: ['e -> Own after fixed'],
+			rows: 'a fixed e c d',
+			chatOrderWrites: [],
+		});
+	});
+
+	test('Move Up and Move Down move a nested chat through its provider, and are unavailable for a chat it can\'t move', async () => {
+		const own = listSession('Own', ['a', 'fixed', 'c']);
+		const list = render([own], { simulateMoves: true, fixed: ['fixed'] });
+		list.setExpanded('Own', true);
+		const [, a, fixed, c] = own.chats.get();
+		const contextKeyService = list.instantiationService.get(IContextKeyService);
+		const focus = (chat: IChat) => {
+			list.list.focus();
+			list.list.setFocusedItem({ session: own.resource, chat: chat.resource });
+			return { up: contextKeyService.getContextKeyValue('sessionChatItem.canMoveUp'), down: contextKeyService.getContextKeyValue('sessionChatItem.canMoveDown') };
+		};
+		const keybindingWhen = (command: string, values: Record<string, unknown>) => KeybindingsRegistry.getDefaultKeybindings()
+			.find(rule => rule.command === command)?.when?.evaluate({ getValue: <T>(key: string) => values[key] as T });
+		const focusedChatValues = { [ChatContextKeys.enabled.key]: true, isSessionsWindow: true, focusedView: SessionsViewId, listFocus: true, 'sessionsList.focusedChatItem': true };
+
+		const keys = { a: focus(a), fixed: focus(fixed), c: focus(c) };
+		const movedFixed = list.list.moveChat(new SessionChatItem(own, fixed), 'up');
+		const movedC = list.list.moveChat(new SessionChatItem(own, c), 'up');
+		await timeout(0);
+		const movedFirst = list.list.moveChat(new SessionChatItem(own, a), 'up');
+
+		assert.deepStrictEqual({
+			keys,
+			keybinding: {
+				canMoveUp: keybindingWhen('sessionsViewPane.moveChatUp', { ...focusedChatValues, 'sessionChatItem.canMoveUp': true }),
+				cannotMoveUp: keybindingWhen('sessionsViewPane.moveChatUp', { ...focusedChatValues, 'sessionChatItem.canMoveUp': false }),
+				cannotMoveDown: keybindingWhen('sessionsViewPane.moveChatDown', { ...focusedChatValues, 'sessionChatItem.canMoveDown': false }),
+			},
+			moved: { fixed: movedFixed, c: movedC, first: movedFirst },
+			moves: list.moves,
+			rows: list.chatRows(),
+			focused: list.rendered().selected,
+		}, {
+			// Only the provider orders nested chats: the first chat has nowhere to go up, `fixed` can't move at all.
+			keys: { a: { up: false, down: true }, fixed: { up: false, down: false }, c: { up: true, down: false } },
+			keybinding: { canMoveUp: true, cannotMoveUp: false, cannotMoveDown: false },
+			moved: { fixed: false, c: true, first: false },
+			// Up past `fixed` places `c` after the chat above `fixed`.
+			moves: ['c -> Own after a'],
+			rows: 'a c fixed',
+			// The moved chat keeps focus and selection.
+			focused: ['c'],
 		});
 	});
 

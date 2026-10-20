@@ -231,7 +231,7 @@ Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pas
 
 The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. The images must include `sudo`, `useradd`, and `runuser`; missing prerequisites fail explicitly rather than installing packages at test startup. The entrypoint allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
 
-Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. ARM32 remains download/CLI-only: its QEMU emulated containers cannot execute Chromium's setuid sandbox.
+Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. The Ubuntu 24.04 ARM32 image has no desktop environment, so its artifact sanity job exercises only the CLI. Published sanity runs retain ARM32 desktop archive and DEB coverage on Debian 12 and Ubuntu 22.04, without the additional setuid sandbox pass.
 
 ### Pipeline Parameters
 
@@ -262,11 +262,13 @@ For the following platforms only downloads are validated (and not install/runtim
 
 - Alpine 3.22
 - CentOS Stream 9
-- Debian 12 and 13 (also arm32)
+- Debian 12 (also arm32) and Debian 13
 - Fedora 42 and 43
 - openSUSE Leap 16.0
 - Red Hat UBI 9
 - Ubuntu 22.04 and 24.04 (also arm32)
+
+Debian 13 ARM32 is excluded because its time64 libraries do not satisfy the ARMHF DEB's legacy package dependencies. Debian 12 and Ubuntu 22.04 retain ARMHF desktop and package coverage pending removal of 32-bit ARM support.
 
 ### Pipeline Files
 

@@ -16,10 +16,10 @@ import { createFileSystemProviderError, FileSystemProviderErrorCode, FileType } 
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IFileQuery, QueryType } from '../../../search/common/search.js';
-import { AgentHostFileSearchProvider } from '../../common/agentHostFileSearchProvider.js';
+import { IFileQuery, QueryType } from '../../common/search.js';
+import { FileSystemFileSearchProvider } from '../../common/fileSystemFileSearchProvider.js';
 
-suite('AgentHostFileSearchProvider', () => {
+suite('FileSystemFileSearchProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const root = toAgentHostUri(URI.parse('file:///C:/Users/test/project with spaces'), 'windows-host');
 
@@ -32,7 +32,7 @@ suite('AgentHostFileSearchProvider', () => {
 			await fileService.createFolder(dirname(resource));
 			await fileService.writeFile(resource, VSBuffer.fromString(content));
 		}
-		const search = disposables.add(new AgentHostFileSearchProvider(fileService));
+		const search = disposables.add(new FileSystemFileSearchProvider(fileService));
 		const query: IFileQuery = { type: QueryType.File, folderQueries: [{ folder: root }] };
 		return { fileService, search, query };
 	}

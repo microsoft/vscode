@@ -5,7 +5,6 @@
 
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import './media/chatView.css';
-import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
@@ -165,6 +164,10 @@ export class NewChatView extends AbstractChatView {
 
 	override toJSON(): object {
 		return { type: NewChatView.TYPE };
+	}
+
+	override get preserveOnSessionClear(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {

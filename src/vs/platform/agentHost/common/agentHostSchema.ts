@@ -553,15 +553,9 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
-export interface IAgentHostWorkspaceTrust {
+interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
-	/** Whether the current Agent Host connection authority is explicitly trusted. */
-	readonly connectionAuthorityTrusted?: boolean;
-}
-
-export function areAllAgentHostWorkspaceResourcesTrusted(trust: IAgentHostWorkspaceTrust): boolean {
-	return !trust.enabled || trust.connectionAuthorityTrusted === true;
 }
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
@@ -956,7 +950,6 @@ export const platformRootSchema = createSchema({
 				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
 				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
 			},
-			connectionAuthorityTrusted: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.connectionAuthorityTrusted', "Connection Authority Trusted") },
 		},
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
