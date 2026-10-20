@@ -22,6 +22,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { ArtifactIntegrationServer, isArtifactIntegrationRequest } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -38,7 +39,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -111,6 +112,7 @@ import type { AuthRequiredErrorData } from '../common/state/protocol/common/erro
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { ClientArtifactIntegrationEndpoint } from './artifactIntegrations/clientArtifactIntegrationEndpoint.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -419,6 +421,8 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	artifactIntegrations?: ArtifactIntegrationServer;
+	clientArtifactIntegrations?: ClientArtifactIntegrationEndpoint;
 	authenticationScope?: IAgentHostAuthenticationScope;
 	readonly legacySessionUris: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
@@ -972,7 +976,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
-			this._initializeDevContainers(client);
+			this._initializeClientExtensions(client);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1022,7 +1026,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostChatUrisCapabilityMetaKey]: true,
 						...transport.relayHandshakeMeta,
 					} : {
-						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true),
+						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true, !!client.artifactIntegrations),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
@@ -1245,7 +1249,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
-			this._initializeDevContainers(client);
+			this._initializeClientExtensions(client);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -2365,11 +2369,37 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return this._sendReverseRequestToConnection(client, method, params);
 	}
 
-	private _sendReverseRequestToConnection<T>(client: IConnectedClient, method: string, params: unknown): Promise<T> {
+	/**
+	 * Sends a JSON-RPC request over one connection and waits for its response.
+	 * Rejects without sending once the connection has ended, and rejects a
+	 * pending request when the connection ends or the server is disposed.
+	 * With a `timeout`, it also stops waiting after that many milliseconds
+	 * and forgets the request.
+	 */
+	private _sendReverseRequestToConnection<T>(client: IConnectedClient, method: string, params: unknown, timeout?: number): Promise<T> {
+		const record = this._clients.get(client.clientId);
+		if (record?.state !== 'active' || !record.connections.includes(client)) {
+			return Promise.reject(new Error(`Client ${client.clientId} disconnected`));
+		}
 		const checkAuthorization = this._captureRelayAuthorization(client);
 		const id = ++this._reverseRequestId;
 		return new Promise<T>((resolve, reject) => {
-			this._pendingReverseRequests.set(id, { client, resolve: resolve as (value: unknown) => void, reject });
+			const deadline = timeout === undefined ? undefined : disposableTimeout(() => {
+				if (this._pendingReverseRequests.delete(id)) {
+					reject(new Error(`Client ${client.clientId} did not respond to '${method}' within ${timeout}ms`));
+				}
+			}, timeout);
+			this._pendingReverseRequests.set(id, {
+				client,
+				resolve: value => {
+					deadline?.dispose();
+					resolve(value as T);
+				},
+				reject: reason => {
+					deadline?.dispose();
+					reject(reason);
+				},
+			});
 			const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 			client.transport.send(request);
 		}).then(result => {
@@ -2471,7 +2501,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(client, method, params);
+		const artifactResult = method === ArtifactIntegrationExtensionMethod && client.artifactIntegrations
+			? isArtifactIntegrationRequest(params) ? client.artifactIntegrations.request(params) : Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid artifact integration request'))
+			: undefined;
+		const extensionResult = artifactResult ?? client.clientArtifactIntegrations?.handleRequest(method, params) ?? client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(client, method, params);
 		if (extensionResult) {
 			this._trackRequest(extensionResult).then(result => {
 				if (client.disposables.isDisposed) {
@@ -3647,7 +3680,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	private _initializeDevContainers(client: IConnectedClient): void {
+	private _initializeClientExtensions(client: IConnectedClient): void {
+		if (this._agentService.artifactIntegrations) {
+			const integrations = this._agentService.artifactIntegrations;
+			client.artifactIntegrations = client.initializationDisposables.add(new ArtifactIntegrationServer(integrations,
+				integrations.postNotice ? notice => integrations.postNotice!(notice) : undefined));
+			client.initializationDisposables.add(client.artifactIntegrations.onDidUpdate(params => {
+				client.transport.send({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params });
+			}));
+			const clientIntegrations = this._agentService.artifactIntegrationClients;
+			if (clientIntegrations) {
+				client.clientArtifactIntegrations = client.initializationDisposables.add(new ClientArtifactIntegrationEndpoint(
+					client.clientId,
+					clientIntegrations,
+					(request, timeout) => this._sendReverseRequestToConnection(client, ClientArtifactIntegrationExtensionMethod, request, timeout),
+					this._logService,
+				));
+			}
+		}
 		if (this._config.allowExtensionMethods !== false && this._devContainerService) {
 			client.devContainers = client.initializationDisposables.add(new DevContainerAgentHostProtocol(
 				async workspace => {

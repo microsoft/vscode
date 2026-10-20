@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -133,6 +134,24 @@ suite('ChatModel', () => {
 			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
 			[{ id: 'legacy', requestSource: undefined }, { id: 'merge', requestSource: 'agentMerge' }],
 		]);
+	});
+
+	test('artifact action snapshots survive JSON and operation log roundtrips without changing prompt text', () => {
+		const presentation = createTestArtifactRequestPresentation();
+		const data: IExportableChatData = {
+			initialLocation: ChatAgentLocation.Chat, responderUsername: 'bot',
+			requests: [{
+				requestId: 'artifact-request', message: { text: 'Model-facing instructions', parts: [] }, variableData: { variables: [] },
+				response: [], isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation,
+			}],
+		};
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, { value: data, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const operationLog = new ChatSessionOperationLog();
+		assert.deepStrictEqual([model.toJSON(), operationLog.read(operationLog.createInitial(model))].map(value => {
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const request = restored.getRequests()[0];
+			return { prompt: request.message.text, source: request.requestSource, presentation: request.artifactRequest };
+		}), Array(2).fill({ prompt: 'Model-facing instructions', source: 'artifactIntegration', presentation }));
 	});
 
 	test('backfills and persists legacy Agent Merge sources without reclassifying other requests', () => {

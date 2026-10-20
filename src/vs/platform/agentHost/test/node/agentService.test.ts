@@ -26,6 +26,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { constObservable, waitForState } from '../../../../base/common/observable.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -82,6 +83,8 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDe
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readSessionMovable } from '../../common/meta/agentHostSessionMoveMeta.js';
+import { readArtifactIntegrationNotice } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
+import { ArtifactAutomationOption, IArtifactAutomationContext } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { toListedSessionSummary } from '../../node/protocolServerHandler.js';
@@ -2946,7 +2949,7 @@ suite('AgentService (node dispatcher)', () => {
 					databaseOpens,
 				}, {
 					repeatedClassification: true,
-					items,
+					items: items.map(item => ({ ...item, origin: { chat: buildDefaultChatUri(session) } })),
 					legacy: expectedArtifacts,
 					central: expectedArtifacts,
 					restarted: expectedArtifacts,
@@ -41727,6 +41730,109 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(getStateManager(localService), sessionStr);
+		});
+	});
+
+	suite('artifact automation transcript', () => {
+		let cleanup: (() => Promise<void>) | undefined;
+		teardown(async () => {
+			await cleanup?.();
+			cleanup = undefined;
+		});
+
+		async function createArtifactAutomation() {
+			const sessionDb = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(sessionDb), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const composition = getTestAgentServiceComposition(localService);
+			composition.configurationService.updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+			const session = await localService.createSession({ provider: 'copilot', legacyChatUris: true });
+			const chat = buildDefaultChatUri(session.toString());
+			const stateManager = composition.stateManager;
+			stateManager.setSessionMeta(session.toString(), withSessionArtifacts(stateManager.getSessionState(session.toString())?._meta, [{
+				id: 'artifact', type: SessionArtifactType.Website, label: 'Example', link: 'https://example.test/artifact', isArtifact: true, origin: { chat },
+			}]));
+			const integrations = composition.artifactRuntime.integrations;
+			cleanup = async () => {
+				localService.dispose();
+				await integrations.whenIdle();
+			};
+			const options: readonly ArtifactAutomationOption[] = [{
+				id: 'repair', kind: 'boolean', defaultValue: false, label: 'Automatically Repair', description: 'Fix failures.', actionIds: ['repair'], maxAttempts: 2,
+			}];
+			let automation: IArtifactAutomationContext | undefined;
+			disposables.add(integrations.registry.register({
+				id: 'test.automation', label: 'Test', automationOptions: options,
+				match: resource => resource.authority === 'example.test' ? { resource, key: resource.toString(), credentialScope: 'test' } : undefined,
+				createResource: async () => new DisposableStore(),
+				createBinding: () => ({
+					actions: [{ id: 'repair', label: 'Repair', iconId: 'wrench', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Fix the artifact failure.' } }) }],
+					view: constObservable({ availability: { kind: 'available' }, main: { icon: { id: 'git-pull-request' }, label: 'Example', detailsId: 'main' }, sections: [], stateActions: [{ id: 'repair', enabled: true }], generalActions: [], automationAvailability: [{ id: 'repair', available: true }] }),
+					acquireDetails: () => ({ details: constObservable({ availability: { kind: 'available' }, title: 'Example', links: [], items: [], completeness: 'complete' }), dispose() { } }),
+					activateAutomation: context => {
+						automation = context;
+						return toDisposable(() => { automation = undefined; });
+					},
+					dispose() { },
+				}),
+			}, 'test'));
+			const model = disposables.add(await integrations.acquireArtifact(session.toString(), 'artifact')).object;
+			return {
+				localService, sessionDb, agent, stateManager, session, chat, integrations, model,
+				request: () => {
+					assert.ok(automation);
+					return automation.runAutomation({ optionId: 'repair', actionId: 'repair', configurationRevision: 1, occurrenceKey: 'failure', reason: 'Failure detected' });
+				},
+			};
+		}
+
+		test('records enablement before sending the automatic prompt through the real host chat adapter', async () => {
+			const f = await createArtifactAutomation();
+			f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatDraftChanged, draft: { text: 'Unsent human draft', origin: { kind: MessageKind.User } } });
+			await f.model.configure('test.automation', 0, { repair: true });
+			const sent = Event.toPromise(f.agent.onDidSendMessage);
+			const run = await f.request();
+			await sent;
+			await waitForState(f.integrations.ledger.state, state => state.runs.some(candidate => candidate.id === run.id && candidate.state === 'running'));
+			const chat = f.stateManager.getChatState(f.chat)!;
+			assert.deepStrictEqual({
+				notices: chat.turns.map(turn => ({
+					hidden: isMessageRequestHiddenFromTranscript(turn.message), origin: turn.message.origin.kind,
+					kinds: turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? readArtifactIntegrationNotice(part) : undefined),
+				})),
+				persisted: (await f.sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => turn.chatUri),
+				sent: f.agent.sendMessageCalls.map(call => ({ chat: call.chat?.toString(), prompt: call.prompt })),
+				activeRequest: chat.activeTurn?.message.text,
+				draft: chat.draft?.text,
+			}, {
+				notices: [{ hidden: true, origin: MessageKind.SystemNotification, kinds: [{ kind: 'enabled', iconId: 'git-pull-request' }] }],
+				persisted: [f.chat],
+				sent: [{ chat: f.chat, prompt: 'Fix the artifact failure.' }],
+				activeRequest: 'Fix the artifact failure.',
+				draft: 'Unsent human draft',
+			});
+		});
+
+		test('defers enable and disable notices during a turn without interrupting it or sending bookkeeping to the agent', async () => {
+			const f = await createArtifactAutomation();
+			f.stateManager.dispatchServerAction(f.chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(), message: { text: 'Human work', origin: { kind: MessageKind.User } },
+			});
+			await f.model.configure('test.automation', 0, { repair: true });
+			await f.model.configure('test.automation', 1, { repair: false });
+			await timeout(0);
+			const before = f.stateManager.getChatState(f.chat)!;
+			f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnComplete, turnId: 'human-turn', duration: 1 });
+			await timeout(0);
+			assert.deepStrictEqual({
+				before: { turn: before.activeTurn?.id, parts: before.activeTurn?.responseParts, turns: before.turns.length },
+				notices: f.stateManager.getChatState(f.chat)?.turns.slice(1).flatMap(turn => turn.responseParts.map(part => part.kind === ResponsePartKind.SystemNotification ? readArtifactIntegrationNotice(part)?.kind : undefined)),
+				anchors: (await f.sessionDb.getPersistedTurns()).filter(turn => turn.kind === 'local').map(turn => turn.anchorTurnId),
+				sent: f.agent.sendMessageCalls,
+			}, { before: { turn: 'human-turn', parts: [], turns: 0 }, notices: ['enabled', 'disabled'], anchors: ['human-turn', 'human-turn'], sent: [] });
 		});
 	});
 

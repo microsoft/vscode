@@ -549,6 +549,7 @@ export class RemoteChatSessionRestorer extends Disposable {
 			item.modelConfiguration,
 			item.metadata,
 			insertion,
+			item.artifactRequest,
 		);
 		return this._lastRequest;
 	}

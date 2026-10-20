@@ -2020,6 +2020,8 @@ export interface IRemotePendingRequest {
 	readonly agentHostMessageOrigin?: MessageOrigin;
 	readonly metadata?: Record<string, unknown>;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 }
 

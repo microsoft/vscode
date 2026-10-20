@@ -38,6 +38,7 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { ExtHostBulkEdits } from './extHostBulkEdits.js';
 import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
+import { ExtHostChatArtifactIntegrations } from './extHostChatArtifactIntegrations.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
@@ -244,6 +245,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
+	const extHostChatArtifactIntegrations = rpcProtocol.set(ExtHostContext.ExtHostChatArtifactIntegrations, new ExtHostChatArtifactIntegrations(rpcProtocol, extHostLogService));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.remote, extHostWorkspace, extHostLogService, extHostApiDeprecation));
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
@@ -1739,6 +1741,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chatregisterMcpServerDefinitionProvider
 		const chat: typeof vscode.chat = {
+			registerArtifactIntegrationProvider(id: string, provider: vscode.ChatArtifactIntegrationProvider) {
+				checkProposedApiEnabled(extension, 'chatArtifactIntegrations');
+				return extHostChatArtifactIntegrations.registerProvider(extension, id, provider);
+			},
 			registerMappedEditsProvider(_selector: vscode.DocumentSelector, _provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				// no longer supported

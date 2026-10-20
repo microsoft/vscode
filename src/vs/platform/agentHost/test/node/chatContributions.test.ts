@@ -50,6 +50,9 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
+import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
+import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
@@ -77,6 +80,8 @@ import { SessionTitleContribution } from '../../node/chatContributions/sessionTi
 import { SideChatContribution } from '../../node/chatContributions/sideChat/sideChatContribution.js';
 import { TurnDelegationContribution } from '../../node/chatContributions/turnDelegation/turnDelegationContribution.js';
 import { injectSideChatContext } from '../../node/chatContributions/sideChat/sideChatContext.js';
+import { createArtifactIntegrationsInstruction } from '../../node/shared/artifactIntegrationServerTools.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
@@ -994,6 +999,9 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, service);
+	services.set(IAgentHostArtifactEventService, disposables.add(new AgentHostArtifactEventService()));
+	const artifactIntegrationDirectory = disposables.add(new AgentHostArtifactIntegrationDirectory(disposables.add(new ArtifactIntegrationRegistry())));
+	services.set(IAgentHostArtifactIntegrationDirectory, artifactIntegrationDirectory);
 	const telemetryReporter = new AgentHostTelemetryReporter(new RecordingTelemetryService());
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	services.set(IAgentHostTurnTracker, disposables.add(instantiationService.createInstance(AgentHostTurnTracker)));
@@ -1006,7 +1014,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, worktreeCleanup, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns, chatRows, sessionStateStore, artifactIntegrationDirectory };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -2909,6 +2917,92 @@ suite('AgentHostChatContributions', () => {
 			message: { text: 'Continue', origin: { kind: MessageKind.User } },
 		});
 		assert.deepStrictEqual(observed, ['adopted', 'following']);
+	});
+
+	test('adds artifact guidance only to the first turn of a chat', async () => {
+		const contributions = createBuiltInContributions(disposables, undefined, true);
+		const integrations = [{ id: 'test.example', label: 'Example', description: 'Example resources', automationOptions: [] }];
+		disposables.add(contributions.artifactIntegrationDirectory.register('window', {
+			access: { acquireArtifact: async () => { throw new Error('Unused'); } },
+			integrations: constObservable(integrations),
+		}));
+		const instruction = createArtifactIntegrationsInstruction(integrations);
+		const defaultChat = buildDefaultChatUri(contributions.session);
+		const peerChat = buildChatUri(contributions.session, 'peer-artifacts');
+		const restoredChat = buildChatUri(contributions.session, 'restored-artifacts');
+		const emptyRestoredChat = buildChatUri(contributions.session, 'empty-restored-artifacts');
+		for (const [chat, title] of [[peerChat, 'Peer'], [restoredChat, 'Restored'], [emptyRestoredChat, 'Empty']] as const) {
+			contributions.stateManager.addChat(contributions.session, chat, chat, {
+				title,
+				origin: { kind: ChatOriginKind.User },
+			});
+		}
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: restoredChat, isDefaultChat: false, storageResource: restoredChat }, [hydrationTurn('restored-turn')]);
+		await contributions.service.hydrateTurns({ session: contributions.session, chat: emptyRestoredChat, isDefaultChat: false, storageResource: emptyRestoredChat }, []);
+		const getArtifactInstructions = async (chat: string, turnId: string) => {
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat,
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+				turnId,
+			});
+			return result.instructions?.filter(value => value === instruction) ?? [];
+		};
+		const expected = [instruction];
+
+		assert.deepStrictEqual({
+			firstDefault: await getArtifactInstructions(defaultChat, 'default-1'),
+			secondDefault: await getArtifactInstructions(defaultChat, 'default-2'),
+			firstPeer: await getArtifactInstructions(peerChat, 'peer-1'),
+			secondPeer: await getArtifactInstructions(peerChat, 'peer-2'),
+			restored: await getArtifactInstructions(restoredChat, 'restored-2'),
+			firstEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-1'),
+			secondEmptyRestored: await getArtifactInstructions(emptyRestoredChat, 'empty-2'),
+		}, {
+			firstDefault: expected,
+			secondDefault: [],
+			firstPeer: expected,
+			secondPeer: [],
+			restored: [],
+			firstEmptyRestored: expected,
+			secondEmptyRestored: [],
+		});
+	});
+
+	test('first-turn artifact guidance lists the kinds that host and client integrations support', async () => {
+		const contributions = createBuiltInContributions(disposables, undefined, true);
+		const integrations = [{ id: 'extension.exp', label: 'ExP', description: 'ExP experiment links', automationOptions: [{ id: 'autoAnalyze', label: 'Automatically Analyze in 7 Days' }] }];
+		disposables.add(contributions.artifactIntegrationDirectory.register('window', {
+			access: { acquireArtifact: async () => { throw new Error('Unused'); } },
+			integrations: constObservable(integrations),
+		}));
+		const chat = buildDefaultChatUri(contributions.session);
+		const instructions = async (turnId: string) => (await contributions.service.outgoingTurn({
+			session: contributions.session,
+			chat,
+			message: { text: turnId, origin: { kind: MessageKind.User } },
+			turnId,
+		})).instructions?.filter(instruction => instruction.startsWith('Integrations add')) ?? [];
+
+		assert.deepStrictEqual({ first: await instructions('first'), second: await instructions('second') }, {
+			first: [createArtifactIntegrationsInstruction(integrations)],
+			second: [],
+		});
+	});
+
+	test('does not mention unavailable artifact tools', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const instructions = [];
+		for (const turnId of ['first', 'second']) {
+			const result = await contributions.service.outgoingTurn({
+				session: contributions.session,
+				chat: buildDefaultChatUri(contributions.session),
+				message: { text: turnId, origin: { kind: MessageKind.User } },
+				turnId,
+			});
+			instructions.push(result.instructions);
+		}
+		assert.deepStrictEqual(instructions, [undefined, undefined]);
 	});
 
 	test('title refinement receives terminal outcomes and preserves default-chat identity', () => {

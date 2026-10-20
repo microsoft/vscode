@@ -9,6 +9,10 @@ import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
+import type { ArtifactIntegrationDescriptor, IArtifactIntegrationAccess } from '../../artifactIntegrations/common/artifactIntegration.js';
+import type { IClientArtifactIntegrationRegistry } from './clientArtifactIntegrations.js';
+import type { IArtifactIntegrationTransport } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import type { ArtifactChatAction } from './artifactIntegrationChat.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
@@ -959,6 +963,9 @@ export interface IAgentServiceCreateSessionConfig extends IAgentCreateSessionCon
 }
 
 export interface IAgentService {
+	readonly artifactIntegrations?: IArtifactIntegrationAccess;
+	/** Receives integrations that connected clients coordinate, so agents can use them alongside host integrations. */
+	readonly artifactIntegrationClients?: IClientArtifactIntegrationRegistry;
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -1271,6 +1278,14 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	readonly connectionAvailable?: IObservable<boolean>;
+	readonly artifactIntegrationTransport?: IArtifactIntegrationTransport;
+	dispatchBackgroundChatAction?(chat: string, action: ArtifactChatAction): Promise<void>;
+	/**
+	 * Offers integrations this client coordinates to the host. A fresh server is created for each connection
+	 * and disposed when that connection ends, so the host's subscriptions never outlive it. Disposal withdraws the offer.
+	 */
+	serveArtifactIntegrations?(createServer: () => IArtifactIntegrationTransport & IDisposable, integrations: IObservable<readonly ArtifactIntegrationDescriptor[]>): IDisposable;
 
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;
