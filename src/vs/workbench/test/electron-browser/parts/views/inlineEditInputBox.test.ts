@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,6 +15,18 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InlineEditInputBox } from '../../../../browser/parts/views/inlineEditInputBox.js';
 
+/**
+ * The main process resolves the focus request before the renderer dispatches the resulting window
+ * `blur` or `focus` event, so wait until the document has observed the change.
+ */
+async function setWebContentsFocus(focused: boolean): Promise<void> {
+	const changed = mainWindow.document.hasFocus() === focused
+		? undefined
+		: new Promise<void>(resolve => mainWindow.addEventListener(focused ? dom.EventType.FOCUS : dom.EventType.BLUR, () => resolve(), { once: true }));
+	await ipcRenderer.invoke('vscode:test-set-web-contents-focus', focused);
+	await changed;
+}
+
 suite('InlineEditInputBox - focus', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let input: HTMLInputElement;
@@ -22,7 +35,7 @@ suite('InlineEditInputBox - focus', () => {
 
 	setup(async () => {
 		finished = [];
-		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
+		await setWebContentsFocus(true);
 		const container = dom.append(document.body, document.createElement('div'));
 		store.add(toDisposable(() => container.remove()));
 		otherInput = dom.append(document.body, document.createElement('input'));
@@ -39,7 +52,7 @@ suite('InlineEditInputBox - focus', () => {
 	});
 
 	teardown(async () => {
-		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
+		await setWebContentsFocus(true);
 	});
 
 	test('preserves editing when its document loses focus', async () => {
@@ -48,14 +61,14 @@ suite('InlineEditInputBox - focus', () => {
 		store.add(dom.addDisposableListener(input, dom.EventType.BLUR, () => {
 			blurState = { focused: input.ownerDocument.hasFocus(), active: input.ownerDocument.activeElement === input };
 		}));
-		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', false);
+		await setWebContentsFocus(false);
 		assert.deepStrictEqual(blurState, { focused: false, active: true });
 		await timeout(0);
 		assert.deepStrictEqual({ finished, connected: input.isConnected, value: input.value, selection: [input.selectionStart, input.selectionEnd] }, {
 			finished: [], connected: true, value: 'renamed.txt', selection: [0, 7]
 		});
 
-		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
+		await setWebContentsFocus(true);
 		input.focus();
 		otherInput.focus();
 		await timeout(0);
@@ -71,16 +84,14 @@ suite('InlineEditInputBox - focus', () => {
 	});
 
 	test('finishes editing when focus moves within its document while it is unfocused', async () => {
-		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', false);
+		await setWebContentsFocus(false);
 		await timeout(0);
 		// No blur is dispatched for focus changes while the document is unfocused
 		otherInput.focus();
 		await timeout(0);
 		assert.deepStrictEqual(finished, []);
 
-		const refocused = new Promise<void>(resolve => store.add(dom.addDisposableListener(dom.getWindow(input), dom.EventType.FOCUS, () => resolve())));
-		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
-		await refocused;
+		await setWebContentsFocus(true);
 		await timeout(0);
 		assert.deepStrictEqual({ finished, connected: input.isConnected }, {
 			finished: [{ value: 'renamed.txt', success: true }], connected: false
