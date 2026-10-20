@@ -4455,6 +4455,67 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		for (const closeTransport of [false, true]) {
+			test(`a stalled required authentication lookup is released by client disposal (closeTransport=${closeTransport})`, async () => {
+				const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+				const started = new DeferredPromise<void>();
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: () => {
+						started.complete();
+						return blocked.p;
+					},
+				});
+				const connecting = assert.rejects(client.connect());
+				await initializeAdvertised(transports[0]);
+				await started.p;
+				const subscribing = assert.rejects(client.subscribe(URI.parse('ahp-session:/blocked-authentication')));
+				const beforeClose = client.connectionState;
+				if (closeTransport) {
+					transports[0].fireClose();
+				}
+				const beforeDispose = client.connectionState;
+				client.dispose();
+				await Promise.all([connecting, subscribing]);
+				await blocked.complete([]);
+				assert.deepStrictEqual({
+					beforeClose, beforeDispose, finalState: client.connectionState,
+					subscribeSent: transports.some(transport => findRequest(transport, 'subscribe') !== undefined),
+				}, {
+					beforeClose: AgentHostClientState.Connecting,
+					beforeDispose: closeTransport ? AgentHostClientState.Reconnecting : AgentHostClientState.Connecting,
+					finalState: AgentHostClientState.Closed,
+					subscribeSent: false,
+				});
+			});
+		}
+
+		test('unavailable required authentication exhausts the retry budget without issuing protected requests', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const policy = { ...immediateReconnectPolicy, maxAttempts: 2 };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, undefined, undefined, {
+				resolveAdvertisedAuthentication: async () => { throw new AgentHostAuthenticationPendingError('https://api.example.com'); },
+			});
+			const closed = Event.toPromise(client.onDidFatalClose);
+			const connecting = assert.rejects(client.connect(), AgentHostAuthenticationPendingError);
+			const subscribing = assert.rejects(client.subscribe(URI.parse('ahp-session:/unavailable-authentication')));
+			await initializeAdvertised(transports[0]);
+			await connecting;
+			for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {
+				const replacement = await waitForTransport(transports, attempt);
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			}
+			const error = await closed;
+			await subscribing;
+			assert.deepStrictEqual({
+				error: error.message, state: client.connectionState, transports: transports.length,
+				subscribeSent: transports.some(transport => findRequest(transport, 'subscribe') !== undefined),
+			}, {
+				error: 'Automatic reconnect gave up after 2 attempts.',
+				state: AgentHostClientState.Closed, transports: 3, subscribeSent: false,
+			});
+		}));
+
 		for (const rejected of [false, true]) {
 			test(`advertised authentication preserves reconnect credentials and removes rejected entries (rejected=${rejected})`, async () => {
 				let resolutions = 0;

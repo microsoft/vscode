@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -191,23 +191,61 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		instantiationService.stub(IAuthenticationService, {
 			declaredProviders: [{ id: 'optional', label: 'Optional', authorizationServerGlobs: ['https://optional.example/*'] }],
 			isAuthenticationProviderRegistered: id => id !== 'optional',
-			getOrActivateProviderIdForServer: async server => server.authority === 'optional.example' ? undefined : 'required',
+			getOrActivateProviderIdForServer: async server => {
+				assert.notStrictEqual(server.authority, 'optional.example');
+				return 'required';
+			},
 			getSessions: async () => [session],
 		});
 		const optional = { resource: 'https://optional.example', authorization_servers: ['https://optional.example'], required: false };
 		assert.deepStrictEqual((await resolver.resolve([{ ...agents[0], protectedResources: [optional, resource] }])).map(request => request.resource), [resource.resource]);
 	});
 
-	test('required advertisement wins over an optional duplicate for a provider that never starts', async () => {
-		const { resolver, extensions, state } = fixture();
+	test('optional authentication cannot hold readiness behind a stalled provider activation or session lookup', async () => {
+		const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { resolver, extensions, state } = fixture({ lookup: () => lookup.p });
+		let settled = false;
+		const resolving = resolver.resolve([{ ...agents[0], protectedResources: [{ ...resource, required: false }] }]).then(requests => {
+			settled = true;
+			return requests;
+		});
 		await extensions.complete(true);
-		state.registered = false;
-		await assert.rejects(resolver.resolve([
-			agents[0],
-			{ ...agents[0], protectedResources: [{ ...resource, required: false }] },
-		]), AgentHostAuthenticationPendingError);
-		assert.deepStrictEqual(await resolver.resolve([{ ...agents[0], protectedResources: [{ ...resource, required: false }] }]), []);
+		await timeout(0);
+		const beforeLookupSettles = { settled, extensionWaits: state.extensionWaits, lookups: state.lookups };
+		await lookup.complete([]);
+		const requests = await resolving;
+		assert.deepStrictEqual({ beforeLookupSettles, requests }, {
+			beforeLookupSettles: { settled: true, extensionWaits: 0, lookups: 0 },
+			requests: [],
+		});
 	});
+
+	test('optional credentials remain on the ongoing authentication path after required bootstrap', async () => {
+		const { resolver, instantiationService, extensions } = fixture();
+		await extensions.complete(true);
+		const optional = { ...resource, resource: 'https://api.example.com/optional', required: false };
+		const advertised = [{ ...agents[0], protectedResources: [resource, optional] }];
+		const initial = await resolver.resolve(advertised);
+		const ongoing: string[] = [];
+		await instantiationService.invokeFunction(authenticateProtectedResources, advertised, {
+			logPrefix: 'test', authenticate: async request => { ongoing.push(request.resource); },
+		});
+		assert.deepStrictEqual({ initial: initial.map(request => request.resource), ongoing }, {
+			initial: [resource.resource],
+			ongoing: [resource.resource, optional.resource],
+		});
+	});
+
+	for (const optionalFirst of [false, true]) {
+		test(`required advertisement wins over an optional duplicate for a provider that never starts (optionalFirst=${optionalFirst})`, async () => {
+			const { resolver, extensions, state } = fixture();
+			await extensions.complete(true);
+			state.registered = false;
+			const duplicates = [agents[0], { ...agents[0], protectedResources: [{ ...resource, required: false }] }];
+			await assert.rejects(resolver.resolve(optionalFirst ? duplicates.reverse() : duplicates), AgentHostAuthenticationPendingError);
+			assert.deepStrictEqual(await resolver.resolve([{ ...agents[0], protectedResources: [{ ...resource, required: false }] }]), []);
+		});
+	}
 
 	for (const duringLookup of [false, true]) {
 		test(`retains startup session removals until the contribution attaches (duringLookup=${duringLookup})`, async () => {

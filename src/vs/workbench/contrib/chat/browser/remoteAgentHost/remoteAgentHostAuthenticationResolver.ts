@@ -24,7 +24,7 @@ export function getAgentHostScenarioAutomationToken(configurationService: IConfi
 	return typeof token === 'string' && token.length > 0 ? token : undefined;
 }
 
-/** Supplies existing workbench credentials during a generic remote connection's handshake. */
+/** Supplies required workbench credentials during a generic remote connection's handshake. */
 export class RemoteAgentHostAuthenticationResolver implements IAgentHostAdvertisedAuthenticationResolver {
 	declare readonly _serviceBrand: undefined;
 	private readonly _pending = new Map<string, { readonly store: DisposableStore; readonly removals: Map<string, Map<string, { readonly id: string; readonly scopes: readonly string[] }>> }>();
@@ -79,9 +79,11 @@ export class RemoteAgentHostAuthenticationResolver implements IAgentHostAdvertis
 		const resources = new Map<string, ProtectedResourceMetadata>();
 		for (const agent of agents) {
 			for (const resource of agent.protectedResources ?? []) {
+				if (resource.required === false) {
+					continue;
+				}
 				const key = JSON.stringify([resource.resource, [...new Set(resource.scopes_supported ?? [])].sort(), resource.authorization_servers ?? []]);
-				const previous = resources.get(key);
-				resources.set(key, previous ? { ...resource, required: previous.required !== false || resource.required !== false } : resource);
+				resources.set(key, resource);
 			}
 		}
 		if (resources.size === 0) {

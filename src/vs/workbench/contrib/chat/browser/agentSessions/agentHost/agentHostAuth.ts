@@ -625,14 +625,10 @@ export async function resolveProtectedResourceAuthentication(
 		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
 	});
 	if (resolution.kind === 'unavailable') {
-		if (resolution.reason === 'provider' && resource.required !== false) {
+		if (resolution.reason === 'provider') {
 			throw new AgentHostAuthenticationPendingError(resource.resource);
 		}
-		if (resolution.reason === 'provider') {
-			logAuthenticationSessionResolution(logService, logPrefix, resource.resource, resolution);
-		} else {
-			logService.warn(`${logPrefix} Unable to resolve existing authentication sessions for ${resource.resource}; continuing without a credential`);
-		}
+		logService.warn(`${logPrefix} Unable to resolve existing authentication sessions for ${resource.resource}; continuing without a credential`);
 		return undefined;
 	}
 	if (resolution.kind === 'signedOut') {
