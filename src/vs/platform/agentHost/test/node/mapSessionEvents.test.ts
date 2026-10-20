@@ -695,7 +695,7 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('restores Auto model resolution as usage metadata', async () => {
+	test('restores Auto model resolution as usage metadata without routing diagnostics', async () => {
 		const autoModeResolved = {
 			chosenModel: 'claude-opus-4.8',
 			reasoningBucket: 'high',
@@ -710,7 +710,7 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: 'assistant.message', data: { messageId: 'm1', content: 'First response.' } },
 			// The runtime resolves Auto while building settings, before it persists
 			// the user message for the turn that will use the chosen model.
-			{ type: 'session.auto_mode_resolved', data: autoModeResolved },
+			{ type: 'session.auto_mode_resolved', data: { ...autoModeResolved, routingMethod: 'binary', availableModels: ['claude-opus-4.8', 'claude-sonnet-4.6', 'gpt-5.5'], routerLatencyMs: 25, fallback: false } },
 			{ type: 'user.message', id: 'turn-auto', data: { interactionId: 'm1', content: 'Solve this problem' } },
 			{ type: 'assistant.message', data: { messageId: 'm2', content: 'Done.' } },
 		];
