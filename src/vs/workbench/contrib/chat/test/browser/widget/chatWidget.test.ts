@@ -1728,36 +1728,31 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
-		let allowLocal = true;
-		const managedSettings = new class extends NullManagedSettingsService {
-			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
-			override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal }; }
-		}();
-		const fixture = createAutomaticMigrationFixture();
-		let calls = 0;
-		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
-		fixture.visible.set(true, undefined);
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
-		await timeout(0);
-		const before = calls;
-		allowLocal = false;
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
-		await timeout(0);
-		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
-	});
-
-	for (const [key, value] of [['permissions.allow', '[]'], ['permissions.defaultMode', 'manual'], ['sandbox.enabled', true]] as const) {
-		test(`${key} does not automatically migrate displayed Local history`, async () => {
+	for (const trigger of ['deny rules', 'explicit Local prohibition'] as const) {
+		test(`Local migration starts on ${trigger}, not other permission settings`, async () => {
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			let allowLocal = true;
+			let denyRules = '[]';
 			const managedSettings = new class extends NullManagedSettingsService {
-				override getManagedSettingValue(candidate: string) { return candidate === key ? value : undefined; }
-				override getManagedSettings() { return { [key]: value }; }
+				override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : key === 'permissions.deny' ? denyRules : undefined; }
+				override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal, 'permissions.deny': denyRules, 'permissions.ask': '["Shell"]', 'permissions.defaultMode': 'manual' }; }
 			}();
 			const fixture = createAutomaticMigrationFixture();
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
 			fixture.visible.set(true, undefined);
-			fixture.policy.set(requiresCopilotAgentHost(managedSettings), undefined);
+			fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
 			await timeout(0);
-			assert.deepStrictEqual({ calls: fixture.automaticCalls, errors: fixture.errors }, { calls: [], errors: [] });
+			const before = calls;
+			if (trigger === 'deny rules') {
+				denyRules = '["Shell"]';
+			} else {
+				allowLocal = false;
+			}
+			fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
 		});
 	}
 

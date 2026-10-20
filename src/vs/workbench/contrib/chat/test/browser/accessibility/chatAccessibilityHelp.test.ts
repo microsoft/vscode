@@ -15,6 +15,17 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('explains the disabled Local harness only on editor chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('it remains in the harness picker as a disabled option') && help.includes('Use Tab to reach its Learn why link and Enter to open policy guidance')), [true, true, true, false, false, false]);
+	});
+
 	test('documents the session working set while preserving existing editor guidance', () => {
 		const read = (sessionWorkingSetUndo: boolean) => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, sessionWorkingSetUndo);
