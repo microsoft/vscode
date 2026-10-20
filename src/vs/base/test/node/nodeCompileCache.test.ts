@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { EventEmitter } from 'events';
 import { access, mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { join } from '../../common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
@@ -121,6 +122,48 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 				exitsBeforeRequest,
 				exitCodes,
 			}, { isGenerating: true, listeners: 1, posted: [cache.nodeCompileCacheExitRequestHandled], marker: true, exitsBeforeRequest: 0, exitCodes: [0] });
+		});
+	});
+
+	suite('exitNodeCompileCacheProcess', () => {
+
+		class FakeProcess extends EventEmitter {
+			readonly posted: unknown[] = [];
+			killed = false;
+			constructor(private readonly exitOnRequest: boolean) {
+				super();
+			}
+			postMessage(message: unknown): void {
+				this.posted.push(message);
+				if (this.exitOnRequest && message === cache.nodeCompileCacheExitRequest) {
+					setImmediate(() => this.emit('exit'));
+				}
+			}
+			kill(): boolean {
+				this.killed = true;
+				return true;
+			}
+		}
+
+		test('asks a process that handles the request to exit and waits for it', async () => {
+			const child = new FakeProcess(true);
+			await cache.exitNodeCompileCacheProcess(child, true, 60_000);
+			assert.deepStrictEqual({ posted: child.posted, killed: child.killed, listeners: child.listenerCount('message') }, { posted: [cache.nodeCompileCacheExitRequest], killed: false, listeners: 0 });
+		});
+
+		test('asks a process to exit once it announces that it handles the request', async () => {
+			const child = new FakeProcess(true);
+			const exited = cache.exitNodeCompileCacheProcess(child, false, 60_000);
+			const postedBeforeAnnouncement = [...child.posted];
+			child.emit('message', cache.nodeCompileCacheExitRequestHandled);
+			await exited;
+			assert.deepStrictEqual({ postedBeforeAnnouncement, posted: child.posted, killed: child.killed }, { postedBeforeAnnouncement: [], posted: [cache.nodeCompileCacheExitRequest], killed: false });
+		});
+
+		test('kills a process that does not exit in time', async () => {
+			const child = new FakeProcess(false);
+			await cache.exitNodeCompileCacheProcess(child, true, 1);
+			assert.deepStrictEqual({ posted: child.posted, killed: child.killed, listeners: child.listenerCount('message') }, { posted: [cache.nodeCompileCacheExitRequest], killed: true, listeners: 0 });
 		});
 	});
 });

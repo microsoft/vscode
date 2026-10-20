@@ -18,7 +18,7 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
-import { getNodeCompileCacheKindForUtilityProcess, isGeneratingNodeCompileCache, nodeCompileCacheExitRequest, nodeCompileCacheExitRequestHandled } from '../../../base/node/nodeCompileCache.js';
+import { exitNodeCompileCacheProcess, getNodeCompileCacheKindForUtilityProcess, isGeneratingNodeCompileCache, nodeCompileCacheExitRequestHandled } from '../../../base/node/nodeCompileCache.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -161,7 +161,7 @@ export class UtilityProcess extends Disposable {
 	}
 
 	private static readonly nodeCompileCacheProcesses = new Map<ElectronUtilityProcess, { handlesExitRequest: boolean }>();
-	private static isExitingNodeCompileCacheProcesses = false;
+	private static readonly exitingNodeCompileCacheProcesses = new Set<ElectronUtilityProcess>();
 
 	/**
 	 * While the build generates the Node.js compile cache: asks every running utility process that
@@ -169,28 +169,22 @@ export class UtilityProcess extends Disposable {
 	 * Node.js persists the cache of code a process compiled after `markNodeCompileCacheReady` only
 	 * when it exits, so a process still running when electron-main quits can be torn down in the
 	 * middle of that write, which leaves a temporary `<entry>.XXXXXX` file behind that fails the
-	 * build's validation. A process that cannot handle the request yet (it did not get to
-	 * `markNodeCompileCacheReady`) is not persisting anything and is killed right away, as is one
-	 * that does not exit within `maxWaitTimeMs`.
+	 * build's validation. A process asks to exit as soon as it announces that it handles the request
+	 * (`markNodeCompileCacheReady` announces it after its own flush). One that has not exited within
+	 * `maxWaitTimeMs` is killed.
 	 *
 	 * Tracks the Electron processes directly, so it does not depend on their owners, which shutdown
-	 * may dispose first. Until it resolves, {@link kill} leaves these processes to it.
+	 * may dispose first. Until a process it waits for exits, {@link kill} leaves that process to it.
 	 */
 	static async exitNodeCompileCacheProcesses(maxWaitTimeMs: number): Promise<void> {
-		UtilityProcess.isExitingNodeCompileCacheProcesses = true;
-		await Promise.all(Array.from(UtilityProcess.nodeCompileCacheProcesses, ([child, { handlesExitRequest }]) => new Promise<void>(resolve => {
-			const handle = setTimeout(() => {
-				child.kill();
-				resolve();
-			}, handlesExitRequest ? maxWaitTimeMs : 0);
-			child.once('exit', () => {
-				clearTimeout(handle);
-				resolve();
-			});
-			if (handlesExitRequest) {
-				child.postMessage(nodeCompileCacheExitRequest);
+		await Promise.all(Array.from(UtilityProcess.nodeCompileCacheProcesses, async ([child, state]) => {
+			UtilityProcess.exitingNodeCompileCacheProcesses.add(child);
+			try {
+				await exitNodeCompileCacheProcess(child, state.handlesExitRequest, maxWaitTimeMs);
+			} finally {
+				UtilityProcess.exitingNodeCompileCacheProcesses.delete(child);
 			}
-		})));
+		}));
 	}
 
 	private readonly id = String(++UtilityProcess.ID_COUNTER);
@@ -478,7 +472,7 @@ export class UtilityProcess extends Disposable {
 			return; // already killed, crashed or never started
 		}
 
-		if (UtilityProcess.isExitingNodeCompileCacheProcesses && UtilityProcess.nodeCompileCacheProcesses.has(this.process)) {
+		if (UtilityProcess.exitingNodeCompileCacheProcesses.has(this.process)) {
 			this.log('not killing the process while it persists its Node.js compile cache...', Severity.Info);
 			return; // `exitNodeCompileCacheProcesses` ends it
 		}

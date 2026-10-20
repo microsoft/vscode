@@ -39,6 +39,47 @@ interface IParentPort {
 	postMessage(message: unknown): void;
 }
 
+/**
+ * The parts of an Electron `UtilityProcess` that {@link exitNodeCompileCacheProcess} uses.
+ */
+export interface INodeCompileCacheProcess {
+	once(event: 'exit', listener: () => void): unknown;
+	on(event: 'message', listener: (message: unknown) => void): unknown;
+	off(event: 'message', listener: (message: unknown) => void): unknown;
+	postMessage(message: unknown): void;
+	kill(): boolean;
+}
+
+/**
+ * Asks a utility process to exit with {@link nodeCompileCacheExitRequest} once it handles the
+ * request (it announces that with {@link nodeCompileCacheExitRequestHandled}, possibly later), and
+ * resolves when it exited. Kills it if it has not exited within `maxWaitTimeMs`.
+ */
+export function exitNodeCompileCacheProcess(child: INodeCompileCacheProcess, handlesExitRequest: boolean, maxWaitTimeMs: number): Promise<void> {
+	return new Promise<void>(resolve => {
+		const requestExit = () => child.postMessage(nodeCompileCacheExitRequest);
+		const onMessage = (message: unknown) => {
+			if (message === nodeCompileCacheExitRequestHandled) {
+				requestExit();
+			}
+		};
+		const done = () => {
+			clearTimeout(handle);
+			child.off('message', onMessage);
+			resolve();
+		};
+		const handle = setTimeout(() => {
+			child.kill();
+			done();
+		}, maxWaitTimeMs);
+		child.once('exit', done);
+		child.on('message', onMessage);
+		if (handlesExitRequest) {
+			requestExit();
+		}
+	});
+}
+
 let enabledKind: NodeCompileCacheKind | undefined;
 let didLogNodeCompileCacheStatus = false;
 
