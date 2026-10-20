@@ -730,13 +730,33 @@ suite('AgentHostWorktreeCleanupService', () => {
 			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('inUse') }, { rows: ['inUse:removing:0:0'], exists: true });
 		});
 
-		test('a stale allocating folder is removed and a fresh one is kept', async () => {
+		test('an allocating folder that is not in flight is reclaimed at any age, an in-flight one is kept', async () => {
 			const { database, cleanup } = create({ now: () => NOW });
-			await allocate(database, 'stale', 'allocating', NOW - 11 * 60 * 1000);
-			await allocate(database, 'fresh', 'allocating', NOW - 60 * 1000);
+			await allocate(database, 'crashed', 'allocating', NOW);
+			const inFlight = await allocate(database, 'inFlight', 'allocating', 1);
+			const tracking = cleanup.trackScratchAllocation(inFlight);
+			await cleanup.runPass();
+			const whileInFlight = { rows: await rows(database), crashed: await exists('crashed'), inFlight: await exists('inFlight') };
+			tracking.dispose();
 			await cleanup.runPass();
 
-			assert.deepStrictEqual({ rows: await rows(database), stale: await exists('stale'), fresh: await exists('fresh') }, { rows: ['fresh:allocating:0:0'], stale: false, fresh: true });
+			assert.deepStrictEqual({ whileInFlight, after: { rows: await rows(database), inFlight: await exists('inFlight') } }, {
+				whileInFlight: { rows: ['inFlight:allocating:0:0'], crashed: false, inFlight: true },
+				after: { rows: [], inFlight: false },
+			});
+		});
+
+		test('an allocating folder that a chat lists becomes owned and is kept', async () => {
+			const { database, cleanup } = create({ now: () => NOW });
+			const folder = await allocate(database, 'published', 'allocating', 1);
+			await database.registerSessionV2(SESSION.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.importSessionState(SESSION.toString(), {
+				importVersion: 1, importedAt: 1, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true,
+				values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([folder]) },
+			});
+			await cleanup.runPass();
+
+			assert.deepStrictEqual({ rows: await rows(database), exists: await exists('published') }, { rows: ['published:owned:0:0'], exists: true });
 		});
 
 		test('an owned folder is never removed', async () => {
@@ -771,17 +791,19 @@ suite('AgentHostWorktreeCleanupService', () => {
 			});
 		});
 
-		test('a scratch folder not yet due keeps the periodic pass scheduled until it is', async () => {
+		test('a failed removal of an allocating folder is retried by the scheduled pass', async () => {
 			let now = NOW;
-			const { database, cleanup } = create({ now: () => now, debounceMs: 0, periodicMs: 1 });
-			await allocate(database, 'later', 'allocating', NOW);
-			cleanup.start();
-			await timeout(30);
-			const whileFresh = await rows(database);
-			now += 11 * 60 * 1000;
-			await timeout(100);
+			const { database, cleanup } = create({ now: () => now, debounceMs: 0, backoffMs: 1 });
+			await fs.writeFile(join(root, 'file'), '');
+			const folder = URI.file(join(root, 'file', 'child')).toString();
+			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
+			await cleanup.runPass();
+			const failed = await rows(database);
+			await fs.rm(join(root, 'file'));
+			now += 10;
+			await cleanup.runPass();
 
-			assert.deepStrictEqual({ whileFresh, rows: await rows(database), exists: await exists('later') }, { whileFresh: ['later:allocating:0:0'], rows: [], exists: false });
+			assert.deepStrictEqual({ failed, after: await rows(database) }, { failed: [`child:allocating:1:${NOW + 1}`], after: [] });
 		});
 	});
 });

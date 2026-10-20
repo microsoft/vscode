@@ -203,7 +203,9 @@ const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
 /** A scratch folder allocated for a chat being created: kept by `commit`, removed by `abort`. */
 interface IAllocatedScratchFolder {
 	readonly folder: URI;
+	/** Called once the chat is published; a failure is only logged: the clean-up pass promotes the row of a chat that lists the folder. */
 	commit(): Promise<void>;
+	/** Called when the chat was not published. */
 	abort(): Promise<void>;
 }
 
@@ -6269,8 +6271,6 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._scratchFoldersLoaded;
 			scratch = await this._allocateScratchFolder(session, chat, options);
 			await this._createChatWithReservations(session, chat, scratch ? { ...options, workingDirectories: [scratch.folder] } : options, reservations, credentials, initialMessageContext);
-			await scratch?.commit();
-			scratch = undefined;
 		} catch (error) {
 			// Reservations hold the folder attached to the session, so they end before the detach in abort().
 			reservations.dispose();
@@ -6279,6 +6279,8 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			reservations.dispose();
 		}
+		// Outside the try: the chat is published, so a failure here never removes the folder under it.
+		await scratch?.commit();
 	}
 
 	/**
@@ -6298,7 +6300,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const folder = joinPath(workspacelessChatsRoot(this._environmentService.userHome), generateUuid());
 		const folderKey = folder.toString();
-		await this._orchestratorDatabase.insertScratchFolder({ folder: folderKey, chatUri: chat.toString(), provider: provider.id, requestedAt: Date.now() });
+		// Until the allocation settles no clean-up pass may reclaim the folder, whatever the row's age.
+		const inFlight = this._worktreeCleanup.trackScratchAllocation(folderKey);
+		try {
+			await this._orchestratorDatabase.insertScratchFolder({ folder: folderKey, chatUri: chat.toString(), provider: provider.id, requestedAt: Date.now() });
+		} catch (error) {
+			inFlight.dispose();
+			throw error;
+		}
 		let release: (() => Promise<void>) | undefined;
 		const abort = async () => {
 			try {
@@ -6310,10 +6319,12 @@ export class AgentService extends Disposable implements IAgentService {
 				});
 				await this._orchestratorDatabase.deleteScratchFolder(folderKey);
 			} catch (error) {
-				// The row stays `allocating`: the clean-up pass reclaims the folder once it is stale.
+				// The row stays `allocating`: the clean-up pass reclaims the folder, as nothing is in flight any more.
 				this._logService.warn(`[AgentService] Failed to clean up scratch folder ${folderKey}: ${toErrorMessage(error)}`);
 			} finally {
 				this._stateManager.setScratchFolder(folderKey, false);
+				inFlight.dispose();
+				this._worktreeCleanup.schedule();
 			}
 		};
 		try {
@@ -6327,7 +6338,16 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		return {
 			folder,
-			commit: () => this._orchestratorDatabase.markScratchFolderOwned(folderKey),
+			commit: async () => {
+				try {
+					await this._orchestratorDatabase.markScratchFolderOwned(folderKey);
+				} catch (error) {
+					this._logService.warn(`[AgentService] Failed to record scratch folder ${folderKey} as owned: ${toErrorMessage(error)}`);
+				} finally {
+					inFlight.dispose();
+					this._worktreeCleanup.schedule();
+				}
+			},
 			abort,
 		};
 	}

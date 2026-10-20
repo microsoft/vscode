@@ -34612,6 +34612,23 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a failure recording the folder as owned after the chat was published keeps the chat and its folder', async () => {
+					const { service, source, database, files } = await setupWorkspaceless();
+					const [first] = await database.listScratchFolders();
+					database.markScratchFolderOwned = async () => { throw new Error('write failed'); };
+					const second = URI.parse(buildChatUri(source, 'second'));
+
+					await service.createChat(source, second);
+
+					const row = (await database.listScratchFolders()).find(entry => entry.chatUri === second.toString());
+					assert.deepStrictEqual({
+						state: row?.state,
+						folderExists: row ? await files.exists(URI.parse(row.folder)) : undefined,
+						chat: getStateManager(service).getSessionState(source.toString())?.chats.some(chat => chat.resource === second.toString()),
+						distinct: row?.folder !== first.folder,
+					}, { state: 'allocating', folderExists: true, chat: true, distinct: true });
+				});
+
 				test('a chat sharing the session\'s scratch folder cannot leave it', async () => {
 					const { service, source, target, nested, sessionFolder } = await setupWorkspaceless();
 					const shared = URI.parse(buildChatUri(source, 'shared'));

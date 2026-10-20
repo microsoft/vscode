@@ -5,7 +5,7 @@
 
 import * as fs from 'fs/promises';
 import { RunOnceScheduler } from '../../../base/common/async.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -64,6 +64,8 @@ export interface IAgentHostWorktreeCleanupService {
 	start(): void;
 	/** Runs a pass now and resolves when it completes. */
 	runPass(): Promise<void>;
+	/** Marks a scratch folder's allocation as in flight, so no pass reclaims it, until the result is disposed. */
+	trackScratchAllocation(folder: string): IDisposable;
 }
 
 export interface IAgentHostWorktreeCleanupOptions {
@@ -84,9 +86,6 @@ const DEFAULT_MAX_BACKOFF_MS = 60 * 60 * 1000;
 /** Attempts after which a failing removal is logged as a warning. */
 const WARN_AFTER_ATTEMPTS = 5;
 
-/** An `allocating` scratch folder older than this belongs to a crashed creation. */
-const STALE_SCRATCH_ALLOCATION_MS = 10 * 60 * 1000;
-
 export class AgentHostWorktreeCleanupService extends Disposable implements IAgentHostWorktreeCleanupService {
 	declare readonly _serviceBrand: undefined;
 
@@ -100,6 +99,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	private _lastRequestedAt = 0;
 	private _pass: Promise<void> | undefined;
 	private _passAgain = false;
+	private readonly _scratchAllocationsInFlight = new Set<string>();
 
 	constructor(
 		options: IAgentHostWorktreeCleanupOptions | undefined,
@@ -297,6 +297,11 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		return this._pass;
 	}
 
+	trackScratchAllocation(folder: string): IDisposable {
+		this._scratchAllocationsInFlight.add(folder);
+		return toDisposable(() => this._scratchAllocationsInFlight.delete(folder));
+	}
+
 	private async _runPass(): Promise<void> {
 		const now = this._now();
 		// Rows of sessions deleted since (also by an older build) keep nothing in use; only a folder's marker stays.
@@ -313,22 +318,28 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	}
 
 	/**
-	 * Reclaims chat scratch folders: those of deleted chats (`removing`) and those a crashed allocation left behind
-	 * (`allocating` for longer than {@link STALE_SCRATCH_ALLOCATION_MS} with no chat or session listing them).
-	 * A folder a live chat or session, archived ones included, still lists is kept.
+	 * Reclaims chat scratch folders: those of deleted chats (`removing`) and those an allocation that is no longer in
+	 * flight left behind (`allocating`; after a crash nothing is in flight). A folder a live chat or session, archived
+	 * ones included, still lists is kept, and an `allocating` one that is listed belongs to a published chat: it
+	 * becomes `owned`.
 	 */
 	private async _runScratchPass(now: number): Promise<void> {
 		for (const row of await this._database.listScratchFolders()) {
 			if (this._store.isDisposed) {
 				return;
 			}
-			const due = row.state === 'removing' || (row.state === 'allocating' && now - row.requestedAt > STALE_SCRATCH_ALLOCATION_MS);
-			if (!due || row.nextAttemptAt > now) {
+			if (row.state === 'owned' || row.nextAttemptAt > now) {
 				continue;
 			}
 			await this._worktree.runExclusive(row.folder, async () => {
 				try {
+					if (row.state === 'allocating' && this._scratchAllocationsInFlight.has(row.folder)) {
+						return;
+					}
 					if (await this._database.isScratchFolderInUse(row.folder)) {
+						if (row.state === 'allocating') {
+							await this._database.markScratchFolderOwned(row.folder);
+						}
 						return;
 					}
 					await fs.rm(URI.parse(row.folder).fsPath, { recursive: true, force: true });
@@ -414,7 +425,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		}
 		const remaining = [
 			...await this._database.listPendingWorktreeRemovals().catch(() => []),
-			...(await this._database.listScratchFolders().catch(() => [])).filter(row => row.state !== 'owned'),
+			...(await this._database.listScratchFolders().catch(() => [])).filter(row => row.state === 'removing' || (row.state === 'allocating' && !this._scratchAllocationsInFlight.has(row.folder))),
 		];
 		if (remaining.length === 0 || this._scheduler.isScheduled()) {
 			return;
