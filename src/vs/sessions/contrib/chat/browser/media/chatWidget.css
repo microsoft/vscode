@@ -321,6 +321,8 @@
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
+	/* Composer controls take precedence over the blank session drag strip. */
+	z-index: 1;
 }
 
 .new-session-welcome-message {
