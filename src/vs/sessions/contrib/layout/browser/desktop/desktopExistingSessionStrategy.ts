@@ -270,7 +270,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(activeSession) : undefined;
 		if (ownerKey) {
-			return this._ctx.compositionStore.getPreHide(ownerKey) ?? this._ctx.compositionStore.get(ownerKey);
+			const saved = this._ctx.compositionStore.getPreHide(ownerKey) ?? this._ctx.compositionStore.get(ownerKey);
+			if (saved) {
+				return saved;
+			}
 		}
 		if (!activeSession.isCreated.get()) {
 			return undefined;
@@ -294,7 +297,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			return { editorVisible: stored.editor, auxiliaryBarVisible: stored.auxiliaryBar };
 		}
 		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
-		if (compositionKey) {
+		// Defaults applied to a closed side pane are never shown, so recording them would make a
+		// later visit reveal a pane that this owner never had open.
+		if (compositionKey && (this._ctx.sharedChatLayout || this._layoutService.isSidePaneVisible())) {
 			this._ctx.compositionStore.set(compositionKey, { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
 		}
 		return state;
