@@ -4045,13 +4045,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// worktree is being created — instead of the generic working
 			// placeholder the widget would otherwise show. Fusion milestones
 			// still need a live activity row for the next phase. Real answer
-			// or tool content takes over from this progress display.
+			// or tool content takes over from this progress display, and the
+			// row is removed when the activity ends before any content arrives
+			// so the generic working placeholder returns.
+			let shownActivityProgressId: string | undefined;
 			store.add(autorun(reader => {
 				const activity = chatState$.read(reader)?.activity;
 				const progressId = getAgentHostActivityProgressId(responseParts$.read(reader));
-				if (!activity || progressId === undefined) {
+				if (progressId === undefined) {
 					return;
 				}
+				if (!activity) {
+					if (shownActivityProgressId === progressId) {
+						shownActivityProgressId = undefined;
+						opts.sink([{ kind: 'progressMessage', id: progressId, content: new MarkdownString(), remove: true }]);
+					}
+					return;
+				}
+				shownActivityProgressId = progressId;
 				opts.sink([{
 					kind: 'progressMessage',
 					id: progressId,

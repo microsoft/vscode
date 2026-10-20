@@ -7589,6 +7589,36 @@ suite('AgentHostChatContribution', () => {
 		}));
 	});
 
+	// ---- Host chat activity progress row ------------------------------------
+
+	suite('chat activity progress', () => {
+
+		test('activity cleared before any response content removes its progress row', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+			const activityRows = () => collected.flat().flatMap(part => part.kind === 'progressMessage' && part.id === 'agentHost.chatActivity'
+				? [{ text: textOf(part.content), remove: part.remove === true }]
+				: []);
+
+			fire({ type: 'chat/activityChanged', activity: 'Loading' } as ChatAction);
+			fire({ type: 'chat/activityChanged', activity: undefined } as ChatAction);
+			const afterClear = activityRows();
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({ afterClear, afterTurn: activityRows() }, {
+				afterClear: [
+					{ text: 'Loading', remove: false },
+					{ text: '', remove: true },
+				],
+				afterTurn: [
+					{ text: 'Loading', remove: false },
+					{ text: '', remove: true },
+				],
+			});
+		}));
+	});
+
 	// ---- "Preparing session…" migration status --------------------------
 
 	suite('preparing session status', () => {
