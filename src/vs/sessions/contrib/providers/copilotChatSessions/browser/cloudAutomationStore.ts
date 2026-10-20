@@ -85,7 +85,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		})();
 		this.configuration = {
 			sessionTypes: [sessionTypeId],
-			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
+			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered by events or on a schedule."),
 			timeZone: 'UTC',
 			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
 			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),

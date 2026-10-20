@@ -234,7 +234,7 @@ export class AutomationsCardsWidget extends Disposable {
 				? hasRuns
 					? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
 					: localize('historyLoadFailed', "Run history could not be loaded. Use Refresh to try again.")
-				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
+				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Wait for the automation's next trigger, or run it now when available.") : '';
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));
@@ -778,7 +778,11 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
-		card.runButton.element.style.display = automationTriggerFamily(automation.cloudTrigger?.triggers ?? {}) ? 'none' : '';
+		const eventTriggered = automationTriggerFamily(automation.cloudTrigger?.triggers ?? {}) !== undefined;
+		if (eventTriggered && DOM.isActiveElement(card.runButton.element)) {
+			card.moreActionsButton.focus();
+		}
+		card.runButton.element.style.display = eventTriggered ? 'none' : '';
 		const starting = card.startingRuns.get() !== undefined;
 		card.startingIcon.style.display = starting ? '' : 'none';
 		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
@@ -2279,7 +2283,7 @@ export class AutomationsCustomView extends AbstractCustomView {
 
 	readonly title: IObservable<string> = constObservable(localize('automationsTitle', "Automations"));
 	override readonly description: IObservable<string | undefined> = constObservable(
-		localize('automationsDescription', "Schedule agent sessions to run automatically on a cadence you choose."));
+		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
 	private _widget: AutomationsCardsWidget | undefined;
 

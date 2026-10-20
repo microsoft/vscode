@@ -269,10 +269,11 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			loading: loading.configuration.tools.kind,
 			failed: failed.configuration.tools.kind,
+			description: ready.configuration.description,
 			tools: ready.configuration.tools.groups.flatMap((group: { tools: { id: string }[] }) => group.tools.map(tool => tool.id)),
 			cached: cached.configuration, requests: api.calls.filter(call => call === 'tools').length,
 		}, {
-			loading: 'loading', failed: 'error', tools: ['github/issue_read', 'github/list_issues', 'github/unnamed'],
+			loading: 'loading', failed: 'error', description: 'Runs even when your computer is off, triggered by events or on a schedule.', tools: ['github/issue_read', 'github/list_issues', 'github/unnamed'],
 			cached: ready.configuration, requests: 2,
 		});
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);

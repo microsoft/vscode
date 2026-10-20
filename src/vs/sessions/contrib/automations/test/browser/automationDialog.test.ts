@@ -455,6 +455,7 @@ suite('Automation dialog creation', () => {
 		const row = dialog.container.querySelector('.automation-form-schedule-row')!;
 		const event = row.querySelector('select[aria-label="Event"]');
 		const advanced = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+		const section = dialog.container.querySelector<HTMLElement>('.automation-advanced')!;
 		const content = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
 		const required = dialog.container.querySelector<HTMLElement>('.automation-trigger-required-fields')!;
 		const initial = {
@@ -465,18 +466,20 @@ suite('Automation dialog creation', () => {
 			requiredDisplay: required.style.display,
 			actorInsideAdvanced: !!content.querySelector('[role="checkbox"][aria-label="Require write access to trigger"]'),
 			expanded: advanced.getAttribute('aria-expanded'),
+			sectionAriaHidden: section.getAttribute('aria-hidden'),
+			contentAriaHidden: content.getAttribute('aria-hidden'),
 			display: content.style.display,
 			summaryHidden: dialog.container.querySelector<HTMLElement>('.automation-advanced-summary')?.hidden,
 			disclosures: dialog.container.querySelectorAll('.automation-advanced-disclosure').length,
 		};
 		advanced.click();
-		const expanded = { expanded: advanced.getAttribute('aria-expanded'), display: content.style.display };
+		const expanded = { expanded: advanced.getAttribute('aria-expanded'), display: content.style.display, contentAriaHidden: content.getAttribute('aria-hidden') };
 		advanced.click();
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ initial, expanded, patch: result?.value.cloudTrigger }, {
-			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, labelsOutsideAdvanced: true, requiredDisplay: '', actorInsideAdvanced: true, expanded: 'false', display: 'none', summaryHidden: true, disclosures: 1 },
-			expanded: { expanded: 'true', display: '' }, patch: undefined,
+			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, labelsOutsideAdvanced: true, requiredDisplay: '', actorInsideAdvanced: true, expanded: 'false', sectionAriaHidden: null, contentAriaHidden: 'true', display: 'none', summaryHidden: true, disclosures: 1 },
+			expanded: { expanded: 'true', display: '', contentAriaHidden: null }, patch: undefined,
 		});
 	});
 
@@ -510,88 +513,88 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual(result?.value.cloudTrigger, {
 			triggers: { ...triggers, pull_request_comment: { ...triggers.pull_request_comment, types: ['timeline_comment', 'review_comment'] } }, requireActorWritePermission: true,
 		});
+	});
 
-		test('selected PR events share one Query and Paths editor without event headings', async () => {
-			const sharedCatalog = [
-				{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
-				{ name: 'pull_request_synchronize', title: 'Synchronized', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
-			];
-			const initial = eventAutomation({});
-			const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, {
-				...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: sharedCatalog }),
-			});
-			const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-			trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Pull Request');
-			trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
-			const picker = dialog.openEventPicker();
-			picker.toggle('Pull request synchronized');
-			picker.accept();
-			dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
-			const advanced = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
-			const queryInputs = advanced.querySelectorAll<HTMLInputElement>('input[aria-label="Pull request query"]');
-			const pathInputs = advanced.querySelectorAll<HTMLInputElement>('input[aria-label="Path filter"]');
-			queryInputs[0].value = ' is:open label:bug ';
-			queryInputs[0].dispatchEvent(new InputEvent('input', { bubbles: true }));
-			pathInputs[0].value = ' src/**, !src/generated/** ';
-			pathInputs[0].dispatchEvent(new InputEvent('input', { bubbles: true }));
-			const presentation = {
-				queryInputs: queryInputs.length,
-				pathInputs: pathInputs.length,
-				pathPlaceholder: pathInputs[0].placeholder,
-				pathHelpText: advanced.textContent?.includes('Match changed files with gitignore-style patterns, separated by commas.'),
-				openedHeading: advanced.textContent?.includes('Pull request opened'),
-				synchronizedHeading: advanced.textContent?.includes('Pull request synchronized'),
-			};
-			dialog.saveButton.click();
-			const result = await dialog.result;
-			assert.deepStrictEqual({ presentation, trigger: result?.value.cloudTrigger }, {
-				presentation: {
-					queryInputs: 1,
-					pathInputs: 1,
-					pathPlaceholder: 'Match changed files with gitignore-style patterns, separated by commas',
-					pathHelpText: false,
-					openedHeading: false,
-					synchronizedHeading: false,
-				},
-				trigger: {
-					triggers: {
-						pull_request_opened: { types: ['opened'], query: 'is:open label:bug', paths: ['src/**', '!src/generated/**'] },
-						pull_request_synchronize: { types: ['synchronize'], query: 'is:open label:bug', paths: ['src/**', '!src/generated/**'] },
-					},
-					requireActorWritePermission: false,
-				},
-			});
+	test('selected PR events share one Query and Paths editor without event headings', async () => {
+		const sharedCatalog = [
+			{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
+			{ name: 'pull_request_synchronize', title: 'Synchronized', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
+		];
+		const initial = eventAutomation({});
+		const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, {
+			...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: sharedCatalog }),
 		});
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Pull Request');
+		trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+		const picker = dialog.openEventPicker();
+		picker.toggle('Pull request synchronized');
+		picker.accept();
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+		const advanced = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
+		const queryInputs = advanced.querySelectorAll<HTMLInputElement>('input[aria-label="Pull request query"]');
+		const pathInputs = advanced.querySelectorAll<HTMLInputElement>('input[aria-label="Path filter"]');
+		queryInputs[0].value = ' is:open label:bug ';
+		queryInputs[0].dispatchEvent(new InputEvent('input', { bubbles: true }));
+		pathInputs[0].value = ' src/**, !src/generated/** ';
+		pathInputs[0].dispatchEvent(new InputEvent('input', { bubbles: true }));
+		const presentation = {
+			queryInputs: queryInputs.length,
+			pathInputs: pathInputs.length,
+			pathPlaceholder: pathInputs[0].placeholder,
+			pathHelpText: advanced.textContent?.includes('Match changed files with gitignore-style patterns, separated by commas.'),
+			openedHeading: advanced.textContent?.includes('Pull request opened'),
+			synchronizedHeading: advanced.textContent?.includes('Pull request synchronized'),
+		};
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ presentation, trigger: result?.value.cloudTrigger }, {
+			presentation: {
+				queryInputs: 1,
+				pathInputs: 1,
+				pathPlaceholder: 'Match changed files with gitignore-style patterns, separated by commas',
+				pathHelpText: false,
+				openedHeading: false,
+				synchronizedHeading: false,
+			},
+			trigger: {
+				triggers: {
+					pull_request_opened: { types: ['opened'], query: 'is:open label:bug', paths: ['src/**', '!src/generated/**'] },
+					pull_request_synchronize: { types: ['synchronize'], query: 'is:open label:bug', paths: ['src/**', '!src/generated/**'] },
+				},
+				requireActorWritePermission: false,
+			},
+		});
+	});
 
-		test('shared PR fields inherit one populated saved value without rewriting triggers on unrelated edits', async () => {
-			const sharedCatalog = [
-				{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'query', label: 'Pull request query', required: false }] },
-				{ name: 'pull_request_synchronize', title: 'Synchronized', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }, { name: 'query', label: 'Pull request query', required: false }] },
-			];
-			const triggers = {
-				pull_request_opened: { types: ['opened'], query: 'is:open', opaque: true },
-				pull_request_synchronize: { types: ['synchronize'] },
-			};
-			const dialog = openDialog({ existing: eventAutomation(triggers) }, {
-				...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: sharedCatalog }),
-			});
-			dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
-			const queries = dialog.container.querySelectorAll<HTMLInputElement>('input[aria-label="Pull request query"]');
-			const presentation = {
-				queryCount: queries.length,
-				query: queries[0].value,
-				readOnly: !!dialog.container.querySelector('a[href="https://github.com/owner/private/agents/automations/events"]'),
-			};
-			dialog.nameInput.value = 'Renamed';
-			dialog.nameInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
-			dialog.saveButton.click();
-			const result = await dialog.result;
-			assert.deepStrictEqual({
-				presentation,
-				name: result?.value.name,
-				triggerPatch: result?.value.cloudTrigger,
-			}, { presentation: { queryCount: 1, query: 'is:open', readOnly: false }, name: 'Renamed', triggerPatch: undefined });
+	test('shared PR fields inherit one populated saved value without rewriting triggers on unrelated edits', async () => {
+		const sharedCatalog = [
+			{ name: 'pull_request_opened', title: 'Opened', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'query', label: 'Pull request query', required: false }] },
+			{ name: 'pull_request_synchronize', title: 'Synchronized', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }, { name: 'query', label: 'Pull request query', required: false }] },
+		];
+		const triggers = {
+			pull_request_opened: { types: ['opened'], query: 'is:open', opaque: true },
+			pull_request_synchronize: { types: ['synchronize'] },
+		};
+		const dialog = openDialog({ existing: eventAutomation(triggers) }, {
+			...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: sharedCatalog }),
 		});
+		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
+		const queries = dialog.container.querySelectorAll<HTMLInputElement>('input[aria-label="Pull request query"]');
+		const presentation = {
+			queryCount: queries.length,
+			query: queries[0].value,
+			readOnly: !!dialog.container.querySelector('a[href="https://github.com/owner/private/agents/automations/events"]'),
+		};
+		dialog.nameInput.value = 'Renamed';
+		dialog.nameInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({
+			presentation,
+			name: result?.value.name,
+			triggerPatch: result?.value.cloudTrigger,
+		}, { presentation: { queryCount: 1, query: 'is:open', readOnly: false }, name: 'Renamed', triggerPatch: undefined });
 	});
 
 	function eventAutomation(triggers: NonNullable<IAutomationDescriptor['cloudTrigger']>['triggers']): IAutomationDescriptor {

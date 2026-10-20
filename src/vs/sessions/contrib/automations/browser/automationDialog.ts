@@ -1249,12 +1249,15 @@ export function renderForm(
 		return getProviderConfiguration(cloudProvider.read(reader));
 	});
 	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
+	let eventModeActive = runInCloud.get() && !!state.cloudTrigger;
 	const triggerEditor = disposables.add(instantiationService.createInstance(AutomationTriggerEditor,
 		triggerContainer, eventGroup, requiredTriggerFields, triggerFields, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
 			const eventMode = runInCloud.get() && !!state.cloudTrigger;
+			const leftEventMode = eventModeActive && !eventMode;
+			eventModeActive = eventMode;
 			if (eventMode) {
 				state.interval = 'custom';
-			} else if (state.interval === 'custom' && !state.triggerReadOnly) {
+			} else if (leftEventMode && state.interval === 'custom' && !state.triggerReadOnly) {
 				state.interval = 'daily';
 			}
 			scheduleRow.style.display = eventMode && state.triggerReadOnly ? 'none' : '';
@@ -2193,8 +2196,6 @@ export class AutomationCustomizationSelection extends Disposable {
 			this.expanded = !this.expanded;
 			this.disclosure.element.setAttribute('aria-expanded', String(this.expanded));
 			DOM.reset(this.chevron, renderIcon(this.expanded ? Codicon.chevronDown : Codicon.chevronRight));
-			this.body.hidden = !this.expanded;
-			this.body.style.display = this.expanded ? '' : 'none';
 			this.updateVisibility();
 		}));
 	}
@@ -2202,14 +2203,15 @@ export class AutomationCustomizationSelection extends Disposable {
 	setAdditionalContentVisible(visible: boolean): void {
 		this.additionalContentVisible = visible;
 		if (this.additionalContent) {
-			this.additionalContent.hidden = !visible;
+			setAutomationControlVisible(this.additionalContent, visible);
 		}
 		this.updateVisibility();
 	}
 
 	private updateVisibility(): void {
-		this.section.style.display = this.additionalContentVisible || this.customizationsVisible ? '' : 'none';
-		this.content.style.display = this.customizationsVisible ? '' : 'none';
+		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible);
+		setAutomationControlVisible(this.body, this.expanded);
+		setAutomationControlVisible(this.content, this.customizationsVisible);
 		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible;
 	}
 

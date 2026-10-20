@@ -1350,7 +1350,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			empty, loading, error: state.textContent, rows: widget.element.querySelectorAll('.automations-temporary-run').length,
 		}, {
-			empty: 'No runs yet. Run an automation now or wait for its next scheduled run.',
+			empty: 'No runs yet. Wait for the automation\'s next trigger, or run it now when available.',
 			loading: '',
 			error: 'Run history could not be refreshed. Showing the last available history. Use Refresh to try again.',
 			rows: 1,
@@ -1381,7 +1381,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setCatalogueState(value);
 			return state.textContent;
 		});
-		assert.deepStrictEqual(messages, ['', '', '', 'No runs yet. Run an automation now or wait for its next scheduled run.']);
+		assert.deepStrictEqual(messages, ['', '', '', 'No runs yet. Wait for the automation\'s next trigger, or run it now when available.']);
 	});
 
 	test('accessible empty history requires ready definitions, ready history and an existing automation', () => {
@@ -1765,6 +1765,24 @@ suite('AutomationsCardsWidget', () => {
 			sameCard: true,
 			focusPreserved: true,
 			prompt: 'Updated prompt',
+		});
+
+		test('changing a focused Run now card to an event trigger moves focus to More Actions', () => {
+			const { automationService, widget } = setup();
+			automationService.setAutomations([automation()]);
+			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
+			const moreActions = widget.element.querySelector<HTMLElement>('.automations-card-more-actions-button')!;
+			runButton.focus();
+
+			automationService.setAutomations([automation({
+				schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' },
+				cloudTrigger: { triggers: { issues: { types: ['opened'] } } },
+			})]);
+
+			assert.deepStrictEqual({
+				runDisplay: runButton.style.display,
+				focusMoved: document.activeElement === moreActions,
+			}, { runDisplay: 'none', focusMoved: true });
 		});
 	});
 
@@ -4273,8 +4291,10 @@ suite('AutomationsCardsWidget', () => {
 			eventColumn: content.includes('Event appears to the right of Trigger'),
 			advancedFilters: content.includes('Expand Advanced below them to configure optional filters'),
 			requiredFields: content.includes('Required event fields appear directly below the Trigger and Event row'),
+			requiredHover: content.includes('Create remains unavailable until they are completed, and its hover explains what is missing'),
 			sharedFilters: content.includes('it appears once and applies to each of those events'),
-		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, sharedFilters: true });
+			eventDuplication: content.includes('event-triggered cloud automations must be duplicated on GitHub'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
@@ -4282,16 +4302,21 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
-		const describesSwitch = () => {
+		const content = () => {
 			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 			assert.ok(provider);
 			disposables.add(provider);
-			return provider.provideContent().includes('a Run in the cloud switch follows the Name field');
+			return provider.provideContent();
 		};
-		const disabled = describesSwitch();
+		const disabled = content().includes('a Run in the cloud switch follows the Name field');
 		sessionsManagementService.providerSessionTypes = [{ providerId: 'cloud', sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } }];
 		automationService.getProviderConfiguration = id => id === 'cloud' ? upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud-agent'] }) : undefined;
-		assert.deepStrictEqual({ disabled, enabledBeforeCreation: describesSwitch() }, { disabled: false, enabledBeforeCreation: true });
+		const enabled = content();
+		assert.deepStrictEqual({
+			disabled,
+			enabledBeforeCreation: enabled.includes('a Run in the cloud switch follows the Name field'),
+			triggerPlacement: enabled.includes('Trigger follows the tools controls'),
+		}, { disabled: false, enabledBeforeCreation: true, triggerPlacement: true });
 	});
 
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {
