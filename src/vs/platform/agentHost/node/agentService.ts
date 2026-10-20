@@ -1081,10 +1081,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._orchestratorDatabase = core.orchestratorDatabase;
 		this._scratchFoldersLoaded = this._orchestratorDatabase.listScratchFolders()
 			.then(rows => {
+				// A `removing` row still names a scratch folder a fork of the removed chat may use.
 				for (const row of rows) {
-					if (row.state !== 'removing') {
-						this._stateManager.setScratchFolder(row.folder, true);
-					}
+					this._stateManager.setScratchFolder(row.folder, true);
+				}
+				// Sessions registered before the load landed published their identities without it.
+				for (const session of this._stateManager.getSessionUris()) {
+					this._publishWorkingDirectoryIdentities(session);
 				}
 			})
 			.catch(error => this._logService.warn('[AgentService] Failed to read the recorded scratch folders', error));
@@ -4693,6 +4696,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
+		await this._scratchFoldersLoaded;
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
 		if (!inFlight) {
@@ -7390,7 +7394,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = this._providerService.getProviderForSession(session);
 		if (folder === undefined || !provider || !readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta)
 			|| !isEqualOrParent(URI.parse(folder), workspacelessChatsRoot(this._environmentService.userHome))
-			|| (await this._orchestratorDatabase.listScratchFolders()).some(row => row.folder === folder)) {
+			|| await this._orchestratorDatabase.hasScratchFolder(folder)) {
 			return undefined;
 		}
 		await this._orchestratorDatabase.insertScratchFolder({ folder, chatUri: chat, provider: provider.id, requestedAt: Date.now() });

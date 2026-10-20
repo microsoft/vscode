@@ -64,7 +64,7 @@ suite('AgentHostScratchFolderDatabase', () => {
 		return disposables.add(new AgentHostDatabase(':memory:'));
 	}
 
-	test('a folder is recorded allocating, then owned, reassigned, failed and deleted', async () => {
+	test('a folder is recorded allocating, then owned, failed and deleted', async () => {
 		const database = create();
 		const states: unknown[] = [];
 
@@ -74,35 +74,17 @@ suite('AgentHostScratchFolderDatabase', () => {
 		await database.markScratchFolderOwned(FOLDER);
 		await database.recordScratchFolderRemovalFailure(FOLDER, 100);
 		await database.recordScratchFolderRemovalFailure(FOLDER, 200);
-		states.push(await database.listScratchFoldersOfChat(OWNER_CHAT));
-		await database.reassignScratchFolder(FOLDER, 'ahp-chat:/other');
-		states.push([await database.listScratchFoldersOfChat(OWNER_CHAT), await database.listScratchFoldersOfChat('ahp-chat:/other')]);
+		states.push(await database.listScratchFolders(), await database.hasScratchFolder(FOLDER), await database.hasScratchFolder('/other'));
 		await database.deleteScratchFolder(FOLDER);
 		states.push(await database.listScratchFolders());
 
 		assert.deepStrictEqual(states, [
 			[{ folder: FOLDER, chatUri: OWNER_CHAT, provider: 'copilotcli', state: 'allocating', requestedAt: 5, attempts: 0, nextAttemptAt: 0 }],
 			[{ folder: FOLDER, chatUri: OWNER_CHAT, provider: 'copilotcli', state: 'owned', requestedAt: 5, attempts: 2, nextAttemptAt: 200 }],
-			[[], [{ folder: FOLDER, chatUri: 'ahp-chat:/other', provider: 'copilotcli', state: 'owned', requestedAt: 5, attempts: 0, nextAttemptAt: 0 }]],
+			true,
+			false,
 			[],
 		]);
-	});
-
-	test('reassigning a removing folder makes it owned again with its attempts reset', async () => {
-		const database = create();
-		await registerOwner(database, OWNER_SESSION, []);
-		await database.insertScratchFolder(REQUEST);
-		await database.recordScratchFolderRemovalFailure(FOLDER, 100);
-		assert.strictEqual((await database.insertPrivateChatV2(OWNER_SESSION, { chat: OWNER_CHAT, metadata: { interactivity: ChatInteractivity.Hidden } }, 1)).status, 'applied');
-		assert.strictEqual((await database.removePrivateChatV2(OWNER_SESSION, OWNER_CHAT, 2)).status, 'applied');
-		const removing = (await database.listScratchFolders()).map(row => row.state);
-
-		await database.reassignScratchFolder(FOLDER, 'ahp-chat:/moved');
-
-		assert.deepStrictEqual({ removing, after: await database.listScratchFolders() }, {
-			removing: ['removing'],
-			after: [{ folder: FOLDER, chatUri: 'ahp-chat:/moved', provider: 'copilotcli', state: 'owned', requestedAt: 5, attempts: 0, nextAttemptAt: 0 }],
-		});
 	});
 
 	test('deleting a session\'s default chat does not mark the folders of unrelated chats', async () => {

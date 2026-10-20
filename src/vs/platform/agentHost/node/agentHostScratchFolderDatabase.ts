@@ -55,9 +55,8 @@ export interface IAgentHostScratchFolderDatabase {
 	/** Marks an `allocating` folder `owned`. */
 	markScratchFolderOwned(folder: string): Promise<void>;
 	listScratchFolders(): Promise<readonly IScratchFolder[]>;
-	listScratchFoldersOfChat(chatUri: string): Promise<readonly IScratchFolder[]>;
-	/** Gives the folder to another chat, which owns it again: a removal in progress or failed is reset. */
-	reassignScratchFolder(folder: string, chatUri: string): Promise<void>;
+	/** Whether the folder is recorded in any state. */
+	hasScratchFolder(folder: string): Promise<boolean>;
 	/** Counts a failed removal attempt. */
 	recordScratchFolderRemovalFailure(folder: string, nextAttemptAt: number): Promise<void>;
 	deleteScratchFolder(folder: string): Promise<void>;
@@ -117,12 +116,8 @@ export class AgentHostScratchFolderTables implements IAgentHostScratchFolderData
 		return this._host.read(async connection => (await connection.all(`SELECT ${columns} FROM scratch_folders ORDER BY requested_at, folder`, [])).map(toScratchFolder));
 	}
 
-	listScratchFoldersOfChat(chatUri: string): Promise<readonly IScratchFolder[]> {
-		return this._host.read(async connection => (await connection.all(`SELECT ${columns} FROM scratch_folders WHERE chat_uri = ? ORDER BY requested_at, folder`, [chatUri])).map(toScratchFolder));
-	}
-
-	async reassignScratchFolder(folder: string, chatUri: string): Promise<void> {
-		await this._host.write('Failed to reassign a scratch folder', connection => connection.run(`UPDATE scratch_folders SET chat_uri = ?, state = 'owned', attempts = 0, next_attempt_at = 0 WHERE folder = ?`, [chatUri, folder]));
+	hasScratchFolder(folder: string): Promise<boolean> {
+		return this._host.read(async connection => !!await connection.get('SELECT 1 AS present FROM scratch_folders WHERE folder = ?', [folder]));
 	}
 
 	async recordScratchFolderRemovalFailure(folder: string, nextAttemptAt: number): Promise<void> {

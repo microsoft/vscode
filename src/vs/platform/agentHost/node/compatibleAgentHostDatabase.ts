@@ -734,12 +734,8 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return (await this.raw.listScratchFolders()).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
 	}
 
-	async listScratchFoldersOfChat(...[chatUri]: Parameters<IAgentHostDatabase['listScratchFoldersOfChat']>): ReturnType<IAgentHostDatabase['listScratchFoldersOfChat']> {
-		return (await this.raw.listScratchFoldersOfChat(this.identity.toStorage(chatUri))).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
-	}
-
-	reassignScratchFolder(...[folder, chatUri]: Parameters<IAgentHostDatabase['reassignScratchFolder']>): ReturnType<IAgentHostDatabase['reassignScratchFolder']> {
-		return this.raw.reassignScratchFolder(folder, this.identity.toStorage(chatUri));
+	hasScratchFolder(...args: Parameters<IAgentHostDatabase['hasScratchFolder']>): ReturnType<IAgentHostDatabase['hasScratchFolder']> {
+		return this.raw.hasScratchFolder(...args);
 	}
 
 	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostDatabase['recordScratchFolderRemovalFailure']> {

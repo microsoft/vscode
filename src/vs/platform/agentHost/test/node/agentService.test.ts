@@ -30218,6 +30218,53 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		async function createServiceWithRecordedFolder(state: 'owned' | 'removing', gate?: Promise<void>) {
+			const orchestrator = disposables.add(new AgentHostDatabase(':memory:'));
+			const folder = joinPath(chatsRoot, 'recorded').toString();
+			await orchestrator.insertScratchFolder({ folder, chatUri: 'ahp-chat:/gone', provider: 'copilot', requestedAt: 1 });
+			if (state === 'owned') {
+				await orchestrator.markScratchFolderOwned(folder);
+			} else {
+				await orchestrator.registerSessionV2('copilot:/owner', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await orchestrator.registerChatCatalogV2('copilot:/owner', { defaultChat: { chat: 'copilot:/owner/default', order: 0 }, peers: [], privateDescendants: [] });
+				await orchestrator.insertPrivateChatV2('copilot:/owner', { chat: 'ahp-chat:/gone', workingDirectories: [], metadata: { interactivity: ChatInteractivity.Hidden } }, 1);
+				await orchestrator.removePrivateChatV2('copilot:/owner', 'ahp-chat:/gone', 2);
+			}
+			if (gate) {
+				const list = orchestrator.listScratchFolders.bind(orchestrator);
+				orchestrator.listScratchFolders = async () => { await gate; return list(); };
+			}
+			const files = disposables.add(new FileService(new NullLogService()));
+			disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+			return { svc, folder, orchestrator };
+		}
+
+		test('after a restart a folder of a removing row stays a scratch folder, for the forks that still use it', async () => {
+			const { svc, folder, orchestrator } = await createServiceWithRecordedFolder('removing');
+
+			await svc.listSessions();
+
+			assert.deepStrictEqual({ state: (await orchestrator.listScratchFolders()).map(row => row.state), scratch: getStateManager(svc).isScratchFolder(folder) }, { state: ['removing'], scratch: true });
+		});
+
+		test('listing sessions waits for the recorded scratch folders to load', async () => {
+			const gate = new DeferredPromise<void>();
+			const { svc, folder } = await createServiceWithRecordedFolder('owned', gate.p);
+			let listed = false;
+			const listing = svc.listSessions().then(() => { listed = true; });
+			await Promise.resolve();
+			const before = { listed, scratch: getStateManager(svc).isScratchFolder(folder) };
+
+			gate.complete();
+			await listing;
+
+			assert.deepStrictEqual({ before, after: { listed, scratch: getStateManager(svc).isScratchFolder(folder) } }, {
+				before: { listed: false, scratch: false },
+				after: { listed: true, scratch: true },
+			});
+		});
+
 		test('chats that bring their own folder or share one are skipped', async () => {
 			const { svc, agent, database, allocate } = await createScratchService();
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
