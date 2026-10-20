@@ -690,6 +690,35 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('reopening locally after using Cloud hides the empty Event column', async () => {
+		const cloud = openDialog({}, cloudConfiguration());
+		await cloud.setCloud(true);
+		cloud.cancelButton.click();
+		await cloud.result;
+
+		const local = openDialog({}, cloudConfiguration(), undefined, undefined, true, false);
+		const row = local.container.querySelector<HTMLElement>('.automation-form-schedule-row')!;
+		const event = row.querySelector<HTMLElement>('.automation-form-event-group')!;
+		const trigger = row.querySelector<HTMLElement>('.automation-form-schedule-group:not(.automation-form-time-group):not(.automation-form-day-group):not(.automation-form-event-group)')!;
+		const time = row.querySelector<HTMLElement>('.automation-form-time-group')!;
+		assert.deepStrictEqual({
+			cloud: local.container.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+			eventDisplay: event.style.display,
+			visibleGroups: Array.from(row.children).filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.className),
+			flex: [DOM.getWindow(trigger).getComputedStyle(trigger).flexGrow, DOM.getWindow(time).getComputedStyle(time).flexGrow],
+		}, {
+			cloud: 'false',
+			eventDisplay: 'none',
+			visibleGroups: [
+				'automation-form-schedule-group',
+				'automation-form-schedule-group automation-form-time-group',
+			],
+			flex: ['1', '1'],
+		});
+		local.cancelButton.click();
+		await local.result;
+	});
+
 	test('Space turns the cloud switch on and off even though the dialog cancels key-up events', async () => {
 		const dialog = openDialog({}, cloudConfiguration());
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;

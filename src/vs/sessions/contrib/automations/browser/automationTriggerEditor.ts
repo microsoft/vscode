@@ -36,6 +36,7 @@ export class AutomationTriggerEditor extends Disposable {
 	private catalog: AutomationTriggerCatalog | undefined;
 	private choices: readonly IAutomationTriggerChoice[] = [];
 	private cloud = false;
+	private initialized = false;
 	private eventSelector: SelectBox | undefined;
 	private eventsButton: Button | undefined;
 
@@ -59,9 +60,10 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	update(catalog: AutomationTriggerCatalog | undefined, cloud: boolean): void {
-		if (catalog === this.catalog && cloud === this.cloud) {
+		if (this.initialized && catalog === this.catalog && cloud === this.cloud) {
 			return;
 		}
+		this.initialized = true;
 		this.catalog = catalog;
 		this.cloud = cloud;
 		this.choices = catalog?.kind === 'ready' ? automationTriggerChoices(catalog.definitions) : [];
