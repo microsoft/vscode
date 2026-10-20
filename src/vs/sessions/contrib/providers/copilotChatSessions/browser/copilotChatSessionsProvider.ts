@@ -1909,13 +1909,27 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (source.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const provisioned = await raceCancellationError(this._provisionSandboxSession(session, query, source.token, {
+			const provisioning = this._provisionSandboxSession(session, query, source.token, {
 				report: message => {
 					if (!store.isDisposed) {
 						session.reportPreparationProgress(message);
 					}
 				},
-			}), source.token);
+			});
+			let provisioned: ICloudSandboxProvisionedSession;
+			try {
+				provisioned = await raceCancellationError(provisioning, source.token);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					// Creation may have succeeded just before cancellation won the wait.
+					void provisioning.then(result => this._publishSandboxSession(result)).catch(error => {
+						if (!isCancellationError(error)) {
+							this.logService.error('[CopilotChatSessionsProvider] Failed to finish cancelled cloud sandbox creation:', error);
+						}
+					});
+				}
+				throw error;
+			}
 			if (source.token.isCancellationRequested || this._newSessions.get(sessionId) !== session) {
 				this._publishSandboxSession(provisioned);
 				throw new CancellationError();

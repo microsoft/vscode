@@ -3221,6 +3221,60 @@ suite('CopilotChatSessionsProvider', () => {
 				});
 			}
 
+			for (const operation of ['preparation', 'send'] as const) {
+				test(`${providerMode} publishes a sandbox when cancellation interrupts ${operation} result delivery`, async () => {
+					const pending = new DeferredPromise<ICloudSandboxProvisionedSession>();
+					let sends = 0;
+					const provisioned = provisionedSession(async () => {
+						sends++;
+						return provisioned.session;
+					});
+					const { provider, provisionRequests } = createSandboxProvider({ providerMode, provision: () => pending.p });
+					const draft = provider.createNewSession(repoWorkspace, sessionTypeId);
+					const cancellation = disposables.add(new CancellationTokenSource());
+					const contribution = provider.sandboxContribution;
+					assert.ok(contribution);
+					const provisionSession = contribution.provisionSession;
+					contribution.provisionSession = (request, token, progress) => {
+						const provisioning = provisionSession(request, token, progress);
+						void provisioning.then(() => {
+							// Cancel after the helper's final check, before the outer race delivers its result.
+							queueMicrotask(() => {
+								if (operation === 'preparation') {
+									cancellation.cancel();
+								} else {
+									draft.preparationProgress?.get()?.cancel();
+								}
+							});
+						});
+						return provisioning;
+					};
+					const request = operation === 'preparation'
+						? provider.prepareNewSession(draft.sessionId, cancellation.token, 'Review this file')
+						: provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'Review this file' });
+					const rejected = assert.rejects(request, /Canceled/);
+
+					await pending.complete(provisioned);
+					await rejected;
+					const publishedBeforeDiscard = [...provisioned.published];
+					provider.deleteNewSession(draft.sessionId);
+
+					assert.deepStrictEqual({
+						requests: provisionRequests.length,
+						sends,
+						publishedBeforeDiscard,
+						publishedAfterDiscard: provisioned.published,
+						progress: draft.preparationProgress?.get(),
+					}, {
+						requests: 1,
+						sends: 0,
+						publishedBeforeDiscard: ['sess-new'],
+						publishedAfterDiscard: ['sess-new'],
+						progress: undefined,
+					});
+				});
+			}
+
 			for (const releaseFrom of ['draft', 'provider'] as const) {
 				test(`${providerMode} reveals an unused prepared sandbox when the ${releaseFrom} is disposed`, async () => {
 					const provisioned = provisionedSession();
