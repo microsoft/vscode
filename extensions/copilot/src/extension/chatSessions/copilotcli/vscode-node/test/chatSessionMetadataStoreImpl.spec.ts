@@ -9,6 +9,8 @@ import { Uri } from 'vscode';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
 import { ILogService } from '../../../../../platform/log/common/logService';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
+import { TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 import { mock } from '../../../../../util/common/test/simpleMock';
 import { Emitter } from '../../../../../util/vs/base/common/event';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -88,6 +90,13 @@ class MockLogService extends mock<ILogService>() {
 	override debug = vi.fn();
 }
 
+class TestTelemetryService extends NullTelemetryService {
+	public readonly events: Array<{ name: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }> = [];
+	override sendMSFTTelemetryEvent(name: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+		this.events.push({ name, properties, measurements });
+	}
+}
+
 // Paths used by the store
 // New shared bulk file (top-N cache). Lives at `~/.copilot/...` in production but is
 // mocked above so the IFileSystemService mock can intercept reads/writes.
@@ -152,12 +161,14 @@ describe('ChatSessionMetadataStore', () => {
 	let mockFs: MockFileSystemServiceWithMotification;
 	let logService: MockLogService;
 	let extensionContext: MockExtensionContext;
+	let telemetryService: TestTelemetryService;
 
 	beforeEach(async () => {
 		vi.useFakeTimers();
 		mockFs = new MockFileSystemServiceWithMotification();
 		logService = new MockLogService();
 		extensionContext = new MockExtensionContext();
+		telemetryService = new TestTelemetryService();
 	});
 
 	afterEach(async () => {
@@ -176,6 +187,7 @@ describe('ChatSessionMetadataStore', () => {
 			logService,
 			extensionContext,
 			new NullCopilotCLIAgents(),
+			telemetryService,
 		);
 		// Flush enough microtask rounds so that initializeStorage() —
 		// which chains several async I/O steps — fully settles.
@@ -1446,6 +1458,8 @@ describe('ChatSessionMetadataStore', () => {
 
 		it('skips migration when memento flag is already set', async () => {
 			extensionContext.globalState.seed('github.copilot.cli.legacyBulkMigrated', true);
+			// The one-time per-session backfill also reads the legacy file; isolate the migration path.
+			extensionContext.globalState.seed('github.copilot.cli.sessionMetadataBackfilled.v1', true);
 			mockFs.mockFile(LEGACY_BULK_METADATA_FILE, JSON.stringify({
 				'legacy-session': { workspaceFolder: { folderPath: Uri.file('/legacy').fsPath, timestamp: 1 } },
 			}));
@@ -1559,6 +1573,295 @@ describe('ChatSessionMetadataStore', () => {
 			const second = JSON.parse(new TextDecoder().decode(await mockFs.readFile(file)));
 			expect(second.created).toBe(createdAt); // unchanged
 			expect(second.modified).toBeGreaterThan(first.modified); // bumped
+			store.dispose();
+		});
+	});
+
+	describe('per-session metadata backfill', () => {
+		const BACKFILLED_KEY = 'github.copilot.cli.sessionMetadataBackfilled.v1';
+
+		async function readSessionFile(sessionId: string): Promise<unknown> {
+			try {
+				return JSON.parse(new TextDecoder().decode(await mockFs.readFile(sessionMetadataFileUri(sessionId))));
+			} catch {
+				return undefined;
+			}
+		}
+
+		function mockSessionDirectories(...sessionIds: string[]): void {
+			for (const sessionId of sessionIds) {
+				mockFs.mockDirectory(sessionDirectoryUri(sessionId), []);
+			}
+		}
+
+		async function createBackfilledStore(): Promise<ChatSessionMetadataStore> {
+			const store = await createStore();
+			let done = false;
+			void store.whenSessionMetadataBackfilled().then(() => done = true);
+			await vi.advanceTimersByTimeAsync(60_000);
+			// Batches pause between each other; keep time moving until the run settles.
+			for (let i = 0; !done && i < 1_000; i++) {
+				await vi.advanceTimersByTimeAsync(50);
+			}
+			return store;
+		}
+
+		function backfillEvents() {
+			return telemetryService.events.filter(e => e.name === 'copilotcli.sessionMetadataBackfill');
+		}
+
+		it('handles thousands of sessions in paced batches without touching existing files', async () => {
+			const bulk: Record<string, unknown> = {};
+			for (let i = 0; i < 2_500; i++) {
+				bulk[`s-${i}`] = { origin: 'vscode', workspaceFolder: { folderPath: `/w/${i}`, timestamp: i }, modified: i };
+				mockSessionDirectories(`s-${i}`);
+				if (i % 2 === 0) {
+					mockFs.mockFile(sessionMetadataFileUri(`s-${i}`), JSON.stringify({ origin: 'vscode', customTitle: `existing ${i}` }));
+				}
+			}
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify(bulk));
+
+			const store = await createBackfilledStore();
+
+			expect({
+				existingKept: await readSessionFile('s-0'),
+				written: await readSessionFile('s-2499'),
+				sharedAtCap: backfillEvents()[0]?.properties?.sharedAtCap,
+				measurements: { ...backfillEvents()[0]?.measurements, durationMs: 0 },
+				backfilled: extensionContext.globalState.get(BACKFILLED_KEY),
+			}).toEqual({
+				existingKept: { origin: 'vscode', customTitle: 'existing 0' },
+				written: { origin: 'vscode', workspaceFolder: { folderPath: '/w/2499', timestamp: 2499 }, modified: 2499 },
+				sharedAtCap: 'true',
+				measurements: { attempt: 1, sharedEntryCount: 2_500, perInstallEntryCount: 0, candidateCount: 2_500, notVSCodeCount: 0, existingFileCount: 1_250, missingSessionDirectoryCount: 0, writtenCount: 1_250, failedCount: 0, durationMs: 0 },
+				backfilled: true,
+			});
+			store.dispose();
+		});
+
+		it('reports whether the per-install bulk file was merged on an earlier start, not by this start', async () => {
+			const reported = [];
+			for (const mergedEarlier of [false, true]) {
+				extensionContext = new MockExtensionContext();
+				if (mergedEarlier) {
+					extensionContext.globalState.seed('github.copilot.cli.legacyBulkMigrated', true);
+				}
+				mockFs.mockFile(LEGACY_BULK_METADATA_FILE, JSON.stringify({
+					'legacy': { workspaceFolder: { folderPath: '/legacy', timestamp: 1 } },
+				}));
+				const store = await createBackfilledStore();
+				reported.push({
+					mergedEarlier,
+					legacyBulkMigrated: backfillEvents().at(-1)?.properties?.legacyBulkMigrated,
+					mergedNow: extensionContext.globalState.get('github.copilot.cli.legacyBulkMigrated'),
+				});
+				store.dispose();
+			}
+
+			expect(reported).toEqual([
+				{ mergedEarlier: false, legacyBulkMigrated: 'false', mergedNow: true },
+				{ mergedEarlier: true, legacyBulkMigrated: 'true', mergedNow: true },
+			]);
+		});
+
+		it('stops a run after repeated consecutive write failures and gives up after a bounded number of runs', async () => {
+			const bulk: Record<string, unknown> = {};
+			for (let i = 0; i < 30; i++) {
+				bulk[`s-${i}`] = { origin: 'vscode', workspaceFolder: { folderPath: `/w/${i}`, timestamp: i } };
+				mockSessionDirectories(`s-${i}`);
+			}
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify(bulk));
+			const writeFile = mockFs.writeFile.bind(mockFs);
+			vi.spyOn(mockFs, 'writeFile').mockImplementation(async (uri, content) => {
+				if (uri.toString().endsWith('/vscode.metadata.json')) {
+					throw new Error('EROFS');
+				}
+				return writeFile(uri, content);
+			});
+
+			const runs = [];
+			for (let run = 0; run < 3; run++) {
+				const store = await createBackfilledStore();
+				const event = backfillEvents()[run];
+				runs.push({ aborted: event?.properties?.aborted, attempt: event?.measurements?.attempt, failedCount: event?.measurements?.failedCount, backfilled: extensionContext.globalState.get(BACKFILLED_KEY) });
+				store.dispose();
+			}
+
+			expect({ runs, loggedFailures: logService.error.mock.calls.filter(c => String(c[1]).includes('Failed to backfill metadata')).length }).toEqual({
+				runs: [
+					{ aborted: 'true', attempt: 1, failedCount: 20, backfilled: undefined },
+					{ aborted: 'true', attempt: 2, failedCount: 20, backfilled: undefined },
+					{ aborted: 'true', attempt: 3, failedCount: 20, backfilled: true },
+				],
+				loggedFailures: 30,
+			});
+		});
+
+		it('waits until after startup and leaves the bulk file and cached metadata untouched', async () => {
+			const bulk = JSON.stringify({
+				'session': { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 }, modified: 7 },
+			});
+			mockFs.mockFile(BULK_METADATA_FILE, bulk);
+			mockSessionDirectories('session');
+
+			const store = await createStore();
+			await vi.advanceTimersByTimeAsync(59_000);
+			const beforeDelay = await readSessionFile('session');
+			await vi.advanceTimersByTimeAsync(1_000);
+			await store.whenSessionMetadataBackfilled();
+
+			expect({
+				beforeDelay,
+				afterDelay: await readSessionFile('session'),
+				bulkFile: new TextDecoder().decode(await mockFs.readFile(BULK_METADATA_FILE)),
+				workspaceFolder: (await store.getSessionWorkspaceFolder('session'))?.fsPath,
+			}).toEqual({
+				beforeDelay: undefined,
+				afterDelay: { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 }, modified: 7 },
+				bulkFile: bulk,
+				workspaceFolder: Uri.file('/w').fsPath,
+			});
+			store.dispose();
+		});
+
+		it('stops when another window completes the backfill first', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'session': { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 } },
+			}));
+			mockSessionDirectories('session');
+
+			const store = await createStore();
+			extensionContext.globalState.seed(BACKFILLED_KEY, true);
+			await vi.advanceTimersByTimeAsync(60_000);
+			await store.whenSessionMetadataBackfilled();
+
+			expect({
+				file: await readSessionFile('session'),
+				events: telemetryService.events.filter(e => e.name === 'copilotcli.sessionMetadataBackfill').length,
+			}).toEqual({ file: undefined, events: 0 });
+			store.dispose();
+		});
+
+		it('does not run when the store is disposed before startup settles', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'session': { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 } },
+			}));
+			mockSessionDirectories('session');
+
+			const store = await createStore();
+			store.dispose();
+			await vi.advanceTimersByTimeAsync(60_000);
+			await store.whenSessionMetadataBackfilled();
+
+			expect(await readSessionFile('session')).toBeUndefined();
+		});
+
+		it('writes missing per-session files for VS Code sessions from both bulk files, as stored', async () => {
+			const worktree = makeWorktreeV2Props();
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'shared-only': { workspaceFolder: { folderPath: '/a', timestamp: 1 }, origin: 'vscode', customTitle: 'Renamed', archived: true, created: 10, modified: 20, writtenToDisc: true },
+				'origin-less': { worktreeProperties: worktree, modified: 30 },
+				'in-both': { workspaceFolder: { folderPath: '/old', timestamp: 1 }, modified: 50 },
+			}));
+			mockFs.mockFile(LEGACY_BULK_METADATA_FILE, JSON.stringify({
+				'per-install-only': { repositoryProperties: { repositoryPath: '/repo' }, modified: 5 },
+				'in-both': { workspaceFolder: { folderPath: '/newer', timestamp: 2 }, modified: 200 },
+			}));
+			mockSessionDirectories('shared-only', 'origin-less', 'in-both', 'per-install-only');
+
+			const store = await createBackfilledStore();
+
+			expect({
+				'shared-only': await readSessionFile('shared-only'),
+				'origin-less': await readSessionFile('origin-less'),
+				'in-both': await readSessionFile('in-both'),
+				'per-install-only': await readSessionFile('per-install-only'),
+				backfilled: extensionContext.globalState.get(BACKFILLED_KEY),
+			}).toEqual({
+				'shared-only': { workspaceFolder: { folderPath: '/a', timestamp: 1 }, origin: 'vscode', customTitle: 'Renamed', archived: true, created: 10, modified: 20 },
+				'origin-less': { worktreeProperties: worktree, modified: 30 },
+				'in-both': { workspaceFolder: { folderPath: '/newer', timestamp: 2 }, modified: 200 },
+				'per-install-only': { repositoryProperties: { repositoryPath: '/repo' }, modified: 5 },
+				backfilled: true,
+			});
+			store.dispose();
+		});
+
+		it('skips non-VS Code, untitled, unsafe and missing-directory sessions and never overwrites an existing file', async () => {
+			const folder = { folderPath: '/w', timestamp: 1 };
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'external': { origin: 'other', workspaceFolder: folder },
+				'no-workspace': { customTitle: 'title only' },
+				'untitled-1': { origin: 'vscode', workspaceFolder: folder },
+				'..': { origin: 'vscode', workspaceFolder: folder },
+				'no-directory': { origin: 'vscode', workspaceFolder: folder },
+				'has-file': { origin: 'vscode', workspaceFolder: folder },
+			}));
+			mockSessionDirectories('external', 'no-workspace', 'untitled-1', 'has-file');
+			mockFs.mockFile(sessionMetadataFileUri('has-file'), JSON.stringify({ origin: 'other', customTitle: 'from another app' }));
+
+			const store = await createBackfilledStore();
+
+			expect({
+				files: {
+					'external': await readSessionFile('external'),
+					'no-workspace': await readSessionFile('no-workspace'),
+					'untitled-1': await readSessionFile('untitled-1'),
+					'no-directory': await readSessionFile('no-directory'),
+					'has-file': await readSessionFile('has-file'),
+				},
+				telemetry: telemetryService.events.filter(e => e.name === 'copilotcli.sessionMetadataBackfill').map(e => ({ properties: e.properties, measurements: { ...e.measurements, durationMs: 0 } })),
+			}).toEqual({
+				files: {
+					'external': undefined,
+					'no-workspace': undefined,
+					'untitled-1': undefined,
+					'no-directory': undefined,
+					'has-file': { origin: 'other', customTitle: 'from another app' },
+				},
+				telemetry: [{
+					properties: { sharedBulkFile: 'present', perInstallBulkFile: 'missing', legacyBulkMigrated: 'false', sharedAtCap: 'false', completed: 'true', aborted: 'false' },
+					measurements: { attempt: 1, sharedEntryCount: 6, perInstallEntryCount: 0, candidateCount: 6, notVSCodeCount: 4, existingFileCount: 1, missingSessionDirectoryCount: 1, writtenCount: 0, failedCount: 0, durationMs: 0 },
+				}],
+			});
+			store.dispose();
+		});
+
+		it('does not mark the backfill complete when a write fails', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'fails': { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 } },
+			}));
+			mockSessionDirectories('fails');
+			const writeFile = mockFs.writeFile.bind(mockFs);
+			vi.spyOn(mockFs, 'writeFile').mockImplementation(async (uri, content) => {
+				if (uri.toString() === sessionMetadataFileUri('fails').toString()) {
+					throw new Error('EACCES');
+				}
+				return writeFile(uri, content);
+			});
+
+			const store = await createBackfilledStore();
+
+			expect({
+				backfilled: extensionContext.globalState.get(BACKFILLED_KEY),
+				failedCount: telemetryService.events.find(e => e.name === 'copilotcli.sessionMetadataBackfill')?.measurements?.failedCount,
+			}).toEqual({ backfilled: undefined, failedCount: 1 });
+			store.dispose();
+		});
+
+		it('does nothing once the backfill has completed', async () => {
+			extensionContext.globalState.seed(BACKFILLED_KEY, true);
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'session': { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 } },
+			}));
+			mockSessionDirectories('session');
+
+			const store = await createBackfilledStore();
+
+			expect({
+				file: await readSessionFile('session'),
+				events: telemetryService.events.filter(e => e.name === 'copilotcli.sessionMetadataBackfill').length,
+			}).toEqual({ file: undefined, events: 0 });
 			store.dispose();
 		});
 	});
