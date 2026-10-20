@@ -337,6 +337,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidClose = this._register(new Emitter<AgentHostTransportFailureReason | undefined>());
 	readonly onDidClose = this._onDidClose.event;
+	private readonly _onDidInvalidateTransport = this._register(new Emitter<IProtocolTransport>());
 
 	private readonly _onDidFatalClose = this._register(new Emitter<ProtocolError>());
 	readonly onDidFatalClose = this._onDidFatalClose.event;
@@ -863,6 +864,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * and let the service decide whether to spin up a fresh client.
 	 */
 	private _handleTransportClose(): void {
+		this._onDidInvalidateTransport.fire(this._transport);
 		this._relayKeepAliveTimer.cancel();
 		if (this._state.kind !== AgentHostClientState.Closed) {
 			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastDataMs=${Date.now() - this._lastReadTime}`);
@@ -2563,8 +2565,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 		let closeListener = Disposable.None;
 		const onClose = Event.map(this.onDidClose, () => { });
+		const onTransportInvalidated = Event.map(Event.filter(this._onDidInvalidateTransport.event, invalidated => invalidated === transport), () => { });
 		const closePromise = new Promise<never>((_resolve, reject) => {
-			closeListener = Event.once(transport ? Event.any(onClose, transport.onClose) : onClose)(
+			closeListener = Event.once(transport ? Event.any(onClose, onTransportInvalidated) : onClose)(
 				() => reject(this._state.kind === AgentHostClientState.Closed ? this._state.error : transport ? transportLostError(this._address) : connectionClosedError(this._address)),
 			);
 		});

@@ -4524,6 +4524,50 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
+		test('watchdog invalidation aborts a pending advertised credential lookup and retries', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+			const resolving = new DeferredPromise<void>();
+			let resolutions = 0;
+			const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'fresh-token' };
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, { hasHighLoad: () => false }, undefined, {
+				resolveAdvertisedAuthentication: async () => {
+					if (++resolutions === 1) {
+						return [];
+					}
+					if (resolutions === 2) {
+						resolving.complete();
+						return blocked.p;
+					}
+					return [credential];
+				},
+			});
+			try {
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				await connecting;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const recovery = await beginRecovery(client, transports);
+				recovery.transport.fireMessage({ jsonrpc: '2.0', id: recovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await resolving.p;
+				await timeout(30_000);
+				assert.strictEqual(transports.length, 3, 'Watchdog invalidation must release credential lookup without waiting for the provider');
+				await blocked.complete([{ ...credential, token: 'stale-token' }]);
+				const replacement = transports[2];
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+				await reconnected;
+				assert.deepStrictEqual({ token: (authenticate.params as AuthenticateParams).token, state: client.connectionState }, {
+					token: 'fresh-token', state: AgentHostClientState.Connected,
+				});
+			} finally {
+				client.dispose();
+				await blocked.complete([]);
+			}
+		}));
+
 		for (const cached of [false, true]) {
 			test(`required advertised authentication host faults retry before readiness (cached=${cached})`, async () => {
 				const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'existing-token' };
