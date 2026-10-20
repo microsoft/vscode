@@ -12,6 +12,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -71,7 +72,8 @@ registerAction2(class extends Action2 {
 /** Progress in the composer's input toolbar, labelled by its action. */
 class ComposerBusyActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
-		super.render(container);
+		// Not interactive, so without the base item's pointer handling.
+		this.element = container;
 		container.classList.add('sessions-shared-chat-input-busy');
 		container.setAttribute('role', 'status');
 		const icon = dom.append(container, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
@@ -84,19 +86,48 @@ class ComposerBusyActionViewItem extends BaseActionViewItem {
 	}
 }
 
-/** Hosts the session controls toolbar inside the input toolbar, for the experimental composer layout. */
+/**
+ * Hosts the session controls toolbar inside the input toolbar, for the
+ * experimental composer layout. The nested pickers own pointer and keyboard
+ * input, and focus moves into them.
+ */
 class ComposerSessionControlsActionViewItem extends BaseActionViewItem {
 	private _controls: HTMLElement | undefined;
+	private _toolbar: MenuWorkbenchToolBar | undefined;
 
 	constructor(action: IAction, private readonly _instantiationService: IInstantiationService) {
 		super(undefined, action);
 	}
 
 	override render(container: HTMLElement): void {
-		super.render(container);
+		// The base item's pointer handling would cancel the pickers' focus, flash
+		// the whole group as pressed and run this placeholder action on click.
+		this.element = container;
 		container.classList.add('sessions-shared-chat-input-session-controls');
 		const controls = this._controls = dom.append(container, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls'));
-		this._register(createNewSessionControlToolbar(controls, this._instantiationService, localize('sessionsSharedChatInput.sessionControlsAria', "Session controls")));
+		this._toolbar = this._register(createNewSessionControlToolbar(controls, this._instantiationService, localize('sessionsSharedChatInput.sessionControlsAria', "Session controls")));
+	}
+
+	override focus(fromRight?: boolean): void {
+		const count = this._toolbar?.getItemsLength() ?? 0;
+		if (count > 0) {
+			this._toolbar?.focus(fromRight ? count - 1 : 0);
+		}
+	}
+
+	override isFocused(): boolean {
+		return !!this._controls && dom.isAncestorOfActiveElement(this._controls);
+	}
+
+	override blur(): void {
+		const active = this._controls && dom.getActiveElement();
+		if (dom.isHTMLElement(active) && this._controls?.contains(active)) {
+			active.blur();
+		}
+	}
+
+	override setFocusable(focusable: boolean): void {
+		this._toolbar?.setFocusable(focusable);
 	}
 
 	isCompact(): boolean {

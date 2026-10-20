@@ -40,7 +40,10 @@
 	background-color: var(--session-view-background);
 }
 
-/* Ensure the input editor fits properly */
+/* The composer's input sits flush with its picker rows and controls row. This
+ * outranks the session view's input padding inside the session part, and the
+ * phone safe-area padding, which the composer's content already reserves. */
+.agent-sessions-workbench .new-chat-input-container.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-session .interactive-input-part,
 .new-chat-input-container .interactive-input-part {
 	margin: 0;
 	padding: 0;
