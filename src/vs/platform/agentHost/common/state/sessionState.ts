@@ -13,6 +13,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { isUUID } from '../../../../base/common/uuid.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
 import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
@@ -53,6 +54,7 @@ import {
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
+	type SessionChatSummary,
 	type SessionSummary,
 	type TextRange,
 	type ToolCallCancelledState,
@@ -88,6 +90,7 @@ export {
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
+	type ChatConfigState,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
@@ -265,6 +268,12 @@ export interface IAutoModeResolvedInfo {
 	readonly predictedLabel?: string;
 	readonly confidence?: number;
 	readonly candidateModels?: readonly string[];
+	/**
+	 * Display-only sentence from the routing service explaining why
+	 * {@link chosenModel} was picked; it already names the model. Absent for
+	 * on-device selections and when the service supplied no explanation.
+	 */
+	readonly selectionReason?: string;
 }
 
 /**
@@ -573,20 +582,25 @@ export function buildSubagentSessionUri(parentSession: ProtocolURI | ResourceURI
 	return parent.with({ path: `${path}${toolCallId}` }).toString();
 }
 
-/**
- * Parses a subagent session URI into its parent session URI and tool call ID.
- * Returns `undefined` if the URI does not follow the subagent convention.
- */
+/** Parses path-based subagent URIs and legacy Copilot fragment selections into their parent and tool call ID. */
 export function parseSubagentSessionUri(uri: ProtocolURI | ResourceURI): { parentSession: ResourceURI; toolCallId: string } | undefined {
 	const resource = asResourceUri(uri);
 	const match = SUBAGENT_URI_PATH_REGEX.exec(resource.path);
-	if (!match?.groups) {
-		return undefined;
+	if (match?.groups) {
+		return {
+			parentSession: resource.with({ path: match.groups.parentPath }),
+			toolCallId: match.groups.toolCallId,
+		};
 	}
-	return {
-		parentSession: resource.with({ path: match.groups.parentPath }),
-		toolCallId: match.groups.toolCallId,
-	};
+	const legacyPrefix = `${SUBAGENT_URI_SEGMENT}/`;
+	if (resource.scheme === 'copilotcli' && !resource.authority && !resource.query
+		&& resource.fragment.startsWith(legacyPrefix) && resource.fragment.length > legacyPrefix.length) {
+		return {
+			parentSession: resource.with({ fragment: '' }),
+			toolCallId: resource.fragment.slice(legacyPrefix.length),
+		};
+	}
+	return undefined;
 }
 
 /**
@@ -653,6 +667,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
 		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
+		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -754,6 +769,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	if (state.changes !== undefined) { summary.changes = state.changes; }
+	if (state.movable !== undefined) { summary.movable = state.movable; }
 	return summary;
 }
 
@@ -855,24 +871,16 @@ export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: stri
 }
 
 /**
- * Derives the deterministic default-chat channel URI for a session. While the
- * protocol allows a session to contain many chats, every session always owns a
- * default chat whose URI is derived from the owning session URI so producers and
- * consumers can compute it without a lookup table.
- *
- * The session URI is encoded into the path so {@link parseChatUri} can recover
- * it.
+ * Mints the URI of a new session's default chat. This is the minting scheme
+ * for new default chats and may change (for example, to opaque URIs); it does
+ * not find an existing session's default chat. Hosts read the recorded default
+ * chat and clients read the advertised `SessionState.defaultChat`.
  */
 export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
 }
 
 const SUBAGENT_CHAT_ID = 'subagent';
-
-export function isSubagentChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	const parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
-	return parsed.scheme === AHP_CHAT_SCHEME && parsed.authority === SUBAGENT_CHAT_ID;
-}
 
 export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
@@ -881,11 +889,11 @@ export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, tool
 }
 
 /**
- * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
- * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
- * chat URI.
+ * Recovers the chat id of a chat channel URI. Returns `undefined` when `uri`
+ * is not a well-formed chat URI. The session a chat URI was minted for is not
+ * exposed: a chat's owner and storage come from the records that contain it.
  */
-export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string; chatId: string } | undefined {
+export function parseChatUri(uri: ProtocolURI | ResourceURI): { chatId: string } | undefined {
 	let parsed: ResourceURI;
 	try {
 		parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
@@ -906,68 +914,65 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
 			if (!sessionPart || !toolCallId) {
 				return undefined;
 			}
-			return { session: decodeBase64(sessionPart).toString(), chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
+			// Validates the minted segment without exposing it.
+			decodeBase64(sessionPart);
+			return { chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
 		}
-		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
+		decodeBase64(encoded);
+		return { chatId: parsed.authority };
 	} catch {
 		return undefined;
 	}
 }
 
-/**
- * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from a
- * chat channel URI. Returns `undefined` when `uri` is not a well-formed chat URI.
- * Accepts any chat URI (default or additional) so callers that only need the
- * parent session can use it uniformly.
- */
-export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
-	return parseChatUri(uri)?.session;
-}
-
-export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceURI): string {
-	const session = parseDefaultChatUri(uri);
-	if (session === undefined) {
-		throw new Error(`Malformed AHP chat URI: ${typeof uri === 'string' ? uri : uri.toString()}`);
-	}
-	return session;
-}
-
-/** Returns `true` when `uri` is the default chat of its session. */
-export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
-}
-
-export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
-	return chatId === DEFAULT_CHAT_ID
-		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
-		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
-}
+const canonicalOpaqueChatPrefix = `${AHP_CHAT_SCHEME}:/`;
 
 /**
- * Resolves a feature-level `(session, chat)` pair to the single chat URI used by
- * the agent session/chat surface. A session always owns a DEFAULT chat addressed
- * by the session URI itself; additional (peer) chats are addressed by their own
- * chat channel URIs. This is the one place default-chat resolution lives so
- * agents never re-derive "is this the default chat?".
+ * The uuid of a canonical opaque chat URI (`ahp-chat:/<uuid>` with nothing
+ * else), or `undefined` for any other resource.
  */
-export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
-	return isDefaultChatUri(chat) ? session : chat;
-}
-
-/**
- * Resolves the URI a chat's persisted data is stored under — the same
- * {@link resolveChatUri} rule applied to a chat channel URI alone, recovering
- * the owning session from the channel. Agents key their per-session database
- * and data directory by this value, so anything reading or writing that storage
- * from outside the agent must derive it the same way. Returns `undefined` when
- * `chatChannel` is not a parseable chat channel URI.
- */
-export function chatStorageUri(chatChannel: ProtocolURI | ResourceURI): ResourceURI | undefined {
-	const parsed = parseChatUri(chatChannel);
-	if (!parsed) {
+export function getCanonicalOpaqueChatUuid(resource: ResourceURI | string): string | undefined {
+	const value = resource.toString();
+	if (!value.startsWith(canonicalOpaqueChatPrefix)) {
 		return undefined;
 	}
-	return resolveChatUri(ResourceURI.parse(parsed.session), ResourceURI.parse(chatChannel.toString()));
+	const uuid = value.slice(canonicalOpaqueChatPrefix.length);
+	return isUUID(uuid) ? uuid : undefined;
+}
+
+/**
+ * The client chat id (a chat resource fragment) of a chat. Deterministic per
+ * URI so persisted fragments never change: the short uuid of a canonical
+ * opaque chat, the parsed id of a shaped chat other than `default`, and the
+ * full URI for everything else. The recorded default chat is addressed by an
+ * empty fragment or {@link DEFAULT_CHAT_ID}, never by this id.
+ */
+export function getAgentHostChatId(resource: ResourceURI | string): string {
+	const uuid = getCanonicalOpaqueChatUuid(resource);
+	if (uuid !== undefined) {
+		return uuid;
+	}
+	const chatId = parseChatUri(resource)?.chatId;
+	return chatId !== undefined && chatId !== DEFAULT_CHAT_ID ? chatId : resource.toString();
+}
+
+/**
+ * Resolves a client chat id (a chat resource fragment) to a chat of the
+ * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
+ * advertised default chat as the caller resolved it. A full chat URI matches
+ * exactly before the short id is tried.
+ */
+export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
+	if (chatId === DEFAULT_CHAT_ID) {
+		return defaultChat;
+	}
+	return state.chats.find(chat => chat.resource.toString() === chatId)?.resource
+		?? state.chats.find(chat => getAgentHostChatId(chat.resource) === chatId)?.resource;
+}
+
+/** Returns `true` when `chatId` addresses the session's advertised `defaultChat` (rule 7 matching, exact URI first). */
+export function isSessionDefaultChatId(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): boolean {
+	return defaultChat !== undefined && getSessionChatResource(state, chatId, defaultChat)?.toString() === defaultChat.toString();
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
@@ -1003,7 +1008,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on this chat. */
+	/** Steering and queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
 	draft?: Message;
@@ -1034,19 +1039,6 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
  */
 export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefined {
 	return chat?.activeTurn;
-}
-
-/**
- * Resolves the default chat's catalog summary from a session, if present.
- */
-export function getDefaultChat(session: SessionState): ChatSummary | undefined {
-	if (session.defaultChat !== undefined) {
-		const match = session.chats.find(c => c.resource === session.defaultChat);
-		if (match) {
-			return match;
-		}
-	}
-	return session.chats[0];
 }
 
 // ---- SessionMeta accessors -------------------------------------------------
@@ -2054,13 +2046,17 @@ export function isSessionStatusRead(status: SessionStatus | undefined): boolean 
  */
 export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
 	return origin?.kind !== ChatOriginKind.Tool
-		&& interactivity !== ChatInteractivity.Hidden
-		&& !isSubagentChatUri(resource);
+		&& interactivity !== ChatInteractivity.Hidden;
 }
 
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
 export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
+
+/** Reads the archive flag from current chat status or a legacy AHP 0.9 summary. */
+export function isSessionChatArchived(chat: SessionChatSummary & { readonly archived?: boolean }): boolean {
+	return isSessionStatusArchived(chat.status) || chat.archived === true;
 }
 
 /**

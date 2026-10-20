@@ -151,6 +151,43 @@ export default defineConfig(
 			]
 		},
 	},
+	// Production filesystem operations must not block the event loop.
+	{
+		files: [
+			'src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+			'extensions/**/src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+		],
+		ignores: [
+			// Bootstrap entry points and the AMD loader retain their startup I/O.
+			'src/*',
+			'src/vs/amdX.ts',
+			'src/vs/code/electron-main/main.ts',
+			// Core synchronous helpers and startup/shutdown infrastructure.
+			'src/vs/base/node/pfs.ts',
+			'src/vs/platform/environment/node/wait.ts',
+			'src/vs/server/node/remoteExtensionHostAgentServer.ts',
+			'src/vs/server/node/server.main.ts',
+			'src/vs/workbench/api/node/extHostCLIServer.ts',
+			'src/vs/workbench/api/node/extHostExtensionService.ts',
+			'src/vs/workbench/api/node/extHostStoragePaths.ts',
+			'**/test/**',
+			'**/tests/**',
+			'**/fixtures/**',
+			'**/*.{test,spec,stest,integrationTest}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}',
+			'**/scripts/**',
+			'**/script/**',
+			'**/build/**',
+			'extensions/vscode-test-resolver/**',
+			'extensions/vscode-api-tests/**',
+			// These isolated CLI/askpass processes do not share the application's event loop.
+			'src/vs/code/node/cli.ts',
+			'src/vs/server/node/server.cli.ts',
+			'extensions/git/src/askpass-main.ts',
+		],
+		rules: {
+			'local/code-no-sync-fs': 'error',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [
@@ -902,6 +939,7 @@ export default defineConfig(
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
+			'local/code-no-nested-test': 'error',
 			'local/code-must-use-result': [
 				'warn',
 				[
@@ -934,6 +972,25 @@ export default defineConfig(
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
+					]
+				}
+			],
+			'local/code-run-with-faked-timers-whole-test': 'warn',
+			'local/code-no-timeout-polling-loop': [
+				'warn',
+				{
+					// Files should (only) be removed from the list once they no longer poll
+					'exclude': [
+						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
+						'src/vs/platform/agentHost/test/node/agentService.test.ts',
+						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
 					]
 				}
 			]
@@ -1751,6 +1808,7 @@ export default defineConfig(
 						'@github/copilot-sdk',
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
+						{ 'when': 'hasNode', 'pattern': '@hpke/core' },
 						{
 							'when': 'test',
 							'pattern': 'events'

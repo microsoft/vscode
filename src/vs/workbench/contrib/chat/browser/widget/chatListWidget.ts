@@ -545,6 +545,7 @@ export class ChatListWidget extends Disposable {
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
 			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
+			isScrolledToBottom: () => this.isScrolledToBottom,
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
@@ -846,12 +847,14 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const { showButton, atBottom } = computeScrollDownState(this.isScrolledToBottom, this._scrollLock);
+		const isScrolledToBottom = this.isScrolledToBottom;
+		const { showButton, atBottom } = computeScrollDownState(isScrolledToBottom, this._scrollLock);
 		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
 		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
 		// the inline style would let that rule win and keep the button hidden.
 		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
+		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
 	}
 
 	/**
@@ -917,6 +920,7 @@ export class ChatListWidget extends Disposable {
 		}
 
 		const items = this._viewModel.getItems();
+		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
 
@@ -951,6 +955,7 @@ export class ChatListWidget extends Disposable {
 							`_${isBlocked ? 'blocked' : ''}` +
 							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
 							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
+							`_${consecutiveRequestIds.has(element.id) ? 'consecutive' : ''}` +
 							// Re-render the old and new tail rows when the list grows or shrinks.
 							`_${isLastItem ? 'last' : ''}` +
 							// Re-render all if invoked by setting change
@@ -1032,7 +1037,7 @@ export class ChatListWidget extends Disposable {
 		return items;
 	}
 
-	private createRequestTreeItems(items: ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
+	private createRequestTreeItems(items: readonly ChatTreeItem[]): ITreeElement<ChatTreeItem>[] {
 		const treeItems: ITreeElement<ChatTreeItem>[] = [];
 		for (let i = 0; i < items.length; i++) {
 			const item = items[i];

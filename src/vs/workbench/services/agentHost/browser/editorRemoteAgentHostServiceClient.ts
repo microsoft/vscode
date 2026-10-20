@@ -9,6 +9,7 @@
 // can subscribe to `rootState` etc. immediately; the actual transport
 // connection (and AHP handshake) happens asynchronously in the background.
 
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
@@ -16,8 +17,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
+import type { AgentChatMoveDestination } from '../../../../platform/agentHost/common/agentHostChatMove.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -71,6 +74,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
 	private readonly _connectionAuthority: string | undefined;
+	get clientConnectionKind() { return this._protocolClient?.clientConnectionKind; }
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
@@ -89,6 +93,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
 
@@ -106,7 +111,24 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		// rootState etc. before the AHP handshake completes. The transport's
 		// `connect()` will be awaited by `_connect()` below.
 		const createTransport = () => new EditorRemoteAgentHostTransport(
-			new AgentHostIpcChannelTransport(connection.getChannel(AgentHostIpcChannels.RemoteProxy), undefined, AgentHostClientConnectionKind.RemoteExtensionHost),
+			new AgentHostIpcChannelTransport(
+				connection.getChannel(AgentHostIpcChannels.RemoteProxy),
+				undefined,
+				AgentHostClientConnectionKind.RemoteExtensionHost,
+				async () => {
+					let resolverResult: ResolverResult;
+					try {
+						resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
+					} catch {
+						this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
+						return undefined;
+					}
+					return {
+						env: resolverResult.options?.extensionHostEnv ?? {},
+						debugEnv: environmentService.debugExtensionHost.env,
+					};
+				},
+			),
 			connection.remoteAuthority,
 		);
 		const address = `vscode-remote://${connection.remoteAuthority}`;
@@ -194,6 +216,18 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.initializeResult ?? constObservable(undefined);
 	}
 
+	get sandboxCertificateInstallationSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateInstallationSupported ?? constObservable(false);
+	}
+
+	get sandboxCertificateRotationSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRotationSupported ?? constObservable(false);
+	}
+
+	get sandboxCertificateRemovalSupported(): IObservable<boolean> {
+		return this._protocolClient?.sandboxCertificateRemovalSupported ?? constObservable(false);
+	}
+
 	get rootState(): IAgentSubscription<RootState> {
 		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
@@ -230,6 +264,13 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		this._protocolClient?.dispatch(channel, action);
 	}
 
+	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+		if (!this._protocolClient) {
+			throw new Error('Remote Agent Host is not connected');
+		}
+		return this._protocolClient.dispatchConfirmed(channel, subscription, action, token);
+	}
+
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._requireClient().authenticate(params);
 	}
@@ -246,12 +287,28 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().diagnosticsFetch(url);
 	}
 
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._requireClient().removeSandboxCertificate(chat, scopeId);
+	}
+
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._requireClient().getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
-		return this._requireClient().collectDebugLogs(session, kind, chat);
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
+		return this._requireClient().collectDebugLogs(session, kind, chat, progressToken);
+	}
+
+	cancelDebugLogs(progressToken: string): Promise<void> {
+		return this._requireClient().cancelDebugLogs(progressToken);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
@@ -270,6 +327,14 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._requireClient().createSession(config);
+	}
+
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		return this._requireClient().moveChat(chat, destination);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

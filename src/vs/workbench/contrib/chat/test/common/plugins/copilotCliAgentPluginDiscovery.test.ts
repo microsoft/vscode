@@ -29,6 +29,7 @@ import { CopilotCliAgentPluginDiscovery } from '../../../common/plugins/agentPlu
 interface ITestInstalledPlugin {
 	readonly name: string;
 	readonly marketplace: string;
+	readonly enabled?: boolean;
 	readonly uri?: URI;
 	readonly version?: string;
 	readonly installedAt?: string;
@@ -63,10 +64,13 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 	const marketplaceRoot = joinPath(installedPluginsRoot, 'copilot-plugins');
 	const workspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 	const removedEnablement: string[] = [];
+	const changedEnablement: Array<{ id: string; state: ContributionEnablementState }> = [];
+	const defaultEnablement: Array<{ id: string; enabled: boolean }> = [];
 	const enablementModel: IEnablementModel = {
 		readEnabled: () => ContributionEnablementState.EnabledProfile,
 		readProfileEnabled: () => true,
-		setEnabled: () => { },
+		setEnabled: (id, state) => changedEnablement.push({ id, state }),
+		setDefaultEnabled: (id, enabled) => defaultEnablement.push({ id, enabled }),
 		remove: id => removedEnablement.push(id),
 	};
 	const uninstallCalls: Array<{ provider: string; request: IAgentPluginUninstallRequest }> = [];
@@ -75,6 +79,8 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 
 	setup(() => {
 		removedEnablement.length = 0;
+		changedEnablement.length = 0;
+		defaultEnablement.length = 0;
 		uninstallCalls.length = 0;
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
@@ -129,7 +135,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			...(plugin.uri ? { cache_path: plugin.uri.path } : {}),
 			version: plugin.version ?? '1.0.0',
 			installed_at: plugin.installedAt ?? '2026-09-21T00:00:00Z',
-			enabled: true,
+			enabled: plugin.enabled ?? true,
 			...(plugin.sourceSha ? { source_sha: plugin.sourceSha } : {}),
 			...(plugin.source ? { source: plugin.source } : {}),
 		}));
@@ -167,6 +173,30 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		});
 	});
 
+	test('uses Copilot CLI plugin enablement as the customization default', async () => {
+		const enabledPlugin = joinPath(marketplaceRoot, 'enabled');
+		const disabledPlugin = joinPath(marketplaceRoot, 'disabled');
+		await writePlugin(enabledPlugin, 'enabled');
+		await writePlugin(disabledPlugin, 'disabled');
+		await writeInstalledPlugins([
+			{ name: 'enabled', marketplace: 'copilot-plugins', uri: enabledPlugin },
+			{ name: 'disabled', marketplace: 'copilot-plugins', uri: disabledPlugin, enabled: false },
+		]);
+
+		await createDiscovery().discoverPluginSources();
+
+		assert.deepStrictEqual({
+			changedEnablement,
+			defaultEnablement,
+		}, {
+			changedEnablement: [],
+			defaultEnablement: [
+				{ id: disabledPlugin.toString(), enabled: false },
+				{ id: enabledPlugin.toString(), enabled: true },
+			],
+		});
+	});
+
 	test('disambiguates same-name direct plugin uninstalls by source identity', async () => {
 		const mainPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-main');
 		const nextPlugin = joinPath(installedPluginsRoot, '_direct', 'spark-next');
@@ -184,10 +214,29 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		}
 
 		assert.deepStrictEqual({
-			sources: sources.map(source => source.uri.toString()),
+			sources: sources.map(source => ({
+				uri: source.uri.toString(),
+				installation: source.copilotCliInstallation,
+			})),
 			uninstallCalls,
 		}, {
-			sources: [mainPlugin.toString(), nextPlugin.toString()],
+			sources: [{
+				uri: mainPlugin.toString(),
+				installation: {
+					name: 'spark',
+					marketplace: '',
+					directSourceId: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2',
+					source: { kind: 'github', repository: 'owner/repo', ref: 'main', sha: undefined, path: undefined },
+				},
+			}, {
+				uri: nextPlugin.toString(),
+				installation: {
+					name: 'spark',
+					marketplace: '',
+					directSourceId: '94478a45a5d696cd7e18f9bb6752956b0fb9ac1bd21fe5676215c3fdb0071634',
+					source: { kind: 'github', repository: 'owner/repo', ref: 'next', sha: undefined, path: undefined },
+				},
+			}],
 			uninstallCalls: [{
 				provider: 'copilotcli',
 				request: {

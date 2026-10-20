@@ -20,6 +20,7 @@ import { type ProtectedResourceMetadata } from '../../../../../../platform/agent
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -72,6 +73,9 @@ interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
 	const service = store.add(new TestInstantiationService());
 	service.stub(IConfigurationService, new TestConfigurationService());
+	service.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+		override readonly currentDefaultAccount = null;
+	}());
 	return service;
 }
 
@@ -604,7 +608,7 @@ suite('Remote agent host provider ownership', () => {
 		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
 	});
 
-	test('native MC providers use visible account inventory rather than staged managed sandbox entries', () => {
+	test('native MC providers use endpoint inventory rather than staged managed sandbox entries and cannot be removed locally', () => {
 		const entries: IRemoteAgentHostEntry[] = [
 			{ name: 'Native', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:native', environmentId: 'native', environmentKind: 'user-local' } },
 			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:sandbox', environmentId: 'sandbox' } },
@@ -619,7 +623,6 @@ suite('Remote agent host provider ownership', () => {
 			override readonly accountKey = 'account';
 			override readonly hosts = observableValue(this, [
 				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
-				{ id: 'hidden', name: 'Hidden', kind: 'user-local', status: 'online', hidden: true },
 			]);
 		}();
 		owner._profileService = new class extends mock<IUserDataProfileService>() {
@@ -630,10 +633,12 @@ suite('Remote agent host provider ownership', () => {
 		const options = owner._getProviderOptions(entries[0]);
 		assert.deepStrictEqual({
 			entries: owner._getProviderEntries(),
-			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function' && typeof options.removeOnDemand === 'function',
+			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function',
+			canRemove: options.canRemove,
+			remove: options.removeOnDemand,
 			retained: options.retainSessionsOnDisconnect,
 			readOnlyOffline: options.readOnlyWhenDisconnected,
-		}, { entries: [entries[0]], connectable: true, retained: true, readOnlyOffline: true });
+		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: undefined, readOnlyOffline: true });
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {

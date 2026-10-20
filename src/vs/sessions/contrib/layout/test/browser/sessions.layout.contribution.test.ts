@@ -17,6 +17,8 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
+import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../../workbench/common/configuration.js';
+import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../common/sessionConfig.js';
 
 // Capture registration before configuration tests reset the shared registry.
 const registeredProperties = { ...Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties() };
@@ -27,13 +29,28 @@ suite('Sessions chat layout configuration', () => {
 
 	test('registers a session-shared-default experimental window enum with descriptions', () => {
 		const property = registeredProperties[SESSIONS_LAYOUT_SCOPE_SETTING];
-		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
-			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
+		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
+			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'startup' }, enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
 		});
 	});
 
 	test('does not register the unreleased former settings', () => {
 		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => registeredProperties[key]), [undefined, undefined]);
+	});
+
+	test('migrates the Session Toolbar setting to the Session Activity Bar setting unless that is already set', async () => {
+		const migration = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations
+			.find(migration => migration.key === LEGACY_SESSION_TOOLBAR_SETTING);
+
+		assert.deepStrictEqual({
+			registered: registeredProperties[LEGACY_SESSION_TOOLBAR_SETTING],
+			unset: await migration?.migrateFn(false, () => undefined),
+			alreadySet: await migration?.migrateFn(false, () => true),
+		}, {
+			registered: undefined,
+			unset: [[LEGACY_SESSION_TOOLBAR_SETTING, { value: undefined }], [SESSION_ACTIVITY_BAR_SETTING, { value: false }]],
+			alreadySet: [[LEGACY_SESSION_TOOLBAR_SETTING, { value: undefined }]],
+		});
 	});
 
 	test('keeps effective presentation unchanged until reload without listening for configuration changes', async () => {

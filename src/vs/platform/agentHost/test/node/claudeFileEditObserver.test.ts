@@ -21,13 +21,13 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
-import { ISessionDatabase } from '../../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver.js';
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
-import { createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 interface IObserverHarness {
 	readonly observer: ClaudeFileEditObserver;
@@ -49,6 +49,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const services = new ServiceCollection(
 		[ILogService, new NullLogService()],
 		[IFileService, fileService],
+		[ISessionDataService, createSessionDataService(db)],
 		[IDiffComputeService, createZeroDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
@@ -63,6 +64,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 	const observer = disposables.add(instantiationService.createInstance(
 		ClaudeFileEditObserver,
 		'claude:/sess-1',
+		() => 'claude:/sess-1',
 		dbRef,
 	));
 	return { observer, db, fileService, mapperState: new ClaudeMapperState(), arcReports };
@@ -113,6 +115,21 @@ suite('ClaudeFileEditObserver', () => {
 			arcMode: 'plan',
 			clientContext,
 		});
+	});
+
+	test('reports whether the edit was made by a subagent chat', async () => {
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
+		await fileService.writeFile(URI.file('/work/s.txt'), VSBuffer.fromString('before'));
+		for (const [toolUseId, isSubagent] of [['tu-root', false], ['tu-sub', true]] as const) {
+			observer.observeAssistant(assistantMessage([
+				{ type: 'tool_use', id: toolUseId, name: 'Write', input: { file_path: '/work/s.txt', content: 'after' } },
+			]));
+			await fileService.writeFile(URI.file('/work/s.txt'), VSBuffer.fromString('after-' + toolUseId));
+			await observer.observeUser(userMessage([
+				{ type: 'tool_result', tool_use_id: toolUseId, content: 'ok' },
+			]), 'turn-1', mapperState, { uri: 'ahp-chat:/00000000-0000-4000-8000-000000000001', isSubagent });
+		}
+		assert.deepStrictEqual(arcReports.map(r => r.isSubagent), [false, true]);
 	});
 
 	test('observeAssistant ignores non-edit tools and tools with no path', () => {

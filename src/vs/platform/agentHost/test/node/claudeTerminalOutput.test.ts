@@ -108,7 +108,7 @@ suite('ClaudeTerminalOutputs', () => {
 			await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
 			const state = toolState('Bash', command);
 
-			await outputs.capture(CHAT, CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH, persistedOutputSize: OUTPUT.length }), state);
+			await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH, persistedOutputSize: OUTPUT.length }), state);
 
 			const stored = await database.readTerminalOutput(TOOL_CALL_ID);
 			results.push({
@@ -151,7 +151,7 @@ suite('ClaudeTerminalOutputs', () => {
 		const results = [];
 		for (const { name, message, toolName, command, signal } of cases) {
 			const state = toolState(toolName, command);
-			await outputs.capture(CHAT, CHAT, TURN_ID, message, state, signal);
+			await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, message, state, signal);
 			results.push({ name, staged: state.takeTerminalOutput(TOOL_CALL_ID), stored: await database.getTerminalOutputSize(TOOL_CALL_ID) });
 		}
 
@@ -170,7 +170,7 @@ suite('ClaudeTerminalOutputs', () => {
 		await fileService.writeFile(URI.file(OUTPUT_PATH), VSBuffer.fromString(OUTPUT));
 		const state = toolState('Bash');
 
-		await outputs.capture(CHAT, CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH }), state, cancellation.signal);
+		await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, bashResult({ stdout: OUTPUT, stderr: '', interrupted: false, persistedOutputPath: OUTPUT_PATH }), state, cancellation.signal);
 
 		assert.deepStrictEqual({
 			staged: state.takeTerminalOutput(TOOL_CALL_ID),
@@ -223,10 +223,10 @@ suite('ClaudeTerminalOutputs', () => {
 			tool_use_result: { persistedOutputPath: OUTPUT_PATH },
 		};
 		const state = toolState('Bash');
-		await outputs.capture(CHAT, CHAT, TURN_ID, message, state);
+		await outputs.capture(CHAT, URI.parse(SESSION), CHAT, TURN_ID, message, state);
 		const live = state.takeTerminalOutput(TOOL_CALL_ID);
 		const restored = completedToolCall(TOOL_CALL_ID, 'Bash', text);
-		await outputs.restore(CHAT, CHAT, [{
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [{
 			id: TURN_ID,
 			message: { text: 'run it', origin: { kind: MessageKind.User } },
 			responseParts: [restored],
@@ -296,7 +296,7 @@ suite('ClaudeTerminalOutputs', () => {
 			state: TurnState.Complete,
 		};
 
-		await outputs.restore(CHAT, CHAT, [turn]);
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
 
 		assert.deepStrictEqual(turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
 			[

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError, Sequencer } from '../../../../../base/common/async.js';
+import { Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
@@ -11,21 +11,19 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { resolveCloudSandboxSessionConfig } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionConfig.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 /**
- * Sessions provider for a Copilot cloud sandbox.
- *
- * Adds the handling for sessions this client provisioned but the host has not materialized yet:
- * Mission Control mints the session id and returns it before the sandbox is even awake, so such a
- * session is real, addressable, and unknown to the host all at once.
+ * Internal session backend for one Copilot cloud sandbox, owned by the logical Cloud provider.
+ * Retains environment-scoped routing and provisional sessions without advertising another creation target.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
 	private readonly _configurationUnavailable = derived(this, reader =>
@@ -42,15 +40,24 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
 
-	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+	/** Cloud sandbox storage is managed by the sandbox lifecycle, not worktree cleanup. */
+	override async getSessionWorktreeDiskUsage(_sessionId: string, _token = CancellationToken.None): Promise<number | undefined> {
+		return undefined;
+	}
+
+	protected override _validateBeforeCreate(): void {
+		throw new Error(localize('cloudSandbox.creationUnavailable', "Start new cloud sessions from the Cloud environment."));
+	}
+
+	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
-		return adopted.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER
+		return adopted?.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER
 			? { ...adopted, session: adopted.session.with({ scheme: CLOUD_SANDBOX_SESSION_SCHEME }) }
 			: adopted;
 	}
 
-	private _taskRenameHandler: { readonly sessionKey: string; readonly rename: (title: string) => Promise<void> } | undefined;
-	private _taskArchiveHandler: { readonly sessionKey: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
+	private readonly _taskRenameHandlers = new Map<string, (title: string) => Promise<void>>();
+	private readonly _taskArchiveHandlers = new Map<string, (archived: boolean) => Promise<void>>();
 	private readonly _archiveSequencer = new Sequencer();
 
 	/**
@@ -77,14 +84,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!connection || !rawId || !this._sessionCache.has(rawId)) {
 			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
 		}
-		const config = await raceCancellationError(connection.resolveSessionConfig({ provider: CLOUD_SANDBOX_AGENT_PROVIDER, config: values }), token);
-		for (const [key, value] of Object.entries(values)) {
-			validateSessionConfigWrite(config.schema, config.values, key, value, true);
-			if (config.values[key] !== value) {
-				throw new Error(localize('cloudSandbox.configNotApplied', "The sandbox could not apply the selected {0}. Your prompt was not sent.", key));
-			}
-		}
-		return { ...values };
+		return resolveCloudSandboxSessionConfig(connection, values, token);
 	}
 
 	protected override _adapterOptions() {
@@ -92,6 +92,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
+			isSessionTitlePlaceholder: (title: string, session: URI) => session.scheme === CLOUD_SANDBOX_SESSION_SCHEME && title === AgentSession.id(session),
 			externalSessionState: (resource: URI, store: DisposableStore) => {
 				const key = this._localSessionStorageKey(AgentSession.id(resource));
 				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
@@ -130,22 +131,24 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		this._pendingSessionTitles.delete(rawId);
 	}
 
-	/**
-	 * Opening a sandbox session never dials the sandbox. Connecting resumes cloud compute and can
-	 * take as long as the environment needs to wake, so the chat content activation decides from
-	 * the environment's state whether to connect or to serve persisted history, and the connection
-	 * banner leaves waking a dormant environment to the user.
-	 */
-	override async prepareSessionForOpen(): Promise<void> { }
+	/** Reopened cached chats also need a background connection, even when content activation is skipped. */
+	override async prepareSessionForOpen(): Promise<void> {
+		if (this._baseConfigurationService.getValue<boolean>(CloudSandboxAutoConnectOnOpenSettingId) === true
+			&& !this.connection && RemoteAgentHostConnectionStatus.isDisconnected(this.connectionStatus.get())) {
+			void this.connect().catch(error => {
+				this._logService.warn('[CloudSandboxSessionsProvider] Background connection on open failed', error);
+			});
+		}
+	}
 
-	override isSessionConfigResolving(sessionId: string): IObservable<boolean> {
-		const resolving = super.isSessionConfigResolving(sessionId);
+	override isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean> {
+		const resolving = super.isSessionConfigResolving(sessionId, chat);
 		return derived(this, reader => this._configurationUnavailable.read(reader) || resolving.read(reader));
 	}
 
-	override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	override async setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void> {
 		this._assertConfigurationAvailable();
-		await super.setSessionConfigValue(sessionId, property, value);
+		await super.setSessionConfigValue(sessionId, chat, property, value);
 	}
 
 	override async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
@@ -163,19 +166,26 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _resolveArchivedState(sessionKey: string, isArchived: boolean): boolean {
-		return this._taskArchiveHandler?.sessionKey === sessionKey
+		return this._taskArchiveHandlers.has(sessionKey)
 			? this._sessionCache.get(sessionKey)?.isArchived.get() ?? isArchived
 			: super._resolveArchivedState(sessionKey, isArchived);
 	}
 
 	/** Bind the discovered session's Mission Control archive operation. */
 	setTaskArchiveHandler(rawId: string, setArchived: (archived: boolean) => Promise<void>): void {
-		this._taskArchiveHandler = { sessionKey: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), setArchived };
+		this._taskArchiveHandlers.set(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), setArchived);
 	}
 
 	/** Bind the discovered session's Mission Control rename operation. */
 	setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
-		this._taskRenameHandler = { sessionKey: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename };
+		this._taskRenameHandlers.set(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename);
+	}
+
+	/** Stop routing task actions without removing a conversation still listed by the live host. */
+	removeTaskOwnership(rawId: string): void {
+		const key = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
+		this._taskRenameHandlers.delete(key);
+		this._taskArchiveHandlers.delete(key);
 	}
 
 	/** Preserve the initial title without letting a transient task metadata failure block the first turn. */
@@ -193,14 +203,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!session || !sessionKey) {
 			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
 		}
-		const handler = this._taskRenameHandler;
-		if (handler?.sessionKey !== sessionKey) {
+		const rename = this._taskRenameHandlers.get(sessionKey);
+		if (!rename) {
 			if (!this.connection && !this._provisionalSessions.has(sessionKey)) {
 				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
 			}
 		} else {
 			try {
-				await handler.rename(title);
+				await rename(title);
 			} catch (error) {
 				if (!initial || !(error instanceof CloudSandboxRequestError) || !isRetryableCloudSandboxError(error)) {
 					throw error;
@@ -216,7 +226,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		} else if (this.connection) {
 			return super.renameSession(sessionId, title);
 		}
-		session.title.set(title, undefined);
+		session.setTitleFromUser(title);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 
@@ -237,18 +247,37 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		if (!session || !sessionKey) {
 			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
 		}
-		const handler = this._taskArchiveHandler;
-		if (handler?.sessionKey !== sessionKey) {
+		const setArchived = this._taskArchiveHandlers.get(sessionKey);
+		if (!setArchived) {
 			if (!this.connection) {
 				throw new Error(localize('cloudSandbox.archiveUnavailable', "Connect to the environment to change this session's archive state."));
 			}
 			return isArchived ? super.archiveSession(sessionId) : super.unarchiveSession(sessionId);
 		}
-		await handler.setArchived(isArchived);
+		await setArchived(isArchived);
 		if (this._store.isDisposed || this._sessionCache.get(sessionKey) !== session) {
 			throw new CancellationError();
 		}
 		this.setSessionArchived(AgentSession.id(session.backendUri), isArchived);
+	}
+
+	override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean> {
+		if (this.connection && this.getBackendChatResource(chatResource)) {
+			return super.setChatReadState(sessionId, chatResource, isRead);
+		}
+		const sessionKey = this._sessionKeyFromChatId(sessionId);
+		const session = sessionKey ? this._sessionCache.get(sessionKey) : undefined;
+		const chat = session?.chats.get().find(chat => isEqual(chat.resource, chatResource));
+		if (!session || !chat || this._isAgentDisabledByPolicy(session.agentProvider)) {
+			return false;
+		}
+		if (chat.isRead.get() === isRead) {
+			return true;
+		}
+		session.setChatRead(chatResource, isRead);
+		// A connected environment may no longer host this recorded conversation.
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+		return true;
 	}
 
 	setSessionArchived(rawId: string, archived: boolean): void {
@@ -276,7 +305,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return;
 		}
 		const adapter = this.createAdapter(meta);
-		adapter.updateDiscoveryMetadata(meta);
+		adapter.updateDiscoveryMetadata(meta, readSessionWorkspaceless(meta._meta) || undefined);
 		this._sessionCache.set(meta.session.toString(), adapter);
 		this._withheldSessions.add(meta.session.toString());
 		// No deadline yet: the clock starts when the host first omits it.
@@ -317,6 +346,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const key = cached ? this._sessionKeyFromChatId(cached.sessionId) : undefined;
 		const session = key ? this._removeCachedSession(key) : undefined;
 		const taskKey = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
+		this.removeTaskOwnership(rawId);
 		this._withheldSessions.delete(taskKey);
 		this._provisionalSessions.delete(taskKey);
 		this._pendingSessionTitles.delete(taskKey);
@@ -334,6 +364,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {
+		if (this._deleteSessionsOnDemand?.ownsSession(URI.parse(rawId))) {
+			return false;
+		}
 		if (!this._provisionalSessions.has(rawId)) {
 			return true;
 		}

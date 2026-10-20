@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
@@ -18,6 +19,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -26,18 +28,22 @@ import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../..
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -51,6 +57,7 @@ import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatMo
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
+import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import '../../../browser/widget/media/chat.css';
 
 function nextFrame(): Promise<void> {
@@ -77,6 +84,7 @@ async function waitForStableLayout(widget: ChatListWidget, maxFrames = 120): Pro
 
 suite('ChatListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
 
 	test('identifies transcript background context menu targets', () => {
 		const row = mainWindow.document.createElement('div');
@@ -212,10 +220,14 @@ suite('ChatListWidget', () => {
 		});
 	});
 
-	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService) {
+	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService, sessionResource?: URI) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('editor', { fontFamily: 'monospace', fontLigatures: false, accessibilitySupport: 'off' });
+		configurationService.setUserConfiguration('chat', {
+			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' },
+		});
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
@@ -235,6 +247,20 @@ suite('ChatListWidget', () => {
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
+		instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => EditSuggestionId.newId() });
+		instantiationService.stub(IChatOutputRendererService, {
+			_serviceBrand: undefined,
+			registerRenderer: () => toDisposable(() => { }),
+			hasCodeBlockRenderer: () => false,
+			renderOutputPart: async () => { throw new Error('Unexpected output render'); },
+			renderCodeBlock: async () => { throw new Error('Unexpected code block render'); },
+		});
+		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		instantiationService.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			onDidChangeContainer: Event.None,
+			getViewLocationById: () => null,
+		});
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => '' });
 		instantiationService.stub(IChatAccessibilityService, {
 			acceptRequest: () => { },
@@ -250,7 +276,7 @@ suite('ChatListWidget', () => {
 			} as Partial<IChatSideChatService>);
 		}
 
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: sessionResource }));
 		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 		const container = mainWindow.document.createElement('div');
 		container.style.position = 'absolute';
@@ -270,16 +296,79 @@ suite('ChatListWidget', () => {
 		}
 		disposables.add(toDisposable(() => container.remove()));
 
+		const editorOptions = disposables.add(instantiationService.createInstance(ChatEditorOptions, undefined, 'foreground', 'chat.requestEditor.background', 'chat.responseEditor.background'));
 		const widget = disposables.add(instantiationService.createInstance(ChatListWidget, container, {
 			currentChatMode: () => ChatModeKind.Agent,
 			location: ChatAgentLocation.Chat,
-			editorOptions: {} as ChatEditorOptions,
+			editorOptions,
 			...options,
 		}));
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
 		return { disposables, instantiationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
+
+	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
+		const { model, viewModel, container, widget } = createWidget({}, configuration => {
+			configuration.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, true);
+			configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		}, true);
+		container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+		container.style.setProperty('--vscode-spacing-size160', '16px');
+		container.style.setProperty('--vscode-spacing-size60', '6px');
+		const message = (text: string) => ({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		for (const text of ['say bar', 'say baz']) {
+			model.addPendingRequest(new ChatRequestModel({
+				session: model, message: message(text), variableData: { variables: [] }, timestamp: 0,
+			}), ChatRequestQueueKind.Steering, {});
+		}
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const gap = () => {
+			const bubbles = container.querySelectorAll('.monaco-list-row .interactive-request .rendered-markdown');
+			assert.strictEqual(bubbles.length, 2);
+			return bubbles[1].getBoundingClientRect().top - bubbles[0].getBoundingClientRect().bottom;
+		};
+		const pendingGap = gap();
+		model.replacePendingRequests([]);
+		const first = model.addRequest(message('say bar'), { variables: [] }, 0);
+		first.response!.complete();
+		const second = model.addRequest(message('say baz'), { variables: [] }, 0);
+		model.acceptResponseProgress(second, { kind: 'markdownContent', content: new MarkdownString('bar and baz') });
+		second.response!.complete();
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const timestampHeight = container.querySelector('.monaco-list-row .interactive-request .chat-request-timestamp-container')!.getBoundingClientRect().height;
+		assert.deepStrictEqual({
+			messages: viewModel.getItems().filter(isRequestVM).map(request => request.messageText),
+			responseCount: viewModel.getItems().filter(isResponseVM).length,
+			compact: Math.abs(gap() - pendingGap - timestampHeight) <= 1,
+		}, { messages: ['say bar', 'say baz'], responseCount: 1, compact: true }, `Bubble gap: pending=${pendingGap}, timestamp=${timestampHeight}, consumed=${gap()}`);
+	});
+
+	test('empty intermediate responses retain errors, cancellation, and streaming state', () => {
+		const { model, viewModel } = createWidget();
+		const addRequest = () => model.addRequest({
+			text: 'test', parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+		}, { variables: [] }, 0);
+		const empty = addRequest();
+		empty.response!.complete();
+		const failed = addRequest();
+		failed.response!.setResult({ errorDetails: { message: 'Request failed' } });
+		failed.response!.complete();
+		const cancelled = addRequest();
+		cancelled.response!.cancel();
+		const streaming = addRequest();
+		const final = addRequest();
+		final.response!.complete();
+		assert.deepStrictEqual(viewModel.getItems().filter(isResponseVM).map(response => response.requestId), [
+			failed.id, cancelled.id, streaming.id, final.id,
+		]);
+	});
 
 	suite('generated image preview retention', () => {
 		for (const width of [280, 500]) {
@@ -495,6 +584,57 @@ suite('ChatListWidget', () => {
 		}, {
 			collapsed: true, expanded: true, restored: true, label: 'Updated Instructions',
 			removed: true, fullTextVisible: true, message: text,
+		});
+	});
+
+	test('updates the most recent response when the tail changes without changing response data IDs', async () => {
+		const { model, viewModel, container, widget } = createWidget();
+		const addTurn = (text: string, attempt: number) => {
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, attempt);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`${text} response`) });
+			request.response?.complete();
+			return request;
+		};
+		const getMostRecentStates = () => Array.from(container.querySelectorAll<HTMLElement>('.interactive-response'))
+			.map(row => row.classList.contains('chat-most-recent-response'));
+
+		const firstRequest = addTurn('First request', 0);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const firstResponse = viewModel.getItems().filter(isResponseVM)[0];
+		const firstDataId = firstResponse.dataId;
+		const initialMostRecent = getMostRecentStates();
+
+		const secondRequest = addTurn('Second request', 1);
+		widget.refresh();
+		await waitForStableLayout(widget);
+		const afterAppendMostRecent = getMostRecentStates();
+		const dataIdAfterAppend = firstResponse.dataId;
+
+		model.removeRequest(secondRequest.id);
+		widget.refresh();
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			initialMostRecent,
+			afterAppendMostRecent,
+			afterRemoveMostRecent: getMostRecentStates(),
+			firstDataId,
+			dataIdAfterAppend,
+			dataIdAfterRemove: firstResponse.dataId,
+			remainingRequestId: viewModel.getItems().filter(isRequestVM)[0].id,
+		}, {
+			initialMostRecent: [true],
+			afterAppendMostRecent: [false, true],
+			afterRemoveMostRecent: [true],
+			firstDataId,
+			dataIdAfterAppend: firstDataId,
+			dataIdAfterRemove: firstDataId,
+			remainingRequestId: firstRequest.id,
 		});
 	});
 
@@ -1205,6 +1345,124 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	suite('sticky content retention', () => {
+		async function createTranscript() {
+			const context = createWidget({}, configurationService => {
+				configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
+				configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, true);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			}, true);
+			const { model, container, widget, viewModel } = context;
+			container.classList.add('interactive-list');
+			container.style.setProperty('--vscode-spacing-size80', '8px');
+			// Keep the sticky request clamped to two lines at both test widths.
+			const text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3);
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('```typescript\nconst answer = 42;\n```\n\n' + Array.from({ length: 40 }, (_, index) => `Response paragraph ${index}.`).join('\n\n')),
+			});
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().find(isResponseVM);
+			assert.ok(response);
+			const responseTop = widget.getElementTop(response);
+			assert.notStrictEqual(responseTop, undefined);
+			widget.scrollTop = responseTop! + 200;
+			await waitForStableLayout(widget);
+			await nextFrame();
+			const row = container.querySelector<HTMLElement>('.monaco-tree-sticky-row');
+			const bubble = row?.querySelector<HTMLElement>('.chat-markdown-part');
+			assert.ok(row && bubble);
+			return { ...context, request, row, bubble };
+		}
+
+		test('unchanged and height-only layouts preserve sticky DOM, focus and reading position without measuring', async () => {
+			const { container, widget, model, row, bubble } = await createTranscript();
+			const boundsReads = sinon.spy(bubble, 'getBoundingClientRect');
+			const heightReads = sinon.spy(row, 'offsetHeight', ['get']).get;
+			const scrollTop = widget.scrollTop;
+			const editors = [...widget.editorsInUse()];
+			widget.stickyScrollDomNode?.focus();
+			for (const height of [300, 300, 320, 280, 300]) {
+				widget.layout(height, 500);
+				await nextFrame();
+			}
+			assert.deepStrictEqual({
+				sameRow: container.querySelector('.monaco-tree-sticky-row') === row,
+				sameBubble: row.querySelector('.chat-markdown-part') === bubble,
+				focused: mainWindow.document.activeElement === widget.stickyScrollDomNode,
+				anchored: widget.scrollTop === scrollTop,
+				sameEditors: editors.every((editor, index) => [...widget.editorsInUse()][index] === editor),
+				requests: model.getRequests().length,
+				boundsReads: boundsReads.callCount, heightReads: heightReads.callCount,
+			}, {
+				sameRow: true, sameBubble: true, focused: true, anchored: true, sameEditors: true,
+				requests: 1, boundsReads: 0, heightReads: 0,
+			});
+		});
+
+		test('width changes keep sticky templates and code editors while updating measured geometry', async () => {
+			const { container, widget, row, bubble } = await createTranscript();
+			const beforeBounds = bubble.getBoundingClientRect();
+			const editors = [...widget.editorsInUse()];
+			const boundsReads = sinon.spy(bubble, 'getBoundingClientRect');
+			container.style.width = '320px';
+			widget.layout(300, 320);
+			await waitForStableLayout(widget);
+			const measured = boundsReads.callCount > 0;
+			const afterBounds = bubble.getBoundingClientRect();
+			assert.deepStrictEqual({
+				sameRow: container.querySelector('.monaco-tree-sticky-row') === row,
+				sameBubble: row.querySelector('.chat-markdown-part') === bubble,
+				measured,
+				narrower: afterBounds.width < beforeBounds.width,
+				sameHeight: afterBounds.height === beforeBounds.height,
+				visible: row.getBoundingClientRect().height > 0,
+				sameEditors: editors.length > 0 && editors.every((editor, index) => [...widget.editorsInUse()][index] === editor),
+			}, { sameRow: true, sameBubble: true, measured: true, narrower: true, sameHeight: true, visible: true, sameEditors: true });
+		});
+
+		test('streaming and hidden content updates do not replace an unchanged pinned request', async () => {
+			const { container, widget, model, row, bubble } = await createTranscript();
+			const scrollTop = widget.scrollTop;
+			const text = 'A later streaming request';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			for (let index = 0; index < 3; index++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 10 }, (_, paragraph) => `Streaming chunk ${index}, paragraph ${paragraph}.`).join('\n\n') + '\n\n') });
+				widget.refresh();
+				await nextFrame();
+			}
+			widget.setVisible(false);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Updated while hidden.') });
+			request.response?.complete();
+			widget.refresh();
+			widget.setVisible(true);
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const retained = container.querySelector('.monaco-tree-sticky-row') === row && row.querySelector('.chat-markdown-part') === bubble;
+			const anchored = widget.scrollTop === scrollTop;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				retained, anchored, requests: model.getRequests().length,
+				updated: container.textContent?.includes('Updated while hidden.'),
+				newStickyRequest: container.querySelector('.monaco-tree-sticky-row')?.textContent?.includes(text),
+			}, { retained: true, anchored: true, requests: 2, updated: true, newStickyRequest: true });
+		});
+	});
+
 	test('does not create an empty sticky row for an attachment-only request', async () => {
 		const { disposables, model, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
@@ -1561,14 +1819,293 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	suite('persistent progress streaming', () => {
+		async function createStreamingProgress(fontSize: number, incrementalRendering: boolean, pendingKind?: ChatRequestQueueKind) {
+			const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Evaluating'] });
+			}, true);
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
+			container.classList.add('interactive-list');
+			container.style.fontSize = `${fontSize}px`;
+			container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize}px`);
+			container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize - 1}px`);
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const addRequest = () => model.addRequest({
+				text: 'test',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			}, { variables: [] }, 0);
+			const previousRequest = addRequest();
+			model.acceptResponseProgress(previousRequest, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			previousRequest.response?.complete();
+			const request = addRequest();
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
+			widget.refresh();
+			widget.layout(300, 500);
+			await retry(async () => assert.ok(container.textContent?.includes('Starting response.')), 10, 100);
+			if (pendingKind !== undefined) {
+				const text = 'Pending request';
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: {
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					},
+					variableData: { variables: [] },
+					timestamp: Date.now(),
+				}), pendingKind, {});
+				widget.refresh();
+			}
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().findLast(isResponseVM);
+			const progress = container.querySelector<HTMLElement>('.chat-working-progress');
+			const label = progress?.querySelector<HTMLElement>('.progress-step');
+			const icon = progress?.querySelector<HTMLElement>('.chat-progress-icon');
+			assert.ok(response && progress && label && icon && widget.scrollTop > 0 && widget.isScrolledToBottom);
+			assert.ok(progress.getBoundingClientRect().height > 0 && label.textContent === 'Evaluating');
+			const measure = () => ({
+				progress: progress.getBoundingClientRect().top,
+				label: label.getBoundingClientRect().top,
+				icon: icon.getBoundingClientRect().top,
+			});
+			return { disposables, model, viewModel, container, widget, request, response, progress, measure };
+		}
+
+		for (const incrementalRendering of [false, true]) {
+			test(`progress alignment avoids a synchronous row measurement on refresh (incremental: ${incrementalRendering})`, async () => {
+				const { disposables, model, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
+				const row = progress.closest<HTMLElement>('.interactive-response');
+				assert.ok(row);
+				const measurement = sinon.spy(row, 'getBoundingClientRect');
+				disposables.add(toDisposable(() => measurement.restore()));
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+				widget.refresh();
+
+				assert.deepStrictEqual({
+					synchronousMeasurements: measurement.callCount,
+					rowRounding: row.style.getPropertyValue('--chat-response-height-rounding'),
+					progressHasRounding: progress.style.getPropertyValue('--chat-response-height-rounding') !== '',
+				}, {
+					synchronousMeasurements: 0,
+					rowRounding: '',
+					progressHasRounding: true,
+				});
+			});
+
+			test(`restores cached alignment when progress is replaced without resizing the row (incremental: ${incrementalRendering})`, async () => {
+				const { disposables, model, container, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
+				const row = progress.closest<HTMLElement>('.interactive-response');
+				assert.ok(row);
+				const height = row.getBoundingClientRect().height;
+				widget.updateRendererOptions({ readOnly: true });
+				const measurement = sinon.spy(row, 'getBoundingClientRect');
+				disposables.add(toDisposable(() => measurement.restore()));
+
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+				widget.refresh();
+
+				const synchronousMeasurements = measurement.callCount;
+				const replacement = container.querySelector<HTMLElement>('.chat-working-progress');
+				assert.deepStrictEqual({
+					replaced: !!replacement && replacement !== progress,
+					sameRow: replacement?.closest('.interactive-response') === row,
+					height: row.getBoundingClientRect().height,
+					synchronousMeasurements,
+					rounding: replacement?.style.getPropertyValue('--chat-response-height-rounding'),
+				}, {
+					replaced: true,
+					sameRow: true,
+					height,
+					synchronousMeasurements: 0,
+					rounding: `${Math.ceil(height) - height}px`,
+				});
+			});
+
+			test(`restores progress alignment in the first frame after virtualization (incremental: ${incrementalRendering})`, async () => {
+				const { container, widget, progress, measure } = await createStreamingProgress(13, incrementalRendering);
+				const before = measure();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.ok(!progress.isConnected, 'The streaming progress must actually leave the DOM');
+
+				widget.scrollToEnd();
+				const reconnected = container.querySelector<HTMLElement>('.chat-working-progress');
+				const reconnectedRow = reconnected?.closest<HTMLElement>('.interactive-response');
+				const reconnectedMarkdown = reconnectedRow?.querySelector<HTMLElement>('.chat-markdown-part');
+				assert.ok(reconnected && reconnectedRow && reconnectedMarkdown);
+				const reconnectedHeight = reconnectedRow.getBoundingClientRect().height;
+				const staleRounding = reconnected.style.getPropertyValue('--chat-response-height-rounding');
+				const expectedHeight = Math.ceil(reconnectedHeight) - (staleRounding === '0px' ? 0.5 : 0);
+				const expectedRounding = `${Math.ceil(expectedHeight) - expectedHeight}px`;
+				// Settle to a different fractional height before the first paint, without changing the rounded scroll height.
+				reconnectedMarkdown.style.height = `${reconnectedMarkdown.getBoundingClientRect().height + expectedHeight - reconnectedHeight}px`;
+				assert.notStrictEqual(reconnected.style.getPropertyValue('--chat-response-height-rounding'), expectedRounding);
+
+				const positions = [];
+				for (let frame = 0; frame < 4; frame++) {
+					await nextFrame();
+					await timeout(0);
+					const current = container.querySelector<HTMLElement>('.chat-working-progress');
+					const row = current?.closest<HTMLElement>('.interactive-response');
+					const label = current?.querySelector<HTMLElement>('.progress-step');
+					const icon = current?.querySelector<HTMLElement>('.chat-progress-icon');
+					assert.ok(current && row && label && icon);
+					const height = row.getBoundingClientRect().height;
+					positions.push({
+						progress: current.getBoundingClientRect().top,
+						label: label.getBoundingClientRect().top,
+						icon: icon.getBoundingClientRect().top,
+						height,
+						rounding: current.style.getPropertyValue('--chat-response-height-rounding'),
+						corrected: current.style.getPropertyValue('--chat-response-height-rounding') === `${Math.ceil(height) - height}px`,
+						atBottom: widget.isScrolledToBottom,
+					});
+				}
+				assert.deepStrictEqual(positions, Array.from({ length: 4 }, () => ({ ...before, height: expectedHeight, rounding: expectedRounding, corrected: true, atBottom: true })));
+			});
+		}
+
+		for (const { fontSize, pendingKind } of [13, 14].flatMap(fontSize => [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering].map(pendingKind => ({ fontSize, pendingKind })))) {
+			for (const incrementalRendering of [false, true]) {
+				test(`keeps the bottom progress position while paragraphs stream (font size: ${fontSize}, incremental: ${incrementalRendering}, pending: ${pendingKind ?? 'none'})`, async () => {
+					const { model, viewModel, container, widget, request, progress, measure } = await createStreamingProgress(fontSize, incrementalRendering, pendingKind);
+					const before = measure();
+					const positions = [before];
+					for (let index = 0; index < 6; index++) {
+						const text = `Streamed paragraph ${index}.`;
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`) });
+						widget.refresh();
+						for (let frame = 0; frame < 4; frame++) {
+							await nextFrame();
+							await timeout(0);
+							positions.push(measure());
+						}
+						await retry(async () => assert.ok(container.textContent?.includes(text)), 10, 100);
+						await waitForStableLayout(widget);
+						positions.push(measure());
+					}
+					widget.scrollTop -= 80;
+					await waitForStableLayout(widget);
+					const away = { scrollTop: widget.scrollTop, top: progress.getBoundingClientRect().top, height: progress.parentElement!.getBoundingClientRect().height };
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nStreamed while scrolled away.\n\n') });
+					widget.refresh();
+					await retry(async () => assert.ok(container.textContent?.includes('Streamed while scrolled away.')), 10, 100);
+					await waitForStableLayout(widget);
+					const scrolledAway = {
+						scrollTop: pendingKind === undefined ? widget.scrollTop : undefined,
+						atBottom: widget.isScrolledToBottom,
+						movedWithContent: Math.abs(progress.getBoundingClientRect().top - away.top + widget.scrollTop - away.scrollTop - (progress.parentElement!.getBoundingClientRect().height - away.height)) < 0.01,
+					};
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const returnedToBottom = measure();
+					const toolPositions = [];
+					for (const toolId of ['search', 'read_file']) {
+						const tool = new ChatToolInvocation(
+							{ invocationMessage: `Running ${toolId}` },
+							{ id: toolId, displayName: toolId, modelDescription: toolId, source: ToolDataSource.Internal },
+							toolId, undefined, {},
+						);
+						model.acceptResponseProgress(request, tool);
+						widget.refresh();
+						await waitForStableLayout(widget);
+						toolPositions.push(measure());
+					}
+					assert.deepStrictEqual({
+						positions,
+						scrolledAway,
+						returnedToBottom,
+						toolPositions,
+						pendingKinds: viewModel.getItems().filter(isRequestVM).flatMap(item => item.pendingKind === undefined ? [] : [item.pendingKind]),
+						atBottom: widget.isScrolledToBottom,
+						sameProgress: container.querySelector('.chat-working-progress') === progress,
+					}, {
+						positions: Array.from({ length: 31 }, () => ({ ...before })),
+						scrolledAway: { scrollTop: pendingKind === undefined ? away.scrollTop : undefined, atBottom: false, movedWithContent: true },
+						returnedToBottom: before,
+						toolPositions: [{ ...before }, { ...before }],
+						pendingKinds: pendingKind === undefined ? [] : [pendingKind],
+						atBottom: true,
+						sameProgress: true,
+					});
+				});
+			}
+		}
+
+		test('keeps retained progress aligned while completed buffered content drains', async () => {
+			const { disposables, model, container, widget, request, response, progress, measure } = await createStreamingProgress(13, false);
+			const before = measure();
+			const text = Array.from({ length: 30 }, (_, index) => `Buffered paragraph ${index}.`).join('\n\n');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`) });
+			const timings = response.contentUpdateTimings;
+			assert.ok(timings);
+			const streamTimings = sinon.stub(response, 'contentUpdateTimings').get(() => ({ ...timings, impliedWordLoadRate: 80 }));
+			disposables.add(toDisposable(() => streamTimings.restore()));
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 2, renderedParts: [] };
+			request.response?.complete();
+			widget.refresh();
+			assert.ok(response.isComplete && response.renderData && progress.isConnected);
+
+			const samples: ReturnType<typeof measure>[] = [];
+			const heights = new Set<number>();
+			const fractions = new Set<number>();
+			const row = progress.closest<HTMLElement>('.interactive-response');
+			assert.ok(row);
+			await retry(async () => {
+				await nextFrame();
+				await timeout(0);
+				// Only sample sizes already reconciled with the list, not pending resize notifications.
+				if (progress.isConnected && Math.ceil(row.getBoundingClientRect().height) === response.currentRenderedHeight) {
+					samples.push(measure());
+					const height = progress.parentElement!.getBoundingClientRect().height;
+					heights.add(height);
+					fractions.add(height % 1);
+				}
+				assert.strictEqual(progress.isConnected, false);
+			}, 10, 200);
+			assert.deepStrictEqual({
+				renderedSeveralHeights: heights.size > 1,
+				fractions: [...fractions].sort(),
+				progressPositions: [...new Set(samples.map(sample => sample.progress))],
+				labelPositions: [...new Set(samples.map(sample => sample.label))],
+				iconPositions: [...new Set(samples.map(sample => sample.icon))],
+				progressRemoved: !progress.isConnected,
+				renderingFinished: response.renderData === undefined,
+				finalText: container.textContent?.includes('Buffered paragraph 29.'),
+			}, {
+				renderedSeveralHeights: true,
+				fractions: [0, 0.5],
+				progressPositions: [before.progress],
+				labelPositions: [before.label],
+				iconPositions: [before.icon],
+				progressRemoved: true,
+				renderingFinished: true,
+				finalText: true,
+			});
+		});
+	});
+
 	suite('persistent progress completion', () => {
 		for (const incrementalRendering of [false, true]) {
 			for (const atBottom of [false, true]) {
 				test(`replaces progress without moving the list (incremental: ${incrementalRendering}, at bottom: ${atBottom})`, async () => {
-					const { model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+					const { instantiationService, model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
 						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
-					}, true);
+					}, true, undefined, undefined, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/footer-layout' }));
+					instantiationService.stub(IChatResponseFileChangesService, {
+						getChangesForRequest: () => undefined,
+						getChangeStatsForRequest: () => constObservable({ files: 0, insertions: 0, deletions: 0 }),
+					});
 					container.classList.add('interactive-list');
 					container.style.fontSize = '13px';
 					container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
@@ -1630,12 +2167,14 @@ suite('ChatListWidget', () => {
 						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
 						progressRows: response.querySelectorAll('.chat-working-progress').length,
 						toolbarVisible: response.querySelector<HTMLElement>('.chat-footer-toolbar')!.getBoundingClientRect().height > 0,
+						turnSummaryHidden: response.querySelector<HTMLElement>('.chat-turn-pills-part')?.getBoundingClientRect().height === 0,
 					}, {
 						scrollPositions: [before.scrollTop],
 						heights: [before.height],
 						paragraphPositions: [before.paragraphTop],
 						progressRows: 0,
 						toolbarVisible: true,
+						turnSummaryHidden: true,
 					});
 				});
 			}

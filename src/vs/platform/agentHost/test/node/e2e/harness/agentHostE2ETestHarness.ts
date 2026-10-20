@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -18,8 +18,7 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
-	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
+	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -36,12 +35,14 @@ import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentSe
 import { CapiReplayMode, type ICapiReplayResponse, type IReplayVerificationOptions } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
+	defaultChatChannel,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
+import { createTestDirectory } from './testDirectories.js';
 
 // #region Record/replay
 
@@ -105,20 +106,19 @@ function clearReadOnlyAttributes(dir: string): void {
 	}
 }
 
-/**
- * Initializes a git repository for a test, with an identity and no background
- * maintenance.
- *
- * `gc.auto 0` matters on Windows: an auto-triggered `git gc` runs in the
- * background and can still hold handles under `.git` when the test finishes,
- * which makes the temp-directory cleanup fail for a reason unrelated to the
- * behavior under test. Tests here never create enough objects to need gc.
- */
-export function initTestGitRepo(cwd: string): void {
-	execSync('git init', { cwd });
-	execSync('git config user.name "Agent Host Test"', { cwd });
-	execSync('git config user.email "agent-host-test@example.com"', { cwd });
-	execSync('git config gc.auto 0', { cwd });
+/** Initializes a test repository without background Git maintenance that can retain filesystem handles during teardown. */
+export function initTestGitRepo(cwd: string, options?: { readonly bare: boolean }): void {
+	execSync(options?.bare ? 'git init --bare -q' : 'git init', { cwd });
+	const git = options?.bare ? 'git --git-dir=.' : 'git';
+	execSync(`${git} config user.name "Agent Host Test"`, { cwd });
+	execSync(`${git} config user.email "agent-host-test@example.com"`, { cwd });
+	disableTestGitMaintenance(cwd, options);
+}
+
+export function disableTestGitMaintenance(cwd: string, options?: { readonly bare: boolean }): void {
+	const git = options?.bare ? 'git --git-dir=.' : 'git';
+	execSync(`${git} config gc.auto 0`, { cwd });
+	execSync(`${git} config maintenance.auto false`, { cwd });
 }
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
@@ -401,6 +401,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether peer chats can be created with an explicit initial title. */
+	readonly supportsInitialTitle: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
 	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;
@@ -452,7 +454,7 @@ export async function runAhpSnapshotTest(
 	options?: IAhpSnapshotOptions,
 ): Promise<void> {
 	const scenario = AhpSnapshotScenario.load(test);
-	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
+	const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-snapshot-'));
 	tempDirs.push(workingDirectory);
 	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
 	await scenario.run(c, sessionUri, options);
@@ -544,10 +546,11 @@ export interface IDrivenTurnResult {
 
 export interface IDriveTurnOptions {
 	expectUnread?: boolean;
+	approveToolCall?: (action: ChatToolCallReadyAction) => boolean;
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
 }
 
 export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
@@ -564,12 +567,12 @@ export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: str
 }
 
 export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
 export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => c.dispatch({
-		channel: buildDefaultChatUri(session),
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => c.dispatch({
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,
@@ -581,11 +584,11 @@ export async function driveTurnWithModelToCompletion(c: TestProtocolClient, sess
 }
 
 export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
 }
 
 export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, getAnswers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
 async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
@@ -633,8 +636,9 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 						type: ActionType.ChatToolCallConfirmed,
 						turnId,
 						toolCallId: action.toolCallId,
-						approved: true,
-						confirmed: ToolCallConfirmationReason.UserAction,
+						...(options?.approveToolCall?.(action) === false
+							? { approved: false, reason: ToolCallCancellationReason.Denied } as const
+							: { approved: true, confirmed: ToolCallConfirmationReason.UserAction } as const),
 					},
 				});
 			}
@@ -932,7 +936,7 @@ export class AgentHostE2EServerLease {
 	}
 
 	private _createDataDirectories() {
-		const homeDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		const homeDir = createTestDirectory(join(tmpdir(), 'vscode-agent-host-e2e-'));
 		this._dataDirs.push(homeDir);
 		const codexHomeDir = join(homeDir, '.codex');
 		mkdirSync(codexHomeDir);
@@ -1190,7 +1194,7 @@ export class AgentHostE2EServerLease {
 				try {
 					const state = await fetchSessionWithChat(client, session, restoreTimeout);
 					if (state.activeTurn) {
-						const chat = buildDefaultChatUri(session);
+						const chat = defaultChatChannel(session);
 						const turnId = state.activeTurn.id;
 						client.dispatch({
 							channel: chat,

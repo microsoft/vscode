@@ -33,7 +33,7 @@ suite('GitHubHostCapabilitiesService', () => {
 		}
 	}
 
-	test('probes once per host and enterprise version', async () => {
+	test('probes once per host', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubGraphQLStep({
 				queryIncludes: ['__type(name: "PullRequest")', '__type(name: "Repository")', '__type(name: "RequirableByPullRequest")'],
@@ -53,8 +53,8 @@ suite('GitHubHostCapabilitiesService', () => {
 				signal,
 			};
 
-			const first = await service.getCapabilities(credential, '3.16', signal);
-			const cached = await service.getCapabilities(credential, '3.16', signal);
+			const first = await service.getCapabilities(credential, signal);
+			const cached = await service.getCapabilities(credential, signal);
 
 			assert.deepStrictEqual({
 				first,
@@ -64,7 +64,6 @@ suite('GitHubHostCapabilitiesService', () => {
 				first: {
 					graphql: true,
 					mergeQueue: true,
-					internalMergeStatus: false,
 					reviewThreads: true,
 					checkContextRequiredness: true,
 				},
@@ -93,7 +92,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				token: 'token',
 				generation: 1,
 				signal,
-			}, undefined, signal);
+			}, signal);
 
 			// GitHub rejects a query that selects `__Type.fields` more than twice with
 			// INTROSPECTION_LIMIT_EXCEEDED, which would silently disable every GraphQL capability.
@@ -117,12 +116,11 @@ suite('GitHubHostCapabilitiesService', () => {
 				token: 'token',
 				generation: 1,
 				signal,
-			}, undefined, signal);
+			}, signal);
 
 			assert.deepStrictEqual(result, {
 				graphql: false,
 				mergeQueue: false,
-				internalMergeStatus: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			});
@@ -148,7 +146,7 @@ suite('GitHubHostCapabilitiesService', () => {
 				token: 'token',
 				generation: 1,
 				signal,
-			}, undefined, signal);
+			}, signal);
 
 			assert.deepStrictEqual({
 				graphql: result.graphql,
@@ -179,12 +177,11 @@ suite('GitHubHostCapabilitiesService', () => {
 				token: 'token',
 				generation: 1,
 				signal,
-			}, undefined, signal);
+			}, signal);
 
 			assert.deepStrictEqual(result, {
 				graphql: true,
 				mergeQueue: false,
-				internalMergeStatus: false,
 				reviewThreads: true,
 				checkContextRequiredness: false,
 			});
@@ -217,19 +214,18 @@ suite('GitHubHostCapabilitiesService', () => {
 				signal,
 			};
 
-			const transient = await service.getCapabilities(credential, undefined, signal);
+			const transient = await service.getCapabilities(credential, signal);
 			// An uncacheable result must not be re-probed on every lookup: the
 			// fragments that ask still succeed on REST fallbacks, so nothing else
 			// would throttle the extra introspection query.
-			const throttled = await service.getCapabilities(credential, undefined, signal);
+			const throttled = await service.getCapabilities(credential, signal);
 			const requestsWhileThrottled = server.requests.length;
 			scheduler.advanceBy(65_000);
-			const recovered = await service.getCapabilities(credential, undefined, signal);
+			const recovered = await service.getCapabilities(credential, signal);
 
 			const unavailable = {
 				graphql: false,
 				mergeQueue: false,
-				internalMergeStatus: false,
 				reviewThreads: false,
 				checkContextRequiredness: false,
 			};
@@ -246,7 +242,6 @@ suite('GitHubHostCapabilitiesService', () => {
 				recovered: {
 					graphql: true,
 					mergeQueue: false,
-					internalMergeStatus: false,
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},
@@ -277,10 +272,10 @@ suite('GitHubHostCapabilitiesService', () => {
 			const signal = new AbortController().signal;
 			const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 
-			const refused = await service.getCapabilities({ account, token: 'stale', generation: 1, signal }, undefined, signal);
+			const refused = await service.getCapabilities({ account, token: 'stale', generation: 1, signal }, signal);
 			// Authorizing the credential must not leave the user pinned to the
 			// REST fallbacks the refusal produced for the rest of the window.
-			const reauthenticated = await service.getCapabilities({ account, token: 'fresh', generation: 2, signal }, undefined, signal);
+			const reauthenticated = await service.getCapabilities({ account, token: 'fresh', generation: 2, signal }, signal);
 
 			assert.deepStrictEqual({
 				refusedGraphql: refused.graphql,
@@ -323,8 +318,8 @@ suite('GitHubHostCapabilitiesService', () => {
 			};
 			const cancelled = new AbortController();
 			const active = new AbortController();
-			const first = service.getCapabilities(credential, undefined, cancelled.signal);
-			const second = service.getCapabilities(credential, undefined, active.signal);
+			const first = service.getCapabilities(credential, cancelled.signal);
+			const second = service.getCapabilities(credential, active.signal);
 			await requestSeen.p;
 
 			cancelled.abort(new Error('cancel first waiter'));
@@ -339,7 +334,6 @@ suite('GitHubHostCapabilitiesService', () => {
 				second: {
 					graphql: true,
 					mergeQueue: false,
-					internalMergeStatus: false,
 					reviewThreads: true,
 					checkContextRequiredness: false,
 				},

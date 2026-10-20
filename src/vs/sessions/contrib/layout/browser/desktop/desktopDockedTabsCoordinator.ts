@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from '../../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -59,7 +60,7 @@ export interface IManagedTabsTarget {
  * of this coordinator's own ambient triggers).
  */
 export interface IReconcileTrigger {
-	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
+	/** Open the default docked tabs *if the group is empty* for a New Session — a session switch, a side-pane reveal, or a settled layout restore. An Existing Session leaves the empty group to the Add Tab actions. */
 	readonly openDefaultsIfEmpty?: boolean;
 	/** Activate an existing Changes tab after new-session submit so the detail panel maps to Changes rather than Files. */
 	readonly ensureChangesActive?: boolean;
@@ -133,6 +134,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 	) {
 		super();
 
@@ -409,8 +411,10 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 				}
 			}
 
-			// [2] Decide which docked inputs to open, from the trigger + group state.
-			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
+			// [2] Decide which docked inputs to open, from the trigger + group state. A created
+			// session leaves an empty group empty so it offers the Add Tab actions instead.
+			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
+			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && !isCreated && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
@@ -420,7 +424,6 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs)));
 			const openFiles = target.wantsFilesTab && !filesPresent && !preserveMissingFiles && (openIntoEmpty || ensureAllInputs);
-			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
 			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;
 
 			// [3] Keep Files active by default for a new-session view.
@@ -611,6 +614,9 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		const toClose: EditorInput[] = [];
 		group.editors.forEach((editor, index) => {
 			if (editor instanceof DockedEditorInput || this.getChangesEditorResource(editor)) {
+				return;
+			}
+			if (this._editorWorkingSetService.shouldRetainEditor(editor)) {
 				return;
 			}
 			// Capture editors that can be reopened so they are restored when the editor area is
