@@ -63,7 +63,7 @@ import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getC
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
-import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -150,7 +150,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { AgentHostFusionHighUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
@@ -662,70 +662,6 @@ export function convertCarouselAnswers(raw: IChatQuestionAnswers, questions: rea
 		}
 	}
 	return answers;
-}
-
-type PlanReviewInputCompletion = { response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> };
-
-function getPlanReviewAction(planReview: IAgentHostPlanReview, actionId: string | undefined, actionLabel: string | undefined) {
-	if (actionId) {
-		const action = planReview.actions.find(a => a.id === actionId);
-		if (action) {
-			return action;
-		}
-	}
-	if (actionLabel) {
-		return planReview.actions.find(a => a.label === actionLabel);
-	}
-	return undefined;
-}
-
-function submittedTextAnswer(value: string): ChatInputAnswer {
-	return {
-		state: ChatInputAnswerState.Submitted,
-		value: { kind: ChatInputAnswerValueKind.Text, value },
-	};
-}
-
-function submittedSelectedAnswer(value: string, feedback?: string): ChatInputAnswer {
-	return {
-		state: ChatInputAnswerState.Submitted,
-		value: {
-			kind: ChatInputAnswerValueKind.Selected,
-			value,
-			...(feedback ? { freeformValues: [feedback] } : {}),
-		},
-	};
-}
-
-function convertPlanReviewResult(planReview: IAgentHostPlanReview, result: IChatPlanReviewResult): PlanReviewInputCompletion {
-	const feedback = result.feedback?.trim();
-	if (feedback) {
-		const action = getPlanReviewAction(planReview, result.actionId, result.action);
-		return {
-			response: ChatInputResponseKind.Accept,
-			answers: {
-				[planReview.answerQuestionId]: action
-					? submittedSelectedAnswer(action.id, feedback)
-					: submittedTextAnswer(feedback),
-			},
-		};
-	}
-
-	if (result.rejected) {
-		return { response: ChatInputResponseKind.Decline };
-	}
-
-	const action = getPlanReviewAction(planReview, result.actionId, result.action);
-	if (!action) {
-		return { response: ChatInputResponseKind.Decline };
-	}
-
-	return {
-		response: ChatInputResponseKind.Accept,
-		answers: {
-			[planReview.answerQuestionId]: submittedSelectedAnswer(action.id),
-		},
-	};
 }
 
 function inputRequestResponsePartKey(part: InputRequestResponsePart): string {
@@ -5166,7 +5102,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// it while an observer is rendering it. This covers all three render
 		// paths below, since each is reached only through this method.
 		store.add(this._markInputRequestRendered(opts.chatURI, inputReq.id, opts.sessionResource));
-		const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
+		const planReview = readAgentPlanReview(inputReq);
 		if (planReview) {
 			this._setupPlanReviewInputRequest(part$, planReview, store, opts);
 			return;
@@ -5252,16 +5188,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _setupPlanReviewInputRequest(
 		part$: IObservable<InputRequestResponsePart>,
-		planReview: IAgentHostPlanReview,
+		planReview: IAgentPlanReview,
 		store: DisposableStore,
 		opts: IObserveTurnOptions,
 	): void {
 		const inputReq = part$.get().request;
-		const review = createInputRequestPlanReview(inputReq, planReview, this._config.connection.resourceUris);
+		const review = createInputRequestPlanReview(inputReq, planReview.review, this._config.connection.resourceUris, this._config.connectionAuthority);
 		opts.sink([review]);
 
 		let inputCompleted = false;
-		let latestResult: IChatPlanReviewResult | undefined = convertProtocolPlanReviewResult(planReview, ChatInputResponseKind.Accept, inputReq.answers);
+		let latestResult: IChatPlanReviewResult | undefined = planReview.fromInputCompletion(ChatInputResponseKind.Accept, inputReq.answers);
 		let planReviewCleared = false;
 		const clearPlanReview = () => {
 			if (planReviewCleared) {
@@ -5277,7 +5213,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			inputCompleted = true;
-			latestResult = convertProtocolPlanReviewResult(planReview, part.response, part.request.answers);
+			latestResult = planReview.fromInputCompletion(part.response, part.request.answers);
 			review.data = latestResult;
 			review.isUsed = true;
 			review.draftFeedback = undefined;
@@ -5291,7 +5227,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			const completion = result
-				? convertPlanReviewResult(planReview, result)
+				? planReview.toInputCompletion(result)
 				: { response: ChatInputResponseKind.Cancel };
 			this._config.connection.dispatch(opts.chatURI, {
 				type: ActionType.ChatInputCompleted,
