@@ -183,6 +183,7 @@ export class NewChatWidget extends Disposable {
 	/** Whether the active draft is a workspace-less quick chat. */
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
+	private readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
@@ -362,6 +363,16 @@ export class NewChatWidget extends Disposable {
 			return selected && previous?.id === selected.id && previous.label === selected.label
 				&& previous.providerIds.length === selected.providerIds.length && previous.providerIds.every((id, index) => id === selected.providerIds[index])
 				? previous : selected;
+		});
+		this._workspaceOptOutTarget = derived(this, reader => {
+			sessionTypesChanged.read(reader);
+			const environment = this._environment.read(reader);
+			const session = this._session.read(reader);
+			if (!session || environment?.kind === 'cloud' || environment?.kind === 'container') {
+				return undefined;
+			}
+			const target = { providerId: session.providerId, sessionTypeId: session.sessionType };
+			return this.sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
 		});
 		this._environmentPicker = this._register(this.instantiationService.createInstance(SessionEnvironmentPicker, this._environments, this._environment, environment => this._selectEnvironment(environment), environment => this._workspacePicker.getEnvironmentActions(environment)));
 
@@ -1422,11 +1433,11 @@ export class NewChatWidget extends Disposable {
 		void this._createNewSession(folderUri, userPick);
 	}
 
-	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): void {
+	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): IActiveSession | undefined {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		this._workspacePicker.selectNoWorkspace(selectionOptions?.userSelection !== false);
-		this._openQuickChat(options, selectionOptions?.preserveNavigation);
+		return this._openQuickChat(options, selectionOptions?.preserveNavigation);
 	}
 
 	private _openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession | undefined {
@@ -1505,7 +1516,7 @@ export class NewChatWidget extends Disposable {
 			},
 			icon: selectsRepository ? Codicon.repo : Codicon.project,
 			reflectsWorkspace: true,
-			clearable: this._useExperimentalComposerLayout,
+			clearable: derived(this, reader => this._useExperimentalComposerLayout.read(reader) && !!this._workspaceOptOutTarget.read(reader)),
 			attachesContext: false,
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
@@ -2160,6 +2171,7 @@ export class NewChatWidget extends Disposable {
 	 */
 	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType): Promise<void> {
 		this._workspaceSelectionCleared = !folderUri && this._useExperimentalComposerLayout.get();
+		const workspaceOptOutTarget = this._workspaceSelectionCleared ? this._workspaceOptOutTarget.get() : undefined;
 		// Cancel any in-flight upgrade for a previous selection.
 		this._pendingPreferredUpgrade.clear();
 		if (!folderUri || !this._preferredDevContainerFolderUri || !this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)) {
@@ -2176,6 +2188,13 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri) {
 			this._noWorkspaceRestore.clear();
 			this._newSessionCreation.clear();
+			if (workspaceOptOutTarget) {
+				if (!this.selectNoWorkspace(workspaceOptOutTarget, { userSelection: false, preserveNavigation: true })) {
+					this.sessionsService.unsetNewSession();
+					this.notificationService.error(localize('newSession.workspaceOptOutFailed', "Unable to start a chat without a workspace. Choose a workspace to continue."));
+				}
+				return;
+			}
 			this.sessionsService.unsetNewSession();
 			if (!this._useExperimentalComposerLayout.get()) {
 				void this._restoreNoWorkspaceDraft();

@@ -333,6 +333,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
 	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
+	readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
 	readonly telemetryService: ITelemetryService;
@@ -380,6 +381,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 
 interface IClearWorkspaceHarness {
 	_workspaceSelectionCleared: boolean;
+	readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
 	readonly _noWorkspaceRestore: MutableDisposable<IDisposable>;
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
@@ -388,6 +390,8 @@ interface IClearWorkspaceHarness {
 	readonly _comparisonSelection: { reset(): void };
 	readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	readonly sessionsService: { unsetNewSession(): void };
+	readonly notificationService: { error(message: string): void };
+	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): IActiveSession | undefined;
 	_restoreNoWorkspaceDraft(): Promise<void>;
 }
 
@@ -777,6 +781,7 @@ suite('NewChatWidget', () => {
 			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
 			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
+			_workspaceOptOutTarget: constObservable(undefined),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
 			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
@@ -2480,9 +2485,14 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('clearing a workspace keeps the experimental composer empty and preserves the legacy Chat fallback', async () => {
+	test('clearing a workspace starts the same harness without a project when supported and preserves legacy fallback', async () => {
 		const results: string[][] = [];
-		for (const experimentalLayout of [false, true]) {
+		for (const { experimentalLayout, supported, succeeds } of [
+			{ experimentalLayout: false, supported: true, succeeds: true },
+			{ experimentalLayout: true, supported: false, succeeds: true },
+			{ experimentalLayout: true, supported: true, succeeds: true },
+			{ experimentalLayout: true, supported: true, succeeds: false },
+		]) {
 			const events: string[] = [];
 			const pendingUpgrade = disposables.add(new MutableDisposable());
 			pendingUpgrade.value = toDisposable(() => events.push('cancelUpgrade'));
@@ -2492,6 +2502,7 @@ suite('NewChatWidget', () => {
 			restore.value = toDisposable(() => events.push('cancelRestore'));
 			await onWorkspaceSelected.call({
 				_workspaceSelectionCleared: false,
+				_workspaceOptOutTarget: constObservable(supported ? { providerId: 'local', sessionTypeId: 'copilot' } : undefined),
 				_noWorkspaceRestore: restore,
 				_pendingPreferredUpgrade: pendingUpgrade,
 				_newSessionCreation: creation,
@@ -2500,6 +2511,11 @@ suite('NewChatWidget', () => {
 				_comparisonSelection: { reset: () => events.push('resetComparison') },
 				_useExperimentalComposerLayout: constObservable(experimentalLayout),
 				sessionsService: { unsetNewSession: () => events.push('unsetSession') },
+				notificationService: { error: () => events.push('error') },
+				selectNoWorkspace: (options, selectionOptions) => {
+					events.push(`chat:${options?.providerId}:${options?.sessionTypeId}:${selectionOptions?.userSelection}:${selectionOptions?.preserveNavigation}`);
+					return succeeds ? upcastPartial<IActiveSession>({ sessionId: 'quick-chat' }) : undefined;
+				},
 				_restoreNoWorkspaceDraft: async () => { events.push('restoreChat'); },
 			}, undefined);
 			results.push(events);
@@ -2507,6 +2523,8 @@ suite('NewChatWidget', () => {
 		assert.deepStrictEqual(results, [
 			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession', 'restoreChat'],
 			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession'],
+			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true'],
+			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true', 'unsetSession', 'error'],
 		]);
 	});
 

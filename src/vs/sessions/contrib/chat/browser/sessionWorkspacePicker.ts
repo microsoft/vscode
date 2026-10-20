@@ -680,7 +680,7 @@ export class WorkspacePicker extends Disposable {
 			triggerDisposables.add(clearButton.onDidClick(() => {
 				this.clearSelection();
 				trigger.focus();
-				status(localize('workspacePicker.workspaceCleared', "Workspace cleared. Choose a workspace for the new session."));
+				status(localize('workspacePicker.workspaceCleared', "Workspace cleared. You can chat without a workspace or choose another workspace."));
 			}));
 			contents.clearButton = clearButton;
 			triggerDisposables.add(autorun(reader => {

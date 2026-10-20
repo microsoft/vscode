@@ -781,8 +781,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-codiconFontSize);
-	height: var(--vscode-codiconFontSize);
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-icon-foreground);
 	color: var(--vscode-editor-background);
