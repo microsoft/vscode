@@ -43,6 +43,26 @@ suite('Agent Host session link actions', () => {
 		});
 	});
 
+	test('contributes Copy Link identically to both session header menus', () => {
+		const items = [Menus.SessionHeaderContext, Menus.SessionBarToolbar].map(menu => {
+			const item = MenuRegistry.getMenuItems(menu)
+				.filter(isIMenuItem)
+				.find(item => item.command.id === COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID);
+			return item && {
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			};
+		});
+		const expected = {
+			group: 'secondary/1_session',
+			order: 40,
+			when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+		};
+
+		assert.deepStrictEqual(items, [expected, expected]);
+	});
+
 	test('groups settings in a submenu and omits branch name copying', () => {
 		const submenu = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
 			.filter(isISubmenuItem)

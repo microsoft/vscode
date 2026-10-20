@@ -652,8 +652,10 @@ export class ChatCompositeBar extends Disposable {
 					const provider = session && this._sessionsProvidersService.getProvider(session.providerId);
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					return Separator.join(
-						canRename ? [renameAction] : [],
-						capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : [],
+						[
+							...(canRename ? [renameAction] : []),
+							...(capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : []),
+						],
 						capabilities.canDelete ? [deleteAction] : [],
 						provider && isAgentHostProvider(provider) ? [copyLinkAction] : [],
 					);

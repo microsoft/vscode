@@ -130,6 +130,8 @@ export const Menus = {
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
 } as const;
 
+export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarToolbar] as const;
+
 /** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
 export const SessionActivityBarGroup = {
 	SidePanel: '1_sidePanel',

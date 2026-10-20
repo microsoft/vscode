@@ -37,7 +37,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
@@ -1132,12 +1132,12 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				group: '1_edit',
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
-			}, {
-				id: Menus.SessionBarToolbar,
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
 				group: 'secondary/1_session',
 				order: 30,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false), SessionHeaderTargetsChatContext.negate()),
-			}]
+			}))]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
@@ -1191,12 +1191,12 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 				group: '1_edit',
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
-			}, {
-				id: Menus.SessionBarToolbar,
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
 				group: 'secondary/1_session',
 				order: 5,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
-			}]
+			}))]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
@@ -1246,12 +1246,12 @@ abstract class BaseArchiveChatAction extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(when, SessionChatItemIsUntitledContext.negate()),
-			}, {
-				id: Menus.SessionBarToolbar,
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
 				group: 'secondary/1_session',
 				order: 30,
 				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext.negate()),
-			}],
+			}))],
 		});
 	}
 
@@ -1522,15 +1522,15 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
 				),
-			}, {
-				id: Menus.SessionHeaderContext,
-				group: '3_read',
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/5_read',
 				order: 0,
 				when: ContextKeyExpr.and(
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
 				),
-			}]
+			}))]
 		});
 	}
 	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
@@ -1556,15 +1556,15 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
 				),
-			}, {
-				id: Menus.SessionHeaderContext,
-				group: '3_read',
+			}, ...SessionHeaderMenus.map(id => ({
+				id,
+				group: 'secondary/5_read',
 				order: 0,
 				when: ContextKeyExpr.and(
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
 				),
-			}]
+			}))]
 		});
 	}
 	run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
