@@ -164,7 +164,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 			// (e.g. create→edit, edit→delete). Fold each new edit into the
 			// prior one for the same resource so the checkpoint stores a
 			// single net before/after pair per file. Otherwise
-			// _writeCheckpointContent would apply duplicate writes in
+			// _writeEdits would apply duplicate writes in
 			// parallel and race to leave the file in an undefined state.
 			const existingIdx = cp.edits.findIndex(e => e.resource.toString() === entry.resource.toString());
 			if (existingIdx < 0) {
@@ -259,15 +259,20 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		const crossed = this._checkpoints.slice(Math.min(currentIdx, targetIdx) + 1, Math.max(currentIdx, targetIdx) + 1);
 		// A failed fetch must leave every file and the checkpoint cursor at the original boundary.
 		await Promise.all(crossed.map(checkpoint => this._resolveCheckpointEdits(checkpoint)));
+		// Checkpoints that stay undone can record edits after their restore, e.g. from a subagent still running then.
+		const recorded = await Promise.all(this._checkpoints.slice(Math.max(currentIdx, targetIdx) + 1).map(checkpoint => this._reloadUndoneCheckpoint(checkpoint)));
+		for (let i = recorded.length - 1; i >= 0; i--) {
+			await this._writeEdits(recorded[i], 'before');
+		}
 		if (targetIdx < currentIdx) {
 			// Undo forward checkpoints
 			for (let i = currentIdx; i > targetIdx; i--) {
-				await this._writeCheckpointContent(this._checkpoints[i], 'before');
+				await this._writeEdits(this._checkpointEdits(this._checkpoints[i]), 'before');
 			}
 		} else if (targetIdx > currentIdx) {
 			// Redo to reach the target
 			for (let i = currentIdx + 1; i <= targetIdx; i++) {
-				await this._writeCheckpointContent(this._checkpoints[i], 'after');
+				await this._writeEdits(this._checkpointEdits(this._checkpoints[i]), 'after');
 			}
 		}
 
@@ -409,8 +414,21 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		checkpoint.turnEdits = [...fileEdits.values()];
 	}
 
-	private async _writeCheckpointContent(checkpoint: IAgentHostCheckpoint, direction: 'before' | 'after'): Promise<void> {
-		const ops = this._checkpointEdits(checkpoint).map(async edit => {
+	/** Reloads a checkpoint that stays undone and returns the turn edits it recorded since it was last loaded. */
+	private async _reloadUndoneCheckpoint(checkpoint: IAgentHostCheckpoint): Promise<readonly IToolCallFileEdit[]> {
+		const previous = checkpoint.turnEdits;
+		if (!previous) {
+			return [];
+		}
+		// With earlier edits loaded, a failed load keeps them instead of throwing.
+		await this._resolveCheckpointEdits(checkpoint);
+		const key = (edit: IToolCallFileEdit) => `${edit.kind}\0${edit.resource}\0${edit.beforeContentUri}\0${edit.afterContentUri}`;
+		const known = new Set(previous.map(key));
+		return (checkpoint.turnEdits ?? []).filter(edit => !known.has(key(edit)));
+	}
+
+	private async _writeEdits(edits: readonly IToolCallFileEdit[], direction: 'before' | 'after'): Promise<void> {
+		const ops = edits.map(async edit => {
 			try {
 				if (direction === 'before') {
 					// Undoing this edit
@@ -485,7 +503,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
  *
  * A create-then-delete collapses to a no-op edit (no before, no after) — we
  * still keep the entry so the file is restored to "absent" on undo, but
- * `_writeCheckpointContent` will skip the write since both URIs are absent.
+ * `_writeEdits` will skip the write since both URIs are absent.
  */
 function mergeFileEdit(prev: IToolCallFileEdit, next: IToolCallFileEdit): IToolCallFileEdit {
 	const startsAbsent = prev.kind === FileEditKind.Create;
