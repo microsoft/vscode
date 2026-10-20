@@ -161,10 +161,9 @@ export function getChatContextMenuTargetContext(target: EventTarget | null): { i
 }
 
 export function shouldShowChatLinkOpenWith(resource: URI, fileService: IFileService, editorResolverService: IEditorResolverService): boolean {
-	return resource.scheme !== Schemas.http
-		&& resource.scheme !== Schemas.https
-		&& fileService.hasProvider(resource)
-		&& editorResolverService.getEditors(resource).length > 0;
+	return resource.scheme === Schemas.http
+		|| resource.scheme === Schemas.https
+		|| (fileService.hasProvider(resource) && editorResolverService.getEditors(resource).length > 0);
 }
 
 class UserToggleResizeTracker extends Disposable {
@@ -868,7 +867,7 @@ export class ChatListWidget extends Disposable {
 
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;
-		const hasAvailableEditors = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
+		const hasLinkHandlers = linkTarget ? shouldShowChatLinkOpenWith(URI.parse(linkTarget), this.fileService, this.editorResolverService) : false;
 
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
 			[ChatContextKeys.isResponse.key, isResponseVM(selected)],
@@ -876,7 +875,7 @@ export class ChatListWidget extends Disposable {
 			[ChatContextKeys.isKatexMathElement.key, targetContext.isKatexElement],
 			[ChatContextKeys.contextMenuIsBackground.key, targetContext.isBackground],
 			[ChatContextKeys.contextMenuHasLink.key, !!linkTarget],
-			[ChatContextKeys.contextMenuHasAvailableEditors.key, hasAvailableEditors],
+			[ChatContextKeys.contextMenuHasLinkHandlers.key, hasLinkHandlers],
 		]);
 		const actionContext: IChatContextMenuActionContext = {
 			$chatContextMenu: true,

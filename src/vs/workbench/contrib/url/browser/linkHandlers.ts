@@ -3,13 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../base/common/keybindings.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { OS } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { EditorOpenSource, ITextEditorOptions, ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
+import { localize } from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { EditorOpenSource, IEditorOptions, ITextEditorOptions, ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { extractSelection, ILinkHandler, ILinkHandlerProvider, IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorCommandsContext } from '../../../common/editor.js';
@@ -17,6 +27,115 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+
+/**
+ * Shows the handlers that can open a link and opens the link with the picked one.
+ * Takes an {@link IOpenLinkWithArgs} argument.
+ */
+export const OPEN_LINK_WITH_COMMAND_ID = 'workbench.action.openLinkWith';
+
+export interface IOpenLinkWithArgs {
+	readonly link: string;
+	readonly openToSide?: boolean;
+	readonly editorOptions?: IEditorOptions;
+}
+
+interface ILinkHandlerPick extends IQuickPickItem {
+	readonly handler: ILinkHandler;
+}
+
+interface IPickedLinkHandler {
+	readonly handler: ILinkHandler;
+	readonly openToSide: boolean;
+	readonly inBackground: boolean;
+}
+
+CommandsRegistry.registerCommand(OPEN_LINK_WITH_COMMAND_ID, async (accessor, args: IOpenLinkWithArgs) => {
+	const openerService = accessor.get(IOpenerService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const notificationService = accessor.get(INotificationService);
+	const keybindingService = accessor.get(IKeybindingService);
+
+	const openToSideKeybinding = keybindingService.resolveKeybinding(decodeKeybinding(KeyMod.Alt | KeyCode.Enter, OS)!).at(0)?.getLabel();
+	const openToSideButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.splitHorizontal),
+		tooltip: localize({ key: 'openLinkWith.openToSide', comment: ['{0} is a keyboard shortcut, such as Alt+Enter'] }, "Open to the Side ({0})", openToSideKeybinding),
+	};
+	const setAsDefaultButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
+		tooltip: localize('openLinkWith.setAsDefault', "Set as Default and Open"),
+	};
+
+	const store = new DisposableStore();
+	try {
+		const cancellation = store.add(new CancellationTokenSource());
+		const picker = store.add(quickInputService.createQuickPick<ILinkHandlerPick>());
+		picker.placeholder = localize('openLinkWith.placeholder', "Select how to open '{0}'", args.link);
+		picker.canAcceptInBackground = true;
+		picker.busy = true;
+
+		const picked = await new Promise<IPickedLinkHandler | undefined>(resolve => {
+			store.add(picker.onDidHide(() => {
+				cancellation.cancel();
+				resolve(undefined);
+			}));
+			store.add(picker.onDidAccept(e => {
+				const item = picker.selectedItems.at(0);
+				if (item) {
+					resolve({ handler: item.handler, openToSide: picker.keyMods.alt, inBackground: e.inBackground });
+				}
+			}));
+			store.add(picker.onDidTriggerItemButton(async e => {
+				if (e.button === setAsDefaultButton) {
+					await e.item.handler.setAsDefault?.();
+				}
+				resolve({ handler: e.item.handler, openToSide: e.button === openToSideButton, inBackground: false });
+			}));
+
+			picker.show();
+			openerService.getLinkHandlers(args.link, cancellation.token).then(handlers => {
+				if (handlers.length === 0) {
+					picker.hide();
+					notificationService.info(localize('openLinkWith.noHandlers', "No handler can open '{0}'.", args.link));
+					return;
+				}
+
+				const items = handlers.map((handler): ILinkHandlerPick => ({
+					handler,
+					label: handler.label,
+					description: handler.isDefault ? localize('openLinkWith.default', "Default") : undefined,
+					detail: handler.detail,
+					buttons: handler.setAsDefault ? [openToSideButton, setAsDefaultButton] : [openToSideButton],
+				}));
+				picker.items = items;
+				picker.busy = false;
+			}, error => {
+				picker.hide();
+				notificationService.error(error);
+			});
+		});
+		picker.hide();
+
+		if (!picked) {
+			return false;
+		}
+
+		const opened = await picked.handler.open({
+			fromUserGesture: true,
+			openToSide: args.openToSide || picked.openToSide,
+			editorOptions: {
+				...args.editorOptions,
+				preserveFocus: picked.inBackground || args.editorOptions?.preserveFocus,
+			},
+		});
+		if (!opened) {
+			notificationService.warn(localize('openLinkWith.notOpened', "The link could not be opened with {0}.", picked.handler.label));
+		}
+		return opened;
+	} finally {
+		store.dispose();
+	}
+});
 
 /**
  * Offers the editor types that can show a resource as link handlers.

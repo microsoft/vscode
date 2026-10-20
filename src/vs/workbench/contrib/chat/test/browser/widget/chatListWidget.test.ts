@@ -193,7 +193,7 @@ suite('ChatListWidget', () => {
 		});
 	});
 
-	test('shows Open With only for resources backed by a file system provider', () => {
+	test('shows Open With for resources backed by a file system provider and for web links', () => {
 		const editorResolverService = upcastPartial<IEditorResolverService>({
 			getEditors: () => [{
 				id: 'test.editor',
@@ -206,17 +206,19 @@ suite('ChatListWidget', () => {
 			}],
 		});
 		const fileService = upcastPartial<IFileService>({
-			hasProvider: () => true,
+			hasProvider: resource => resource.scheme === 'file',
 		});
 
 		assert.deepStrictEqual({
 			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
 			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
 			http: shouldShowChatLinkOpenWith(URI.parse('http://example.com'), fileService, editorResolverService),
+			unknown: shouldShowChatLinkOpenWith(URI.parse('unknown://example/README.md'), fileService, editorResolverService),
 		}, {
 			file: true,
-			https: false,
-			http: false,
+			https: true,
+			http: true,
+			unknown: false,
 		});
 	});
 

@@ -11,7 +11,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -21,18 +20,17 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../.
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../../platform/list/browser/listService.js';
-import { extractSelection } from '../../../../../platform/opener/common/opener.js';
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ActiveEditorContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { OpenWithEditorPicker } from '../../../../services/editor/browser/openWithEditorPicker.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
+import { IOpenLinkWithArgs, OPEN_LINK_WITH_COMMAND_ID } from '../../../url/browser/linkHandlers.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService, isChatContextMenuActionContext, unwrapChatContextMenuActionContext } from '../chat.js';
@@ -226,7 +224,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
-					when: ChatContextKeys.contextMenuHasAvailableEditors,
+					when: ChatContextKeys.contextMenuHasLinkHandlers,
 					group: '0_link',
 					order: 1,
 				},
@@ -238,21 +236,8 @@ export function registerChatCopyActions() {
 				return;
 			}
 
-			const editorService = accessor.get(IEditorService);
-			const editorPicker = accessor.get(IInstantiationService).createInstance(OpenWithEditorPicker);
-			const { uri: resource, selection } = extractSelection(URI.parse(context.linkTarget));
-			const options = await editorPicker.pick({
-				resource,
-				options: {
-					source: EditorOpenSource.USER,
-					selection,
-				},
-			});
-			if (!options) {
-				return;
-			}
-
-			return editorService.openEditor({ resource, options });
+			const args: IOpenLinkWithArgs = { link: context.linkTarget };
+			return accessor.get(ICommandService).executeCommand(OPEN_LINK_WITH_COMMAND_ID, args);
 		}
 	});
 
