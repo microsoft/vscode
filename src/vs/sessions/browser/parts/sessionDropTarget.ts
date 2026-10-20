@@ -304,7 +304,7 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 		const targetView = this._delegate.findTargetView(target);
-		if (targetView && !targetView.chatResource && isSessionChatDrag(event, targetView.sessionId)) {
+		if (targetView && targetView.sessionId !== undefined && !targetView.chatResource && isSessionChatDrag(event, targetView.sessionId)) {
 			return;
 		}
 		if (targetView && !targetView.chatResource && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
