@@ -285,10 +285,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canDeleteAutomation(id: string): boolean {
-		const automation = this.getAutomation(id);
 		const entry = this.store.get()?.entries.get().find(entry => this.toAutomation(entry).id === id);
-		return this.canCreateAutomation.get() && !!entry && this.store.get()!.canWriteRepository(entry.repository)
-			&& (automation?.ownership === 'repository' || automation?.isAgentAccessible === true);
+		return this.canCreateAutomation.get() && !!entry && this.store.get()!.canWriteRepository(entry.repository);
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
@@ -452,7 +450,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	private assertCanManage(id: string): void {
 		if (!this.canDeleteAutomation(id)) {
-			throw new AutomationUnavailableError(localize('cloudAutomations.manageUnavailable', "Repository write access and ownership of this automation are required. Repository automations can be managed by any repository writer."));
+			throw new AutomationUnavailableError(localize('cloudAutomations.manageUnavailable', "Repository write access is required to manage this automation."));
 		}
 	}
 
@@ -460,12 +458,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const { definition, repository } = entry;
 		const schedule = cloudAutomationSchedule(definition.triggers);
 		const ownership = definition.ownership ?? definition.owner_type ?? 'user';
-		const isCreator = !!definition.created_by.login && definition.created_by.login.toLowerCase() === this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase();
 		return {
 			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
 			ownership,
-			isAgentAccessible: ownership === 'repository' || isCreator,
 			targetDisplay: { label: `${repository.owner}/${repository.name}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.name}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },

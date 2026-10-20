@@ -106,8 +106,6 @@ export interface IAutomationDescriptor {
 	readonly targetDisplay?: { readonly label: string; readonly icon: ThemeIcon };
 	readonly externalResource?: URI;
 	readonly ownership?: 'user' | 'repository';
-	/** False when the definition is available only to human-facing UI. */
-	readonly isAgentAccessible?: boolean;
 
 	/** Complete provider-owned session template. */
 	readonly sessionTemplate?: IAutomationSessionTemplate;

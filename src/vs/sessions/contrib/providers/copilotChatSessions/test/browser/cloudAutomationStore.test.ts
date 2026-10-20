@@ -1265,27 +1265,24 @@ suite('CloudAutomationStore', () => {
 		});
 	});
 
-	test('repository writers can manage collaborator Repository automations but readers and nonowners cannot', async () => {
+	test('repository writers can manage collaborator Repository automations but readers cannot', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		for (const canWrite of [true, false]) {
 			api.canWrite = canWrite;
-			for (const ownership of ['user', 'repository'] as const) {
-				api.definitions = [{ ...definition, ownership, created_by: { login: 'teammate' } }];
-				await provider.refresh();
-				const automation = provider.automations.get()[0];
-				const allowed = canWrite && ownership === 'repository';
-				assert.deepStrictEqual({
-					update: provider.canUpdateAutomation(automation.id), delete: provider.canDeleteAutomation(automation.id),
-					run: provider.canRunAutomation(automation.id), agent: automation.isAgentAccessible,
-				}, { update: allowed, delete: allowed, run: allowed, agent: ownership === 'repository' });
-				if (allowed) {
-					await provider.updateAutomation(automation.id, { name: 'Updated' });
-				} else {
-					await assert.rejects(provider.updateAutomation(automation.id, { name: 'Updated' }), AutomationUnavailableError);
-					await assert.rejects(provider.deleteAutomation(automation.id), AutomationUnavailableError);
-					await assert.rejects(provider.runAutomation(automation.id), AutomationUnavailableError);
-				}
+			api.definitions = [{ ...definition, ownership: 'repository', created_by: { login: 'teammate' } }];
+			await provider.refresh();
+			const automation = provider.automations.get()[0];
+			assert.deepStrictEqual({
+				update: provider.canUpdateAutomation(automation.id), delete: provider.canDeleteAutomation(automation.id),
+				run: provider.canRunAutomation(automation.id),
+			}, { update: canWrite, delete: canWrite, run: canWrite });
+			if (canWrite) {
+				await provider.updateAutomation(automation.id, { name: 'Updated' });
+			} else {
+				await assert.rejects(provider.updateAutomation(automation.id, { name: 'Updated' }), AutomationUnavailableError);
+				await assert.rejects(provider.deleteAutomation(automation.id), AutomationUnavailableError);
+				await assert.rejects(provider.runAutomation(automation.id), AutomationUnavailableError);
 			}
 		}
 	});
@@ -1305,31 +1302,23 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual(permissionStates, [true, false]);
 	});
 
-	test('agent tools expose collaborator Repository automations but hide collaborator personal automations', async () => {
+	test('agent tools use the complete returned catalogue and retain provider permission checks', async () => {
 		const { provider, api, set, tools, invoke } = setupTools();
 		api.definitions = [
 			{ ...definition, ownership: 'repository' },
 			{ ...definition, id: 'shared', name: 'Shared review', ownership: 'repository', created_by: { login: 'teammate' }, prompt: 'Shared instructions' },
-			{ ...definition, id: 'personal', name: 'Private review', ownership: 'user', created_by: { login: 'teammate' }, prompt: 'Teammate private instructions' },
 		];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		const shared = provider.automations.get().find(automation => JSON.parse(automation.id).at(-1) === 'shared')!;
-		const personal = provider.automations.get().find(automation => JSON.parse(automation.id).at(-1) === 'personal')!;
 		const [listed] = await invoke(tools.list, {});
 		const updated = await invoke(tools.configure, { automationId: shared.id, name: 'Updated shared review' });
-		const rejected = await tools.configure.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: personal.id, name: 'Updated private review' }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
 		assert.deepStrictEqual({
 			names: listed.automations.map((automation: { name: string }) => automation.name),
-			access: [shared.isAgentAccessible, personal.isAgentAccessible],
 			updated: updated.automation.name,
-			privateLeaked: JSON.stringify([listed, updated]).includes('Teammate private instructions'),
-			privateRejected: !!rejected.toolResultError,
 			patch: api.patch,
 		}, {
-			names: ['Review', 'Shared review'], access: [true, false],
-			updated: 'Updated shared review', privateLeaked: false, privateRejected: true,
-			patch: { name: 'Updated shared review' },
+			names: ['Review', 'Shared review'], updated: 'Updated shared review', patch: { name: 'Updated shared review' },
 		});
 	});
 
