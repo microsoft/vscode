@@ -8,7 +8,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
-import { raceTimeout } from '../../../../../../base/common/async.js';
+import { raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
@@ -557,6 +557,8 @@ export class AgentHostSessionInputPills extends Disposable {
 	private readonly _commitHoverCache = this._register(new ChatPillHoverCache());
 	private readonly _gitHubReferenceResolver: AgentHostGitHubReferenceResolver;
 	private readonly _gitHubResourceDetailsResolver: GitHubResourceDetailsResolver;
+	/** Runs the file operations on each working set channel one after another, so a Keep staged with Git waits for one in progress. */
+	private readonly _fileOperations = new SequencerByKey<string>();
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -773,7 +775,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					const accept = workingSetAccept.read(enabledReader);
 					return !!accept && !acceptsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(accept);
 				}),
-				keep: diffs => this._keepWorkingSetChanges(currentResolution, channel, workingSetAccept, acceptsInFlight, diffs),
+				keep: (diffs, automatic) => this._keepWorkingSetChanges(currentResolution, channel, workingSetAccept, acceptsInFlight, diffs, automatic),
 			};
 		});
 		// The session's Working Set tracks what was kept, so it also offers Undo; Session Changes only once Undo ships.
@@ -1333,12 +1335,22 @@ export class AgentHostSessionInputPills extends Disposable {
 	 * Keeps the session's changes to the files of `diffs`, one at a time, with
 	 * the host's Accept Changes `operation` on the session's Working Set
 	 * `channel`, after confirming once if the host requires that. See
-	 * {@link _invokeFileOperation} for how each file is checked. Resolves to
-	 * whether any file's changes were kept.
+	 * {@link _invokeFileOperation} for how each file is checked. Changes kept
+	 * `automatic`ally, as by staging them with Git, are kept after a Keep in
+	 * progress, and are left alone while the host can't accept them, as while a
+	 * turn runs, or when it requires confirming. Resolves to whether any file's
+	 * changes were kept.
 	 */
-	private async _keepWorkingSetChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
+	private async _keepWorkingSetChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<boolean> {
 		const accept = operation.get();
-		if (!accept || diffs.length === 0 || !await this._confirmFileOperation(accept, diffs)) {
+		if (!accept || diffs.length === 0) {
+			return false;
+		}
+		if (automatic) {
+			if (accept.status === ChangesetOperationStatus.Disabled || accept.confirmation) {
+				return false;
+			}
+		} else if (!await this._confirmFileOperation(accept, diffs)) {
 			return false;
 		}
 		return this._invokeFileOperation(resolution, channel, accept, inFlight, diffs, {
@@ -1370,20 +1382,32 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	/**
 	 * Invokes the host's file-level `operation` on `channel` for the files of
-	 * `diffs`, one at a time. Each file is first checked against the channel's
+	 * `diffs`, one at a time, after the file operations on `channel` already
+	 * in progress. Each file is first checked against the channel's
 	 * up-to-date files, and a file whose changes differ from its diff, as when a
 	 * turn changed it in the meantime, is left alone. Each file leaves the
 	 * working set once the host recomputes the channel. Failures are reported
 	 * together. Resolves to whether the operation succeeded for any file.
 	 */
 	private async _invokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
+		const channelKey = channel.toString();
+		inFlight.set([...inFlight.get(), channelKey], undefined);
+		try {
+			return await this._fileOperations.queue(channelKey, () => this._doInvokeFileOperation(resolution, channel, operation, diffs, messages));
+		} finally {
+			const channels = [...inFlight.get()];
+			channels.splice(channels.indexOf(channelKey), 1);
+			inFlight.set(channels, undefined);
+		}
+	}
+
+	private async _doInvokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
 		const { connection, connectionAuthority } = resolution;
 		const channelKey = channel.toString();
 		// Each file is checked against the channel's latest state, which outlasts a switch to another session.
 		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.fileOperation');
 		const failures: { readonly fileName: string; readonly message: string }[] = [];
 		let succeeded = 0;
-		inFlight.set([...inFlight.get(), channelKey], undefined);
 		try {
 			for (let i = 0; i < diffs.length; i++) {
 				const diff = diffs[i];
@@ -1419,9 +1443,6 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 		} finally {
 			changeset.dispose();
-			const channels = [...inFlight.get()];
-			channels.splice(channels.indexOf(channelKey), 1);
-			inFlight.set(channels, undefined);
 		}
 		if (failures.length > 0) {
 			this._notificationService.error(messages.failed(failures.map(failure => failure.fileName).join(', '), distinct(failures.map(failure => failure.message)).join(' ')));

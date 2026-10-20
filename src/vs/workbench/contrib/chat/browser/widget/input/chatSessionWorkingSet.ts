@@ -54,15 +54,20 @@ export interface IChatSessionWorkingSetKeep {
 	/**
 	 * Keeps the session's changes to the files of `diffs`, resolving to whether
 	 * changes to any of them were kept. A file whose changes no longer match its
-	 * diff in `diffs` is left alone.
+	 * diff in `diffs` is left alone. `automatic` is set when the changes were
+	 * accepted outside of the working set, as by staging them with Git, which
+	 * isn't confirmed, and waits for a Keep in progress instead of being dropped.
 	 */
-	keep(diffs: readonly IEditSessionEntryDiff[]): Promise<boolean>;
+	keep(diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<boolean>;
 }
 
 /** What a {@link ChatSessionWorkingSet} can do with the files it lists. */
 export interface IChatSessionWorkingSetFileActions {
-	/** Keeps the changes to the files of `diffs`, resolving to whether any changes were kept. */
-	keep(diffs: readonly IEditSessionEntryDiff[]): Promise<boolean>;
+	/**
+	 * Keeps the changes to the files of `diffs`, resolving to whether any changes
+	 * were kept, `automatic` as in {@link IChatSessionWorkingSetKeep.keep}.
+	 */
+	keep(diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<boolean>;
 	/** Whether changes can be kept now; always when absent. */
 	readonly keepEnabled?: IObservable<boolean>;
 	/** Undoes changes to files, or `undefined` while the session doesn't support that. */
@@ -137,7 +142,7 @@ export class ChatSessionWorkingSet extends Disposable {
 					id: 'chat.sessionWorkingSet.keepAll',
 					label: localize('chat.sessionWorkingSet.keep', "Keep"),
 					tooltip: localize('chat.sessionWorkingSet.keepAll', "Keep All Edits"),
-					run: () => this._keep(this._diffs.read(undefined)),
+					run: () => this._keep(this._diffs.read(undefined), false),
 				}),
 				...(sessionUndo ? [toAction({
 					id: 'chat.sessionWorkingSet.undoAll',
@@ -220,7 +225,20 @@ export class ChatSessionWorkingSet extends Disposable {
 	async keepFiles(resources: readonly URI[]): Promise<void> {
 		const diffs = this._getDiffs(resources);
 		if (diffs.length > 0 && this._isKeepEnabled(undefined)) {
-			await this._keep(diffs);
+			await this._keep(diffs, false);
+		}
+	}
+
+	/**
+	 * Keeps the changes to the listed files of `resources` that were accepted
+	 * outside of the working set, as by staging them with Git. Unlike
+	 * {@link keepFiles}, a Keep in progress doesn't drop them; the session
+	 * decides whether it can keep them.
+	 */
+	async keepAcceptedFiles(resources: readonly URI[]): Promise<void> {
+		const diffs = this._getDiffs(resources);
+		if (diffs.length > 0) {
+			await this._keep(diffs, true);
 		}
 	}
 
@@ -249,8 +267,8 @@ export class ChatSessionWorkingSet extends Disposable {
 		return this._fileActions.keepEnabled?.read(reader) ?? true;
 	}
 
-	private async _keep(diffs: readonly IEditSessionEntryDiff[]): Promise<void> {
-		if (await this._fileActions.keep(diffs)) {
+	private async _keep(diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<void> {
+		if (await this._fileActions.keep(diffs, automatic)) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
 		}
 	}

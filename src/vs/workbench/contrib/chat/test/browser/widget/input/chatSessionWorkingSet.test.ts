@@ -68,11 +68,11 @@ suite('ChatSessionWorkingSet', () => {
 		const collapsed = observableValue('collapsed', false);
 		const kept: string[] = [];
 		const workingSet = store.add(instantiationService.createInstance(ChatSessionWorkingSet, diffs, collapsed, {
-			keep: async keptDiffs => {
+			keep: async (keptDiffs, automatic) => {
 				if (keepResult) {
 					return keepResult;
 				}
-				kept.push(...keptDiffs.map(diff => diff.modifiedURI.path));
+				kept.push(...keptDiffs.map(diff => automatic ? `${diff.modifiedURI.path} (automatic)` : diff.modifiedURI.path));
 				diffs.set(diffs.get().filter(candidate => !keptDiffs.includes(candidate)), undefined);
 				return true;
 			},
@@ -491,11 +491,12 @@ suite('ChatSessionWorkingSet', () => {
 		assert.deepStrictEqual({ selected, undone, kept, editingSessionKept }, { selected: ['/second.ts'], undone: [['/second.ts']], kept: ['/first.ts'], editingSessionKept: ['/other.ts'] });
 	});
 
-	test('keeps files staged or committed with Git in the session working set of each chat once', async () => {
+	test('keeps files staged or committed with Git in the session working set of each chat once, even while Keep is disabled', async () => {
+		// Keep is disabled while another Keep is in progress, for example; the session decides whether it can keep the staged files.
 		const { workingSet, instantiationService, kept } = createWorkingSet([
 			emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts')),
 			emptySessionEntryDiff(URI.file('/before/second.ts'), URI.file('/second.ts')),
-		]);
+		], true, constObservable(undefined), constObservable(false));
 		const widget = (sessionResource: URI, sessionWorkingSet: ChatSessionWorkingSet | undefined) => upcastPartial<IChatWidget>({
 			viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
 			input: upcastPartial<ChatInputPart>({ sessionWorkingSet }),
@@ -508,8 +509,10 @@ suite('ChatSessionWorkingSet', () => {
 		instantiationService.stub(IChatEditingService, upcastPartial<IChatEditingService>({ editingSessionsObs: constObservable([]) }));
 
 		await instantiationService.get(ICommandService).executeCommand('_chat.editSessions.accept', [URI.file('/second.ts'), URI.file('/other.ts')]);
+		// Keep run as a command isn't automatic, so it does nothing while Keep is disabled.
+		await instantiationService.get(ICommandService).executeCommand('chatEditing.acceptFile', URI.file('/first.ts'), workingSet);
 
-		assert.deepStrictEqual(kept, ['/second.ts']);
+		assert.deepStrictEqual(kept, ['/second.ts (automatic)']);
 	});
 
 	test('returns focus to the heading when the focused file list collapses', () => {

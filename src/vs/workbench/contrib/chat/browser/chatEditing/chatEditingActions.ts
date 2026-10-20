@@ -937,5 +937,5 @@ CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: S
 		sessions.add(sessionResource);
 		return [sessionWorkingSet];
 	});
-	await Promise.all(sessionWorkingSets.map(sessionWorkingSet => sessionWorkingSet.keepFiles(uris)));
+	await Promise.all(sessionWorkingSets.map(sessionWorkingSet => sessionWorkingSet.keepAcceptedFiles(uris)));
 });

@@ -1603,7 +1603,7 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 		const confirmations = (changesetUri: string, changesetKind: ChangesetKind, uncommittedChanges = 1) => contribution
 			.getOperations({ sessionKey: session.toString(), changesetUri, changesetKind, gitState: { uncommittedChanges } })
 			.map(operation => `${operation.id}: ${operation.confirmation}`);
-		const lastTurnConfirmation = 'discard-changes: Are you sure you want to discard the last turn\'s changes to \'{0}\'? Changes made outside of the last turn will be kept. This action cannot be undone.';
+		const lastTurnConfirmation = 'discard-changes: Are you sure you want to discard the last turn\'s changes to \'{0}\'? Changes made outside of the last turn will be kept, except in a file the last turn created, which is deleted along with any later changes to it. This action cannot be undone.';
 
 		const completed = {
 			branch: confirmations(buildBranchChangesetUri(chat), ChangesetKind.Branch, 0),
@@ -1627,7 +1627,7 @@ suite('AgentHostDiscardChangesOperationContribution', () => {
 				cleanUncommitted: [],
 				lastTurn: [lastTurnConfirmation],
 				olderTurn: [],
-				session: ['discard-changes: Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone.'],
+				session: ['discard-changes: Are you sure you want to discard the session\'s changes to \'{0}\'? Changes made outside of the session will be kept, except in a file the session created, which is deleted along with any later changes to it. This action cannot be undone.'],
 				workingSet: ['discard-changes: undefined'],
 			},
 			running: {
