@@ -136,9 +136,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
+	/** Metadata of models registered outside this extension host, keyed by model identifier. */
+	private readonly _externalModels = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _pendingCancelCTS = new DisposableMap<number, CancellationTokenSource>();
+	private readonly _pendingCancelListeners = new DisposableMap<number, IDisposable>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 	private _languageModelProxyProvider: vscode.LanguageModelProxyProvider | undefined;
 
@@ -156,6 +159,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeModelProxyAvailability.dispose();
 		this._pendingRequest.clear();
 		this._pendingCancelCTS.dispose();
+		this._pendingCancelListeners.dispose();
 	}
 
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
@@ -440,20 +444,36 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!this._localModels.has(modelId)) {
 			// model gone? is this an error on us? Try to resolve model again
 			const vendor = this.getVendorFromModelIdentifier(modelId);
-			if (!vendor) {
-				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not extract vendor from model identifier '${modelId}'.`);
-				return undefined;
+			if (vendor) {
+				this._logService.trace(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache. Trying to resolve model again.`);
+				// Call proxy directly: routing through `selectLanguageModels` would recurse here for every identifier and blow up when the cache stays empty (provider in another ext host).
+				await this._proxy.$selectChatModels({ vendor, extension: extension.identifier });
 			}
-			this._logService.trace(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache. Trying to resolve model again.`);
-			// Call proxy directly: routing through `selectLanguageModels` would recurse here for every identifier and blow up when the cache stays empty (provider in another ext host).
-			await this._proxy.$selectChatModels({ vendor, extension: extension.identifier });
 			if (!this._localModels.has(modelId)) {
-				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache after re-resolving models.`);
-				return undefined;
+				// The provider lives outside this extension host, e.g. the workbench or another extension host.
+				await this._lookupExternalModels([modelId]);
+				if (!this._externalModels.has(modelId)) {
+					this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache or in the main thread.`);
+					return undefined;
+				}
 			}
 		}
 
 		return this._createLanguageModelChatApi(extension, modelId);
+	}
+
+	/**
+	 * Caches the metadata of models that are registered outside this extension host. Requests and token counting
+	 * for them are routed through the main thread, which dispatches to the owning provider.
+	 */
+	private async _lookupExternalModels(identifiers: string[]): Promise<void> {
+		const missing = identifiers.filter(identifier => !this._localModels.has(identifier));
+		if (!missing.length) {
+			return;
+		}
+		for (const { identifier, metadata } of await this._proxy.$lookupChatModels(missing)) {
+			this._externalModels.set(identifier, metadata);
+		}
 	}
 
 	/**
@@ -476,7 +496,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	private async _createLanguageModelChatApi(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
-		const model = this._localModels.get(modelId);
+		const model = this._localModels.get(modelId) ?? this._toExternalModel(modelId);
 		if (!model) {
 			return undefined;
 		}
@@ -512,16 +532,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				supportsAdaptiveThinking: model.metadata.capabilities?.adaptiveThinking,
 			},
 			maxInputTokens: model.metadata.maxInputTokens,
-			countTokens(text, token) {
-				if (!that._localModels.has(modelId)) {
-					throw extHostTypes.LanguageModelError.NotFound(modelId);
-				}
+			async countTokens(text, token) {
+				await that._ensureModel(modelId);
 				return that._computeTokenLength(modelId, text, token ?? CancellationToken.None);
 			},
-			sendRequest(messages, options, token) {
-				if (!that._localModels.has(modelId)) {
-					throw extHostTypes.LanguageModelError.NotFound(modelId);
-				}
+			async sendRequest(messages, options, token) {
+				await that._ensureModel(modelId);
 				return that._sendChatRequest(extension, modelId, messages, options ?? {}, token ?? CancellationToken.None);
 			}
 		};
@@ -530,13 +546,43 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return apiObject;
 	}
 
+	private _hasModel(modelId: string): boolean {
+		return this._localModels.has(modelId) || this._externalModels.has(modelId);
+	}
+
+	/**
+	 * Ensures a model is still known, refreshing external metadata that was
+	 * invalidated by an unrelated model change.
+	 */
+	private async _ensureModel(modelId: string): Promise<void> {
+		if (!this._hasModel(modelId)) {
+			await this._lookupExternalModels([modelId]);
+		}
+		if (!this._hasModel(modelId)) {
+			throw extHostTypes.LanguageModelError.NotFound(modelId);
+		}
+	}
+
+	private _toExternalModel(modelId: string): { metadata: ILanguageModelChatMetadata; info: Pick<vscode.LanguageModelChatInformation, 'id' | 'family' | 'version' | 'name'> } | undefined {
+		const metadata = this._externalModels.get(modelId);
+		return metadata && { metadata, info: metadata };
+	}
+
 	async selectLanguageModels(extension: IExtensionDescription, selector: vscode.LanguageModelChatSelector) {
 
 		// this triggers extension activation
 		const models = await this._proxy.$selectChatModels({ ...selector, extension: extension.identifier });
 
+		// Models registered outside this extension host are only listed when their vendor is asked for explicitly, so
+		// that unscoped selection keeps returning the models this extension host can serve directly.
+		if (selector.vendor) {
+			await this._lookupExternalModels(models);
+		}
+
 		// Skip the warn/retry path in `getLanguageModelByIdentifier`: identifiers are fresh, so a missing local entry means the provider lives in another ext host and re-resolving will not help.
-		const modelResults = await Promise.all(models.map(identifier => this._createLanguageModelChatApi(extension, identifier)));
+		const modelResults = await Promise.all(models
+			.filter(identifier => this._localModels.has(identifier) || (selector.vendor && this._externalModels.has(identifier)))
+			.map(identifier => this._createLanguageModelChatApi(extension, identifier)));
 		return modelResults.filter((m): m is vscode.LanguageModelChat => !!m);
 	}
 
@@ -545,9 +591,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const internalMessages: IChatMessage[] = this._convertMessages(extension, messages);
 
 		const from = extension.identifier;
-		const metadata = this._localModels.get(languageModelId)?.metadata;
+		const metadata = this._localModels.get(languageModelId)?.metadata ?? this._externalModels.get(languageModelId);
 
-		if (!metadata || !this._localModels.has(languageModelId)) {
+		if (!metadata) {
 			throw extHostTypes.LanguageModelError.NotFound(`Language model '${languageModelId}' is unknown.`);
 		}
 
@@ -565,9 +611,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const cts = new CancellationTokenSource(token);
 		this._pendingCancelCTS.set(requestId, cts);
-		cts.token.onCancellationRequested(() => {
+		this._pendingCancelListeners.set(requestId, cts.token.onCancellationRequested(() => {
 			this._proxy.$cancelLanguageModelChatRequest(requestId);
-		});
+		}));
 
 		try {
 			await this._proxy.$tryStartChatRequest(from, languageModelId, requestId, new SerializableObjectWithBuffers(internalMessages), options, cts.token);
@@ -576,6 +622,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			// error'ing here means that the request could NOT be started/made, e.g. wrong model, no access, etc, but
 			// later the response can fail as well. Those failures are communicated via the stream-object
 			this._pendingRequest.delete(requestId);
+			this._pendingCancelListeners.deleteAndDispose(requestId);
 			this._pendingCancelCTS.deleteAndDispose(requestId);
 			throw extHostTypes.LanguageModelError.tryDeserialize(error) ?? error;
 		}
@@ -602,6 +649,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	$onChatModelsChange(): void {
+		this._externalModels.clear();
 		this._onDidChangeProviders.fire();
 	}
 
@@ -611,6 +659,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return;
 		}
 		this._pendingRequest.delete(requestId);
+		this._pendingCancelListeners.deleteAndDispose(requestId);
 		this._pendingCancelCTS.deleteAndDispose(requestId);
 		if (error) {
 			// we error the stream because that's the only way to signal
@@ -677,6 +726,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const data = this._localModels.get(modelId);
 		if (!data) {
+			if (this._externalModels.has(modelId)) {
+				return this._proxy.$countTokens(modelId, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value), token);
+			}
 			throw extHostTypes.LanguageModelError.NotFound(`Language model '${modelId}' is unknown.`);
 		}
 		return this._languageModelProviders.get(data.metadata.vendor)?.provider.provideTokenCount(data.info, value, token) ?? 0;
