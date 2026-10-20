@@ -85,6 +85,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	abstract readonly kind: ChatViewKind;
 
+	/** Whether to retain this composer when its draft session is cleared. */
+	get preserveOnSessionCleared(): boolean { return false; }
+
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
 	focusWorkspacePicker(): void {

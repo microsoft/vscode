@@ -150,6 +150,7 @@ export class NewChatWidget extends Disposable {
 	private _pendingWorkspaceCreation: Promise<IOpenNewSessionResult> | undefined;
 	private _createdSessionId: string | undefined;
 	private _preferredDevContainerFolderUri: URI | undefined;
+	private _workspaceSelectionCleared = false;
 
 	/**
 	 * The currently mounted no-agent-host empty state, if any. Set by
@@ -494,7 +495,9 @@ export class NewChatWidget extends Disposable {
 			if (!this._isCurrentWorkspaceSelection(folderUri)) {
 				await this._onWorkspaceSelected(folderUri);
 			}
-			this._newChatInput.focus();
+			if (folderUri || !this._useExperimentalComposerLayout.get()) {
+				this._newChatInput.focus();
+			}
 		}));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			this._preferredDevContainerFolderUri = preferDevContainer ? folderUri : undefined;
@@ -613,6 +616,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	// --- Rendering ---
+
+	get preserveOnSessionCleared(): boolean {
+		return this._useExperimentalComposerLayout.get() && !this._workspacePicker.selectedFolderUri;
+	}
 
 	render(parent: HTMLElement): void {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget'));
@@ -1043,6 +1050,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _restoreNoWorkspaceDraft(): Promise<void> {
+		if (this._workspaceSelectionCleared && !this._workspacePicker.isNoWorkspaceSelected()) {
+			return;
+		}
 		const cancellation = new CancellationTokenSource();
 		const lifetime = toDisposable(() => cancellation.dispose(true));
 		this._noWorkspaceRestore.value = lifetime;
@@ -1101,7 +1111,8 @@ export class NewChatWidget extends Disposable {
 
 	private _syncWorkspacePickerDevContainerMode(activeSession: IActiveSession, persist: boolean, origin: WorkspaceSelectionOrigin): URI | undefined {
 		const folderUri = activeSession.workspace.get()?.folders[0]?.root;
-		if (!folderUri) {
+		if (!folderUri || (origin === WorkspaceSelectionOrigin.SessionSync
+			&& !this.uriIdentityService.extUri.isEqual(folderUri, this._workspacePicker.selectedFolderUri))) {
 			return undefined;
 		}
 		const provider = this.sessionsProvidersService.getProvider(activeSession.providerId);
@@ -1931,6 +1942,7 @@ export class NewChatWidget extends Disposable {
 	 * by every path that creates a concrete session for a folder.
 	 */
 	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType): Promise<void> {
+		this._workspaceSelectionCleared = !folderUri && this._useExperimentalComposerLayout.get();
 		// Cancel any in-flight upgrade for a previous selection.
 		this._pendingPreferredUpgrade.clear();
 		if (!folderUri || !this._preferredDevContainerFolderUri || !this.uriIdentityService.extUri.isEqual(this._preferredDevContainerFolderUri, folderUri)) {
@@ -1945,6 +1957,7 @@ export class NewChatWidget extends Disposable {
 			&& this._newChatInput.preparePromptOptionsRefresh();
 
 		if (!folderUri) {
+			this._noWorkspaceRestore.clear();
 			this._newSessionCreation.clear();
 			this.sessionsService.unsetNewSession();
 			if (!this._useExperimentalComposerLayout.get()) {

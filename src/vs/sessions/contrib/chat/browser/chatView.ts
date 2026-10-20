@@ -145,6 +145,10 @@ export class NewChatView extends AbstractChatView {
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
 	private readonly _isVisibleObs = observableValue(this, true);
 
+	override get preserveOnSessionCleared(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionCleared;
+	}
+
 	constructor(
 		isNewChatInSession: boolean,
 		options: INewChatViewOptions,

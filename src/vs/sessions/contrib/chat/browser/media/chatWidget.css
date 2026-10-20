@@ -763,7 +763,7 @@
 	position: relative;
 }
 
-.sessions-workspace-picker-trigger > .sessions-workspace-clear-button {
+.sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon {
 	position: absolute;
 	left: var(--vscode-spacing-size40);
 	display: flex;
@@ -771,6 +771,7 @@
 	justify-content: center;
 	width: var(--vscode-codiconFontSize-compact);
 	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-icon-foreground);
 	cursor: pointer;
 	opacity: 0;
@@ -779,10 +780,6 @@
 
 .sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden] {
 	display: none;
-}
-
-.sessions-workspace-picker-trigger > .sessions-workspace-clear-button > .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .sessions-workspace-clear-button {

@@ -147,10 +147,12 @@ const applyPreferredDevContainer = Reflect.get(NewChatWidget.prototype, '_applyP
 ) => void;
 const syncWorkspacePickerDevContainerMode = Reflect.get(NewChatWidget.prototype, '_syncWorkspacePickerDevContainerMode') as (
 	this: {
+		readonly uriIdentityService: { readonly extUri: typeof extUri };
 		readonly sessionsProvidersService: {
 			getProvider(providerId: string): { readonly id: string; isDevContainerEnabled?(sessionId: string): boolean } | undefined;
 		};
 		readonly _workspacePicker: {
+			readonly selectedFolderUri: URI | undefined;
 			setSelectedWorkspace(folderUri: URI, options: { fireEvent: boolean; providerId: string; persist: boolean; preferDevContainer: boolean; origin: WorkspaceSelectionOrigin }): void;
 		};
 	},
@@ -351,6 +353,7 @@ interface IWorkspaceRootsHarness {
 }
 
 interface IRestoreNoWorkspaceDraftHarness {
+	_workspaceSelectionCleared: boolean;
 	readonly _noWorkspaceRestore: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	_createdSessionId: string | undefined;
@@ -365,6 +368,8 @@ interface IRestoreNoWorkspaceDraftHarness {
 }
 
 interface IClearWorkspaceHarness {
+	_workspaceSelectionCleared: boolean;
+	readonly _noWorkspaceRestore: MutableDisposable<IDisposable>;
 	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
 	readonly _newSessionCreation: MutableDisposable<IDisposable>;
 	_preferredDevContainerFolderUri: URI | undefined;
@@ -854,6 +859,7 @@ suite('NewChatWidget', () => {
 				return session;
 			};
 			const harness: IRestoreNoWorkspaceDraftHarness = {
+				_workspaceSelectionCleared: false,
 				_noWorkspaceRestore: disposables.add(new MutableDisposable<IDisposable>()),
 				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
 				_createdSessionId: undefined,
@@ -879,6 +885,24 @@ suite('NewChatWidget', () => {
 				restore: () => restoreNoWorkspaceDraft.call(harness),
 			};
 		}
+
+		test('does not select Chat after explicitly clearing the workspace, including later provider changes', async () => {
+			const state = createRestoreHarness();
+			state.harness._workspaceSelectionCleared = true;
+			state.quickChatAvailable = false;
+			await state.restore();
+			state.quickChatAvailable = true;
+			await state.restore();
+			assert.deepStrictEqual(state.opened, []);
+		});
+
+		test('allows explicit Chat selection after clearing the workspace', async () => {
+			const state = createRestoreHarness();
+			state.harness._workspaceSelectionCleared = true;
+			state.noWorkspaceSelected = true;
+			await state.restore();
+			assert.deepStrictEqual(state.opened, ['checked']);
+		});
 
 		test('selects Chat without a previous Chat selection and without persisting a user choice', async () => {
 			const { harness, opened, restore } = createRestoreHarness();
@@ -1663,9 +1687,11 @@ suite('NewChatWidget', () => {
 
 	test('resynchronizes Dev Container mode with the selection origin when updating and restoring a draft', () => {
 		const folder = URI.file('/project');
+		let selectedFolderUri: URI | undefined = folder;
 		let enabled = true;
 		const selections: Array<{ readonly folderUri: string; readonly providerId: string; readonly persist: boolean; readonly preferDevContainer: boolean; readonly origin: WorkspaceSelectionOrigin }> = [];
 		const harness = {
+			uriIdentityService: { extUri },
 			sessionsProvidersService: {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
@@ -1673,6 +1699,7 @@ suite('NewChatWidget', () => {
 				}),
 			},
 			_workspacePicker: {
+				get selectedFolderUri() { return selectedFolderUri; },
 				setSelectedWorkspace: (folderUri: URI, options: { providerId: string; persist: boolean; preferDevContainer: boolean; origin: WorkspaceSelectionOrigin }) => selections.push({
 					folderUri: folderUri.toString(),
 					providerId: options.providerId,
@@ -1694,6 +1721,10 @@ suite('NewChatWidget', () => {
 
 		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false, WorkspaceSelectionOrigin.SessionSync);
 		enabled = false;
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false, WorkspaceSelectionOrigin.SessionSync);
+		selectedFolderUri = undefined;
+		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false, WorkspaceSelectionOrigin.SessionSync);
+		selectedFolderUri = URI.file('/other-project');
 		syncWorkspacePickerDevContainerMode.call(harness, activeSession, false, WorkspaceSelectionOrigin.SessionSync);
 		syncWorkspacePickerDevContainerMode.call(harness, activeSession, true, WorkspaceSelectionOrigin.RestoredDraft);
 
@@ -2193,7 +2224,11 @@ suite('NewChatWidget', () => {
 			pendingUpgrade.value = toDisposable(() => events.push('cancelUpgrade'));
 			const creation = disposables.add(new MutableDisposable());
 			creation.value = toDisposable(() => events.push('cancelCreation'));
+			const restore = disposables.add(new MutableDisposable());
+			restore.value = toDisposable(() => events.push('cancelRestore'));
 			await onWorkspaceSelected.call({
+				_workspaceSelectionCleared: false,
+				_noWorkspaceRestore: restore,
 				_pendingPreferredUpgrade: pendingUpgrade,
 				_newSessionCreation: creation,
 				_preferredDevContainerFolderUri: undefined,
@@ -2206,8 +2241,8 @@ suite('NewChatWidget', () => {
 			results.push(events);
 		}
 		assert.deepStrictEqual(results, [
-			['cancelUpgrade', 'resetComparison', 'cancelCreation', 'unsetSession', 'restoreChat'],
-			['cancelUpgrade', 'resetComparison', 'cancelCreation', 'unsetSession'],
+			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession', 'restoreChat'],
+			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession'],
 		]);
 	});
 
