@@ -343,7 +343,7 @@ export class MissionControlAuthentication extends Disposable {
 		}
 		const generation = this._generation;
 		const resource = new URL(params.resource);
-		const identity = resource.origin === new URL(this._apiOrigin).origin;
+		const identity = !params.target && resource.origin === new URL(this._apiOrigin).origin;
 		if (!identity && !this.authenticated) {
 			const validation = this._identityValidation;
 			if (!validation) {

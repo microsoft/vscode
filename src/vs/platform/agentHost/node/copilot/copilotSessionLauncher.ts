@@ -1047,6 +1047,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ResumeSessionConfig, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
 		try {
+			// Avoid unpublished lazy-discovery events blocking native OTel: github/copilot-agent-runtime#27963.
+			await raw.rpc.agent.list();
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {

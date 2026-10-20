@@ -104,7 +104,7 @@ import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscove
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import type { IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
-import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AuthenticateTargetKind, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { GITHUB_MCP_SERVER_NAME } from '../../node/shared/githubMcpServer.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
@@ -1094,6 +1094,7 @@ class MockCopilotSession {
 	readonly connectorReconciliations: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	readonly rpc = {
 		agent: {
+			list: async () => ({ agents: [] }),
 			select: async ({ name }: { name: string }) => {
 				this.agentSelectionCalls.push(name);
 				return {};
@@ -2705,7 +2706,7 @@ suite('CopilotAgent', () => {
 			const sdkSessions = new Map<string, MockCopilotSession>();
 			client.createSession = async config => {
 				const sdk = new MockCopilotSession(config.sessionId);
-				Object.assign(sdk.rpc, { agent: { select: async () => ({}), deselect: async () => ({}) } });
+				Object.assign(sdk.rpc, { agent: { list: async () => ({ agents: [] }), select: async () => ({}), deselect: async () => ({}) } });
 				sdkSessions.set(sdk.sessionId, sdk);
 				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools ?? []).map(tool => tool.name), agent: config.agent, customAgents: (config.customAgents ?? []).map(agent => agent.name).sort() });
 				return sdk as unknown as CopilotSession;
@@ -3164,6 +3165,57 @@ suite('CopilotAgent', () => {
 				await creation;
 				assert.deepStrictEqual({ handled, responses: client.authenticationResponses }, {
 					handled: true, responses: [{ kind: 'token', accessToken: 'mcp-token' }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('targeted tokens reach only their owning session during initialization and after registration', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const sessions = ['target-a', 'target-b'].map(id => URI.parse(`ahp-session:/${id}`));
+			const ids = new Map<string, string>();
+			const published = new DeferredPromise<void>();
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action' && signal.action.type === ActionType.SessionCustomizationUpdated
+					&& signal.action.customization.type === CustomizationType.McpServer && signal.action.customization.name === 'example') {
+					ids.set(signal.resource.toString(), signal.action.customization.id);
+					if (ids.size === sessions.length) { published.complete(); }
+				}
+			}));
+			const resolver = spy(CopilotAgentSession.prototype, 'resolveMcpAuthentication');
+			disposables.add(toDisposable(() => resolver.restore()));
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const creations = sessions.map(session => {
+					const chat = defaultChatUri(session);
+					return agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+						workingDirectories: [URI.file('/workspace')], deferBacking: false,
+					});
+				});
+				await published.p;
+				const authenticate = (index: number, token: string) => agent.handleAuthenticationToken({
+					...authenticationParams(), token,
+					target: { kind: AuthenticateTargetKind.McpServer, session: sessions[index].toString(), customizationId: ids.get(sessions[index].toString())! },
+				});
+				const first = await authenticate(0, 'token-a');
+				await creations[0];
+				const afterFirst = [...client.authenticationResponses];
+				const second = await authenticate(1, 'token-b');
+				await Promise.all(creations);
+				const afterRegistration = await authenticate(0, 'token-a');
+				assert.deepStrictEqual({
+					first, second, afterRegistration, afterFirst, responses: client.authenticationResponses,
+					deliveries: resolver.getCalls().map(call => (call.thisValue as CopilotAgentSession).ownerSessionUri.toString()),
+				}, {
+					first: true, second: true, afterRegistration: false,
+					afterFirst: [{ kind: 'token', accessToken: 'token-a' }],
+					responses: [{ kind: 'token', accessToken: 'token-a' }, { kind: 'token', accessToken: 'token-b' }],
+					deliveries: [sessions[0].toString(), sessions[1].toString(), sessions[0].toString()],
 				});
 			} finally {
 				await disposeAgent(agent);

@@ -1999,7 +1999,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _authenticationKey(params: AuthenticateParams): string {
-		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+		const key = `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+		// Targeted MCP credentials are independent of each other and of the provider-level credential.
+		return params.target ? `${key}\0${JSON.stringify([params.target.kind, params.target.session, params.target.customizationId])}` : key;
 	}
 
 	/**

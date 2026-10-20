@@ -298,7 +298,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			store.add(connection.registerMcpAuthenticationHandler(request =>
 				this._instantiationService.invokeFunction(autoAuthenticateMcpServer,
 					{ authenticate: this._authenticateCallback(address, connection) },
-					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
 		}
 		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
