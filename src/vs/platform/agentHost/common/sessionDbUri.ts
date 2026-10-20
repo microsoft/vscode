@@ -6,7 +6,15 @@
 import { decodeHex } from '../../../base/common/buffer.js';
 import { URI } from '../../../base/common/uri.js';
 
-const SESSION_DB_SCHEME = 'session-db';
+export const SESSION_DB_SCHEME = 'session-db';
+
+/**
+ * Which content of a file-edit row a `session-db:` URI addresses: the file
+ * before or after the edit, or the file's Working Set baseline up to and
+ * including the edit, which changes made outside of the recorded edits were
+ * moved into (see `workingSetFileContents.ts`).
+ */
+export type SessionDbUriPart = 'before' | 'after' | 'workingSetBaseline';
 
 /**
  * Builds a `session-db:` URI referencing a file-edit content blob in the
@@ -19,7 +27,7 @@ const SESSION_DB_SCHEME = 'session-db';
  * {@link canonicalizeSessionDbUri}, which takes the path from the file URI
  * the host already resolved.
  */
-export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePath: string, part: 'before' | 'after'): string {
+export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePath: string, part: SessionDbUriPart): string {
 	return sessionDbUri(URI.file(filePath).path, { sessionUri, toolCallId, filePath, part }).toString();
 }
 
@@ -32,7 +40,7 @@ export interface ISessionDbUriFields {
 	sessionUri: string;
 	toolCallId: string;
 	filePath: string;
-	part: 'before' | 'after';
+	part: SessionDbUriPart;
 }
 
 /**
@@ -91,7 +99,7 @@ function parseSessionDbUriQuery(query: string): ISessionDbUriFields | undefined 
 		return undefined;
 	}
 	const { sessionUri, toolCallId, filePath, part } = fields;
-	if (!isNonEmptyString(sessionUri) || !isNonEmptyString(toolCallId) || !isNonEmptyString(filePath) || (part !== 'before' && part !== 'after')) {
+	if (!isNonEmptyString(sessionUri) || !isNonEmptyString(toolCallId) || !isNonEmptyString(filePath) || (part !== 'before' && part !== 'after' && part !== 'workingSetBaseline')) {
 		return undefined;
 	}
 	return { sessionUri, toolCallId, filePath, part };

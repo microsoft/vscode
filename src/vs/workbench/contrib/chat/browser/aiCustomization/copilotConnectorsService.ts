@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../../../base/common/arrays.js';
-import { raceCancellationError, Throttler, timeout } from '../../../../../base/common/async.js';
+import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -81,7 +81,6 @@ type CopilotConnectorsCatalogSnapshotClassification = {
 type CopilotConnectorConnectionActionEvent = {
 	action: 'connect' | 'disconnect';
 	outcome: 'success' | 'error' | 'cancelled';
-	connectorName: string;
 	connectionStatusBefore: CopilotConnectorConnectionStatus | 'not_loaded';
 	connectionStatusAfter: CopilotConnectorConnectionStatus | 'not_loaded';
 	durationMs: number;
@@ -94,7 +93,6 @@ type CopilotConnectorConnectionActionClassification = {
 	comment: 'Tracks explicit Copilot connector connection actions and outcomes for rollout and comparison with MCP server installation and usage.';
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user attempted to connect or disconnect a connector.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the connection action succeeded, failed, or was cancelled.' };
-	connectorName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Public catalog identifier of the connector acted on.' };
 	connectionStatusBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Last known connector connection status before the action.' };
 	connectionStatusAfter: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Last known connector connection status after the action.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the connection action in milliseconds, including authorization and polling.' };
@@ -173,11 +171,19 @@ export interface ICopilotConnectorsService {
 	readonly connectionStateKnown: boolean;
 	readonly connectedMcpServers: readonly IConnectedCopilotConnectorMcpServer[];
 	readonly authorizationRequired: boolean;
-	readonly catalogMayRequireConsent: boolean;
 	/** Signs in for catalog browsing without requesting connector permission. */
 	signIn(token: CancellationToken): Promise<void>;
 	/** Signs in if needed, then requests connector consent after an explicit user action. */
-	authorize(token: CancellationToken): Promise<void>;
+	/**
+	 * Ensures the active account has a session that authorizes Copilot connectors while keeping its default
+	 * scopes, requesting consent for that account when needed, and resolves to that session.
+	 */
+	authorize(token: CancellationToken): Promise<AuthenticationSession>;
+	/**
+	 * Reconciles live Agent Host sessions with the current Connector authorization. A named Connector also
+	 * restarts its servers, so they use the session credential rebound by {@link authorize}.
+	 */
+	refreshAgentHostSessions(forceConnectorName?: string): Promise<void>;
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	/** Reads the catalog and its source/account validity token atomically. */
 	getConnectorsSnapshot(token: CancellationToken): Promise<ICopilotConnectorsSnapshot>;
@@ -199,19 +205,17 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private readonly catalogContext = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly authorizationCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly enabledListeners = this._register(new MutableDisposable<DisposableStore>());
-	private authorizationPromise: Promise<void> | undefined;
+	private authorizationPromise: Promise<AuthenticationSession> | undefined;
 	private enabled = false;
 	private accountIdentity: string | undefined;
 	private authenticationAccountId: string | undefined;
 	private readonly connectorAuthorizationSessionIds = new Set<string>();
 	private _authorizationRequired = false;
-	private _catalogMayRequireConsent = false;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _connectionStateKnown = false;
 	private _lastRefreshTime = 0;
 	private refreshGeneration = 0;
 	private lastReportedCatalogSnapshot: string | undefined;
-	private readonly agentHostRefresh = this._register(new Throttler());
 
 	constructor(
 		@ICopilotConnectorsRequestService private readonly requestService: ICopilotConnectorsRequestService,
@@ -252,11 +256,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	get authorizationRequired(): boolean {
-		return this.isEnabled() && (this._authorizationRequired || this._catalogMayRequireConsent);
-	}
-
-	get catalogMayRequireConsent(): boolean {
-		return this.isEnabled() && this._catalogMayRequireConsent;
+		return this.isEnabled() && this._authorizationRequired;
 	}
 
 	async signIn(token: CancellationToken): Promise<void> {
@@ -269,7 +269,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 	}
 
-	async authorize(token: CancellationToken): Promise<void> {
+	async authorize(token: CancellationToken): Promise<AuthenticationSession> {
 		if (!this.isEnabled() || token.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -280,10 +280,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				this.authorizationCancellation.clear();
 			});
 		}
-		await raceCancellationError(this.authorizationPromise, token);
+		return raceCancellationError(this.authorizationPromise, token);
 	}
 
-	private async doAuthorize(cancellation: CancellationTokenSource): Promise<void> {
+	private async doAuthorize(cancellation: CancellationTokenSource): Promise<AuthenticationSession> {
 		let authentication = await this.getAuthentication(cancellation.token, true);
 		if (!authentication) {
 			const account = await raceCancellationError(this.defaultAccountService.signIn(), cancellation.token);
@@ -298,9 +298,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!authentication) {
 			throw connectorSignInRequired();
 		}
-		if (authentication.sessions.some(session => hasConnectorScope(session, false))) {
+		// Connector-owned Agent Host servers use the Copilot session credential, so only a session that also keeps
+		// the default session's scopes authorizes them; a narrow Connector-only session is not enough.
+		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && authentication.session.scopes.every(scope => session.scopes.includes(scope)));
+		if (authorized) {
 			this._authorizationRequired = false;
-			return;
+			return authorized;
 		}
 		const store = new DisposableStore();
 		store.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
@@ -326,6 +329,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				throw new CopilotConnectorsError(localize('copilotConnectors.permissionNotGranted', "GitHub did not grant permission to manage Copilot connectors. Try authorizing connectors again."));
 			}
 			this.resetCatalogContext();
+			return session;
 		} finally {
 			store.dispose();
 		}
@@ -412,7 +416,11 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			const operation = await this.createOperation(token);
 			try {
 				const connectors = await this.refresh(operation.token);
+				if (operation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+					await this.refreshAgentHostConnectorSessions(name);
 					return;
 				}
 				const { document } = await this.request({ type: 'connect', name }, operation.token, true);
@@ -487,7 +495,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this.telemetryService.publicLog2<CopilotConnectorConnectionActionEvent, CopilotConnectorConnectionActionClassification>('copilotConnectors.connectionAction', {
 			action,
 			outcome,
-			connectorName: name,
 			connectionStatusBefore,
 			connectionStatusAfter: connector?.connectionStatus ?? 'not_loaded',
 			durationMs,
@@ -546,7 +553,6 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			cancellation.cancel();
 		}
 		this._authorizationRequired = false;
-		this._catalogMayRequireConsent = false;
 		this._lastRefreshTime = 0;
 		this.lastReportedCatalogSnapshot = undefined;
 		this.setConnectors([], false);
@@ -655,12 +661,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			this._catalogMayRequireConsent = false;
 			return { document, scoped: session !== undefined };
 		} catch (error) {
 			if (!token.isCancellationRequested && request.type === 'query' && !session && error instanceof CopilotConnectorsError && error.statusCode === 403) {
-				this._catalogMayRequireConsent = true;
-				throw new CopilotConnectorsError(localize('copilotConnectors.catalogScopeRollout', "The connector catalog is unavailable (HTTP 403). Browsing without connector authorization may not yet be available for this account."), 403);
+				throw new CopilotConnectorsError(localize('copilotConnectors.catalogScopeRollout', "The connector catalog is unavailable for this account (HTTP 403)."), 403);
 			}
 			throw error;
 		}
@@ -707,8 +711,8 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	private setConnectors(connectors: readonly ICopilotConnector[], connectionStateKnown = this._connectionStateKnown): boolean {
-		const previousConnected = this._connectionStateKnown ? connectedConnectorNames(this._connectors) : [];
-		const nextConnected = connectionStateKnown ? connectedConnectorNames(connectors) : [];
+		const previousConnected = this._connectionStateKnown ? connectedConnectorConfigurations(this._connectors) : [];
+		const nextConnected = connectionStateKnown ? connectedConnectorConfigurations(connectors) : [];
 		const connectedMembershipChanged = connectionStateKnown && (!this._connectionStateKnown || !equals(previousConnected, nextConnected));
 		if (equals(this._connectors, connectors) && this._connectionStateKnown === connectionStateKnown) {
 			return false;
@@ -719,20 +723,19 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		return connectedMembershipChanged;
 	}
 
-	private refreshAgentHostConnectorSessions(): Promise<void> {
-		if (!this.isEnabled() || !this.agentHostService.refreshCopilotConnectorSessions) {
-			return Promise.resolve();
+	refreshAgentHostSessions(forceConnectorName?: string): Promise<void> {
+		return this.refreshAgentHostConnectorSessions(forceConnectorName);
+	}
+
+	private async refreshAgentHostConnectorSessions(forceConnectorName?: string): Promise<void> {
+		if (!this.isEnabled() || this._store.isDisposed || !this.agentHostService.refreshCopilotConnectorSessions) {
+			return;
 		}
-		return this.agentHostRefresh.queue(async () => {
-			if (!this.isEnabled()) {
-				return;
-			}
-			try {
-				await this.agentHostService.refreshCopilotConnectorSessions?.();
-			} catch (error) {
-				this.logService.warn('[CopilotConnectorsService] Unable to refresh live Agent Host sessions', error);
-			}
-		});
+		try {
+			await this.agentHostService.refreshCopilotConnectorSessions(forceConnectorName);
+		} catch (error) {
+			this.logService.warn('[CopilotConnectorsService] Unable to refresh live Agent Host sessions', error);
+		}
 	}
 
 	override dispose(): void {
@@ -825,10 +828,10 @@ function getAccountIdentity(account: IDefaultAccount | null): string | undefined
 	return account ? JSON.stringify([account.authenticationProvider.id, account.authenticationProvider.enterprise, account.accountName, account.sessionId]) : undefined;
 }
 
-function connectedConnectorNames(connectors: readonly ICopilotConnector[]): string[] {
+function connectedConnectorConfigurations(connectors: readonly ICopilotConnector[]): string[] {
 	return connectors
 		.filter(connector => connector.connectionStatus === 'connected')
-		.map(connector => connector.name)
+		.map(connector => JSON.stringify([connector.name, connector.displayName, connector.mcpServers.map(server => [server.name, server.type, server.url?.toString()]).sort()]))
 		.sort();
 }
 
@@ -903,6 +906,7 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		tags: connector.tags,
 		capabilities: connector.capabilities,
 		representativeQueries: connector.representativeQueries,
+		connectorIds: [...new Set([connector.name, ...connector.mcpServers.map(server => server.name)])],
 		url: connector.documentation,
 		externalUrl: connector.documentation?.toString(true),
 		icon: connector.icon,

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -42,10 +43,12 @@ import { IWorkbenchLocalMcpServer, IWorkbenchMcpManagementService, IWorkbencMcpS
 import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../../chat/common/customizationHarnessService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { SessionType } from '../../../chat/common/chatSessionsService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
-import { AddConfigurationAction, OpenWorkspaceFolderMcpResourceCommand } from '../../browser/mcpCommands.js';
+import { AddConfigurationAction, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand } from '../../browser/mcpCommands.js';
 import { McpConfigurationDestination } from '../../browser/mcpConfigurationDestination.js';
 import { getContextMenuActions, InstallAction, InstallInRemoteAction, InstallInWorkspaceAction, ShowServerJsonConfigurationAction } from '../../browser/mcpServerActions.js';
 import { mcpWorkspaceRootConfig } from '../../common/mcpConfiguration.js';
@@ -114,6 +117,7 @@ suite('MCP configuration entry points', () => {
 		const existenceChecks: string[] = [];
 		const installs: { server: IInstallableMcpServer; options: IWorkbencMcpServerInstallOptions | undefined }[] = [];
 		const agentHostAdds: { session: URI; name: string; config: IMcpServerConfiguration }[] = [];
+		const agentHostGlobalAdds: { name: string; config: IMcpServerConfiguration }[] = [];
 		const servers = observableValue<readonly IMcpServer[]>('servers', []);
 		const collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 
@@ -150,6 +154,13 @@ suite('MCP configuration entry points', () => {
 		instantiation.stub(INotificationService, { error: error => errors.push(error) });
 		instantiation.stub(ILabelService, {});
 		instantiation.stub(IAgentHostCustomizationService, { addMcpServer: (session, name, config) => agentHostAdds.push({ session, name, config }) });
+		instantiation.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => upcastDeepPartial<IHarnessDescriptor>({
+				mcpConfigurationProvider: {
+					addGlobal: async (name: string, config: IMcpServerConfiguration) => { agentHostGlobalAdds.push({ name, config }); },
+				},
+			}),
+		});
 		const lastFocusedWidget = withAgentHostSession ? chatWidget(agentHostSession) : undefined;
 		instantiation.stub(IChatWidgetService, { lastFocusedWidget, getAllWidgets: () => lastFocusedWidget ? [lastFocusedWidget] : [] });
 		instantiation.stub(ITelemetryService, NullTelemetryService);
@@ -194,7 +205,7 @@ suite('MCP configuration entry points', () => {
 				return upcastPartial<IWorkbenchMcpServer>({ id: local.id, name: local.name, local });
 			},
 		});
-		return { instantiation, quickInput, folder, secondFolder, workspace, opened, selections, started, errors, existenceChecks, installs, agentHostAdds, servers, runtimeServer, destination: instantiation.createInstance(McpConfigurationDestination) };
+		return { instantiation, quickInput, folder, secondFolder, workspace, opened, selections, started, errors, existenceChecks, installs, agentHostAdds, agentHostGlobalAdds, servers, runtimeServer, destination: instantiation.createInstance(McpConfigurationDestination) };
 	}
 
 	for (const enabled of [false, true]) {
@@ -688,6 +699,7 @@ suite('MCP configuration entry points', () => {
 					await new AddConfigurationAction().run(fixture.instantiation);
 					assert.deepStrictEqual({
 						writes: fixture.writes,
+						agentHostGlobalAdds: fixture.agentHostGlobalAdds,
 						opened: fixture.opened,
 						installs: fixture.installs,
 						started: fixture.started,
@@ -697,7 +709,11 @@ suite('MCP configuration entry points', () => {
 						questions: fixture.quickInput.questionOrder,
 						notified: fixture.notifications.length === 1 && String(fixture.notifications[0]).includes('environment variables on the agent-host machine'),
 					}, {
-						writes: [{ servers: [{ ...(http ? { name: installable.name, config: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } } : installable), inputs: undefined }], resource, format: McpResourceFormat.CopilotGlobal }],
+						writes: [],
+						agentHostGlobalAdds: [{
+							name: installable.name,
+							config: http ? { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } : installable.config,
+						}],
 						opened: [resource],
 						installs: [], started: [],
 						pickers: [remote ? ['Global', 'Remote', 'Workspace'] : ['Global', 'Workspace'], ['Copilot Global', 'User Configuration (deprecated)']],
@@ -744,19 +760,44 @@ suite('MCP configuration entry points', () => {
 				{ targets: [ConfigurationTarget.USER_LOCAL], writes: [], pickers: 2 });
 		});
 
-		for (const failure of ['policy', 'write']) {
+		test('older Agent Host falls back to writing Copilot Global configuration', async () => {
+			const fixture = setupGlobal();
+			fixture.instantiation.stub(ICustomizationHarnessService, { getActiveDescriptor: () => upcastDeepPartial<IHarnessDescriptor>({}) });
+			fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
+			fixture.quickInput.inputs.push('node server.js', installable.name);
+
+			await new AddConfigurationAction().run(fixture.instantiation);
+
+			assert.deepStrictEqual({
+				writes: fixture.writes,
+				agentHostGlobalAdds: fixture.agentHostGlobalAdds,
+			}, {
+				writes: [{
+					servers: [{ ...installable, inputs: undefined }],
+					resource: URI.file('/home/me/.copilot/mcp-config.json'),
+					format: McpResourceFormat.CopilotGlobal,
+				}],
+				agentHostGlobalAdds: [],
+			});
+		});
+
+		for (const failure of ['policy', 'provider']) {
 			test(`${failure} failure is surfaced without opening a file or reporting success`, async () => {
 				const fixture = setupGlobal();
 				if (failure === 'policy') {
 					fixture.instantiation.stub(IAllowedMcpServersService, { isAllowed: () => new MarkdownString('Blocked by policy') });
 				} else {
-					fixture.instantiation.stub(IMcpResourceScannerService, { addMcpServers: async () => { throw new Error('Concurrent edit'); } });
+					fixture.instantiation.stub(ICustomizationHarnessService, {
+						getActiveDescriptor: () => upcastDeepPartial<IHarnessDescriptor>({
+							mcpConfigurationProvider: { addGlobal: async () => { throw new Error('Provider failed'); } },
+						}),
+					});
 				}
 				fixture.quickInput.selections.push('Command (stdio)', 'Global', 'Copilot Global');
 				fixture.quickInput.inputs.push('node server.js', installable.name);
 				await new AddConfigurationAction().run(fixture.instantiation);
 				assert.deepStrictEqual({ errors: fixture.errors.map(String), writes: fixture.writes, opened: fixture.opened, notifications: fixture.notifications },
-					{ errors: [failure === 'policy' ? 'Error: Blocked by policy' : 'Error: Concurrent edit'], writes: [], opened: [], notifications: [] });
+					{ errors: [failure === 'policy' ? 'Error: Blocked by policy' : 'Error: Provider failed'], writes: [], opened: [], notifications: [] });
 			});
 		}
 
@@ -812,7 +853,7 @@ suite('MCP configuration entry points', () => {
 				assert.deepStrictEqual({
 					format: requests[0].targetFormat,
 					schema: requests[0].targetConfig,
-					config: fixture.writes[0]?.servers[0].config,
+					config: fixture.agentHostGlobalAdds[0]?.config,
 					questions: fixture.quickInput.questionOrder,
 					errors: fixture.errors,
 				}, {
@@ -964,6 +1005,81 @@ suite('MCP configuration entry points', () => {
 			assert.deepStrictEqual({ savedInputs, installs: fixture.installs, writes: fixture.writes, errors: fixture.errors },
 				{ savedInputs: [], installs: [], writes: [], errors: [] });
 		});
+	});
+
+	suite('Open User Configuration', () => {
+		const copilotGlobal = URI.file('/home/me/.copilot/mcp-config.json');
+		const vscodeUser = URI.file('/user/mcp.json');
+
+		function setupOpenUser(resource: URI | undefined, existing: URI[]) {
+			const fixture = setup(true);
+			const created: { resource: string; content: string }[] = [];
+			const commands: unknown[][] = [];
+			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => resource });
+			fixture.instantiation.stub(ILabelService, { getUriLabel: uri => uri.path });
+			fixture.instantiation.stub(IFileService, {
+				exists: async resource => existing.some(uri => extUri.isEqual(uri, resource)),
+				createFile: async (resource, content) => {
+					created.push({ resource: resource.path, content: content instanceof VSBuffer ? content.toString() : '' });
+					return upcastPartial<IFileStatWithMetadata>({ resource });
+				},
+			});
+			fixture.instantiation.stub(ICommandService, 'executeCommand', async (...args: unknown[]) => { commands.push(args); });
+			return { ...fixture, created, commands };
+		}
+
+		for (const [selection, existing] of [['Copilot Global', []], ['Copilot Global', [copilotGlobal]], ['Copilot Global', [vscodeUser]], ['VS Code User Configuration', [copilotGlobal, vscodeUser]]] as const) {
+			test(`opens ${selection} and offers the legacy file only when it exists (existing: ${existing.map(uri => uri.path).join(', ') || 'none'})`, async () => {
+				const fixture = setupOpenUser(copilotGlobal, [...existing]);
+				fixture.quickInput.selections.push(selection);
+				await new OpenUserMcpResourceCommand().run(fixture.instantiation);
+				const selected = selection === 'Copilot Global' ? copilotGlobal : vscodeUser;
+				const hasCopilotGlobal = existing.some(uri => uri === copilotGlobal);
+				const hasVscodeUser = existing.some(uri => uri === vscodeUser);
+				assert.deepStrictEqual({
+					pickers: fixture.quickInput.pickLabels,
+					descriptions: fixture.quickInput.pickOptions.map(options => options.descriptions),
+					details: fixture.quickInput.pickOptions.map(options => options.details),
+					created: fixture.created,
+					opened: fixture.opened.map(uri => uri.path),
+					commands: fixture.commands,
+				}, {
+					pickers: [['Copilot Global', ...(hasVscodeUser ? ['VS Code User Configuration'] : []), 'Open MCP Customizations']],
+					descriptions: [[hasCopilotGlobal ? 'Recommended' : 'Recommended, not existing', ...(hasVscodeUser ? ['Legacy'] : []), undefined]],
+					details: [['mcp-config.json', ...(hasVscodeUser ? ['mcp.json'] : []), undefined]],
+					created: hasCopilotGlobal || selected !== copilotGlobal ? [] : [{
+						resource: copilotGlobal.path,
+						content: JSON.stringify({ mcpServers: {} }, null, '\t'),
+					}],
+					opened: [selected.path],
+					commands: [],
+				});
+			});
+		}
+
+		test('can open MCP customizations instead of a file', async () => {
+			const fixture = setupOpenUser(copilotGlobal, []);
+			fixture.quickInput.selections.push('Open MCP Customizations');
+			await new OpenUserMcpResourceCommand().run(fixture.instantiation);
+			assert.deepStrictEqual({ created: fixture.created, opened: fixture.opened, commands: fixture.commands },
+				{ created: [], opened: [], commands: [[AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.McpServers]] });
+		});
+
+		test('cancellation neither creates nor opens a file', async () => {
+			const fixture = setupOpenUser(copilotGlobal, []);
+			fixture.quickInput.selections.push(undefined);
+			await new OpenUserMcpResourceCommand().run(fixture.instantiation);
+			assert.deepStrictEqual({ created: fixture.created, opened: fixture.opened, commands: fixture.commands }, { created: [], opened: [], commands: [] });
+		});
+
+		for (const [name, resource, options] of [['unavailable Copilot Global', undefined, undefined], ['explicit legacy request', copilotGlobal, { legacy: true }]] as const) {
+			test(`${name} opens VS Code user configuration without prompting`, async () => {
+				const fixture = setupOpenUser(resource, []);
+				await new OpenUserMcpResourceCommand().run(fixture.instantiation, options);
+				assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, created: fixture.created.map(file => file.resource), opened: fixture.opened.map(uri => uri.path) },
+					{ pickers: [], created: [vscodeUser.path], opened: [vscodeUser.path] });
+			});
+		}
 	});
 
 	test('editor menu retains AI gates and only offers root additions when enabled', () => {

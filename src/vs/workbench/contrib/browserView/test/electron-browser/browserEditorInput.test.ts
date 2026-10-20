@@ -14,7 +14,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
@@ -34,11 +33,21 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	input: BrowserEditorInput | undefined;
 	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined } | undefined;
 
-	willUseRemoteProxy(): boolean {
-		return false;
+	resolveNetwork(): undefined {
+		return undefined;
 	}
 
-	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
+	async acquireNetwork(): Promise<IDisposable> {
+		return Disposable.None;
+	}
+
+	registerNetworkResolver(): IDisposable {
+		return Disposable.None;
+	}
+
+	registerNetworkProxyProvider(): IDisposable {
+		return Disposable.None;
+	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this.known;
@@ -124,33 +133,35 @@ suite('BrowserEditorInput', () => {
 			untypedResource: input.resource.toString(),
 			override: BrowserEditorInput.EDITOR_ID
 		});
+	});
 
-		test('reports sharing availability from the model state', () => {
-			const input = createInput({ id: 'sharing-state-browser' });
-			let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
-			input.model = new class extends mock<IBrowserViewModel>() {
-				override get sharingState(): BrowserViewSharingState { return sharingState; }
-				override readonly onWillDispose = Event.None;
-				override readonly onDidClose = Event.None;
-				override readonly onDidChangeTitle = Event.None;
-				override readonly onDidChangeFavicon = Event.None;
-				override readonly onDidChangeLoadingState = Event.None;
-			}();
+	test('reports sharing availability from the model state', () => {
+		const input = createInput({ id: 'sharing-state-browser' });
+		let sharingState = BrowserViewSharingState.BlockedByNetworkPolicy;
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override get sharingState(): BrowserViewSharingState { return sharingState; }
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override dispose(): void { }
+		}();
 
-			const blocked = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Available;
-			const notShared = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Shared;
-			const shared = input.isSharingAvailable;
-			sharingState = BrowserViewSharingState.Unavailable;
-			const unavailable = input.isSharingAvailable;
+		const blocked = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Available;
+		const notShared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Shared;
+		const shared = input.isSharingAvailable;
+		sharingState = BrowserViewSharingState.Unavailable;
+		const unavailable = input.isSharingAvailable;
 
-			assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
-				blocked: false,
-				notShared: true,
-				shared: true,
-				unavailable: false,
-			});
+		assert.deepStrictEqual({ blocked, notShared, shared, unavailable }, {
+			blocked: false,
+			notShared: true,
+			shared: true,
+			unavailable: false,
 		});
 	});
 
@@ -326,6 +337,20 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
+	test('retries a failed model resolution', async () => {
+		const model = new class extends mock<IBrowserViewModel>() { override dispose() { } };
+		let attempts = 0;
+		const input = disposables.add(instantiationService.createInstance(BrowserEditorInput, { id: 'retry' }, async () => {
+			if (++attempts === 1) {
+				throw new Error('The browser network proxy did not start.');
+			}
+			return model;
+		}));
+
+		await assert.rejects(input.resolve());
+		assert.strictEqual(await input.resolve(), model);
+	});
+
 	test('uses the associated file resource to find available editor types', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
@@ -364,7 +389,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						network: undefined
 					}
 				}
 			}
@@ -391,7 +417,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						network: undefined
 					}
 				}
 			}

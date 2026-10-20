@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -12,13 +13,18 @@ import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
+import { IChatWidget } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatInputPart } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, SessionAgentPickerInAttachContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
-import { ISession } from '../../../../../services/sessions/common/session.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
-import { AgentPickerSelectionState } from '../../browser/agentHostAgentPicker.js';
+import { IsPhoneLayoutContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
+import { AgentPickerSelectionState, createAgentContextPick } from '../../browser/agentHostAgentPicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
 import '../../../../chat/browser/modelPicker.js';
@@ -38,33 +44,52 @@ suite('agentHostAgentPicker', () => {
 			.map(item => item.command.id);
 	}
 
-	test('keeps the new-session agent in the primary toolbar and supports the attachment menu', () => {
+	test('keeps the new-session agent in the primary toolbar', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
-		const phone = IsPhoneLayoutContext.bindTo(context);
-		phone.set(false);
-		const agentPickerInAttachContext = SessionAgentPickerInAttachContext.bindTo(context);
-		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
-		inDialog.set(false);
-		const newSessionPrimary = controls(context, Menus.NewSessionConfig);
-		const newSessionSecondary = controls(context, Menus.NewSessionControl);
-		const attachContext = () => MenuRegistry.getMenuItems(Menus.NewSessionAttachContext)
-			.filter(isIMenuItem)
-			.filter(item => context.contextMatchesRules(item.when))
-			.map(item => item.command.id);
-		const attachContextBefore = attachContext();
-		agentPickerInAttachContext.set(true);
-		const attachContextAfter = attachContext();
-		phone.set(true);
-		const attachContextOnPhone = attachContext();
-		phone.set(false);
-		inDialog.set(true);
-		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary, attachContextBefore, attachContextAfter, attachContextOnPhone }, {
+		IsPhoneLayoutContext.bindTo(context).set(false);
+		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
+		assert.deepStrictEqual({ newSessionPrimary: controls(context, Menus.NewSessionChatInputToolbar), newSessionSecondary: controls(context, Menus.NewSessionControl) }, {
 			newSessionPrimary: ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
 			newSessionSecondary: ['sessions.agentHost.newSessionModePicker'],
-			attachContextBefore: [],
-			attachContextAfter: ['sessions.agentHost.agentPicker'],
-			attachContextOnPhone: [],
+		});
+	});
+
+	test('offers the Agent picker in Add Context only in the treatment, logging the trigger in both arms', async () => {
+		const chat = URI.parse('agent-host-copilot:/chat');
+		const session = upcastPartial<IActiveSession>({ activeChat: constObservable(upcastPartial<IChat>({ resource: chat })) });
+		const opened: string[] = [];
+		const evaluate = async (treatment: boolean, options: { eligible?: boolean; widgetChat?: URI } = {}) => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const pick = createAgentContextPick({
+				getActiveSession: () => session,
+				isEligible: () => options.eligible ?? true,
+				openPicker: anchor => opened.push(anchor?.className ?? ''),
+			}, new TestConfigurationService({ [AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING]: treatment }), telemetryService);
+			const widget = upcastPartial<IChatWidget>({
+				viewModel: upcastPartial<IChatViewModel>({ sessionResource: options.widgetChat ?? chat }),
+				inputPart: upcastPartial<ChatInputPart>({ attachContextButtonElement: Object.assign(document.createElement('div'), { className: 'add-context' }) }),
+			});
+			const shown = await pick.isEnabled?.(widget);
+			if (shown) {
+				await pick.asAttachment(widget);
+			}
+			return { shown, triggers: telemetryService.triggers };
+		};
+
+		const trigger = `config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`;
+		assert.deepStrictEqual({
+			control: await evaluate(false),
+			treatment: await evaluate(true),
+			ineligible: await evaluate(true, { eligible: false }),
+			otherChat: await evaluate(true, { widgetChat: URI.parse('agent-host-copilot:/other') }),
+			opened,
+		}, {
+			control: { shown: false, triggers: [trigger] },
+			treatment: { shown: true, triggers: [trigger] },
+			ineligible: { shown: false, triggers: [] },
+			otherChat: { shown: false, triggers: [trigger] },
+			opened: ['add-context'],
 		});
 	});
 
@@ -82,7 +107,7 @@ suite('agentHostAgentPicker', () => {
 				ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
 				const experimental = unifiedPicker && experimentalLayout;
 				assert.deepStrictEqual({
-					config: controls(context, Menus.NewSessionConfig),
+					config: controls(context, Menus.NewSessionChatInputToolbar),
 					control: controls(context, Menus.NewSessionControl),
 				}, {
 					config: experimental ? ['sessions.modelPicker'] : ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],

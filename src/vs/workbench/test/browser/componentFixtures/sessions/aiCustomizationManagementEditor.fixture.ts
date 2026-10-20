@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -23,7 +24,8 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
@@ -33,6 +35,7 @@ import { IListService, ListService, WorkbenchList } from '../../../../../platfor
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -44,7 +47,9 @@ import { IExtensionManifestPropertiesService } from '../../../../services/extens
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
+import { IChatService } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -55,13 +60,16 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { EmbeddedConnectorDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedConnectorDetail.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpServerCompatibility, ICustomizationMcpServerMigrationProvider, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../../contrib/chat/common/model/chatUri.js';
-import { ICustomizationMigrationService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../../../contrib/chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CustomizationMigrationService } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationServiceImpl.js';
+import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { AgentHostMcpServerMigrationProvider } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerMigrationProvider.js';
 import { IMcpCopilotGlobalConfigurationService } from '../../../../contrib/mcp/common/mcpCopilotGlobalConfigurationService.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -70,6 +78,7 @@ import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/com
 import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IPluginGitService } from '../../../../contrib/chat/common/plugins/pluginGitService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -79,7 +88,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
 import { IMarketplaceReference, MarketplaceReferenceKind } from '../../../../contrib/chat/common/plugins/marketplaceReference.js';
 import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/pluginInstallService.js';
-import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { AICustomizationManagementEditor, CopilotConnectorDetailOpenResult } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -92,12 +101,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/config/config.js';
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IEditableMcpServerConfiguration, IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -112,7 +122,7 @@ import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/b
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -120,6 +130,8 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
+import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
 // Mock helpers
@@ -490,6 +502,9 @@ function createMockHarnessService(sessionResource: URI, descriptors: readonly IH
 		override findHarnessById(id: string) {
 			return descriptors.find(h => h.id === id);
 		}
+		override getDescriptorForSession(sessionResource: URI) {
+			return descriptors.find(h => h.id === getChatSessionType(sessionResource));
+		}
 		override getActiveDescriptor() {
 			return descriptors.find(h => h.id === activeHarness.get()) ?? descriptors[0];
 		}
@@ -672,6 +687,15 @@ const mcpUserServers = [
 	makeLocalMcpServer('mcp-filesystem', 'Filesystem', LocalMcpServerScope.User, 'Local file operations'),
 	makeLocalMcpServer('mcp-puppeteer', 'Puppeteer', LocalMcpServerScope.User, 'Browser automation'),
 ];
+const componentExplorerMigrationCandidate: IMcpServerCustomizationMigrationCandidate = {
+	type: CustomizationMigrationType.McpServers,
+	storage: PromptsStorage.local,
+	id: 'component-explorer',
+	name: 'component-explorer',
+	sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+	targetUri: URI.file('/workspace/.mcp.json'),
+	projectedConfiguration: mcpWorkspaceServers[0].config!,
+};
 const mcpRuntimeServers = [
 	{ definition: { id: 'github-copilot-mcp', label: 'GitHub Copilot' }, collection: { id: 'ext.github.copilot/mcp', label: 'ext.github.copilot/mcp' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Starting }), readDefinitions: () => constObservable({ server: undefined, collection: undefined }), showOutput() { } },
 	{ definition: { id: 'linear-mcp', label: 'Linear MCP' }, collection: { id: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}${URI.file('/workspace/.copilot/plugins/linear').toString()}`, label: 'Linear plugin' }, enablement: constObservable(ContributionEnablementState.EnabledProfile), connectionState: constObservable({ state: McpConnectionState.Kind.Running }), readDefinitions: () => constObservable({ server: { presentation: { origin: { uri: URI.file('/workspace/.copilot/plugins/linear/.mcp.json') } } }, collection: undefined }), showOutput() { } },
@@ -998,20 +1022,77 @@ function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMark
 		|| state?.kind === 'error';
 }
 
-function createMockCopilotConnectorsService(enabled: boolean, availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors): ICopilotConnectorsService {
-	const connectors = enabled ? availableConnectors : [];
+function createMockCopilotConnectorsService(
+	enabled: boolean,
+	availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors,
+	options?: {
+		readonly onDidChange?: Emitter<void>;
+		readonly onDidDisconnect?: Emitter<string>;
+		readonly onConnect?: () => Promise<void> | void;
+	},
+): ICopilotConnectorsService {
+	let connectors = enabled ? [...availableConnectors] : [];
 	return new class extends mock<ICopilotConnectorsService>() {
-		override readonly onDidChange = Event.None;
-		override readonly connectors = connectors;
-		override readonly connectedMcpServers = connectors
-			.filter(connector => connector.connectionStatus === 'connected')
-			.flatMap(connector => connector.mcpServers.map(server => ({ id: `${connector.name}:${server.name}`, connector, serverName: server.name })));
+		override readonly onDidChange = options?.onDidChange?.event ?? Event.None;
+		override readonly onDidChangeAccount = Event.None;
+		override readonly onDidDisconnect = options?.onDidDisconnect?.event ?? Event.None;
+		override readonly account = { providerId: 'github', accountName: 'octocat', enterprise: false };
+		override readonly connectionStateKnown = true;
+		override get connectors() { return connectors; }
+		override get connectedMcpServers() {
+			return connectors
+				.filter(connector => connector.connectionStatus === 'connected')
+				.flatMap(connector => connector.mcpServers.map(server => ({ id: `${connector.name}:${server.name}`, connector, serverName: server.name })));
+		}
 		override async getConnectors() { return this.connectors; }
 		override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
 		override async refresh() { return this.connectors; }
-		override async connect() { }
-		override async disconnect() { }
+		override async connect(name: string) {
+			await options?.onConnect?.();
+			connectors = connectors.map(connector => connector.name === name ? { ...connector, connectionStatus: 'connected' } : connector);
+			options?.onDidChange?.fire();
+		}
+		override async disconnect(name: string) {
+			connectors = connectors.map(connector => connector.name === name ? { ...connector, connectionStatus: 'not_connected' } : connector);
+			options?.onDidChange?.fire();
+			options?.onDidDisconnect?.fire(name);
+		}
 	}();
+}
+
+function renderPendingConnectorDetail(ctx: ComponentFixtureContext): void {
+	ctx.container.style.width = '900px';
+	ctx.container.style.height = '600px';
+	ctx.container.classList.add('ai-customization-management-editor');
+	ctx.container.dataset.connectorConnectCalls = '0';
+	const connectorChangedEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const connectorDisconnectedEmitter = ctx.disposableStore.add(new Emitter<string>());
+	let connectorConnectCalls = 0;
+	const connectorsService = createMockCopilotConnectorsService(true, [{
+		...fixtureCopilotConnectors[0],
+		connectionStatus: 'pending',
+	}], {
+		onDidChange: connectorChangedEmitter,
+		onDidDisconnect: connectorDisconnectedEmitter,
+		onConnect: async () => {
+			ctx.container.dataset.connectorConnectCalls = String(++connectorConnectCalls);
+			await timeout(2500);
+		},
+	});
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: reg => {
+			reg.defineInstance(ICopilotConnectorsService, connectorsService);
+		},
+	});
+	const host = DOM.append(ctx.container, DOM.$('.connector-detail-container'));
+	host.style.height = '100%';
+	const detail = ctx.disposableStore.add(instantiationService.createInstance(EmbeddedConnectorDetail, host, () => { }));
+	const connector = connectorsService.connectors[0];
+	if (!connector) {
+		throw new Error('The pending connector detail fixture requires a connector.');
+	}
+	detail.setInput(connector);
 }
 
 interface IRenderEditorOptions {
@@ -1026,13 +1107,16 @@ interface IRenderEditorOptions {
 	readonly agentFinderPublicFeedEnabled?: boolean;
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
+	readonly connectorConnectDelayMs?: number;
 	readonly marketplaceVisibilityEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
+	readonly useRealConnectorInstallService?: boolean;
 	readonly discoveryQuery?: string;
+	readonly directConnectorName?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
 	readonly customizationSearchQuery?: string;
@@ -1049,6 +1133,7 @@ interface IRenderEditorOptions {
 	readonly mcpWorkbenchServers?: readonly IWorkbenchMcpServer[];
 	readonly mcpRuntimeServers?: readonly IMcpServer[];
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
+	readonly mcpMigrationCandidates?: readonly IMcpServerCustomizationMigrationCandidate[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
 	readonly enableHovers?: boolean;
@@ -1059,7 +1144,12 @@ interface IRenderEditorOptions {
 	readonly pluginReadmeContent?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
+	readonly openFirstMigrationItem?: boolean;
+	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning' | 'pluginMarketplaces';
 	readonly migrationActivity?: boolean;
+	readonly pluginMarketplaceMigration?: boolean;
+	readonly pluginMarketplaceMigrationOnly?: boolean;
+	readonly pluginMarketplaceMigrationDeselected?: boolean;
 }
 
 // ============================================================================
@@ -1092,6 +1182,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		AICustomizationManagementSection.Prompts,
 	];
 	const mcpServerCompatibility = options.mcpServerCompatibility;
+	const marketplaceManagementProvider: ICustomizationMarketplaceManagementProvider | undefined = options.pluginMarketplaceMigration ? {
+		onDidChange: Event.None,
+		list: async () => [],
+		add: async (_sessionResource, source) => ({ name: 'vscode-team-kit', source, isDefault: false, managed: false, available: true }),
+		queryMarketplace: async () => ({ items: [], total: 0 }),
+		remove: async () => ({ removed: true }),
+		refresh: async () => [],
+	} : undefined;
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor(),
 		{
@@ -1101,6 +1199,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			hiddenSections: [AICustomizationManagementSection.Prompts],
 			hideGenerateButton: true,
 			itemProvider: createFixtureAgentHostItemProvider(options.agentHostFiles ?? allFiles, options.remoteClientSkillName),
+			marketplaceManagementProvider,
 			mcpServerCompatibilityProvider: mcpServerCompatibility ? {
 				acquire: () => ({
 					servers: constObservable(mcpServerCompatibility),
@@ -1119,7 +1218,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: options.selectedSection === AICustomizationManagementSection.Hooks ? PromptsType.hook
 					: options.selectedSection === AICustomizationManagementSection.Prompts ? PromptsType.prompt
 						: undefined;
-	const fixtureFiles = (options.files ?? allFiles)
+	const fixtureFiles = (options.files ?? (options.pluginMarketplaceMigrationOnly ? [] : allFiles))
 		.filter(file => !(file.type === selectedPromptType && options.emptyWorkspaceSection && file.storage === PromptsStorage.local))
 		.filter(file => !(file.type === selectedPromptType && options.emptyUserSection && file.storage === PromptsStorage.user))
 		.map(file => ({ ...file }));
@@ -1132,6 +1231,20 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		delayedReadFiles.add(pluginReadmeUri);
 	}
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const connectorChangedEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const connectorDisconnectedEmitter = ctx.disposableStore.add(new Emitter<string>());
+	let connectorConnectCalls = 0;
+	const copilotConnectorsService = createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors, {
+		onDidChange: connectorChangedEmitter,
+		onDidDisconnect: connectorDisconnectedEmitter,
+		onConnect: async () => {
+			ctx.container.dataset.connectorConnectCalls = String(++connectorConnectCalls);
+			if (options.connectorConnectDelayMs) {
+				await timeout(options.connectorConnectDelayMs);
+			}
+		},
+	});
+	ctx.container.dataset.connectorConnectCalls = '0';
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
 		override async readFile(resource: URI) {
@@ -1177,7 +1290,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: { kind: 'unavailable', message: 'This customization requires a runtime that is not installed.', setupUrl: URI.parse('https://example.com/setup') };
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), state);
 	}
-
 	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
 		customizationMarketplaceResources.flatMap(resource => {
 			const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
@@ -1197,12 +1309,37 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
+				[ChatConfiguration.PluginMarketplaces]: options.pluginMarketplaceMigration ? ['microsoft/vscode-team-kit'] : undefined,
 				...options.configuration,
 				[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: agentFinderPublicFeedEnabled,
 			});
 			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
+			if (options.migrationConfirmation) {
+				reg.defineInstance(IDialogService, new class extends mock<IDialogService>() {
+					override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+						const dialog = ctx.disposableStore.add(new Dialog(
+							ctx.container,
+							confirmation.message,
+							[confirmation.primaryButton ?? 'Yes', confirmation.cancelButton ?? 'Cancel'],
+							{
+								cancelId: 1,
+								detail: typeof confirmation.detail === 'string' ? confirmation.detail : confirmation.detail?.value,
+								checkboxLabel: confirmation.checkbox?.label,
+								checkboxChecked: confirmation.checkbox?.checked,
+								type: typeof confirmation.type === 'string' ? confirmation.type : undefined,
+								buttonStyles: defaultButtonStyles,
+								checkboxStyles: defaultCheckboxStyles,
+								inputBoxStyles: defaultInputBoxStyles,
+								dialogStyles: defaultDialogStyles,
+							},
+						));
+						void dialog.show();
+						return new Promise(() => { });
+					}
+				}());
+			}
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
 				override readonly onDidChangeSentiment = Event.None;
@@ -1247,43 +1384,47 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}());
-			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
-				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
-				override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
-				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
-					// The outgoing Discover view may read installation state while the visibility change disposes it.
-					assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
-					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-				}
-				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');
-					if (options.customizationMarketplaceInstallationState === 'error') {
-						throw new Error('Choose a writable installation destination and try again.');
+			if (options.useRealConnectorInstallService) {
+				reg.define(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService);
+			} else {
+				reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+					override readonly onDidChange = customizationMarketplaceInstallChanged.event;
+					override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
+					override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+						// The outgoing Discover view may read installation state while the visibility change disposes it.
+						assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
+						return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 					}
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
-					customizationMarketplaceInstallChanged.fire();
-					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target: getFixtureInstallationTarget(resource) });
-					customizationMarketplaceInstallChanged.fire();
-				}
-				override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(sourceEnabled(), 'A disabled Marketplace fixture must not repair resources.');
-					const target = getFixtureInstallationTarget(resource);
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'repairing', target });
-					customizationMarketplaceInstallChanged.fire();
-					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target });
-					customizationMarketplaceInstallChanged.fire();
-				}
-				override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(sourceEnabled(), 'A disabled Marketplace fixture must not uninstall resources.');
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling', target: getFixtureInstallationTarget(resource) });
-					customizationMarketplaceInstallChanged.fire();
-					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
-					customizationMarketplaceInstallChanged.fire();
-				}
-			}());
+					override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+						assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');
+						if (options.customizationMarketplaceInstallationState === 'error') {
+							throw new Error('Choose a writable installation destination and try again.');
+						}
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
+						customizationMarketplaceInstallChanged.fire();
+						await Promise.resolve();
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target: getFixtureInstallationTarget(resource) });
+						customizationMarketplaceInstallChanged.fire();
+					}
+					override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+						assert(sourceEnabled(), 'A disabled Marketplace fixture must not repair resources.');
+						const target = getFixtureInstallationTarget(resource);
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'repairing', target });
+						customizationMarketplaceInstallChanged.fire();
+						await Promise.resolve();
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target });
+						customizationMarketplaceInstallChanged.fire();
+					}
+					override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+						assert(sourceEnabled(), 'A disabled Marketplace fixture must not uninstall resources.');
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling', target: getFixtureInstallationTarget(resource) });
+						customizationMarketplaceInstallChanged.fire();
+						await Promise.resolve();
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
+						customizationMarketplaceInstallChanged.fire();
+					}
+				}());
+			}
 			if (options.migrationActivity) {
 				const storageService = ctx.disposableStore.add(new InMemoryStorageService());
 				storageService.store('chat.customizationMigration.activity.profile.agent-host-copilotcli', {
@@ -1384,7 +1525,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
-						servers: [{
+						servers: options.pluginMarketplaceMigrationOnly ? [] : [{
 							id: 'mcp.config.ws0.remote-browser',
 							name: 'Remote Browser',
 							collectionId: 'mcp.config.ws0',
@@ -1415,6 +1556,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}();
+			reg.defineInstance(IAgentHostActiveClientService, activeClientService);
 			const mcpService = new class extends mock<IMcpService>() {
 				override readonly servers = constObservable([]);
 				override readonly enablementModel = {
@@ -1424,6 +1566,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					remove: () => { },
 				};
 			}();
+			const secretStorageService = ctx.disposableStore.add(new TestSecretStorageService());
+			reg.defineInstance(ISecretStorageService, secretStorageService);
 			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
 				harnessService,
 				activeClientService,
@@ -1439,10 +1583,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
+				secretStorageService,
 			));
+			const activeMcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider = options.mcpMigrationCandidates ? {
+				computeMigration: async () => ({
+					type: CustomizationMigrationType.McpServers,
+					servers: [],
+					candidates: options.mcpMigrationCandidates ?? [],
+					exclusions: [],
+					discoveryComplete: true,
+					coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+				}),
+				migrate: async () => ({ migratedCount: 0, failures: [] }),
+			} : mcpServerMigrationProvider;
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
-				Object.assign(activeDescriptor, { mcpServerMigrationProvider });
+				Object.assign(activeDescriptor, { mcpServerMigrationProvider: activeMcpServerMigrationProvider });
 			}
 			reg.defineInstance(ICustomizationMigrationService, new CustomizationMigrationService(
 				promptsService,
@@ -1654,7 +1810,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 			}());
+			reg.defineInstance(IEnvironmentService, new class extends mock<IEnvironmentService>() {
+				override readonly isBuilt = true;
+				override readonly isExtensionDevelopment = false;
+				override readonly workspaceStorageHome = URI.file('/workspaceStorage');
+			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+			reg.defineInstance(IProgressService, new class extends mock<IProgressService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
 				override async openView<T extends {}>(_id: string, _focus?: boolean) { return null as T | null; }
 			}());
@@ -1665,6 +1827,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override get lastFocusedWidget() { return undefined; }
 				override async reveal() { return false; }
 			}());
+			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
+				override getSession() { return undefined; }
+			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
 				override async request(): Promise<IRequestContext> {
 					const readme = '# Figma Plugin\n\nInspect design systems, review components, and export implementation-ready assets.\n\n## Workflows\n\n- Review component consistency\n- Inspect design tokens\n- Export assets\n\n## Usage\n\nAsk the agent to review the components in your Figma file.\n\n## Design review checklist\n\n' + Array.from({ length: 18 }, (_, index) => `${index + 1}. Validate the component against the shared design system and accessibility guidance.`).join('\n');
@@ -1673,7 +1838,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
-			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors));
+			reg.defineInstance(ICopilotConnectorsService, copilotConnectorsService);
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -1719,6 +1884,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeInputs = Event.None;
 			}());
 			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
+			reg.defineInstance(IPluginGitService, new class extends mock<IPluginGitService>() { }());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(installedPlugins);
 				override readonly enablementModel = undefined as never;
@@ -1745,6 +1911,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	modelServiceRef.value = instantiationService.get(IModelService);
 	languageServiceRef.value = instantiationService.get(ILanguageService);
+	if (options.useRealConnectorInstallService) {
+		const installService = instantiationService.get(ICustomizationMarketplaceInstallService);
+		if (!(installService instanceof CustomizationMarketplaceInstallService)) {
+			throw new Error('The connector fixture must use the real Marketplace install service.');
+		}
+		ctx.disposableStore.add(installService);
+	}
 	if (options.pluginReadmeContent !== undefined) {
 		instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer({
 			async renderCodeBlock(_languageAlias, value) {
@@ -1804,9 +1977,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
-			description?.textContent === 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.'
-			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
-			'Discover must link each customization type from its description.',
+			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
+			&& descriptionLinks.join('\n') === 'Learn more',
+			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
@@ -1861,6 +2034,10 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(!browseScrollHost || browseScrollHost.scrollWidth <= browseScrollHost.clientWidth, 'Discover browse must not overflow horizontally.');
 	}
 
+	if (options.directConnectorName) {
+		assert(await editor.showCopilotConnectorDetail(options.directConnectorName) === CopilotConnectorDetailOpenResult.Opened, `Connector ${options.directConnectorName} must open directly.`);
+	}
+
 	if (options.toggleMarketplaceVisibility) {
 		const configuration = marketplaceConfiguration!;
 		const setting = CustomizationMarketplaceConfiguration.MarketplaceEnabled;
@@ -1875,7 +2052,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const discoverEnabledAfterToggle = !marketplaceVisibilityEnabled;
 		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
 		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
-		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Discover' : 'Overview') === true, 'Home navigation must match the selected surface.');
+		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
 		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
 		assert(customizationMarketplaceQueryCount === expectedQueryCount, `Toggling Marketplace visibility must query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplaceQueryCount}.`);
@@ -2084,9 +2261,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				assert(targetWindow.getComputedStyle(marketplacePrimaryAction).outlineStyle === 'none', 'Focused marketplace MCP rows must not retain an inner primary-action outline.');
 				marketplacePrimaryAction.blur();
 			}
-			for (const scrollbar of ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .scrollbar')) {
-				scrollbar.style.visibility = 'hidden';
-			}
 			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 	} else if (options.selectedSection === AICustomizationManagementSection.McpServers) {
@@ -2105,20 +2279,81 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
-		if (options.selectedSection === AICustomizationManagementSection.McpServers) {
-			await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
-			// Allow the 500ms hide delay and 800ms fade transition to complete.
-			await new Promise(resolve => setTimeout(resolve, 2400));
-			for (let attempt = 0; attempt < 20 && ctx.container.querySelector('.scrollbar.vertical.visible'); attempt++) {
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}
-		} else {
-			await new Promise(resolve => setTimeout(resolve, 1400));
-		}
+		await new Promise<void>(resolve => DOM.getWindow(ctx.container).requestAnimationFrame(() => resolve()));
 	}
 
 	if (options.migrationDashboard) {
 		editor.showCustomizationMigrationDashboard();
+	}
+
+	if (options.pluginMarketplaceMigrationDeselected) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Select microsoft/vscode-team-kit for migration"]') !== null,
+			'The plugin marketplace migration checkbox did not render.',
+		);
+		ctx.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="Select microsoft/vscode-team-kit for migration"]')!.click();
+	}
+
+	if (options.openFirstMigrationItem) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.migration-tree-item') !== null,
+			'Migration item did not appear',
+		);
+		const firstMigrationItem = ctx.container.querySelector<HTMLElement>('.migration-tree-item');
+		if (!firstMigrationItem) {
+			throw new Error('Migration item not found');
+		}
+		firstMigrationItem.click();
+		await waitForFixtureCondition(
+			() => {
+				const warning = ctx.container.querySelector<HTMLElement>('.migration-detail-warning');
+				return !!warning && warning.style.display !== 'none';
+			},
+			'Prompt migration detail warning did not appear',
+		);
+	}
+
+	if (options.migrationConfirmation === 'promptFiles') {
+		await waitForFixtureCondition(
+			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+				.some(button => button.textContent?.trim().startsWith('Migrate')),
+			'The workspace prompt migration action did not render.',
+		);
+		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+			.find(button => button.textContent?.trim().startsWith('Migrate'))!;
+		migrateButton.click();
+	} else if (options.migrationConfirmation === 'pluginMarketplaces') {
+		await waitForFixtureCondition(
+			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+				.some(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)'),
+			'The plugin marketplace migration action did not render.',
+		);
+		const migrateButton = [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
+			.find(button => button.getAttribute('aria-label') === 'Migrate: Plugin Marketplaces (User)')!;
+		migrateButton.click();
+	} else if (options.migrationConfirmation === 'mcpWarning') {
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
+			id: 'fixture-server',
+			name: 'Repository tools',
+			sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+			targetUri: URI.file('/workspace/.mcp.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+			removedProperties: { gallery: true },
+		};
+		const confirmation = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers)
+			.getConfirmation([server], 'Copilot');
+		void instantiationService.get(IDialogService).confirm({
+			...confirmation,
+			type: 'warning',
+		});
+	}
+	if (options.migrationConfirmation) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.monaco-dialog-box') !== null,
+			'The migration confirmation dialog did not render.',
+		);
 	}
 
 	if (options.openFirstItem) {
@@ -2255,8 +2490,27 @@ async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void
 	assert(!!row.querySelector('.mcp-server-source-path')?.textContent, 'Error rows retain their configuration path.');
 	assert(!row.querySelector('.mcp-server-description')?.textContent, 'Error rows hide their ordinary description when a configuration path is available.');
 	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
+	assert(row.querySelector('.mcp-server-start')?.textContent === 'Start', 'Error rows must offer a Start action.');
 	assert(!row.querySelector('.mcp-server-show-output'), 'Error rows must not show an inline output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
+}
+
+async function renderMcpErrorStartPending(ctx: ComponentFixtureContext): Promise<void> {
+	await renderEditor(ctx, {
+		sessionResource: localSessionResource,
+		isSessionsWindow: true,
+		selectedSection: AICustomizationManagementSection.McpServers,
+		activeSessionMcpServers: inlineErrorMcpServers.map(server => ({
+			...server,
+			start: () => new Promise<void>(() => { }),
+		})),
+		mcpSearchQuery: 'component',
+	});
+	const startButton = ctx.container.querySelector<HTMLElement>('.mcp-server-start');
+	assert(!!startButton, 'The fixture must render Start for an errored server.');
+	startButton.click();
+	await timeout(50);
+	assert(startButton.getAttribute('aria-disabled') === 'true', 'Start must be disabled while the retry is pending.');
 }
 
 async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -2318,6 +2572,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2459,6 +2714,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2506,16 +2762,10 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 		input.dispatchEvent(new InputEvent('input', { bubbles: true, data: searchQuery, inputType: 'insertText' }));
 	}
 
-	// Wait for the marketplace query to resolve, then wait for scrollbar fade transition
-	// (visible → invisible takes ~2s after programmatic scroll/list populate)
+	// Wait for the marketplace query to resolve
 	await new Promise(resolve => setTimeout(resolve, searchQuery ? 600 : 100));
 	// Blur the search input to prevent cursor blink instability in screenshots
 	(widget.element.querySelector('input') as HTMLElement)?.blur();
-	// Force-hide scrollbars to avoid fade-transition instability
-	for (const scrollbar of widget.element.querySelectorAll<HTMLElement>('.scrollbar')) {
-		scrollbar.style.visibility = 'hidden';
-	}
-	await new Promise(resolve => setTimeout(resolve, 200));
 }
 
 function renderPluginHomeMode(ctx: ComponentFixtureContext): Promise<void> {
@@ -2611,6 +2861,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2642,6 +2893,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override readonly activeSessionResource = observableValue<URI>('activeSessionResource', LocalChatSessionUri.getNewSessionUri());
 				override readonly activeHarness = derived(reader => getChatSessionType(this.activeSessionResource.read(reader)));
 				override readonly availableHarnesses = constObservable([createVSCodeHarnessDescriptor()]);
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 				override registerExternalHarness() { return { dispose() { } }; }
 			}());
@@ -2687,10 +2939,15 @@ function renderEmbeddedMcpDetail(
 		readonly compatibilityResolved?: boolean;
 		readonly error?: string;
 		readonly migratable?: boolean;
+		readonly manualReviewReason?: string;
+		/** Enables the migration setting, which the detail requires before it shows compatibility. */
+		readonly migrationEnabled?: boolean;
 		readonly source?: IMcpServerDetailInput['source'];
 		/** Replaces the server's configuration file with a non-file provenance. */
 		readonly provenance?: IMcpServerDetailInput['provenance'];
 		readonly definitionUnavailable?: IMcpServerDetailInput['definitionUnavailable'];
+		/** Serves the server from a file such as the Copilot CLI's `mcp-config.json` rather than as an installed server. */
+		readonly editableConfiguration?: IEditableMcpServerConfiguration;
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -2721,14 +2978,20 @@ function renderEmbeddedMcpDetail(
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
 				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
-				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
+				override readonly local: IWorkbenchMcpServer[] = server && !options.editableConfiguration ? [server] : [];
 				override async open() { /* no-op in fixture */ }
+				override async resolveEditableMcpServerConfiguration() { return options.editableConfiguration; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
 				override async openEditor() { return undefined; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(URI.from({ scheme: harnessId, path: '/fixture-session' }), [harnessDescriptor]));
+			if (options.migrationEnabled) {
+				const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true });
+				ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
+				reg.defineInstance(IConfigurationService, configurationService);
+			}
 		},
 	});
 
@@ -2747,6 +3010,7 @@ function renderEmbeddedMcpDetail(
 			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
+			manualReviewReason: options.manualReviewReason,
 			source: options.provenance ? undefined : options.source ?? input.source,
 			provenance: options.provenance,
 			definitionUnavailable: options.definitionUnavailable,
@@ -2766,6 +3030,7 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 			registerWorkbenchServices(reg);
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeHarness = constObservable('local');
+				override getDescriptorForSession() { return createVSCodeHarnessDescriptor(); }
 				override getActiveDescriptor() { return createVSCodeHarnessDescriptor(); }
 			}());
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
@@ -2914,7 +3179,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column with right-aligned actions, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
-		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
+		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,
@@ -2928,8 +3193,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// need to be migrated because the active harness only consumes skills.
 	AgentHostPromptMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The yellow migration warning card spans the Overview and keeps Review Migrations emphasized with the warning foreground instead of the generic blue link color.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
+		}),
+	}),
+
+	AgentHostPromptMigrationNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a narrow Overview, the migration warning copy wraps without clipping and Review Migrations remains emphasized with the warning foreground.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			width: 550,
+			height: 650,
 		}),
 	}),
 
@@ -3077,7 +3354,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: a supported migration candidate shows a compact warning icon and linked yellow Migration available label, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a Start button plus a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3085,15 +3362,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				selectedSection: AICustomizationManagementSection.McpServers,
 				activeSessionMcpServers: allStateMcpServers,
 				mcpServerCompatibility: [
+					{ id: 'component-explorer', kind: 'supported' },
 					{ id: 'linear-mcp', kind: 'unsupported' },
 					{ id: 'acme-mcp', kind: 'partiallySupported' },
 				],
+				mcpMigrationCandidates: [componentExplorerMigrationCandidate],
 				width: 800,
 				height: 1200,
 			});
 			const rows = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')];
 			const runningRowHeight = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'component-explorer')?.getBoundingClientRect().height;
 			assert(runningRowHeight !== undefined && rows.every(row => Math.abs(row.getBoundingClientRect().height - runningRowHeight) < 0.5), 'All installed MCP rows must match the running row height.');
+			const migratableRow = rows.find(row => row.querySelector('.mcp-server-name')?.textContent === 'component-explorer');
+			assert(migratableRow?.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link')?.textContent === 'Migration available', 'Supported migration candidates must link to Migrations.');
 			for (const [name, label] of [
 				['Web Search', 'Disabled (Globally)'],
 				['Filesystem', 'Disabled (Workspace)'],
@@ -3112,6 +3393,29 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		},
 	}),
 
+	McpServersMigrationAvailableNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In a compact MCP Servers page, a supported migration candidate shows the complete linked yellow Migration available label without horizontal overflow.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: agentHostCopilotSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				mcpServerCompatibility: [{ id: 'component-explorer', kind: 'supported' }],
+				mcpMigrationCandidates: [componentExplorerMigrationCandidate],
+				mcpSearchQuery: 'component',
+				width: 700,
+				height: 400,
+			});
+			const row = [...ctx.container.querySelectorAll<HTMLElement>('.mcp-server-item')]
+				.find(candidate => candidate.querySelector('.mcp-server-name')?.textContent === 'component-explorer');
+			assert(row !== undefined, 'The fixture must render the supported migration candidate.');
+			const link = row.querySelector<HTMLAnchorElement>('.mcp-server-compatibility-link');
+			assert(link?.textContent === 'Migration available' && link.getAttribute('href') === '#', 'The migration candidate must expose an actionable migration link.');
+			assert(row.scrollWidth <= row.clientWidth, 'The migration candidate row must not overflow horizontally.');
+		},
+	}),
+
 	McpServersSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		render: ctx => renderEditor(ctx, {
@@ -3119,6 +3423,19 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.McpServers,
 			mcpSearchQuery: 'search',
 		}),
+	}),
+
+	McpServersSearchEmpty: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An MCP server search with no matches shows the empty-results state without stale server actions.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				mcpSearchQuery: 'no matching server',
+			});
+			assert(!ctx.container.querySelector('.mcp-server-item'), 'The empty search must not retain MCP server rows.');
+		},
 	}),
 
 	McpServersTabActiveSession: defineComponentFixture({
@@ -3133,9 +3450,15 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersErrorActions: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon immediately before the switch. No inline output action, error snippet, status badge, or expansion control appears.'],
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a Start button plus a red error icon immediately before the switch. No inline output action, error snippet, status badge, or expansion control appears.'],
 		render: renderMcpErrorActions,
+	}),
+
+	McpServersErrorStartPending: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['After Start is activated on the errored server, the Start button remains visible but disabled while the retry is pending.'],
+		render: renderMcpErrorStartPending,
 	}),
 
 	McpServersAuthRequired: defineComponentFixture({
@@ -3294,6 +3617,102 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			migrationDashboard: true,
 			width: 550,
 			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDashboard: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Profile-scoped Plugin Marketplaces group lists the chat.plugins.marketplaces source, the fixed ~/.copilot/settings.json destination, and a Copy action without offering destination configuration.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDashboardNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a constrained editor, the Plugin Marketplaces migration source, destination, selection control, and actions remain readable without horizontal overflow.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['When the marketplace is deselected, its checkbox is off and the group action reads Migrate 0 in a disabled state.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			pluginMarketplaceMigrationDeselected: true,
+		}),
+	}),
+
+	MigrationPromptDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		// Let the tree's deferred selection update finish before teardown.
+		virtualTime: { enabled: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			openFirstMigrationItem: true,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	MigrationConfirmation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A standard confirmation dialog clearly summarizes the prompt-to-skill migration without listing individual source and destination paths. The delete-originals checkbox is visible, and Convert to Skills is the focused primary action.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationConfirmation: 'promptFiles',
+		}),
+	}),
+
+	MigrationConfirmationConstrainedHeight: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['In a constrained-height editor, the concise prompt migration confirmation remains fully visible with its checkbox and both actions available.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationConfirmation: 'promptFiles',
+			height: 500,
+		}),
+	}),
+
+	PluginMarketplaceMigrationConfirmation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['A concise confirmation dialog explains that migration adds the marketplace to Copilot and that the Local agent keeps using the existing VS Code setting.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			pluginMarketplaceMigration: true,
+			pluginMarketplaceMigrationOnly: true,
+			migrationConfirmation: 'pluginMarketplaces',
+		}),
+	}),
+
+	McpMigrationWarningConfirmation: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The MCP migration warning concisely explains the move and removal behavior without listing per-server source and destination paths. Migrate and Cancel remain visible.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			migrationConfirmation: 'mcpWarning',
 		}),
 	}),
 
@@ -3478,7 +3897,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			width: 550,
 			height: 500,
 			discoveryQuery: 'review',
-			expectedDiscoveryContentWidth: 302,
+			expectedDiscoveryContentWidth: 310,
 		}),
 	}),
 
@@ -3513,6 +3932,40 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
 		}),
+	}),
+
+	DiscoverCopilotConnectorDetail: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Activating the WorkIQ recommendation opens Work IQ Mail directly in its in-product connector detail with Back, the connector identity and image, a Connect action, and its catalog metadata.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: fixtureCopilotConnectors.map(connector => connector.name === 'workiq-mail' ? { ...connector, connectionStatus: 'not_connected' } : connector),
+			marketplaceVisibilityEnabled: true,
+			directConnectorName: 'workiq-mail',
+		}),
+	}),
+
+	DiscoverPendingCopilotConnector: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A pending Copilot Connector remains actionable with a Connect button so interrupted authorization can be retried.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: [{ ...fixtureCopilotConnectors[0], connectionStatus: 'pending' }],
+			connectorConnectDelayMs: 2500,
+			useRealConnectorInstallService: true,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'Work IQ Mail',
+			selectDiscoveryResult: true,
+		}),
+	}),
+
+	PendingConnectorRetry: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The connector detail presents a pending connection with a Try Again action so authorization can be retried.'],
+		render: renderPendingConnectorDetail,
 	}),
 
 	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
@@ -3738,7 +4191,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Scrolled-to-bottom variants — verify last items are fully visible above footer
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 1500 },
 		expectedVisualDescriptions: ['The scrolled Prompts tree has no vertical indent guide beneath group chevrons, its sticky group header matches the panel background, and its final rows remain inside the panel above the bottom inset.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
@@ -3749,7 +4201,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 5000 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -3759,7 +4210,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		virtualTime: { durationMs: 1500 },
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -3912,6 +4362,39 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		})),
 	}),
 
+	// Configuration form for a server from a workspace root .mcp.json, which supports a subset of mcp.json.
+	EmbeddedMcpDetailConfigurationForm: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The MCP detail shows an editable configuration form with a stdio/http type switch, command and argument fields, environment variable name/value rows with remove buttons and a left-aligned Add Variable button, and Discard Changes/Save buttons. There is no Configuration heading, diagnostics text or footer divider.'],
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('github', 'GitHub', LocalMcpServerScope.Workspace, 'GitHub repositories, issues and pull requests'), {
+			width: 560,
+			height: 700,
+			source: { uri: URI.file('/workspace/.mcp.json') },
+			editableConfiguration: {
+				config: { type: McpServerType.LOCAL, command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: '${GITHUB_TOKEN}', GITHUB_HOST: 'github.com' } },
+				format: McpResourceFormat.WorkspaceRoot,
+				save: async () => { },
+			},
+		}),
+	}),
+
+	// Configuration form for a server from the Copilot CLI's mcp-config.json, which has no environment file.
+	EmbeddedMcpDetailCopilotGlobalForm: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026'],
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('local-memory', 'local-memory', LocalMcpServerScope.User), {
+			width: 560,
+			height: 760,
+			source: { uri: URI.file('/Users/me/.copilot/mcp-config.json') },
+			editableConfiguration: {
+				config: { type: McpServerType.LOCAL, command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'], env: { MEMORY_FILE_PATH: '/Users/me/.copilot/memory.json' } },
+				format: McpResourceFormat.CopilotGlobal,
+				save: async () => { },
+			},
+		}),
+	}),
+
 	EmbeddedMcpDetailSourceLink: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP detail header shows mcp.json as a themed source link above the configuration.'],
@@ -4062,7 +4545,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	EmbeddedMcpDetailCompatible: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The text No diagnostics to show appears above Configuration. No diagnostics header or diagnostic cards are shown.'],
+		expectedVisualDescriptions: ['The Configuration heading appears directly below the header. No diagnostics text, header or diagnostic cards are shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
 			makeLocalMcpServer('component-explorer', 'component-explorer', LocalMcpServerScope.Workspace, 'Component fixtures', {
@@ -4080,7 +4563,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	EmbeddedMcpDetailMigratable: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['A yellow Migrate MCP Server card appears above Configuration with a warning icon, text explaining that migration is required to keep working, and an emphasized Review Migrations link. No error or compatibility issue card is shown.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A yellow Migrate MCP Server card appears above Configuration with a warning icon, text explaining that migration is required to keep working, and an emphasized Review Migrations link using the warning foreground instead of the generic blue link color. No error or compatibility issue card is shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
 			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
@@ -4094,6 +4578,50 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				harnessLabel: 'Copilot',
 				compatibility: { id: 'mcp-postgres', kind: 'supported' },
 				migratable: true,
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailMigratableNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a narrow MCP detail, the migration warning copy and warning-foreground Review Migrations link remain readable without clipping or horizontal overflow.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+			}),
+			{
+				width: 550,
+				height: 500,
+				harnessLabel: 'Copilot',
+				compatibility: { id: 'mcp-postgres', kind: 'supported' },
+				migratable: true,
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailNeedsManualReview: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail shows a single Partially supported by Copilot warning card above the server configuration. Its bulleted details explain that the OAuth client configuration is ignored and that the server needs to be migrated manually because its OAuth client secret is stored in VS Code. There is no separate Unsupported or Migrate MCP Server card and no Review Migrations link.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('oauth-secret', 'oauth-secret', LocalMcpServerScope.Workspace, undefined, {
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/secret/mcp',
+			}),
+			{
+				width: 800,
+				height: 520,
+				harnessLabel: 'Copilot',
+				migrationEnabled: true,
+				compatibility: {
+					id: 'oauth-secret',
+					kind: 'partiallySupported',
+					details: ['The Copilot harness does not receive this server\'s custom OAuth client configuration from VS Code.\nMigrate this server to keep its OAuth client ID. Servers that use a client secret or enterprise-managed sign-in cannot be migrated.'],
+				},
+				manualReviewReason: 'This server\'s OAuth client uses a client secret stored in VS Code, which Copilot cannot use.',
 			},
 		),
 	}),
@@ -4113,6 +4641,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Standalone embedded plugin detail widget — installed plugin.
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The installed plugin detail has Uninstall and Disable actions. The Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
 	}),
 
