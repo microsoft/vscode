@@ -805,12 +805,16 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
 
-		assert.deepStrictEqual([
-			'workbench.action.navigateLeft',
-			'workbench.action.navigateRight',
-			'workbench.action.navigateUp',
-			'workbench.action.navigateDown',
-		].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)), [true, true, true, true]);
+		assert.deepStrictEqual({
+			navigation: [
+				'workbench.action.navigateLeft',
+				'workbench.action.navigateRight',
+				'workbench.action.navigateUp',
+				'workbench.action.navigateDown',
+			].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)),
+			openInGrid: content.includes('Open in Grid'),
+			openToTheSide: content.includes('choose Open to the Side from the session row\'s context menu'),
+		}, { navigation: [true, true, true, true], openInGrid: false, openToTheSide: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {
