@@ -81,7 +81,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, getAgentHostSessionResource, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage, ThinkingDisplayMode } from '../../common/constants.js';
 import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -2151,8 +2151,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				$mid: MarshalledId.ChatViewContext, sessionResource: resource, inputUri: this.input.inputUri,
 			}),
 		} : historyStatus?.action);
+		const wasBannerVisible = this.readOnlyBanner?.visible;
 		this.readOnlyBanner?.setVisible(readOnly && (!keepInputVisible || !!historyStatus));
-		this.setInputVisible(!readOnly || keepInputVisible);
+		const inputVisible = !readOnly || keepInputVisible;
+		if (this._inputVisible === inputVisible && wasBannerVisible !== this.readOnlyBanner?.visible) {
+			this._layoutListForInputHeight();
+		}
+		this.setInputVisible(inputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
 		this.rerenderListIfConnected();
@@ -2184,8 +2189,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private observeSessionArchived(model: IChatModel): IObservable<boolean> {
-		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || isAgentHostTarget(getChatSessionType(model.sessionResource))
-			? observableFromEvent(this, this.agentSessionsService.model.onDidChangeSessions, () => this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true)
+		const agentHost = isAgentHostTarget(getChatSessionType(model.sessionResource));
+		return isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || agentHost
+			? observableFromEvent(this, this.agentSessionsService.model.onDidChangeSessions, () =>
+				this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true
+				|| (agentHost && this.agentSessionsService.getSession(getAgentHostSessionResource(model.sessionResource))?.isArchived() === true))
 			: constObservable(false);
 	}
 

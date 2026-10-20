@@ -10,6 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -65,7 +66,8 @@ import { ChatRequestParser } from '../../../common/requestParser/chatRequestPars
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
-import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
+import { CHAT_READ_ONLY_BANNER_HEIGHT, ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { IChatViewWelcomeContent } from '../../../browser/viewsWelcome/chatViewWelcomeController.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
@@ -1349,6 +1351,7 @@ suite('ChatWidget', () => {
 	function createRerenderWidget() {
 		const domNode = mainWindow.document.createElement('div');
 		let rerenders = 0;
+		const layoutHeights: number[] = [];
 		const discardingSlot = { set value(disposable: IDisposable | undefined) { disposable?.dispose(); } };
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
@@ -1378,11 +1381,11 @@ suite('ChatWidget', () => {
 				lastItem: undefined,
 				updateRendererOptions: () => { },
 				setVisible: () => { },
-				layout: () => { },
+				layout: (height: number) => layoutHeights.push(height),
 				rerender: () => rerenders++,
 			},
 		});
-		return { widget, domNode, rerenders: () => rerenders };
+		return { widget, domNode, layoutHeights, rerenders: () => rerenders };
 	}
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
@@ -1492,16 +1495,66 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	test('offline subagent composers inherit parent archive state without losing child restrictions', () => {
+		const parentResource = URI.parse('remote-agent-host-test:/session?owner=one');
+		const childResource = getSubagentEditorResource({
+			parentSessionResource: parentResource.toString(), chatResource: 'custom-chat:/opaque-worker',
+		});
+		assert.ok(childResource);
+		let parentArchived = true;
+		let childArchived = true;
+		const sessions = new ResourceMap<{ isArchived(): boolean }>();
+		sessions.set(parentResource, { isArchived: () => parentArchived });
+		const sessionChanges = store.add(new Emitter<void>());
+		const model = upcastPartial<IChatModel>({
+			sessionResource: childResource, isReadOnly: constObservable(true), isInputBlocked: constObservable(true),
+		});
+		let inputState = { readOnly: false, keepInputVisible: false };
+		const widget: {
+			observeSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+		} = Object.assign(Object.create(ChatWidget.prototype), {
+			policyRequiresAgentHost: constObservable(false),
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: (resource: URI) => sessions.get(resource),
+			},
+			setReadOnly: (readOnly: boolean, keepInputVisible: boolean) => inputState = { readOnly, keepInputVisible },
+		});
+		const archived = widget.observeSessionArchived(model);
+		store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
+		const states = [inputState];
+		parentArchived = false;
+		sessionChanges.fire();
+		states.push(inputState);
+		sessions.set(childResource, { isArchived: () => childArchived });
+		sessionChanges.fire();
+		states.push(inputState);
+		parentArchived = true;
+		childArchived = false;
+		sessionChanges.fire();
+		states.push(inputState);
+
+		assert.deepStrictEqual(states, [
+			{ readOnly: true, keepInputVisible: false },
+			{ readOnly: true, keepInputVisible: true },
+			{ readOnly: true, keepInputVisible: false },
+			{ readOnly: true, keepInputVisible: false },
+		]);
+	});
+
 	test('history recovery remains visible beside a blocked composer', async () => {
-		const { widget } = createRerenderWidget();
-		let inputVisible = false;
+		const { widget, layoutHeights } = createRerenderWidget();
+		const inputElement = dom.$('div');
 		let bannerVisible = false;
 		let message: string | undefined;
 		let action: { label: string; run: () => Promise<void> } | undefined;
 		let retries = 0;
 		Object.assign(widget, {
-			setInputVisible: (visible: boolean) => inputVisible = visible,
+			setInputVisible: ChatWidget.prototype.setInputVisible,
+			inputPartDisposable: { value: { height: constObservable(10), element: inputElement } },
 			readOnlyBanner: {
+				get visible() { return bannerVisible; },
 				setVisible: (visible: boolean) => bannerVisible = visible,
 				setMessage: (value: string | undefined) => message = value,
 				setAction: (value: typeof action) => action = value,
@@ -1511,13 +1564,15 @@ suite('ChatWidget', () => {
 			kind: 'live', message: 'Live history unavailable',
 			action: { label: 'Retry', run: async () => { retries++; } },
 		});
-		const failed = { inputVisible, bannerVisible, message, action: action?.label };
+		const failed = { inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, message, action: action?.label };
 		await action?.run();
 		widget.setReadOnly(true, true, undefined);
+		widget.setReadOnly(true, true, undefined);
 
-		assert.deepStrictEqual({ failed, inputVisible, bannerVisible, retries }, {
+		assert.deepStrictEqual({ failed, inputVisible: !inputElement.classList.contains('chat-input-hidden'), bannerVisible, retries, layoutHeights }, {
 			failed: { inputVisible: true, bannerVisible: true, message: 'Live history unavailable', action: 'Retry' },
 			inputVisible: true, bannerVisible: false, retries: 1,
+			layoutHeights: [90 - CHAT_READ_ONLY_BANNER_HEIGHT, 90],
 		});
 	});
 
