@@ -178,7 +178,11 @@ suite('DiffEditorWidget2', () => {
 			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
 			const instantiationService = createCodeEditorServices(disposables, services);
 			const widthBasedLayout = observableValue<DiffEditorWidthBasedLayout>('widthBasedLayout', 'auto');
-			const createEditor = () => disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, { widthBasedLayout }));
+			const createEditor = () => disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, {
+				widthBasedLayout,
+				originalEditor: { contributions: [] },
+				modifiedEditor: { contributions: [] },
+			}));
 			const createModel = (editor: DiffEditorWidget) => disposables.add(RefCounted.create(editor.createViewModel({
 				original: disposables.add(instantiateTextModel(instantiationService, 'original')),
 				modified: disposables.add(instantiateTextModel(instantiationService, 'modified')),
@@ -237,7 +241,11 @@ suite('DiffEditorWidget2', () => {
 				services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
 				const instantiationService = createCodeEditorServices(disposables, services);
 				const widthBasedLayout = sharesWidthBasedLayout ? observableValue<DiffEditorWidthBasedLayout>('widthBasedLayout', 'auto') : undefined;
-				const editor = disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, { widthBasedLayout }));
+				const editor = disposables.add(instantiationService.createInstance(DiffEditorWidget, document.createElement('div'), { renderGutterMenu: false }, {
+					widthBasedLayout,
+					originalEditor: { contributions: [] },
+					modifiedEditor: { contributions: [] },
+				}));
 				const createModel = () => disposables.add(RefCounted.create(editor.createViewModel({
 					original: disposables.add(instantiateTextModel(instantiationService, 'original')),
 					modified: disposables.add(instantiateTextModel(instantiationService, 'modified')),
