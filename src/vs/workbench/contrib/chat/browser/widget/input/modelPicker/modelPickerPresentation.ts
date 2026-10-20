@@ -15,6 +15,30 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+export function getInlineFusionTierLabel(value: unknown, label: string): string {
+	if (value === 'balance' || value === 'intelligence') {
+		return getFusionAutoModeTierLabel(value);
+	}
+	return value === COPILOT_HYDRA_FUSION_MODEL_ID ? getFusionAutoModeTierLabel('intelligence') : label;
+}
+
+/**
+ * The description under an inline Fusion tier: why it is unavailable, else what it is for. A tier
+ * Fusion does not know keeps the provider's description.
+ */
+export function getInlineFusionTierDetail(value: unknown, choice?: { readonly description?: string; readonly unavailable?: boolean }): string | undefined {
+	if (choice?.unavailable) {
+		return choice.description || localize('chat.modelPicker.fusionTierUnavailable', "Not available for your account.");
+	}
+	switch (value) {
+		case 'balance': return localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute");
+		case 'intelligence':
+		case COPILOT_HYDRA_FUSION_MODEL_ID: return localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute");
+		case COPILOT_HYDRA_FUSION_MAX_MODEL_ID: return localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
+		default: return choice?.description || undefined;
+	}
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
@@ -72,7 +96,9 @@ export function filterModelPickerControlModelsForEntitlement(
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
 	// One upsell stands for every HydraFusion model, so it takes the base model's name.
 	const liveHydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
-	if (!liveHydraFusion) {
+	// Fusion presents HydraFusion as its tiers, so there is no model of its own to upsell.
+	const fusion = models.some(model => model.metadata.autoModelFusion && !isUserProvidedModel(model, languageModelsService));
+	if (!liveHydraFusion || fusion) {
 		if (!hydraFusion) {
 			return controlModels;
 		}

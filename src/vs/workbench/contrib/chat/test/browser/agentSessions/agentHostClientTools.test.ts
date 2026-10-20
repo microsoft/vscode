@@ -58,13 +58,14 @@ import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -115,6 +116,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
+		registeredTools?: readonly IToolData[],
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, TestFileService);
@@ -161,6 +163,7 @@ suite('AgentHostClientTools', () => {
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
+			getTool: id => (registeredTools ?? tools.get()).find(tool => tool.id === id),
 		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
 		instantiationService.stub(IAgentHostToolSetEnablementService, {
 			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
@@ -212,6 +215,63 @@ suite('AgentHostClientTools', () => {
 			syncProviderIsStable: true,
 			scopeAfterReleaseIsResolved: true,
 		});
+	});
+
+	test('isolates additional tools to one session and moves them with the session resource', () => {
+		const tool: IToolData = {
+			id: 'test.sessionTool',
+			toolReferenceName: 'session_tool',
+			displayName: 'Session Tool',
+			modelDescription: 'Runs only in one session',
+			source: ToolDataSource.Internal,
+		};
+		const { service } = createActiveClientService(constObservable([]), undefined, undefined, [tool]);
+		const source = URI.parse('agent-host-test:/draft');
+		const target = URI.parse('agent-host-test:/session');
+		const other = URI.parse('agent-host-test:/other');
+		const sourceTools = disposables.add(service.acquireSessionTools(source));
+		const targetTools = disposables.add(service.acquireSessionTools(target));
+		const otherTools = disposables.add(service.acquireSessionTools(other));
+		const ordinaryScope = disposables.add(service.acquireScope('agent-host-test', []));
+
+		service.setSessionTools(source, [tool.id]);
+		const beforeMove = {
+			ordinary: ordinaryScope.tools.get().map(tool => tool.name),
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
+		};
+		service.moveSessionTools(source, target);
+		const afterMove = {
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
+		};
+		service.clearSessionTools(target);
+
+		assert.deepStrictEqual({
+			beforeMove,
+			afterMove,
+			afterClear: {
+				source: sourceTools.object.get().map(tool => tool.name),
+				target: targetTools.object.get().map(tool => tool.name),
+			},
+		}, {
+			beforeMove: { ordinary: [], source: ['session_tool'], target: [], other: [] },
+			afterMove: { source: ['session_tool'], target: ['session_tool'], other: [] },
+			afterClear: { source: [], target: [] },
+		});
+	});
+
+	test('releases empty session tool observations', () => {
+		const { service } = createActiveClientService();
+		const session = URI.parse('agent-host-test:/ordinary');
+		const first = service.acquireSessionTools(session);
+		const firstObservable = first.object;
+		first.dispose();
+		const second = disposables.add(service.acquireSessionTools(session));
+
+		assert.notStrictEqual(second.object, firstObservable);
 	});
 
 	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
@@ -901,6 +961,10 @@ suite('AgentHostClientTools', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
+			instantiationService.stub(IAccessibilitySignalService, {
+				playSignal: async () => { },
+			} as Partial<IAccessibilitySignalService> as IAccessibilitySignalService);
+
 			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const inputNotifications = new Map<string, IChatInputNotification>();
 			const configValues: Record<string, unknown> = {};
@@ -922,7 +986,7 @@ suite('AgentHostClientTools', () => {
 				override readonly extUri = extUriBiasedIgnorePathCase;
 			});
 			instantiationService.stub(IProductService, { quality: 'insider' });
-			instantiationService.stub(IChatEntitlementService, { entitlement: ChatEntitlement.Free, quotas: {} } as Partial<IChatEntitlementService> as IChatEntitlementService);
+			instantiationService.stub(IChatEntitlementService, Object.assign(new TestChatEntitlementService(), { entitlement: ChatEntitlement.Free }));
 			instantiationService.stub(IChatAgentService, {
 				registerDynamicAgent: () => toDisposable(() => { }),
 			});
@@ -934,6 +998,8 @@ suite('AgentHostClientTools', () => {
 				registerChatSessionContribution: () => toDisposable(() => { }),
 			});
 			instantiationService.stub(IChatWidgetService, {
+				onDidChangeFocusedSession: Event.None,
+				onDidChangeWidgetVisibility: Event.None,
 				getWidgetBySessionResource: () => undefined,
 			});
 			instantiationService.stub(IChatInputNotificationService, {

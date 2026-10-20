@@ -37,7 +37,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -66,13 +66,18 @@ import { logSessionsInteraction, SessionsInteractionSource } from '../../../comm
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionsList, SessionsListFocusedChatItemContext } from './views/sessionsList.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHostChatMove.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { isChatMoveDndEnabled, runSessionsListMove, SessionsListMove } from './views/sessionsListChatMove.js';
 
 export const NEW_SESSION_BUTTON_STYLE_SETTING = 'sessions.newSessionButton.style';
 export const NEW_SESSION_BUTTON_STYLE_TREATMENT = 'agentSessionsNewSessionButtonStyle';
@@ -738,6 +743,44 @@ registerAction2(class OpenSessionListChatToSideAction extends Action2 {
 			return;
 		}
 		await sessionsService.openChatToSide(context.session, context.chat.resource);
+	}
+});
+
+/** Moves a nested session (a chat of a session) into a new session of its own, like dropping it on the list's empty space. */
+export const PROMOTE_CHAT_TO_SESSION_ACTION_ID = 'sessions.list.promoteChatToSession';
+
+registerAction2(class PromoteChatToSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: PROMOTE_CHAT_TO_SESSION_ACTION_ID,
+			title: localize2('promoteChatToSession', "Promote to Session"),
+			f1: false,
+			menu: [{
+				id: Menus.SessionChatItemContext,
+				// Its own group, between the chat's actions and Delete.
+				group: '1_move',
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatMoveSettingId.Enabled}`, true), ChatContextKeys.enabled, SessionChatItemCanMoveContext),
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<boolean> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const configurationService = accessor.get(IConfigurationService);
+		if (!context || !isChatMoveDndEnabled(configurationService, accessor.get(IChatEntitlementService)) || !sessionsManagementService.canMoveChat(context.session, context.chat)) {
+			return false;
+		}
+		const move: SessionsListMove = { kind: 'chat', session: context.session, chat: context.chat, destination: { kind: 'newSession' } };
+		// Like a drop on the list, reveal and select the new session in the list once it shows it.
+		const revealMoved = getSessionsList(accessor)?.watchMoveForReveal(move);
+		let moved = false;
+		try {
+			moved = await runSessionsListMove(move, sessionsManagementService, accessor.get(IDialogService), configurationService, accessor.get(INotificationService), accessor.get(ILogService));
+		} finally {
+			revealMoved?.(moved);
+		}
+		return moved;
 	}
 });
 
@@ -1663,9 +1706,9 @@ export class SessionListActionsExperimentContribution extends Disposable impleme
 	}
 
 	private async resolveTreatment(token: CancellationToken): Promise<void> {
-		let enabled = false;
+		let enabled = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
 		try {
-			enabled = await raceCancellationError(this.assignmentService.getTreatment<boolean>(SessionListActionsExperimentContribution.PROMOTE_NEW_CHAT_ACTION_TREATMENT), token) ?? false;
+			enabled = await raceCancellationError(this.assignmentService.getTreatment<boolean>(SessionListActionsExperimentContribution.PROMOTE_NEW_CHAT_ACTION_TREATMENT), token) ?? SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT;
 		} catch (error) {
 			if (isCancellationError(error)) {
 				return;

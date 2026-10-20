@@ -423,6 +423,21 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._toolResultResources.clear();
 	}
 
+	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		const ids = new Set(providerTurnIds);
+		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
+		let afterBoundary = false;
+		for (const turnId of this._turns) {
+			const eventId = this._turnEventIds.get(turnId);
+			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
+				await this.deleteTurn(turnId);
+			}
+			if (turnId === afterHostTurnId) {
+				afterBoundary = true;
+			}
+		}
+	}
+
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		if (record.kind === 'failed') {
 			this._turns.add(record.turnId);
@@ -826,6 +841,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
 		openTrackedTurnDatabase: () => undefined,
+		openTrackedSessionDatabases: () => ({ sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }),
 		onFileEditsDiscarded: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },

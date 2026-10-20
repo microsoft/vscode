@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../base/common/async.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import type { AgentProvider } from '../common/agent.js';
+import type { IAgentHostSessionSubscribeTelemetryContext } from '../common/agentHostTelemetry.js';
+import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
+import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../common/connectionTelemetry.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
@@ -19,7 +24,7 @@ export const AgentHostSessionSubscribeTimeoutMs = 60_000;
 
 export type AgentHostSessionSubscribeProvider = AgentProvider;
 export type AgentHostSessionSubscribeChannel = 'session' | 'defaultChat' | 'chat';
-export type AgentHostSessionSubscribeOutcome = 'success' | 'failure' | 'timeout';
+export type AgentHostSessionSubscribeOutcome = 'success' | 'failure' | 'timeout' | 'cancelled';
 export type AgentHostCopilotSdkResumeOutcome = 'success' | 'failure' | 'fallbackCreate' | 'incomplete' | 'notStarted';
 
 export interface IAgentHostSessionOpenTelemetryScope {
@@ -34,14 +39,20 @@ export interface IAgentHostSessionOpenTelemetryScope {
 export interface IAgentHostSessionOpenTelemetry {
 	readonly _serviceBrand: undefined;
 
-	withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>): Promise<T>;
+	withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>, context?: IAgentHostSessionSubscribeTelemetryContext, isActive?: () => boolean): Promise<T>;
 	withSdkResume<T>(session: URI, operation: () => Promise<T>): Promise<T>;
 	sdkResumeFallbackCreated(session: URI): void;
 }
 
 export const IAgentHostSessionOpenTelemetry = createDecorator<IAgentHostSessionOpenTelemetry>('agentHostSessionOpenTelemetry');
 
-type AgentHostSessionSubscribeEvent = IAgentHostCopilotSkuTelemetry & {
+type AgentHostSessionSubscribeEvent = IAgentHostCopilotSkuTelemetry & IConnectionTelemetryError & {
+	clientId?: string;
+	sessionIdHash?: string;
+	clientType?: string;
+	connectionKind?: string;
+	hostLaunchKind?: string;
+	isReconnect?: boolean;
 	provider: string;
 	channel: string;
 	outcome: string;
@@ -57,12 +68,18 @@ type AgentHostSessionSubscribeEvent = IAgentHostCopilotSkuTelemetry & {
 	totalDurationMs: number;
 };
 
-type AgentHostSessionSubscribeClassification = IAgentHostCopilotSkuClassification & {
+type AgentHostSessionSubscribeClassification = IAgentHostCopilotSkuClassification & ConnectionTelemetryErrorClassification & {
 	owner: 'roblourens';
 	comment: 'Measures Agent Host subscription latency from the subscribe request through session restoration and provider-specific resume work to the returned snapshot.';
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent provider identifier.' };
 	channel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded subscribed channel kind: session, defaultChat, or chat.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal subscription outcome: success, failure, or timeout.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Final subscription outcome: success, failure, timeout, or cancellation.' };
+	clientId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Existing opaque AHP client identifier, for correlation with client connection events.' };
+	sessionIdHash?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hash of the owning session resource, for deduplicating viewed sessions without collecting resource paths.' };
+	clientType?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded type of the subscribing client.' };
+	connectionKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Route used by the subscribing client, including Mission Control.' };
+	hostLaunchKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
+	isReconnect?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the subscribing transport reconnected a previously known client; not proof that this subscription is a restoration.' };
 	servedFromMemory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the subscribed snapshot was already materialized when the request was received.' };
 	joinedRestore: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this subscription joined restoration already in progress for the session.' };
 	sdkResumeOutcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal Copilot SDK resume outcome: success, failure, fallbackCreate, incomplete, or notStarted.' };
@@ -96,6 +113,7 @@ class AgentHostSessionOpenTelemetryAttempt extends Disposable {
 		readonly provider: AgentHostSessionSubscribeProvider,
 		/** The subscribed resource; its channel kind is classified when the attempt finishes, once its session is restored. */
 		readonly resource: URI,
+		readonly context: IAgentHostSessionSubscribeTelemetryContext | undefined,
 	) {
 		super();
 		this.sdkResumeOutcome = provider === 'copilotcli' ? 'notStarted' : undefined;
@@ -124,10 +142,10 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		}));
 	}
 
-	async withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>): Promise<T> {
+	async withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>, context?: IAgentHostSessionSubscribeTelemetryContext, isActive?: () => boolean): Promise<T> {
 		const stopwatch = StopWatch.create(false);
 		// A cold chat's owner is known only once the subscribe body resolves it.
-		let attempt = this._start(resource, stopwatch, undefined);
+		let attempt = this._start(resource, stopwatch, undefined, context);
 		let servedFromMemory: boolean | undefined;
 		const scope: IAgentHostSessionOpenTelemetryScope = {
 			get servedFromMemory() {
@@ -151,7 +169,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 			},
 			setSession: session => {
 				if (!attempt) {
-					attempt = this._start(resource, stopwatch, session);
+					attempt = this._start(resource, stopwatch, session, context);
 					if (attempt) {
 						attempt.servedFromMemory = servedFromMemory;
 					}
@@ -166,7 +184,8 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 			return result;
 		} catch (error) {
 			if (attempt) {
-				this._finish(attempt, 'failure', servedFromMemory);
+				const cancelled = isCancellationError(error) || isActive?.() === false;
+				this._finish(attempt, cancelled ? 'cancelled' : 'failure', servedFromMemory, cancelled ? { errorCategory: 'cancelled' } : getConnectionTelemetryError(getConnectionDiagnosticError(error)));
 			}
 			throw error;
 		}
@@ -188,13 +207,13 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		this._sdkResumeCompleted(session, 'fallbackCreate');
 	}
 
-	private _start(resource: URI, stopwatch: StopWatch, owner: URI | undefined): AgentHostSessionOpenTelemetryAttempt | undefined {
+	private _start(resource: URI, stopwatch: StopWatch, owner: URI | undefined, context: IAgentHostSessionSubscribeTelemetryContext | undefined): AgentHostSessionOpenTelemetryAttempt | undefined {
 		const info = this._classify(resource, owner);
 		if (!info) {
 			return undefined;
 		}
 
-		const attempt = new AgentHostSessionOpenTelemetryAttempt(this._nextAttemptId++, stopwatch, info.session, info.provider, resource);
+		const attempt = new AgentHostSessionOpenTelemetryAttempt(this._nextAttemptId++, stopwatch, info.session, info.provider, resource, context);
 		this._attempts.set(attempt.id, attempt);
 		let sessionAttempts = this._attemptsBySession.get(info.session.toString());
 		if (!sessionAttempts) {
@@ -245,7 +264,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		}
 	}
 
-	private _finish(attempt: AgentHostSessionOpenTelemetryAttempt, outcome: AgentHostSessionSubscribeOutcome, servedFromMemory: boolean | undefined): void {
+	private _finish(attempt: AgentHostSessionOpenTelemetryAttempt, outcome: AgentHostSessionSubscribeOutcome, servedFromMemory: boolean | undefined, error?: IConnectionTelemetryError): void {
 		if (!this._attempts.delete(attempt.id)) {
 			return;
 		}
@@ -276,7 +295,20 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		const totalDurationMs = Math.max(timeToRestoreCompleteMs ?? timeToSdkResumeCompleteMs ?? timeToRestoreStartMs ?? 0, elapsed);
 		attempt.dispose();
 
+		const sessionHash = new StringSHA1();
+		if (attempt.context) {
+			sessionHash.update(attempt.session.toString());
+		}
 		this._telemetryService.publicLog2<AgentHostSessionSubscribeEvent, AgentHostSessionSubscribeClassification>('agentHost.sessionSubscribe', {
+			...(attempt.context ? {
+				clientId: attempt.context.clientId,
+				sessionIdHash: sessionHash.digest(),
+				clientType: attempt.context.clientType,
+				connectionKind: attempt.context.connectionKind,
+				hostLaunchKind: attempt.context.hostLaunchKind,
+				isReconnect: attempt.context.isReconnect,
+			} : {}),
+			...error,
 			provider: attempt.provider,
 			channel: this._classifyChannel(attempt.resource, attempt.session),
 			outcome,

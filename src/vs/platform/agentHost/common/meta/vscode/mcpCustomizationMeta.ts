@@ -10,6 +10,7 @@ const displayNameKey = 'vscode.mcpServerDisplayName';
 const maxDisplayNameLength = 512;
 const sourcePluginKey = 'agentHost.mcpServerSourcePlugin';
 const controllingSettingKey = 'vscode.mcpServerControllingSetting';
+const connectorNameKey = 'vscode.mcpServerConnectorName';
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.
@@ -93,6 +94,23 @@ export function readMcpServerControllingSetting(customization: McpServerCustomiz
  */
 export function withMcpServerControllingSettingMeta(meta: Record<string, unknown> | undefined, settingId: string | undefined): Record<string, unknown> | undefined {
 	return withMetaEntry(meta, controllingSettingKey, settingId);
+}
+
+/**
+ * Reads the canonical Copilot Connector name a host declares as owning a server. Connector-owned servers
+ * authenticate with the session's GitHub credential, so clients must authorize the account rather than
+ * supply a per-server MCP token.
+ */
+export function readMcpServerConnectorName(customization: McpServerCustomization | undefined): string | undefined {
+	return readNonEmptyString(customization?._meta?.[connectorNameKey]);
+}
+
+/**
+ * Records the canonical Copilot Connector name that owns a server. An absent name removes a previously
+ * recorded one; every other entry is preserved.
+ */
+export function withMcpServerConnectorNameMeta(meta: Record<string, unknown> | undefined, connectorName: string | undefined): Record<string, unknown> | undefined {
+	return withMetaEntry(meta, connectorNameKey, connectorName);
 }
 
 function readNonEmptyString(value: unknown): string | undefined {

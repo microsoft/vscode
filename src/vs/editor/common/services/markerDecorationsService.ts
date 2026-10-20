@@ -13,7 +13,7 @@ import { ThemeColor } from '../../../base/common/themables.js';
 import { overviewRulerWarning, overviewRulerInfo, overviewRulerError } from '../core/editorColorRegistry.js';
 import { IModelService } from './model.js';
 import { Range } from '../core/range.js';
-import { IMarkerDecorationsService } from './markerDecorations.js';
+import { IMarkerLimit, IMarkerDecorationsService } from './markerDecorations.js';
 import { Schemas } from '../../../base/common/network.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { minimapInfo, minimapWarning, minimapError } from '../../../platform/theme/common/colorRegistry.js';
@@ -27,6 +27,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
+
+	private readonly _onDidChangeMarkerLimit = this._register(new Emitter<ITextModel>());
+	readonly onDidChangeMarkerLimit: Event<ITextModel> = this._onDidChangeMarkerLimit.event;
 
 	private readonly _suppressedRanges = new ResourceMap<Set<Range>>();
 
@@ -57,6 +60,10 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	getLiveMarkers(uri: URI): [Range, IMarker][] {
 		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
+	}
+
+	getMarkerLimits(uri: URI): IMarkerLimit | undefined {
+		return this._markerDecorations.get(uri)?.markerLimit;
 	}
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable {
@@ -112,8 +119,11 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	}
 
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
-		// Limit to the first 500 errors/warnings
-		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
+		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT + 1 });
+		const isMarkerLimitExceeded = markers.length > MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT;
+		if (isMarkerLimitExceeded) {
+			markers = markers.slice(0, MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT);
+		}
 
 		// filter markers from suppressed ranges
 		const suppressedRanges = this._suppressedRanges.get(markerDecorations.model.uri);
@@ -126,12 +136,31 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (markerDecorations.update(markers)) {
 			this._onDidChangeMarker.fire(markerDecorations.model);
 		}
+		const isMarkersSourceTruncated = this._markerService.isSourceTruncated(markerDecorations.model.uri);
+		if (markerDecorations.updateMarkerLimit(isMarkersSourceTruncated, isMarkerLimitExceeded)) {
+			this._onDidChangeMarkerLimit.fire(markerDecorations.model);
+		}
 	}
 }
 
 class MarkerDecorations extends Disposable {
 
+	public static readonly MAX_MARKER_DECORATIONS_LIMIT = 5000;
+
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
+
+	private _isMarkerLimitExceeded: boolean = false;
+	private _isMarkersSourceTruncated: boolean = false;
+
+	/**
+	 * Return the current diagnostic limit state.
+	 */
+	public get markerLimit(): IMarkerLimit {
+		return {
+			isMarkersSourceTruncated: this._isMarkersSourceTruncated,
+			isMarkersTruncated: this._isMarkerLimitExceeded ? MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT : undefined
+		};
+	}
 
 	constructor(
 		readonly model: ITextModel
@@ -169,6 +198,15 @@ class MarkerDecorations extends Disposable {
 		for (let index = 0; index < ids.length; index++) {
 			this._map.set(added[index], ids[index]);
 		}
+		return true;
+	}
+
+	public updateMarkerLimit(isMarkersSourceTruncated: boolean, isMarkerLimitExceeded: boolean): boolean {
+		if (this._isMarkersSourceTruncated === isMarkersSourceTruncated && this._isMarkerLimitExceeded === isMarkerLimitExceeded) {
+			return false;
+		}
+		this._isMarkersSourceTruncated = isMarkersSourceTruncated;
+		this._isMarkerLimitExceeded = isMarkerLimitExceeded;
 		return true;
 	}
 

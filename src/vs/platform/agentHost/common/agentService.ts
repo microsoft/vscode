@@ -18,7 +18,7 @@ import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from './agentHostCredentials.js';
-import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext, IAgentHostSessionSubscribeTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
@@ -90,6 +90,16 @@ export interface IAgentHostIpcConnectionOptions {
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
+
+/**
+ * Trusted connection facts retained by the protocol ingress while it asks the
+ * host to submit a create-chat initial message. This is deliberately not part
+ * of the protocol request or provider creation options.
+ */
+export interface IAgentCreateChatInitialMessageContext {
+	readonly clientId: string;
+	readonly telemetryContext: IAgentHostClientTelemetryContext;
+}
 
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
 /** Maximum number of files in one Agent Host debug-log artifact. */
@@ -410,13 +420,19 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	ExporterType: 'COPILOT_OTEL_EXPORTER_TYPE',
 	OtlpEndpoint: 'OTEL_EXPORTER_OTLP_ENDPOINT',
 	OtlpEndpointAlt: 'COPILOT_OTEL_ENDPOINT',
+	OtlpTracesEndpoint: 'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT',
+	OtlpMetricsEndpoint: 'OTEL_EXPORTER_OTLP_METRICS_ENDPOINT',
 	OtlpProtocol: 'OTEL_EXPORTER_OTLP_PROTOCOL',
+	OtlpProtocolAlt: 'COPILOT_OTEL_PROTOCOL',
 	OtlpTracesProtocol: 'OTEL_EXPORTER_OTLP_TRACES_PROTOCOL',
 	OtlpMetricsProtocol: 'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
 	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
+	OtlpTracesHeaders: 'OTEL_EXPORTER_OTLP_TRACES_HEADERS',
+	OtlpMetricsHeaders: 'OTEL_EXPORTER_OTLP_METRICS_HEADERS',
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
 	CaptureIdentity: 'COPILOT_OTEL_CAPTURE_IDENTITY',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
+	FilePathIsManaged: 'VSCODE_AGENT_HOST_OTEL_FILE_PATH_IS_MANAGED',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
 	ServiceName: 'OTEL_SERVICE_NAME',
 	ResourceAttributes: 'OTEL_RESOURCE_ATTRIBUTES',
@@ -621,31 +637,48 @@ export function buildAgentHostOTelEnv(
 		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
 	}
 
-	if (policySettings.enabled !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
-		if (!policySettings.enabled) {
-			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
-			setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+	const clearCollectorDestination = (): void => {
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpEndpointAlt, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsEndpoint, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpProtocolAlt, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpHeaders, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpTracesHeaders, '');
+		setPolicy(AgentHostOTelEnvVars.OtlpMetricsHeaders, '');
+	};
+	const hasManagedFilePath = policySettings.outfile !== undefined && (policySettings.outfile !== '' || policySettings.exporterType === 'file');
+	if (policySettings.enabled === false) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, 'false');
+		clearCollectorDestination();
+		setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		setPolicy(AgentHostOTelEnvVars.DbSpanExporterEnabled, '');
+	} else if (hasManagedFilePath) {
+		setPolicy(AgentHostOTelEnvVars.Enabled, 'true');
+		setPolicy(AgentHostOTelEnvVars.ExporterType, 'file');
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		clearCollectorDestination();
+	} else {
+		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		if (policySettings.enabled !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.Enabled, policySettings.enabled ? 'true' : 'false');
+		}
+		if (policySettings.exporterType !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
 			setPolicy(AgentHostOTelEnvVars.FilePath, '');
 		}
-	}
-	if (policySettings.exporterType !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.ExporterType, policySettings.exporterType);
-		setPolicy(AgentHostOTelEnvVars.FilePath, '');
-	}
-	if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
-		// Mirror the CLI: thread the managed protocol into the generic AND per-signal protocol
-		// env vars so it wins over any user-provided OTEL_EXPORTER_OTLP_{,TRACES_,METRICS_}PROTOCOL.
-		setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
-		setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
-		setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
-	}
-	if (policySettings.otlpEndpoint !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
-		setPolicy(AgentHostOTelEnvVars.FilePath, '');
-	}
-	if (policySettings.outfile !== undefined) {
-		setPolicy(AgentHostOTelEnvVars.FilePath, policySettings.outfile);
+		if (policySettings.otlpProtocol !== undefined && policySettings.otlpProtocol !== '') {
+			setPolicy(AgentHostOTelEnvVars.OtlpProtocol, policySettings.otlpProtocol);
+			setPolicy(AgentHostOTelEnvVars.OtlpTracesProtocol, policySettings.otlpProtocol);
+			setPolicy(AgentHostOTelEnvVars.OtlpMetricsProtocol, policySettings.otlpProtocol);
+		}
+		if (policySettings.otlpEndpoint !== undefined) {
+			setPolicy(AgentHostOTelEnvVars.OtlpEndpoint, policySettings.otlpEndpoint);
+			setPolicy(AgentHostOTelEnvVars.FilePath, '');
+		}
 	}
 	if (policySettings.captureContent !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
@@ -659,6 +692,11 @@ export function buildAgentHostOTelEnv(
 	const policyResourceAttributes = serializeResourceAttributes(policySettings.resourceAttributes);
 	if (policyResourceAttributes !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.ResourceAttributes, policyResourceAttributes);
+	}
+	if (hasManagedFilePath && policySettings.enabled !== false) {
+		setPolicy(AgentHostOTelEnvVars.FilePathIsManaged, 'true');
+	} else if (inheritedEnv[AgentHostOTelEnvVars.FilePathIsManaged] !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.FilePathIsManaged, 'false');
 	}
 	return out;
 }
@@ -818,6 +856,8 @@ export interface IMissionControlOptions {
 	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
+	/** Explicit host-owner opt-in to use local Copilot credentials for same-owner relay clients. */
+	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
 }
@@ -844,9 +884,13 @@ export interface IAgentHostManagementService {
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI>;
 	/**
 	 * Local-only compatibility path for chat fields not yet represented by AHP
-	 * `createChat` (`title` and `model`).
+	 * `createChat` (`model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
+	/** Installs the chat's sandbox CA through trusted local management IPC after user consent, preserving its advertised identity. */
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void>;
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void>;
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void>;
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void>;
 	claimDetachedWorktree(handle: string): Promise<void>;
@@ -939,6 +983,9 @@ export interface IAgentService {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -968,7 +1015,7 @@ export interface IAgentService {
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void>;
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
@@ -1101,7 +1148,7 @@ export interface IAgentService {
 	 * request cancelled during asynchronous resolution cannot pin the resource.
 	 * Callers must distinguish lost subscription ownership from a missing resource.
 	 */
-	subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource): Promise<IStateSnapshot>;
+	subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot>;
 
 	/**
 	 * Counterpart to {@link subscribe}. Drops `clientId` from the refcount
@@ -1156,6 +1203,9 @@ export interface IAgentService {
 	 * Used by the client to drive a remote folder picker before session creation.
 	 */
 	resourceList(uri: URI): Promise<ResourceListResult>;
+
+	/** Estimates reclaimable regular-file allocation using the host-wide scan budget across all protocol endpoints. */
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined>;
 
 	/**
 	 * Read stored content by URI from the agent host (e.g. file edit snapshots,
@@ -1311,10 +1361,26 @@ export interface IAgentConnection {
 	 * when the host doesn't advertise `vscode.sessionMove`.
 	 */
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI>;
+	/**
+	 * Moves `chat` (AHP `moveChat`) within its session, into another session, or into a new session, and resolves to
+	 * its owning session after the move. A host refusal rejects with a `ProtocolError` whose `data.reason` is an
+	 * `AgentChatMoveRefusal`.
+	 */
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Whether this connection can install through trusted local management or an advertised remote capability. */
+	readonly sandboxCertificateInstallationSupported?: IObservable<boolean>;
+	/** Requires installation support and explicit user consent. The advertised chat identity must not be URI-normalized. */
+	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	readonly sandboxCertificateRotationSupported?: IObservable<boolean>;
+	/** Replaces the stored CA and establishes OS trust, after explicit user consent. */
+	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	readonly sandboxCertificateRemovalSupported?: IObservable<boolean>;
+	/** Removes OS trust only, after explicit user consent. */
+	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
 	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
@@ -1383,7 +1449,7 @@ export interface IAgentConnection {
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
 	 * chat to the session's catalog and publishes `session/chatAdded`.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void>;
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(chat: URI): Promise<void>;
 
@@ -1395,6 +1461,8 @@ export interface IAgentConnection {
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
+	/** Estimates reclaimable regular-file allocation on local or remote hosts. Unsupported hosts must not fall back to per-file RPCs. */
+	measureWorktreeDiskUsage?(root: URI, token: CancellationToken): Promise<number | undefined>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;

@@ -35,6 +35,22 @@ export const AgentHostPullRequestOperationId = {
 export const AGENT_HOST_PULL_REQUEST_OPERATION_IDS: ReadonlySet<string> = new Set(Object.values(AgentHostPullRequestOperationId));
 
 /**
+ * Changeset operations that create a pull request for the session's branch.
+ * Declared here for the same reason as {@link AgentHostPullRequestOperationId}.
+ * Current hosts advertise only `Create` (configured through request metadata);
+ * the other variants are still handled and may be advertised by older hosts.
+ */
+export const AgentHostCreatePullRequestOperationId = {
+	Create: 'create-pr',
+	CreateDraft: 'create-draft-pr',
+	CreateAutoMerge: 'create-pr-auto-merge',
+	CreateAutoSquash: 'create-pr-auto-squash',
+	CreateAutoRebase: 'create-pr-auto-rebase',
+	CreateAgentMerge: 'create-pr-agent-merge',
+	CreateDraftAgentMerge: 'create-draft-pr-agent-merge',
+} as const;
+
+/**
  * The subset that hands the merge off to GitHub's own auto-merge. Agent Merge
  * covers the same intent and replaces them on the changes button bar, which
  * drops them from the button and its dropdown.

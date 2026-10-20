@@ -9,6 +9,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
@@ -1435,8 +1436,8 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 
@@ -1898,7 +1899,7 @@ suite('ClaudeAgent', () => {
 					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
 				}
 				return Response.json({ data: ALL_MODELS });
-			}, logService, FakeProductService, endpoints));
+			}, logService, FakeProductService, endpoints, NullTelemetryService));
 			const proxy = disposables.add(new ClaudeProxyService(logService, api));
 			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
 			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');

@@ -254,14 +254,14 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const session = this._activeSession;
 		const provider = this._activeProvider;
 		const workspace = session?.workspace.get();
-		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+		if (!session || !provider || !provider.getModelsSnapshotForCreation) {
 			return undefined;
 		}
 		const entry = this._getComparisonModels().find(entry => entry.presentation.identifier === modelIdentifier);
 		if (!entry) {
 			return undefined;
 		}
-		const resolution = provider.getModelsSnapshotForCreation(workspace.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
+		const resolution = provider.getModelsSnapshotForCreation(workspace?.uri, entry.sessionType.id, entry.model.identifier).desiredModelResolution;
 		return resolution.kind === 'available' ? { sessionType: entry.sessionType, model: resolution.model } : undefined;
 	}
 
@@ -273,7 +273,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 		const session = this._activeSession;
 		const provider = this._activeProvider;
 		const workspace = session?.workspace.get();
-		if (!session || !provider || !workspace || !provider.getModelsSnapshotForCreation) {
+		if (!session || !provider || !provider.getModelsSnapshotForCreation || !workspace && !session.isQuickChat?.get()) {
 			return [];
 		}
 		const models = new Map<string, {
@@ -281,8 +281,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			readonly sessionType: ISessionType;
 			readonly model: ILanguageModelChatMetadataAndIdentifier;
 		}>();
-		for (const sessionType of provider.getSessionTypes(workspace.uri)) {
-			for (const model of provider.getModelsSnapshotForCreation(workspace.uri, sessionType.id).models) {
+		for (const sessionType of workspace ? provider.getSessionTypes(workspace.uri) : provider.sessionTypes) {
+			for (const model of provider.getModelsSnapshotForCreation(workspace?.uri, sessionType.id).models) {
 				models.set(model.identifier, {
 					presentation: {
 						...model,

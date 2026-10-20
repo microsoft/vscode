@@ -29,7 +29,7 @@ import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
-import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
+import { decodeTextBlobAttachmentData, normalizeBase64AttachmentData, readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mcpResourceUri.js';
@@ -621,6 +621,7 @@ export async function mapSessionEvents(
 	const terminatedSubagentTurns = new Set<string>();
 	const subagentTurns = new Map<string, Turn[]>();
 	let parentBuilder: ITurnBuilder | undefined;
+	let pendingSkillBuilder: ITurnBuilder | undefined;
 	let parentTurnState = TurnState.Cancelled;
 	let parentTurnTerminated = false;
 	let rootAssistantTurnActive = false;
@@ -739,6 +740,11 @@ export async function mapSessionEvents(
 				}
 			}
 			continue;
+		}
+		if (!e.agentId && pendingSkillBuilder && (e.type === 'abort' || e.type === 'session.error')) {
+			flushParent();
+			parentBuilder = pendingSkillBuilder;
+			pendingSkillBuilder = undefined;
 		}
 		switch (e.type) {
 			case 'assistant.turn_start':
@@ -859,6 +865,10 @@ export async function mapSessionEvents(
 					const turnId = e.id ?? messageId;
 					fusionReplay.beginTurn(turnId);
 					parentBuilder = newTurnBuilder(turnId, content, { attachments, model: currentModel, agent: currentAgent, startedAt: currentEventTimestamp });
+					if (pendingSkillBuilder) {
+						parentBuilder.responseParts.push(...pendingSkillBuilder.responseParts);
+						pendingSkillBuilder = undefined;
+					}
 					fusionReplay.drain(parentBuilder.responseParts);
 					rootRequestActive = true;
 					if (pendingAutoModeResolved) {
@@ -897,7 +907,11 @@ export async function mapSessionEvents(
 				// branch above.
 				const fallbackTurnId = e.id ?? messageId;
 				const builder = targetBuilderFor(parentToolCallId)
-					?? (parentBuilder = newTurnBuilder(fallbackTurnId, '', { startedAt: currentEventTimestamp }));
+					?? (parentBuilder = pendingSkillBuilder ?? newTurnBuilder(fallbackTurnId, '', { startedAt: currentEventTimestamp }));
+				if (builder === pendingSkillBuilder) {
+					pendingSkillBuilder = undefined;
+					touch(builder);
+				}
 				if (reasoningText) {
 					builder.responseParts.push({
 						kind: ResponsePartKind.Reasoning,
@@ -1045,8 +1059,12 @@ export async function mapSessionEvents(
 			case 'skill.invoked': {
 				const synth = synthesizeSkillToolCall(e.data, e.id);
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
-				const builder = targetBuilderFor(parentToolCallId)
+				// Slash-command skills arrive before the user.message they belong to.
+				const builder = !e.agentId && (!parentBuilder || e.data.trigger === 'user-invoked')
+					? (pendingSkillBuilder ??= newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp }))
+					: targetBuilderFor(parentToolCallId)
 					?? (parentBuilder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp }));
+				touch(builder);
 				if (!parentToolCallId && builder === parentBuilder) {
 					parentTurnState = TurnState.Cancelled;
 				}
@@ -1102,6 +1120,9 @@ export async function mapSessionEvents(
 		parentTurnState = TurnState.Error;
 	}
 	flushParent();
+	if (pendingSkillBuilder) {
+		turns.push(finalizeTurn(pendingSkillBuilder, TurnState.Cancelled));
+	}
 	for (const parentToolCallId of [...subagentBuilders.keys()]) {
 		flushSubagent(parentToolCallId);
 	}
@@ -1218,7 +1239,7 @@ function sdkAttachmentToProtocol(
 				return {
 					type: MessageAttachmentKind.Simple,
 					label: attachment.displayName ?? 'attachment',
-					modelRepresentation: decodeBase64(attachment.data ?? '').toString(),
+					modelRepresentation: decodeTextBlobAttachmentData(attachment.data, simpleDisplayKind !== undefined),
 					...(simpleDisplayKind !== undefined ? { displayKind: simpleDisplayKind } : {}),
 				};
 			}
@@ -1226,7 +1247,7 @@ function sdkAttachmentToProtocol(
 			return {
 				type: MessageAttachmentKind.EmbeddedResource,
 				label: attachment.displayName ?? 'attachment',
-				data: attachment.data ?? '',
+				data: normalizeBase64AttachmentData(attachment.data),
 				contentType: attachment.mimeType,
 				displayKind,
 			};

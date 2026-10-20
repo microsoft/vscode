@@ -14,7 +14,6 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -122,7 +121,7 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return Promise.resolve(undefined);
@@ -131,7 +130,7 @@ export class FileEditTracker {
 		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel));
 	}
 
-	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -177,7 +176,7 @@ export class FileEditTracker {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
 
-		const autoTier = isThenable<AutoModeRoutingTier | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
+		const autoTier = isThenable<string | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
 
 		this._editSurvivalReporterFactory.launch({
 			clientContext,

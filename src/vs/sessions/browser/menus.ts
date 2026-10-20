@@ -113,12 +113,6 @@ export const Menus = {
 	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
 	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	/**
-	 * The Agents window's View > Appearance submenu. It is separate from the
-	 * workbench `MenubarAppearanceMenu`, whose editor-window entries do not
-	 * apply to the Agents window.
-	 */
-	ViewAppearance: new MenuId('SessionsViewAppearance'),
-	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
 	 * related actions, takes over the button when it applies, and uses its first

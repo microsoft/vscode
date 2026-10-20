@@ -5,20 +5,32 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
-import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Action } from '../../../../../../base/common/actions.js';
+import { decodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { matchesSomeScheme, Schemas } from '../../../../../../base/common/network.js';
 import { autorun, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
-import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { createZip } from '../../../../../../base/common/zip.js';
 import { localize } from '../../../../../../nls.js';
+import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
+import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { downloadFile } from '../../../../../browser/download.js';
 import { getChatImageResourceComparisonKey, getToolResultImageResources } from '../../../common/chatImageExtraction.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -34,6 +46,10 @@ import '../../attachments/chatImageReveal.css';
 
 type ImageTool = IChatToolInvocation | IChatToolInvocationSerialized;
 type ImageStatus = 'running' | 'waiting' | 'ready' | 'failed' | 'cancelled';
+
+const MAX_THUMBNAILS_PER_ROW = 5;
+const THUMBNAIL_TARGET_WIDTH = 96;
+const THUMBNAIL_LANDSCAPE_RATIO = 3 / 2;
 
 function isWaiting(tool: ImageTool): boolean {
 	const state = tool.kind === 'toolInvocation' ? tool.state.get().type : undefined;
@@ -86,9 +102,12 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	readonly domNode = dom.$('.chat-image-generation-batch');
 	private readonly selectedTool = dom.append(this.domNode, dom.$('.chat-image-generation-batch-tool'));
 	private readonly preview = dom.append(this.domNode, dom.$('.chat-image-generation-batch-preview'));
-	private readonly summary = dom.append(this.domNode, dom.$('.chat-image-generation-batch-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
+	private readonly footer = dom.append(this.domNode, dom.$('.chat-image-generation-batch-footer'));
+	private readonly summary = dom.append(this.footer, dom.$('.chat-image-generation-batch-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
+	private readonly downloadAction = this._register(new Action('chat.imageBatch.download', localize('chat.imageBatch.download', "Download All Images as ZIP"), ThemeIcon.asClassName(Codicon.cloudDownload), false, () => this.downloadImages()));
+	private downloadInProgress = false;
 	private readonly thumbnails = dom.$('.chat-image-generation-batch-thumbnails', { role: 'group', 'aria-label': localize('chat.imageBatch.thumbnails', "Generated image previews") });
-	private readonly scrollable = this._register(new DomScrollableElement(this.thumbnails, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Hidden }));
+	private readonly thumbnailRows: HTMLElement[] = [];
 	private readonly confirmations = dom.append(this.domNode, dom.$('.chat-image-generation-batch-confirmations'));
 	private readonly loading = this._register(new MutableDisposable<IDisposable>());
 	private readonly previewWidget = this._register(new MutableDisposable<ChatResourceGroupWidget>());
@@ -116,6 +135,10 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		@IFileService private readonly fileService: IFileService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILogService private readonly logService: ILogService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
+		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 	) {
 		super();
 		const viewStates = ChatImageGenerationBatchPart.viewStates.get(response) ?? new Map<string, IBatchViewState>();
@@ -125,15 +148,21 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		};
 		viewStates.set(owner.toolCallId, this.viewState);
 		ChatImageGenerationBatchPart.viewStates.set(response, viewStates);
-		this.summary.before(this.scrollable.getDomNode());
+		this.footer.before(this.thumbnails);
 		this._register(this.hoverService.setupDelayedHover(this.summary, () => ({ content: this.summary.textContent ?? '' })));
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, dom.append(this.footer, dom.$('.chat-image-generation-batch-actions')), {
+			ariaLabel: localize('chat.imageBatch.actions', "Image batch actions"),
+		}));
+		toolbar.setActions([this.downloadAction]);
 		this._register(dom.addDisposableListener(this.preview, dom.EventType.DRAG_START, event => event.preventDefault()));
 		this._register(dom.addDisposableListener(this.thumbnails, dom.EventType.KEY_DOWN, event => {
 			const index = this.slots.findIndex(slot => slot.key === this.viewState.selected);
 			const next = event.key === 'ArrowRight' ? Math.min(index + 1, this.slots.length - 1)
 				: event.key === 'ArrowLeft' ? Math.max(index - 1, 0)
-					: event.key === 'Home' ? 0
-						: event.key === 'End' ? this.slots.length - 1 : undefined;
+					: event.key === 'ArrowDown' ? this.getVerticalThumbnailIndex(index, 1)
+						: event.key === 'ArrowUp' ? this.getVerticalThumbnailIndex(index, -1)
+							: event.key === 'Home' ? 0
+								: event.key === 'End' ? this.slots.length - 1 : undefined;
 			if (next !== undefined && this.slots[next]) {
 				event.preventDefault();
 				event.stopPropagation();
@@ -144,7 +173,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		}));
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGenerationBatch', () => {
 			this.layoutAfterResize.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
-				this.scrollable.scanDomNode();
+				this.layoutThumbnails();
 				this._onDidChangeHeight.fire();
 			});
 		}));
@@ -203,6 +232,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		if (this.summary.textContent !== text) {
 			this.summary.textContent = text;
 		}
+		this.updateDownloadAction();
 		this.updateThumbnails();
 		const selected = slots.find(slot => slot.key === this.viewState.selected);
 		if (!selected || !this.viewState.selectedByUser && !selected.part) {
@@ -211,6 +241,61 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		this.updatePreview();
 		this.updateToolRow();
 		this._onDidChangeHeight.fire();
+	}
+
+	private updateDownloadAction(): void {
+		const ready = this.slots.filter(slot => slot.part).length;
+		this.downloadAction.label = ready > 0 && ready < this.slots.length
+			? ready === 1 ? localize('chat.imageBatch.downloadOneReady', "Download 1 Ready Image as ZIP") : localize('chat.imageBatch.downloadReady', "Download {0} Ready Images as ZIP", ready)
+			: localize('chat.imageBatch.download', "Download All Images as ZIP");
+		this.downloadAction.tooltip = this.downloadAction.label;
+		this.downloadAction.enabled = ready > 0 && !this.downloadInProgress;
+	}
+
+	private async downloadImages(): Promise<void> {
+		const images = this.slots.flatMap(slot => slot.part ? [slot.part] : []);
+		if (!images.length || this.downloadInProgress) {
+			return;
+		}
+		this.downloadInProgress = true;
+		this.updateDownloadAction();
+		try {
+			const archive = await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('chat.imageBatch.downloadProgress', "Preparing image batch..."),
+				delay: 500,
+			}, async progress => {
+				const files: { path: string; contents: VSBuffer }[] = [];
+				for (const image of images) {
+					let contents: VSBuffer;
+					if (image.base64Value !== undefined) {
+						contents = decodeBase64(image.base64Value);
+					} else if (image.value) {
+						contents = VSBuffer.wrap(image.value);
+					} else if (!isWeb && matchesSomeScheme(image.uri, Schemas.http, Schemas.https)) {
+						const extracted = await this.webContentExtractorService.readImage(image.uri, CancellationToken.None);
+						if (!extracted) {
+							throw new Error(localize('chat.imageBatch.imageUnavailable', "Unable to read image data from the URL."));
+						}
+						contents = extracted;
+					} else {
+						contents = (await this.fileService.readFile(image.uri)).value;
+					}
+					files.push({ path: image.name ?? basename(image.uri), contents });
+					progress.report({ increment: 1, total: images.length });
+				}
+				return createZip(files);
+			});
+			await downloadFile(archive, 'generated-images.zip', this.fileService, this.fileDialogService, this.webContentExtractorService);
+		} catch (error) {
+			this.logService.error('[ChatImageGenerationBatch] Could not download images', error);
+			this.notificationService.error(localize('chat.imageBatch.downloadError', "Failed to download image batch: {0}", toErrorMessage(error)));
+		} finally {
+			this.downloadInProgress = false;
+			if (!this._store.isDisposed) {
+				this.updateDownloadAction();
+			}
+		}
 	}
 
 	private updateThumbnails(): void {
@@ -253,7 +338,14 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 					thumbnail.icon.className = ThemeIcon.asClassName(Codicon.warning);
 					thumbnail.icon.hidden = false;
 					thumbnail.button.setAriaLabel(localize('chat.imageBatch.previewUnavailable', "Image {0}, preview unavailable", index + 1));
+					this.layoutThumbnails();
 				};
+				store.add(dom.addDisposableListener(image, dom.EventType.LOAD, () => {
+					if (!store.isDisposed && image.naturalWidth > 0 && image.naturalHeight > 0) {
+						this.viewState.imageDimensions.set(slot.part!.uri, { width: image.naturalWidth, height: image.naturalHeight });
+						this.layoutThumbnails();
+					}
+				}));
 				store.add(dom.addDisposableListener(image, dom.EventType.ERROR, showError));
 				void this.loadThumbnail(slot.part, image, store, showError);
 			} else if (!slot.part) {
@@ -272,11 +364,60 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 								: localize('chat.imageBatch.failedImage', "Image {0}, failed", index + 1);
 			item.button.setAriaLabel(label);
 			item.button.setTitle(label);
-			if (this.thumbnails.children[index] !== item.button.element) {
-				this.thumbnails.insertBefore(item.button.element, this.thumbnails.children[index] ?? null);
-			}
 		});
-		this.scrollable.scanDomNode();
+		this.layoutThumbnails();
+	}
+
+	private layoutThumbnails(): void {
+		const width = this.thumbnails.clientWidth || this.context.container.clientWidth || this.context.currentWidth.get();
+		const columns = Math.max(1, Math.min(MAX_THUMBNAILS_PER_ROW, Math.floor(width / THUMBNAIL_TARGET_WIDTH)));
+		const rowHeight = `min(144px, calc((100cqw - var(--vscode-spacing-size120) * ${columns - 1}) / ${columns * THUMBNAIL_LANDSCAPE_RATIO}))`;
+		const rowCount = Math.ceil(this.slots.length / columns);
+		const focused = dom.isAncestorOfActiveElement(this.thumbnails) ? dom.getActiveElement() : undefined;
+		let start = 0;
+		for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+			const row = this.thumbnailRows[rowIndex] ?? dom.append(this.thumbnails, dom.$('.chat-image-generation-batch-thumbnail-row'));
+			this.thumbnailRows[rowIndex] = row;
+			// Reserve landscape-sized slots before decoding; narrower images leave space at the row end.
+			row.style.height = rowHeight;
+			const rowSize = Math.ceil((this.slots.length - start) / (rowCount - rowIndex));
+			for (let column = 0; column < rowSize; column++) {
+				const slot = this.slots[start + column];
+				const item = this.thumbnailItems.get(slot.key)!;
+				const dimensions = slot.part && !item.previewUnavailable ? this.viewState.imageDimensions.get(slot.part.uri) : undefined;
+				const ratio = dimensions ? dimensions.width / dimensions.height : 1;
+				const heightScale = Math.min(1, THUMBNAIL_LANDSCAPE_RATIO / ratio);
+				item.button.element.style.aspectRatio = String(ratio);
+				item.button.element.style.height = `calc(${rowHeight} * ${heightScale})`;
+				item.button.element.style.width = `calc(${rowHeight} * ${heightScale * ratio})`;
+				if (row.children[column] !== item.button.element) {
+					row.insertBefore(item.button.element, row.children[column] ?? null);
+				}
+			}
+			start += rowSize;
+		}
+		for (const row of this.thumbnailRows.splice(rowCount)) {
+			row.remove();
+		}
+		if (focused && dom.isHTMLElement(focused) && dom.getActiveElement() !== focused) {
+			focused.focus({ preventScroll: true });
+		}
+	}
+
+	private getVerticalThumbnailIndex(index: number, direction: -1 | 1): number {
+		const current = this.thumbnailItems.get(this.slots[index]?.key)?.button.element;
+		if (!current) {
+			return index;
+		}
+		const rowIndex = this.thumbnailRows.findIndex(row => row === current.parentElement);
+		const row = this.thumbnailRows[rowIndex];
+		const nextRow = this.thumbnailRows[rowIndex + direction];
+		if (!row || !nextRow) {
+			return index;
+		}
+		const column = Array.from(row.children).indexOf(current);
+		const next = nextRow.children[Math.min(column, nextRow.children.length - 1)];
+		return this.slots.findIndex(slot => this.thumbnailItems.get(slot.key)?.button.element === next);
 	}
 
 	private async loadThumbnail(part: IChatCollapsibleIODataPart, image: HTMLImageElement, store: DisposableStore, onError: () => void): Promise<void> {

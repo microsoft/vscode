@@ -45,6 +45,8 @@ suite('CustomizationMigrationDashboard', () => {
 			showItemActions: () => { },
 			ignoreCategory: () => { },
 			restoreIgnoredCategories: () => { },
+			restoreAgentMigration: () => { },
+			deleteAgentMigrationRecovery: () => { },
 			retryCategory: () => { },
 			openCustomization: () => { },
 			...callbacks,
@@ -129,17 +131,10 @@ suite('CustomizationMigrationDashboard', () => {
 			migrateWithAgent: () => actions.push('agent'),
 			migrateCategory: (id, storage) => actions.push(`migrate:${id}:${storage}`),
 		});
-
-		test('hides agent migration for unsupported harnesses', () => {
-			const { parent, dashboard } = createDashboard();
-			dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
-
-			assert.strictEqual(parent.querySelector('[aria-label="Start an agent-guided customization migration"]'), null);
-		});
 		dashboard.showOverview(overview());
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
-		const agentMigrationButton = button(parent, 'Start an agent-guided customization migration');
+		const agentMigrationButton = button(parent, 'Start a guided migration of all customization files that need migration');
 		const migrateButton = button(parent, 'Migrate: Convert Prompt to Skills (Workspace)');
 		agentMigrationButton.click();
 		migrateButton.click();
@@ -198,6 +193,13 @@ suite('CustomizationMigrationDashboard', () => {
 			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:pluginMarketplaces:user', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
 			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:pluginMarketplaces', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
+	});
+
+	test('hides agent migration for unsupported harnesses', () => {
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
+
+		assert.strictEqual(parent.querySelector('[aria-label="Start a guided migration of all customization files that need migration"]'), null);
 	});
 
 	test('moves initial loading focus to the first migrate action when the overview loads', () => {
@@ -345,6 +347,36 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: 'No migrations are needed.',
 			buttons: 0,
 			focus: 'BODY',
+		});
+	});
+
+	test('renders agent migration recovery actions', () => {
+		const actions: string[] = [];
+		const { parent, dashboard } = createDashboard({
+			restoreAgentMigration: recovery => actions.push(`restore:${recovery.id}`),
+			deleteAgentMigrationRecovery: recovery => actions.push(`delete:${recovery.id}`),
+		});
+		dashboard.showOverview({
+			scopes: [],
+			recoveries: [{
+				id: 'flow-1',
+				label: 'Copilot migration',
+				description: '2 original sources backed up. Status: completed.',
+				canModify: true,
+			}],
+		});
+
+		button(parent, 'Restore original sources for Copilot migration').click();
+		button(parent, 'Delete backup for Copilot migration').click();
+
+		assert.deepStrictEqual({
+			heading: parent.querySelector('.migration-recoveries h2')?.textContent,
+			description: parent.querySelector('.migration-recovery-content p')?.textContent,
+			actions,
+		}, {
+			heading: 'Agent Migration Recovery',
+			description: '2 original sources backed up. Status: completed.',
+			actions: ['restore:flow-1', 'delete:flow-1'],
 		});
 	});
 
