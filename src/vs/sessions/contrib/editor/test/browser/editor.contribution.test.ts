@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -100,14 +99,24 @@ function registerEmptyFileEditorActions() {
 	});
 }
 
-async function waitForCondition(condition: () => boolean, message: string): Promise<void> {
-	const deadline = Date.now() + 2000;
-	while (!condition()) {
-		if (Date.now() >= deadline) {
-			throw new Error(message);
-		}
-		await timeout(10);
+/**
+ * Resolves once `condition` holds. The condition is checked right away and then
+ * each time `event` fires, so a change that already happened is not missed.
+ */
+async function waitForCondition<T>(event: Event<T>, condition: () => boolean): Promise<void> {
+	if (!condition()) {
+		await Event.toPromise(Event.filter(event, () => condition()));
 	}
+}
+
+/**
+ * Returns the open quick pick. It shows new results by applying them, which
+ * activates their first item and fires `onDidChangeActive`.
+ */
+function getQuickPick(instantiationService: TestInstantiationService): IQuickPick<IQuickPickItem, { useSeparators: true }> {
+	const quickInput = instantiationService.get(IQuickInputService).currentQuickInput;
+	assert.strictEqual(quickInput?.type, QuickInputType.QuickPick);
+	return quickInput as IQuickPick<IQuickPickItem, { useSeparators: true }>;
 }
 
 class TestResourceEditorInput extends EditorInput {
@@ -714,6 +723,8 @@ suite('Sessions - Editor Contribution', () => {
 		const queries: IFileQuery[] = [];
 		const clearedCacheKeys: string[] = [];
 		const opened: { resource: URI; preserveFocus: boolean | undefined; pinned: boolean | undefined }[] = [];
+		const onDidClearCache = store.add(new Emitter<void>());
+		const onDidOpen = store.add(new Emitter<void>());
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
 			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
 				queries.push(query);
@@ -730,6 +741,7 @@ suite('Sessions - Editor Contribution', () => {
 			}
 			override clearCache(cacheKey: string): Promise<void> {
 				clearedCacheKeys.push(cacheKey);
+				onDidClearCache.fire();
 				return Promise.resolve();
 			}
 		});
@@ -739,6 +751,7 @@ suite('Sessions - Editor Contribution', () => {
 				if (hasResource(editor)) {
 					const options = Reflect.get(editor, 'options') as IEditorOptions | undefined;
 					opened.push({ resource: editor.resource, preserveFocus: options?.preserveFocus, pinned: options?.pinned });
+					onDidOpen.fire();
 				}
 				return undefined;
 			}
@@ -765,15 +778,15 @@ suite('Sessions - Editor Contribution', () => {
 		const inputBoundsBeforeSearch = getInputBounds();
 		input.value = 'a';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		const onDidShowResults = getQuickPick(instantiationService).onDidChangeActive;
 		const pickerTextInput = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-filter input');
 		assert.ok(pickerTextInput);
 		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		pickerTextInput.setRangeText('p', pickerTextInput.selectionStart ?? 0, pickerTextInput.selectionEnd ?? 0, 'end');
 		pickerTextInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => queries.length >= 1
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 2,
-			'Expected file search results to appear');
+		await waitForCondition(onDidShowResults, () => queries.length >= 1
+			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 2);
 		const valueAfterPickerOpened = pickerTextInput.value;
 
 		const picker = mainWindow.document.querySelector<HTMLElement>('.quick-input-widget.quick-input-widget-overlay');
@@ -784,35 +797,32 @@ suite('Sessions - Editor Contribution', () => {
 		const activePicker = instantiationService.get(IQuickInputService).currentQuickInput;
 		assert.strictEqual(activePicker?.type, QuickInputType.QuickPick);
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).accept(true);
-		await waitForCondition(() => opened.length === 1, 'Expected the background acceptance to open the active file');
+		await waitForCondition(onDidOpen.event, () => opened.length === 1);
 		const backgroundAcceptState = {
 			pickerVisible: picker?.style.display !== 'none',
 			preserveFocus: opened[0].preserveFocus,
 			pinned: opened[0].pinned,
 		};
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).value = '#app';
-		await waitForCondition(() => queries.some(query => query.filePattern === '#app')
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected the literal prefixed filename query to stay with file search');
+		await waitForCondition(onDidShowResults, () => queries.some(query => query.filePattern === '#app')
+			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1);
 		const prefixedRows = Array.from(
 			mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')
 		).map(row => row.textContent);
 		const queryCountBeforeMultiTerm = queries.length;
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).value = 'app test';
-		await waitForCondition(() => queries.length > queryCountBeforeMultiTerm
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected multi-term filtering to settle');
+		await waitForCondition(onDidShowResults, () => queries.length > queryCountBeforeMultiTerm
+			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1);
 		const multiTermRows = Array.from(
 			mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')
 		).map(row => row.textContent);
 		(activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).accept();
-		await waitForCondition(() => opened.length === 2, 'Expected the foreground acceptance to open the active file');
-		await waitForCondition(() => picker?.style.display === 'none', 'Expected the picker to close after foreground acceptance');
-		await waitForCondition(() => queries.every(query => typeof query.cacheKey === 'string' && clearedCacheKeys.includes(query.cacheKey)),
-			'Expected the picker-scoped search cache to be cleared');
+		await waitForCondition(onDidOpen.event, () => opened.length === 2);
+		const onDidHidePicker = (activePicker as IQuickPick<IQuickPickItem, { useSeparators: true }>).onDidHide;
+		await waitForCondition(onDidHidePicker, () => picker?.style.display === 'none');
+		await waitForCondition(onDidClearCache.event, () => queries.every(query => typeof query.cacheKey === 'string' && clearedCacheKeys.includes(query.cacheKey)));
 		input.blur();
-		await waitForCondition(() => instantiationService.get(IContextKeyService).getContextKeyValue(EmptyFileEditorSearchPickerFocusedContext.key) === false,
-			'Expected the search help context to clear after focus leaves');
+		await waitForCondition(onDidHidePicker, () => instantiationService.get(IContextKeyService).getContextKeyValue(EmptyFileEditorSearchPickerFocusedContext.key) === false);
 
 		assert.deepStrictEqual({
 			query: queries[0] && {
@@ -874,9 +884,11 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor search combines session working directories before native ranking', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const queries: IFileQuery[] = [];
+		const onDidSearch = store.add(new Emitter<void>());
 		instantiationService.stub(ISearchService, new class extends mock<ISearchService>() {
 			override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
 				queries.push(query);
+				onDidSearch.fire();
 				return { results: [], messages: [], limitHit: false };
 			}
 			override clearCache(): Promise<void> {
@@ -905,7 +917,7 @@ suite('Sessions - Editor Contribution', () => {
 		assert.ok(input);
 		input.value = 'file';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => queries.length === 1, 'Expected a combined workspace search');
+		await waitForCondition(onDidSearch.event, () => queries.length === 1);
 
 		assert.deepStrictEqual({
 			folders: queries[0].folderQueries.map(folderQuery => folderQuery.folder.toString()),
@@ -962,6 +974,7 @@ suite('Sessions - Editor Contribution', () => {
 		const excludedResource = root.with({ path: '/root/ignored/secret.ts' });
 		const searchQueries: IFileQuery[] = [];
 		const opened: URI[] = [];
+		const onDidOpen = store.add(new Emitter<void>());
 		let excludedResolved = false;
 		const configurationService = new TestConfigurationService({
 			files: {
@@ -1016,6 +1029,7 @@ suite('Sessions - Editor Contribution', () => {
 				const editor = args[0];
 				if (hasResource(editor)) {
 					opened.push(editor.resource);
+					onDidOpen.fire();
 				}
 				return undefined;
 			}
@@ -1029,30 +1043,27 @@ suite('Sessions - Editor Contribution', () => {
 		assert.ok(input);
 		input.value = 'app';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected sibling-dependent excludes to remove the generated file');
-		const pickerInput = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-filter input');
-		assert.ok(pickerInput);
-		pickerInput.value = '"app*.ts"';
-		pickerInput.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected quoted wildcard syntax to match the virtual file');
+		const picker = getQuickPick(instantiationService);
+		await waitForCondition(picker.onDidChangeActive, () => mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1);
+		const unquotedResult = picker.activeItems[0];
+		picker.value = '"app*.test.ts"';
+		await waitForCondition(picker.onDidChangeActive, () => picker.activeItems[0] !== unquotedResult);
 		const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row'));
 		rows[0]?.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
-		await timeout(0);
+		await waitForCondition(onDidOpen.event, () => opened.length === 1);
 
 		assert.deepStrictEqual({
 			rows: rows.map(row => row.textContent),
 			opened: opened.map(candidate => candidate.toString()),
 			searchQueries: searchQueries.length,
 			excludedResolved,
-			query: pickerInput.value,
+			query: picker.value,
 		}, {
 			rows: ['app.test.tssrc'],
 			opened: [resource.toString()],
 			searchQueries: 0,
 			excludedResolved: false,
-			query: '"app*.ts"',
+			query: '"app*.test.ts"',
 		});
 	});
 
@@ -1102,15 +1113,12 @@ suite('Sessions - Editor Contribution', () => {
 		assert.ok(input);
 		input.value = 'app';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await waitForCondition(() => virtualResolveAttempts >= 1
-			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1,
-			'Expected native results despite the virtual provider failure');
+		const picker = getQuickPick(instantiationService);
+		await waitForCondition(picker.onDidChangeActive, () => virtualResolveAttempts >= 1
+			&& mainWindow.document.querySelectorAll('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row').length === 1);
 		const firstRows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')).map(row => row.textContent);
-		const picker = instantiationService.get(IQuickInputService).currentQuickInput;
-		assert.strictEqual(picker?.type, QuickInputType.QuickPick);
-		(picker as IQuickPick<IQuickPickItem, { useSeparators: true }>).value = 'other';
-		await waitForCondition(() => fileSearchPatterns.includes('other'),
-			'Expected a failed virtual index to be retried');
+		picker.value = 'other';
+		await waitForCondition(picker.onDidChangeActive, () => fileSearchPatterns.includes('other'));
 		const secondRows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-widget.quick-input-widget-overlay .quick-input-list .monaco-list-row')).map(row => row.textContent);
 
 		assert.deepStrictEqual({
