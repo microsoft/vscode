@@ -160,15 +160,62 @@ suite('Codex turn diff tracking', () => {
 		]);
 	});
 
-	test('a section that cannot be verified yet is reported by the next cumulative update', async () => {
+	test('a turn change overwritten before its disk read is reported in order once a later update verifies it', async () => {
 		const turn = track();
-		await write('changed by someone else\n');
-		const first = await update(turn, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n'));
 		await write('c\n');
-		assert.deepStrictEqual([first, await update(turn, diff('a\n', 'c\n', '@@ -1 +1 @@\n-a\n+c\n'))], [
+		assert.deepStrictEqual([
+			await update(turn, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n')),
+			await update(turn, diff('a\n', 'c\n', '@@ -1 +1 @@\n-a\n+c\n')),
+		], [[], [
+			{ path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
+			{ path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
+		]]);
+	});
+
+	test('a parent change a child overwrote before its disk read is recovered from the child diff', async () => {
+		const parent = track('parent-native');
+		const child = track('child-native');
+		await write('c\n');
+		assert.deepStrictEqual([
+			await update(parent, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n')),
+			await update(child, diff('b\n', 'c\n', '@@ -1 +1 @@\n-b\n+c\n')),
+		], [[], [
+			{ path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
+			{ path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
+		]]);
+	});
+
+	test('changes overwritten before their disk reads are recovered through a chain of later diffs', async () => {
+		await write('d\n');
+		assert.deepStrictEqual([
+			await update(track('first-native'), diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n')),
+			await update(track('second-native'), diff('b\n', 'c\n', '@@ -1 +1 @@\n-b\n+c\n')),
+			await update(track('third-native'), diff('c\n', 'd\n', '@@ -1 +1 @@\n-c\n+d\n')),
+		], [[], [], [
+			{ path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
+			{ path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
+			{ path: expectedPath('edit.txt'), before: 'c\n', after: 'd\n' },
+		]]);
+	});
+
+	test('a change no later diff can verify is dropped without holding back later changes', async () => {
+		await write('user edit\n');
+		const first = await update(track('parent-native'), diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n'));
+		await write('child\n');
+		const second = await update(track('child-native'), diff('user edit\n', 'child\n', '@@ -1 +1 @@\n-user edit\n+child\n'));
+		await write('last\n');
+		assert.deepStrictEqual([first, second, await update(track('later-native'), diff('child\n', 'last\n', '@@ -1 +1 @@\n-child\n+last\n'))], [
 			[],
-			[{ path: expectedPath('edit.txt'), before: 'a\n', after: 'c\n' }],
+			[{ path: expectedPath('edit.txt'), before: 'user edit\n', after: 'child\n' }],
+			[{ path: expectedPath('edit.txt'), before: 'child\n', after: 'last\n' }],
 		]);
+	});
+
+	test('a change awaiting verification does not hold back the other paths of its update', async () => {
+		await write('c\n');
+		await write('after\n', 'other.txt');
+		assert.deepStrictEqual(await update(track(), diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n') + diff('before\n', 'after\n', '@@ -1 +1 @@\n-before\n+after\n', 'other.txt')),
+			[{ path: expectedPath('other.txt'), before: 'before\n', after: 'after\n' }]);
 	});
 
 	test('a later parent change starts where a child left the shared path', async () => {
