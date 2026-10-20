@@ -9292,8 +9292,13 @@ class SessionDiscoveredEntry extends Disposable {
 /**
  * Projects already-parsed discovered customizations into an in-memory
  * {@link IParsedPlugin} while preserving original source URIs.
+ *
+ * @param isLoadedByRuntime Identifies rules the runtime already loads for
+ * every session. They are left out of the projection because the launcher
+ * forwards instructions as `instructionDirectories`, which the runtime does
+ * not deduplicate against the sources it discovers itself.
  */
-export function mapToParsedPlugin(customizations: readonly DirectoryCustomization[]): IParsedPlugin | undefined {
+export function mapToParsedPlugin(customizations: readonly DirectoryCustomization[], isLoadedByRuntime?: (rule: URI) => boolean): IParsedPlugin | undefined {
 	if (customizations.length === 0) {
 		return undefined;
 	}
@@ -9330,8 +9335,12 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 				if (child.alwaysApply && child.name.match(/\.md$/i)) {
 					continue; // agent instruction
 				}
+				const uri = URI.parse(child.uri);
+				if (isLoadedByRuntime?.(uri)) {
+					continue;
+				}
 				instructions.push({
-					uri: URI.parse(child.uri),
+					uri,
 					name: child.name,
 					description: child.description,
 					customization: child,
@@ -9651,6 +9660,7 @@ class SessionPluginController extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 	) {
 		super();
 		this._enablementReady = this._customizationEnablementService.initializeSession(this._session.toString()).then(() => {
@@ -10034,7 +10044,12 @@ class SessionPluginController extends Disposable {
 		};
 		const discovered = anchor?.discoveredEntry()?.currentCustomizations() ?? [];
 		const discoveredDirectories = discovered.filter((customization): customization is DirectoryCustomization => customization.type === CustomizationType.Directory);
-		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk) ? mapToParsedPlugin(discoveredDirectories) : undefined;
+		// The runtime loads `<COPILOT_HOME>/instructions` on its own (`enableConfigDiscovery`), so forwarding it
+		// as an explicit instruction directory would inject every user instruction twice.
+		const runtimeUserInstructions = resourceJoinPath(this._copilotHomeService.home, 'instructions');
+		const sessionPlugin = discoveredDirectories.some(isEnabledForSdk)
+			? mapToParsedPlugin(discoveredDirectories, rule => extUriBiasedIgnorePathCase.isEqualOrParent(rule, runtimeUserInstructions))
+			: undefined;
 		const withSdkRegistration = (plugin: IParsedPlugin, pluginDir: URI | undefined): ICopilotPluginInfo => ({
 			...plugin,
 			pluginDir,
