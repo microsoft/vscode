@@ -43,6 +43,7 @@ interface State {
 	resource?: string;
 	line?: number;
 	fragment?: string;
+	startingLine?: number;
 }
 
 const originalState: State = vscode.getState() ?? {};
@@ -53,9 +54,13 @@ const state: State = {
 
 const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
 if (typeof originalState.scrollProgress !== 'undefined'
-	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
+	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.startingLine !== settings.settings.line && originalState.line !== settings.settings.line))) {
 	state.scrollProgress = hasStartingLine ? undefined : 0;
+} else if (originalState?.resource === state.resource && typeof originalState.line === 'number') {
+	state.line = originalState.line;
 }
+
+state.startingLine = settings.settings.line;
 
 // Make sure to sync VS Code state here
 vscode.setState(state);
