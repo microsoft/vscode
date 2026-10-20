@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalService, type IDetachedTerminalInstance, type IDetachedXtermTerminal } from './terminal.js';
+import { ITerminalService, type IChatTerminalOutputPosition, type IDetachedTerminalInstance, type IDetachedXtermTerminal } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
@@ -793,6 +793,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	private _attachedContainer: HTMLElement | undefined;
 
 	private _output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined;
+	private _outputPosition: IChatTerminalOutputPosition | undefined;
 	private _container: HTMLElement | undefined;
 	private readonly _renderSequencer = new Sequencer();
 	private _outputVersion = 0;
@@ -800,6 +801,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	private _lastRenderedLineCount: number | undefined;
 	private _lastRenderedMaxColumnWidth: number | undefined;
 	private _lastRenderedText = '';
+	private _lastRenderedPosition: IChatTerminalOutputPosition | undefined;
 	private readonly _onDidChangeRowHeightEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeRowHeight: Event<void> = this._onDidChangeRowHeightEmitter.event;
 	private _renderListenerInstalled = false;
@@ -863,8 +865,13 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		return this._detachedTerminal;
 	}
 
-	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
+	/**
+	 * @param position Where `output` sits in a stream that drops its oldest output, so a render
+	 * writes only what was appended since the last one.
+	 */
+	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined, position?: IChatTerminalOutputPosition): void {
 		this._output = output;
+		this._outputPosition = position;
 		this._outputVersion++;
 	}
 
@@ -943,6 +950,7 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 
 	private async _render(): Promise<{ lineCount?: number; maxColumnWidth?: number } | undefined> {
 		const output = this._output;
+		const position = this._outputPosition;
 		const outputVersion = this._outputVersion;
 		if (!output) {
 			return undefined;
@@ -965,13 +973,12 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			const lineCount = output.lineCount ?? 0;
 			this._renderedVersion = outputVersion;
 			this._lastRenderedText = '';
+			this._lastRenderedPosition = position;
 			this._lastRenderedLineCount = lineCount;
 			this._lastRenderedMaxColumnWidth = 0;
 			return { lineCount, maxColumnWidth: 0 };
 		}
-		const write = text.startsWith(this._lastRenderedText)
-			? text.slice(this._lastRenderedText.length)
-			: `\x1b[2J\x1b[3J\x1b[H${text}`;
+		const write = this._getUnrenderedText(text, position);
 		if (write) {
 			await new Promise<void>(resolve => terminal.xterm.write(write, resolve));
 		}
@@ -984,12 +991,31 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		const lineCount = computeSnapshotLineCount(terminal.xterm.buffer.active, output.truncated ? output.lineCount : undefined);
 		this._renderedVersion = outputVersion;
 		this._lastRenderedText = text;
+		this._lastRenderedPosition = position;
 		this._lastRenderedLineCount = lineCount;
 		// Only compute max column width for small outputs to avoid performance issues
 		if (this._shouldComputeMaxColumnWidth(lineCount)) {
 			this._lastRenderedMaxColumnWidth = this._computeMaxColumnWidth(terminal);
 		}
 		return { lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
+	}
+
+	/** Returns the part of `text` the terminal doesn't show yet, or all of it after a clear when it was replaced. */
+	private _getUnrenderedText(text: string, position: IChatTerminalOutputPosition | undefined): string {
+		const renderedText = this._lastRenderedText;
+		const renderedPosition = this._lastRenderedPosition;
+		if (position) {
+			// Comparing positions keeps each render proportional to the appended output; dropped output stays in the scrollback.
+			if (renderedPosition?.generation === position.generation) {
+				const renderedLength = renderedPosition.start + renderedText.length - position.start;
+				if (renderedLength >= 0 && renderedLength <= text.length) {
+					return text.substring(renderedLength);
+				}
+			}
+		} else if (text.startsWith(renderedText)) {
+			return text.slice(renderedText.length);
+		}
+		return renderedText ? `\x1b[2J\x1b[3J\x1b[H${text}` : text;
 	}
 
 	private _computeMaxColumnWidth(terminal: IDetachedTerminalInstance): number {

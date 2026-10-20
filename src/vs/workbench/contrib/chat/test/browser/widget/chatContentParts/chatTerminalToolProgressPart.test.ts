@@ -1473,6 +1473,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 			const source: IChatTerminalOutputSource = {
 				onDidChange: Event.None,
 				output: text,
+				outputPosition: { generation: 0, start: 0 },
 				hasExited: true,
 				exitCode: 0,
 			};
@@ -1592,7 +1593,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 				container.style.width = '220px';
 				const text = 'x'.repeat(100);
 				const section = createSection(streamed ? undefined : { text }, undefined, streamed ? {
-					source: { output: text, onDidChange: Event.None, hasExited: false, exitCode: undefined },
+					source: { output: text, outputPosition: { generation: 0, start: 0 }, onDidChange: Event.None, hasExited: false, exitCode: undefined },
 				} : undefined);
 				await section.toggle(true);
 				const fake = fakes[0];

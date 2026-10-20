@@ -27,6 +27,7 @@ import { AgentHostOutputChannel } from '../../browser/agentHostOutputChannel.js'
 import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { terminalReducer } from '../../../../../platform/agentHost/common/state/protocol/reducers.js';
+import { AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../../../../../platform/agentHost/common/terminalConstants.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 // ---- Mock IAgentConnection --------------------------------------------------
@@ -133,13 +134,13 @@ class MockAgentConnection implements IAgentConnection {
 			get verifiedValue() { return connection._terminalState; },
 			onDidChange: onDidChange.event, onWillApplyAction: onWillApplyAction.event, onDidApplyAction: onDidApplyAction.event,
 		};
-		// Wire onDidAction to the subscription's events
+		// Wire onDidAction to the subscription's events, in the order a real subscription fires them
 		const listener = this._onDidAction.event(envelope => {
 			if (envelope.channel === _resource.toString()) {
 				onWillApplyAction.fire(envelope);
 				this._terminalState = terminalReducer(this._terminalState, envelope.action as TerminalAction);
-				onDidApplyAction.fire(envelope);
 				onDidChange.fire(this._terminalState);
+				onDidApplyAction.fire(envelope);
 			}
 		});
 		return {
@@ -255,6 +256,54 @@ suite('AgentHostPty', () => {
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 3 });
 		assert.strictEqual(source.output, 'fresh\r\n');
 		assert.strictEqual(source.exitCode, 3);
+	});
+
+	test('output channel appends streamed data, including a CRLF split across chunks', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false, content: [{ type: 'unclassified', value: 'first\r' }] }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: '\nsecond\r' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: '\n' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'third\n' });
+
+		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, {
+			output: 'first\r\nsecond\r\nthird\r\n',
+			position: { generation: 1, start: 0 },
+		});
+	});
+
+	test('output channel keeps only the newest output once the stream outgrows the host limit', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const line = (index: number) => `${String(index).padStart(4, '0')}${'x'.repeat(995)}\n`;
+
+		for (let index = 0; index < 120; index++) {
+			conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: line(index) });
+		}
+
+		assert.deepStrictEqual({
+			retained: source.output.length,
+			position: source.outputPosition,
+			newest: source.output.slice(-1001),
+		}, {
+			retained: AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH,
+			position: { generation: 1, start: 120 * 1001 - AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH },
+			newest: `0119${'x'.repeat(995)}\r\n`,
+		});
+	});
+
+	test('output channel starts a new generation when its output is cleared', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'old\n' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCleared });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'fresh\n' });
+
+		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, {
+			output: 'fresh\r\n',
+			position: { generation: 2, start: 0 },
+		});
 	});
 
 	test('input() dispatches terminal/input action', async () => {

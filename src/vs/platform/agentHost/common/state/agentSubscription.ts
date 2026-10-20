@@ -19,6 +19,7 @@ import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetSt
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 import { normalizeLegacyChatStateErrors } from './legacyProtocolCompatibility.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH, AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../terminalConstants.js';
 
 // --- Public API --------------------------------------------------------------
 
@@ -650,12 +651,41 @@ export class TerminalStateSubscription extends BaseAgentSubscription<TerminalSta
 	}
 
 	protected override _applyReducer(state: TerminalState, action: StateAction): TerminalState {
-		return terminalReducer(state, action as TerminalAction, this._log);
+		const next = terminalReducer(state, action as TerminalAction, this._log);
+		// An output-only channel can stream for as long as its chat stays open, so keep only what the host retains.
+		return next.isPty === false && action.type === ActionType.TerminalData ? trimTerminalOutput(next) : next;
 	}
 
 	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
 		return envelope.action.type.startsWith('terminal/') && envelope.channel === this._terminalUri;
 	}
+}
+
+function getTerminalContentPartLength(part: TerminalState['content'][number]): number {
+	return part.type === 'command' ? part.output.length : part.value.length;
+}
+
+/** Drops a terminal's oldest output once it outgrows the host's limit, the same way the host trims its own copy. */
+function trimTerminalOutput(state: TerminalState): TerminalState {
+	let size = 0;
+	for (const part of state.content) {
+		size += getTerminalContentPartLength(part);
+	}
+	if (size <= AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH) {
+		return state;
+	}
+	const content = [...state.content];
+	while (size > AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH && content.length > 1) {
+		size -= getTerminalContentPartLength(content.shift()!);
+	}
+	if (size > AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH) {
+		const excess = size - AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH;
+		const head = content[0];
+		content[0] = head.type === 'command'
+			? { ...head, output: head.output.slice(excess) }
+			: { ...head, value: head.value.slice(excess) };
+	}
+	return { ...state, content };
 }
 
 /** Subscription to the singleton host-owned automation catalogue. */
