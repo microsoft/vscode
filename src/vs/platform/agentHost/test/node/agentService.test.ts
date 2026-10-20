@@ -36313,6 +36313,84 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				/**
+				 * What is left of a move once a delete of its target overlapped it: nothing held or loaded, the target gone. As
+				 * when the delete follows the move: deleting a session not loaded opens its chats only to dispose of them, and a
+				 * deleted chat's ownership record stays with its tombstone.
+				 */
+				async function afterDeleteOverlap(env: Awaited<ReturnType<typeof setupColdMove>>, outcomes: readonly PromiseSettledResult<unknown>[]) {
+					await whenMoveHoldsDropped(env.restarted, [env.source, env.target]);
+					await env.restarted.whenCatalogReconciliationIdle();
+					const listed = (await env.restarted.listSessions()).map(session => session.session.toString());
+					return {
+						outcomes: outcomes.map(outcome => outcome.status === 'fulfilled' ? 'fulfilled' : outcome.reason instanceof AgentChatMoveRefusedError ? outcome.reason.reason : String(outcome.reason)),
+						held: heldForMove(env.restarted, [env.source, env.target]),
+						loaded: env.loaded(env.source, env.target),
+						listed: [listed.includes(env.source.toString()), listed.includes(env.target.toString())],
+						owner: await env.recordedOwner(env.peer),
+						runtime: env.runtimeCalls(),
+					};
+				}
+
+				test('deleting a session while a move loads it for the move refuses the move; the session stays deleted and nothing stays held (review MED-2)', async () => {
+					const env = await setupColdMove();
+					const gate = new DeferredPromise<void>();
+					let gated = false;
+					const getChatMetadata = env.agent.getChatMetadata.bind(env.agent);
+					env.agent.getChatMetadata = async (chat: URI, context: URI | IAgentChatContext, providerData?: string, options?: IAgentChatMetadataOptions) => {
+						if (!gated && options?.activation === undefined && resolveAgentChatContext(context, chat).owner.get().toString() === env.target.toString()) {
+							gated = true;
+							await gate.p;
+						}
+						return getChatMetadata(chat, context, providerData);
+					};
+
+					const move = env.restarted.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined });
+					await waitForCondition(() => gated, 'the move loads the target');
+					const deletion = env.restarted.disposeSession(env.target);
+					await timeout(20);
+					gate.complete();
+
+					assert.deepStrictEqual(await afterDeleteOverlap(env, await Promise.allSettled([move, deletion])), {
+						outcomes: [AgentChatMoveRefusal.DestinationNotFound, 'fulfilled'],
+						held: [false, false],
+						loaded: [false, false],
+						listed: [true, false],
+						owner: env.source.toString(),
+						runtime: { messages: [], materialized: [env.defaultChats.target], customizations: 0 },
+					});
+				});
+
+				test('deleting a session while it is dropped after a move deletes it with the chat moved into it, and nothing stays held (review MED-2)', async () => {
+					const env = await setupColdMove();
+					const gate = new DeferredPromise<void>();
+					let dropping = false;
+					const internals = env.restarted as unknown as { _whenSessionDataIdle(session: URI): Promise<void> };
+					const whenSessionDataIdle = internals._whenSessionDataIdle.bind(env.restarted);
+					internals._whenSessionDataIdle = async session => {
+						if (!dropping && session.toString() === env.target.toString()) {
+							dropping = true;
+							await gate.p;
+						}
+						return whenSessionDataIdle(session);
+					};
+
+					const move = env.restarted.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined });
+					await waitForCondition(() => dropping, 'the move drops the target');
+					const deletion = env.restarted.disposeSession(env.target);
+					await timeout(20);
+					gate.complete();
+
+					assert.deepStrictEqual(await afterDeleteOverlap(env, await Promise.allSettled([move, deletion])), {
+						outcomes: ['fulfilled', 'fulfilled'],
+						held: [false, false],
+						loaded: [false, false],
+						listed: [true, false],
+						owner: env.target.toString(),
+						runtime: { messages: [], materialized: [env.peer.toString(), env.defaultChats.target], customizations: 0 },
+					});
+				});
+
 				for (const [name, passive] of [
 					['has no metadata for it', () => undefined],
 					['reports no folders for it', (metadata: IAgentChatMetadata | undefined) => metadata && { ...metadata, workingDirectories: undefined }],
