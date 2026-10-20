@@ -168,7 +168,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			useConpty,
 			useConptyDll,
 			// This option will force conpty to not redraw the whole viewport on launch
-			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
+			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText,
+			// Recovers the window when a modal dialog dies with its process. Safe because VS Code only
+			// disables its windows while showing a window they own
+			conptyReenableParentWindowOnExit: useConptyDll
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
@@ -587,8 +590,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Also picked up by spawn when the pty hasn't started yet
 		this._ptyOptions.conptyParentWindow = handle;
 		if (this._ptyProcess) {
-			const applied = this._ptyProcess.setParentWindow?.(handle);
-			this._logService.trace('node-pty.IPty#setParentWindow', handle, applied);
+			const sent = this._ptyProcess.setParentWindow?.(handle);
+			this._logService.trace('node-pty.IPty#setParentWindow', handle, sent);
 		}
 	}
 
