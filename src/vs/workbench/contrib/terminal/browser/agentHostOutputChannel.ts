@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { TerminalLifecycleStatus, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import type { IChatTerminalOutputSource } from './terminal.js';
 
@@ -23,6 +24,8 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 	private _output = '';
 	get output(): string { return this._output; }
 
+	private _endsWithCarriageReturn = false;
+
 	private _hasExited = false;
 	get hasExited(): boolean { return this._hasExited; }
 
@@ -33,20 +36,54 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 		super();
 		const subscriptionRef = this._register(connection.getSubscription(StateComponents.Terminal, terminalUri, 'AgentHostOutputChannel'));
 		const subscription = subscriptionRef.object;
-		if (subscription.value && !(subscription.value instanceof Error)) {
-			this._acceptState(subscription.value);
+		const acceptCurrentState = () => {
+			if (subscription.value && !(subscription.value instanceof Error)) {
+				this._acceptState(subscription.value);
+			}
+		};
+		acceptCurrentState();
+		this._register(subscription.onDidApplyAction(({ action, rejectionReason }) => {
+			if (rejectionReason) {
+				return;
+			}
+			if (action.type === ActionType.TerminalData) {
+				this._appendData(action.data);
+			} else {
+				acceptCurrentState();
+			}
+		}));
+		if (subscription.onDidApplySnapshot) {
+			this._register(subscription.onDidApplySnapshot(acceptCurrentState));
 		}
-		this._register(subscription.onDidChange(state => this._acceptState(state)));
+		if (subscription.onDidCancelSnapshotRefresh) {
+			this._register(subscription.onDidCancelSnapshotRefresh(acceptCurrentState));
+		}
 	}
 
 	private _acceptState(state: TerminalState): void {
-		this._output = state.content
+		const output = state.content
 			.map(part => part.type === 'command' ? part.output : part.value)
-			.join('')
-			.replace(/\r?\n/g, '\r\n');
+			.join('');
+		this._output = normalizeLineEndings(output);
+		this._endsWithCarriageReturn = output.endsWith('\r');
 		const lifecycle = state.lifecycle;
 		this._hasExited = lifecycle.status === TerminalLifecycleStatus.Exited;
 		this._exitCode = lifecycle.status === TerminalLifecycleStatus.Exited ? lifecycle.exitCode : undefined;
 		this._onDidChange.fire();
 	}
+
+	private _appendData(data: string): void {
+		if (!data) {
+			return;
+		}
+		this._output += this._endsWithCarriageReturn && data.startsWith('\n')
+			? '\n' + normalizeLineEndings(data.slice(1))
+			: normalizeLineEndings(data);
+		this._endsWithCarriageReturn = data.endsWith('\r');
+		this._onDidChange.fire();
+	}
+}
+
+function normalizeLineEndings(text: string): string {
+	return text.replace(/\r?\n/g, '\r\n');
 }
