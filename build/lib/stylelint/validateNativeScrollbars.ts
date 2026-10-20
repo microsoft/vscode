@@ -53,54 +53,94 @@ export function findHardcodedNativeScrollbarColor(contents: string): number | un
 function parseCssRules(contents: string): CssRule[] {
 	const css = stripComments(contents);
 	const rules: CssRule[] = [];
-	const stack: { readonly contentStart: number; readonly selectors: readonly string[] }[] = [];
-	let statementStart = 0;
+	scanCssBlock(css, 0, css.length, [], rules);
+	return rules;
+}
 
-	for (let index = 0; index < css.length; index++) {
+function scanCssBlock(css: string, start: number, end: number, selectors: readonly string[], rules: CssRule[]): void {
+	const declarations: CssDeclaration[] = [];
+	let statementStart = start;
+
+	for (let index = start; index < end; index++) {
 		const character = css[index];
 		if (character === '"' || character === '\'') {
 			index = skipString(css, index + 1, character);
+		} else if (character === '(') {
+			index = skipBalanced(css, index + 1, end, '(', ')');
+		} else if (character === '[') {
+			index = skipBalanced(css, index + 1, end, '[', ']');
 		} else if (character === '{') {
 			const selectorStart = skipWhitespace(css, statementStart);
-			const selector = css.slice(selectorStart, index).trim();
-			stack.push({
-				contentStart: index + 1,
-				selectors: selector.split(',').map(part => part.trim()),
-			});
-			statementStart = index + 1;
+			const prelude = css.slice(selectorStart, index).trim();
+			const blockEnd = skipBalanced(css, index + 1, end, '{', '}');
+			if (isCustomPropertyPrelude(prelude)) {
+				index = blockEnd;
+				continue;
+			}
+
+			if (prelude.startsWith('@')) {
+				scanCssBlock(css, index + 1, blockEnd, selectors, rules);
+			} else {
+				scanCssBlock(css, index + 1, blockEnd, resolveNestedSelectors(selectors, splitSelectors(prelude)), rules);
+			}
+			index = blockEnd;
+			statementStart = blockEnd + 1;
 		} else if (character === ';') {
-			statementStart = index + 1;
-		} else if (character === '}') {
-			const frame = stack.pop();
-			if (frame) {
-				rules.push({
-					selectors: frame.selectors,
-					declarations: parseDeclarations(css, frame.contentStart, index),
-				});
+			const declaration = parseDeclaration(css, statementStart, index);
+			if (declaration) {
+				declarations.push(declaration);
 			}
 			statementStart = index + 1;
 		}
 	}
 
-	return rules;
+	const declaration = parseDeclaration(css, statementStart, end);
+	if (declaration) {
+		declarations.push(declaration);
+	}
+	if (selectors.length > 0 && declarations.length > 0) {
+		rules.push({ selectors, declarations });
+	}
 }
 
-function parseDeclarations(css: string, start: number, end: number): CssDeclaration[] {
-	const declarations: CssDeclaration[] = [];
-	const declarationPattern = /(?:^|;)\s*(?<property>[-\w]+)\s*:\s*(?<value>[^;{}]*)/g;
-	const block = css.slice(start, end);
-	for (const match of block.matchAll(declarationPattern)) {
-		const property = match.groups?.property;
-		const value = match.groups?.value;
-		if (property && value !== undefined) {
-			declarations.push({
-				offset: start + (match.index ?? 0),
-				property: property.toLowerCase(),
-				value,
-			});
+function parseDeclaration(css: string, start: number, end: number): CssDeclaration | undefined {
+	const offset = skipWhitespace(css, start);
+	const separator = css.indexOf(':', offset);
+	if (separator < 0 || separator >= end) {
+		return undefined;
+	}
+	const property = css.slice(offset, separator).trim();
+	if (!/^[-\w]+$/.test(property)) {
+		return undefined;
+	}
+	return {
+		offset,
+		property: property.toLowerCase(),
+		value: css.slice(separator + 1, end),
+	};
+}
+
+function splitSelectors(selector: string): string[] {
+	return selector.split(',').map(part => part.trim()).filter(Boolean);
+}
+
+function resolveNestedSelectors(parentSelectors: readonly string[], nestedSelectors: readonly string[]): string[] {
+	if (parentSelectors.length === 0) {
+		return [...nestedSelectors];
+	}
+	const resolved: string[] = [];
+	for (const parentSelector of parentSelectors) {
+		for (const nestedSelector of nestedSelectors) {
+			resolved.push(nestedSelector.includes('&')
+				? nestedSelector.replaceAll('&', parentSelector)
+				: `${parentSelector} ${nestedSelector}`);
 		}
 	}
-	return declarations;
+	return resolved;
+}
+
+function isCustomPropertyPrelude(prelude: string): boolean {
+	return /^--[-\w]+\s*:/.test(prelude);
 }
 
 function stripComments(contents: string): string {
@@ -138,6 +178,21 @@ function skipString(contents: string, start: number, quote: string): number {
 	return contents.length;
 }
 
+function skipBalanced(contents: string, start: number, end: number, open: string, close: string): number {
+	let depth = 1;
+	for (let index = start; index < end; index++) {
+		const character = contents[index];
+		if (character === '"' || character === '\'') {
+			index = skipString(contents, index + 1, character);
+		} else if (character === open) {
+			depth++;
+		} else if (character === close && --depth === 0) {
+			return index;
+		}
+	}
+	return end;
+}
+
 function skipWhitespace(contents: string, start: number): number {
 	let index = start;
 	while (index < contents.length && /\s/.test(contents[index])) {
@@ -152,7 +207,7 @@ function isBackgroundProperty(property: string): boolean {
 
 function isThemeAwareColor(value: string): boolean {
 	const normalized = normalizeCssValue(value);
-	return normalized === 'transparent' || normalized.startsWith('var(');
+	return normalized === 'none' || normalized === 'transparent' || normalized.startsWith('var(');
 }
 
 function isThemeAwareScrollbarColor(value: string): boolean {
