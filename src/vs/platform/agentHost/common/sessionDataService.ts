@@ -368,8 +368,11 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	deleteAllTurns(): Promise<void>;
 
-	/** Deletes provider turns and later host segments of a retained native turn, preserving host-persisted and foreign turns. */
-	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void>;
+	/**
+	 * Deletes provider turns and later host segments of a retained native turn, preserving host-persisted and
+	 * foreign turns. Resolves with the ids of the deleted turns.
+	 */
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<readonly string[]>;
 
 	// ---- Host-persisted turns --------------------------------------------
 

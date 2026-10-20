@@ -962,19 +962,19 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
-	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<readonly string[]> {
+		let deleted: string[] = [];
 		return this._mutateMetadataAndTurnUsage(async db => {
 			const foreign = await this._mayHaveForeignTurns(db);
-			await dbRun(db,
-				`DELETE FROM turns
-					WHERE (id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1))
+			const where = `(id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1))
 						OR (rowid > (SELECT rowid FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})
 							AND event_id = (SELECT event_id FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})))
-						AND id NOT IN (SELECT turn_id FROM local_turns)${andOwnTurn('id', foreign)}`,
-				[JSON.stringify(providerTurnIds), afterHostTurnId ?? null],
-			);
+						AND id NOT IN (SELECT turn_id FROM local_turns)${andOwnTurn('id', foreign)}`;
+			const params = [JSON.stringify(providerTurnIds), afterHostTurnId ?? null];
+			deleted = (await dbAll(db, `SELECT id FROM turns WHERE ${where} ORDER BY rowid`, params)).map(row => row.id as string);
+			await dbRun(db, `DELETE FROM turns WHERE ${where}`, params);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
-		});
+		}).then(() => deleted);
 	}
 
 	// ---- Host-persisted turns -------------------------------------------

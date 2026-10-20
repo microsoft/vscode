@@ -423,19 +423,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._toolResultResources.clear();
 	}
 
-	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<readonly string[]> {
 		const ids = new Set(providerTurnIds);
 		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
+		const deleted: string[] = [];
 		let afterBoundary = false;
 		for (const turnId of this._turns) {
 			const eventId = this._turnEventIds.get(turnId);
 			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
-				await this.deleteTurn(turnId);
+				deleted.push(turnId);
 			}
 			if (turnId === afterHostTurnId) {
 				afterBoundary = true;
 			}
 		}
+		for (const turnId of deleted) {
+			await this.deleteTurn(turnId);
+		}
+		return deleted;
 	}
 
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {

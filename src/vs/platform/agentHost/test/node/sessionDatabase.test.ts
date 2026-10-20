@@ -308,11 +308,12 @@ suite('SessionDatabase', () => {
 			await db.setForeignRows('chat:owner', ['foreign']);
 			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
 			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang-command', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
-			await db.deleteProviderTurns(['native-removed', 'native-direct', 'absent']);
+			const deleted = await db.deleteProviderTurns(['native-removed', 'native-direct', 'absent']);
 			assert.deepStrictEqual({
+				deleted,
 				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
 				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
-			}, { edits: ['kept', 'foreign', 'failed-local'], local: ['failed-local', 'bang-command'] });
+			}, { deleted: ['first-segment', 'second-segment', 'native-direct'], edits: ['kept', 'foreign', 'failed-local'], local: ['failed-local', 'bang-command'] });
 		});
 
 		test('truncating host segments of one native turn keeps local, foreign, and other native rows', async () => {
@@ -324,11 +325,12 @@ suite('SessionDatabase', () => {
 			await db.setForeignRows('chat:owner', ['foreign']);
 			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-local', chatUri: 'chat:owner', anchorTurnId: undefined, payload: '{}' });
 			await db.insertPersistedTurn({ kind: 'local', turnId: 'bang', chatUri: 'chat:owner', anchorTurnId: 'first', payload: '{}' });
-			await db.deleteProviderTurns([], 'first');
+			const deleted = await db.deleteProviderTurns([], 'first');
 			assert.deepStrictEqual({
+				deleted,
 				edits: (await db.getAllFileEdits()).map(edit => edit.turnId),
 				local: (await db.getPersistedTurns()).map(turn => turn.turnId),
-			}, { edits: ['first', 'failed-local', 'foreign', 'other-native'], local: ['failed-local', 'bang'] });
+			}, { deleted: ['steering'], edits: ['first', 'failed-local', 'foreign', 'other-native'], local: ['failed-local', 'bang'] });
 		});
 
 		test('a native turn id reads every host segment while a host id stays scoped', async () => {

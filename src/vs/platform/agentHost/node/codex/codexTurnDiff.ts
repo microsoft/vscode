@@ -46,6 +46,8 @@ export class CodexChatDiffs {
 	readonly latest = new Map<string, string | undefined>();
 	/** Edits awaiting verification, in arrival order. */
 	unverified: IUnverifiedEdit[] = [];
+	/** Host turns a truncation removed; edits that still arrive for them, e.g. from a running child, are not recorded. */
+	readonly discarded = new Set<string>();
 }
 
 function contentLines(content: string): string[] {

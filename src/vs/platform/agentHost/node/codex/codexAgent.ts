@@ -3239,15 +3239,16 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		// Resolve now: steering can move this native turn to a new host turn before the write runs.
 		const hostTurnId = child?.hostTurnId ?? this._hostTurnId(owner, params.turnId);
+		const chatDiffs = this._getChatDiffs(owner);
 		const tracked: { turnDiff?: CodexTurnDiff } = child ?? owner;
 		if (tracked.turnDiff?.turnId !== params.turnId) {
-			tracked.turnDiff = new CodexTurnDiff(params.turnId, this._getChatDiffs(owner), this._fileService, this._logService);
+			tracked.turnDiff = new CodexTurnDiff(params.turnId, chatDiffs, this._fileService, this._logService);
 		}
 		const turnDiff = tracked.turnDiff;
 		const previous = this._pendingChatProgress.get(owner);
 		this._pendingChatProgress.set(owner, (async () => {
 			await previous;
-			const changes = await turnDiff.update(params.diff, cwd, hostTurnId);
+			const changes = (await turnDiff.update(params.diff, cwd, hostTurnId)).filter(change => !chatDiffs.discarded.has(change.hostTurnId));
 			if (changes.length === 0 || owner.disposed) {
 				return;
 			}
@@ -6908,22 +6909,34 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
-		if (targetSession && firstTurnToRemove < turns.length) {
-			// A later diff must not verify an edit into a removed turn.
-			const chatDiffs = this._chatDiffs.get(targetSession);
-			if (chatDiffs) {
-				chatDiffs.unverified = [];
-			}
+		if (!storage) {
+			return;
 		}
-		if (storage) {
+		const deleteTurns = async () => {
 			const database = this._sessionDataService.openDatabase(storage);
 			try {
 				const afterHostTurnId = turnId !== undefined && targetSession?.codexTurnIdByHostTurnId.has(turnId) ? turnId : undefined;
-				await database.object.deleteProviderTurns(turns.slice(firstTurnToRemove).map(turn => turn.id), afterHostTurnId);
+				return await database.object.deleteProviderTurns(turns.slice(firstTurnToRemove).map(turn => turn.id), afterHostTurnId);
 			} finally {
 				database.dispose();
 			}
+		};
+		if (!targetSession) {
+			await deleteTurns();
+			return;
 		}
+		// Diff writes queued before the truncation land first and are deleted with their turns; later ones skip those turns.
+		const chatDiffs = this._getChatDiffs(targetSession);
+		const previous = this._pendingChatProgress.get(targetSession);
+		const truncation = (async () => {
+			await previous;
+			for (const deleted of await deleteTurns()) {
+				chatDiffs.discarded.add(deleted);
+			}
+			chatDiffs.unverified = chatDiffs.unverified.filter(edit => !chatDiffs.discarded.has(edit.hostTurnId));
+		})();
+		this._pendingChatProgress.set(targetSession, truncation.catch(() => { }));
+		await truncation;
 	}
 
 	async onArchivedChanged(sessionUri: URI, isArchived: boolean): Promise<void> {
