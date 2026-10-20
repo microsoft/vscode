@@ -71,7 +71,7 @@ import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/e
 import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, ResourceContextKey } from '../../../../../workbench/common/contextkeys.js';
 import { createEditorPart, registerTestEditor, TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopEditorHeaderLayoutContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
@@ -511,9 +511,16 @@ suite('Sessions - Editor Contribution', () => {
 
 	const changesEditorResource = (sessionResource: URI) => sessionResource.with({ scheme: 'session-changes' });
 
-	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IAgentWorkbenchLayoutService {
-		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly desktopEditorHeaderLayout = true;
+	function createEditorHeaderLayoutContext(enabled: boolean): MockContextKeyService {
+		const contextKeyService = store.add(new MockContextKeyService());
+		DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(enabled);
+		return contextKeyService;
+	}
+
+	/** Stubs the editor area visibility, with the editor header layout in which the Files tab exposes its root folder. */
+	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
+		instantiationService.stub(IContextKeyService, createEditorHeaderLayoutContext(true));
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(part: Parts): boolean {
 				return part === Parts.EDITOR_PART && visible;
@@ -1331,8 +1338,9 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
-		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const contextKeyService = createEditorHeaderLayoutContext(true);
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService, contextKeyService));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService, contextKeyService));
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
@@ -1347,13 +1355,13 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
-		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
 			override isVisible(part: Parts): boolean {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService, createEditorHeaderLayoutContext(false)));
 		let capabilitiesChanges = 0;
 		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -1382,15 +1390,14 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor exposes a single root folder for breadcrumbs with the editor header layout regardless of editor visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
-		const createLayoutService = (desktopEditorHeaderLayout: boolean) => new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly desktopEditorHeaderLayout = desktopEditorHeaderLayout;
+		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
 			override isVisible(part: Parts): boolean {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const classicInput = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), createLayoutService(false)));
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), createLayoutService(true)));
+		const classicInput = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, createEditorHeaderLayoutContext(false)));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, createEditorHeaderLayoutContext(true)));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
@@ -1415,7 +1422,9 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('empty file editor refreshes resource-gated menus of its group when its workspace changes in place', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
+		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+		DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		store.add(registerTestEditor('test.emptyFileEditor', [new SyncDescriptor(EmptyFileEditorInput)]));
 		const menuId = new MenuId('test.emptyFileEditor.resourceMenu');
@@ -1425,11 +1434,10 @@ suite('Sessions - Editor Contribution', () => {
 		}));
 		const part = await createEditorPart(instantiationService, store.add(new DisposableStore()));
 		const group = part.activeGroup;
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly desktopEditorHeaderLayout = true;
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(): boolean { return true; }
-		}));
+		}, contextKeyService));
 		await group.openEditor(input, { pinned: true });
 		const menu = store.add(instantiationService.get(IMenuService).createMenu(menuId, group.scopedContextKeyService));
 		const snapshot = () => ({
@@ -1450,7 +1458,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, false);
 		const serializer = new EmptyFileEditorSerializer();
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService, createEditorHeaderLayoutContext(true)));
 		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
 		if (restored) {
 			store.add(restored);

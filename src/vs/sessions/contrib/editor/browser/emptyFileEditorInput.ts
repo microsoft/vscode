@@ -11,9 +11,10 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DesktopEditorHeaderLayoutContext } from '../../../common/contextkeys.js';
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
@@ -25,7 +26,8 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 
 	constructor(
 		private _workspace: ISessionWorkspace | undefined,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(layoutService.onDidChangePartVisibility(event => {
@@ -40,7 +42,9 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 	 * header breadcrumbs. Multi-root workspaces have no single folder to show.
 	 */
 	override get resource(): URI | undefined {
-		if (!this.layoutService.desktopEditorHeaderLayout) {
+		// The startup snapshot of the editor header layout is read from its context key, since
+		// importing the Agents workbench here would reorder the styles of every module using this input.
+		if (DesktopEditorHeaderLayoutContext.getValue(this.contextKeyService) !== true) {
 			return undefined;
 		}
 		const folders = this._workspace?.folders;

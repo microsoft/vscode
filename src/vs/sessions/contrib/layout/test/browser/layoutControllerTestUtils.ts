@@ -33,6 +33,7 @@ import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManag
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
+import { DesktopEditorHeaderLayoutContext } from '../../../../common/contextkeys.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -327,6 +328,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
+	DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(!!options.desktopEditorHeaderLayout);
 	instaService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 		override publicLog2(): void { }
 	});

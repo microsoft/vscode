@@ -10,10 +10,12 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { DesktopEditorHeaderLayoutContext } from '../../../../common/contextkeys.js';
 import { EditorGroupView } from '../../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { createEditorPart, TestFileEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates } from '../../browser/agentFeedbackEditorOverlay.js';
@@ -61,6 +63,9 @@ suite('AgentFeedbackEditorOverlay', () => {
 		const workspaceFolder = URI.file('workspace');
 
 		const fileInput = disposables.add(new TestFileEditorInput(workspaceFolder, 'test.file'));
+		// With the editor header layout, the Files tab exposes its root folder as its resource.
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(true);
 		const emptyFileInput = disposables.add(new EmptyFileEditorInput({
 			uri: workspaceFolder,
 			label: 'workspace',
@@ -73,11 +78,10 @@ suite('AgentFeedbackEditorOverlay', () => {
 			}],
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
-		}, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly desktopEditorHeaderLayout = true;
+		}, new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible() { return true; }
-		}));
+		}, contextKeyService));
 
 		assert.deepStrictEqual({
 			file: getAgentFeedbackOverlayResourceCandidates(fileInput),

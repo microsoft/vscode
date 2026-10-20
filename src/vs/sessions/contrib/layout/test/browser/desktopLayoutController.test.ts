@@ -171,7 +171,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.setPartHiddenCalls = [];
 		harness.openedViewContainers = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, harness.contextKeyService));
 		harness.onDidActiveEditorChange.fire();
 		assert.strictEqual(hasDockedDetails(), true, 'files target should enable the editor chevron context');
 		await timeout(0);
@@ -229,7 +229,7 @@ suite('DesktopLayoutController', () => {
 		);
 
 		harness.setPartHiddenCalls = [];
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, harness.contextKeyService));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 		assert.ok(
@@ -641,7 +641,7 @@ suite('DesktopLayoutController', () => {
 		harness.openedViewContainers = [];
 
 		// The restored managed tab becomes active; the detail must NOT re-reveal.
-		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		harness.activeEditorInput = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, harness.contextKeyService));
 		harness.onDidActiveEditorChange.fire();
 		await timeout(0);
 
@@ -2594,7 +2594,7 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(hasFilesTab(), false);
 
 		// The user explicitly adds the Files tab via `+` (opens an EmptyFileEditorInput).
-		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService));
+		const userFilesTab = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, harness.contextKeyService));
 		openEditor(userFilesTab);
 		harness.activeGroupEditors.push(userFilesTab);
 		harness.onDidEditorsChange.fire();
