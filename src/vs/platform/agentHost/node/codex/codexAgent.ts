@@ -1200,6 +1200,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _sessionIdByThreadId}. Removed on the child's `turn/completed`.
 	 */
 	private readonly _subagentsByThreadId = new Map<string, ICodexSubagent>();
+	/**
+	 * `spawnAgent` calls that started but have not completed, keyed by calling
+	 * thread and item id. Codex starts a child thread before the call's
+	 * completion names it, so the child's first notifications can arrive before
+	 * the child is in {@link _subagentsByThreadId}.
+	 */
+	private readonly _spawnsInFlight = new Set<string>();
+	/** Notifications from unknown threads received while a spawn is in flight, replayed in order once their thread is registered. */
+	private readonly _unregisteredThreadNotifications = new Map<string, (() => void)[]>();
 	private readonly _mcpInventory = new CodexMcpInventory();
 	private readonly _mcpPublisherSessionIdByConfiguration = new Map<string, string>();
 	private readonly _publishedMcpTopLevelIdsByConfiguration = new Map<string, Set<string>>();
@@ -3350,6 +3359,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (params.item.type === 'userMessage') {
 			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
 		}
+		if (params.item.type === 'collabAgentToolCall' && params.item.tool === 'spawnAgent') {
+			this._spawnsInFlight.add(`${params.threadId}/${params.item.id}`);
+		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
 	}
 
@@ -3727,6 +3739,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = this._sessionIdByThreadId.get(threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			if (this._deferUntilSpawned(threadId, () => this._dispatchByThread(threadId, mapFn))) {
+				return;
+			}
 			// Usually an unclaimed prewarm; ignore.
 			this._logService.trace(`[Codex] Ignoring notification for untracked threadId=${threadId}; likely unclaimed prewarm`);
 			return;
@@ -3734,6 +3749,48 @@ export class CodexAgent extends Disposable implements IAgent {
 		const actions = mapFn(session);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+	}
+
+	/** Keeps a notification from an unknown thread while a `spawnAgent` call that may name it is in flight. */
+	private _deferUntilSpawned(threadId: string, dispatch: () => void): boolean {
+		if (this._spawnsInFlight.size === 0) {
+			return false;
+		}
+		let pending = this._unregisteredThreadNotifications.get(threadId);
+		if (!pending) {
+			pending = [];
+			this._unregisteredThreadNotifications.set(threadId, pending);
+		}
+		pending.push(dispatch);
+		return true;
+	}
+
+	/** Stops tracking finished spawns and replays, in order, what the children they registered sent before. */
+	private _settleSpawns(finished: (spawn: string) => boolean, children: readonly string[] = []): void {
+		for (const spawn of [...this._spawnsInFlight]) {
+			if (finished(spawn)) {
+				this._spawnsInFlight.delete(spawn);
+			}
+		}
+		for (const child of children) {
+			const pending = this._unregisteredThreadNotifications.get(child);
+			this._unregisteredThreadNotifications.delete(child);
+			if (this._subagentsByThreadId.has(child)) {
+				for (const dispatch of pending ?? []) {
+					dispatch();
+				}
+			}
+		}
+		if (this._spawnsInFlight.size === 0) {
+			this._unregisteredThreadNotifications.clear();
+		}
+	}
+
+	/** Settles the spawns of a thread whose turn ended or which went away without completing them. */
+	private _settleSpawnsOf(threadId: string | undefined): void {
+		if (threadId !== undefined && this._spawnsInFlight.size > 0) {
+			this._settleSpawns(spawn => spawn.startsWith(`${threadId}/`));
 		}
 	}
 
@@ -3753,6 +3810,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session && this._deferUntilSpawned(params.threadId, () => this._dispatchTokenUsageUpdated(params))) {
+			return;
+		}
 		if (!session?.chatChannel) {
 			this._logService.trace(`[Codex] Ignoring token usage for inactive threadId=${params.threadId}`);
 			return;
@@ -3788,11 +3848,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			for (const action of actions) {
 				this._fireSubagent(subagent, action);
 			}
+			this._settleSpawnItem(params);
 			return;
 		}
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			if (this._deferUntilSpawned(params.threadId, () => this._dispatchItemCompleted(params))) {
+				return;
+			}
 			this._logService.trace(`[Codex] Ignoring item/completed for untracked threadId=${params.threadId}; likely unclaimed prewarm`);
 			return;
 		}
@@ -3806,6 +3870,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), retainedOutputResource);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+		this._settleSpawnItem(params);
+	}
+
+	/** A completed `spawnAgent` call replays what its children sent before it named them. */
+	private _settleSpawnItem(params: ItemCompletedNotification): void {
+		const item = params.item;
+		if (item.type === 'collabAgentToolCall' && item.tool === 'spawnAgent') {
+			this._settleSpawns(spawn => spawn === `${params.threadId}/${item.id}`, item.receiverThreadIds);
 		}
 	}
 
@@ -3873,6 +3946,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
+		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
+			return;
+		}
+		// A spawn its turn ended without completing will not name a child.
+		this._settleSpawnsOf(params.threadId);
 		if (subagent) {
 			const parent = this._sessions.get(subagent.parentSessionId);
 			if (parent) {
@@ -4383,6 +4461,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
 		this._applyGlobalMcpInventoryToSessions();
+		this._spawnsInFlight.clear();
+		this._unregisteredThreadNotifications.clear();
 		if (state.kind === 'starting') {
 			this._disposeConnectionResources(connection);
 			return;
@@ -6813,6 +6893,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.pendingUserInputs.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
+		this._settleSpawnsOf(session.threadId);
 		// Tear down any live subagent child threads spawned by this session so
 		// their parked approvals unwind and their tracking doesn't leak. The
 		// orchestrator closes the child conversations as part of session teardown.

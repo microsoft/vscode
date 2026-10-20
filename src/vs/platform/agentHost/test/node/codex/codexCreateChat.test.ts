@@ -5603,3 +5603,26 @@ suite('CodexAgent late steering', () => {
 		assert.deepStrictEqual({ sent, consumed: signal.kind === 'steering_consumed' ? { chat: signal.chat.toString(), id: signal.id } : undefined }, { sent: true, consumed: { chat: harness.chat.toString(), id: steering.id } });
 	});
 });
+
+suite('CodexAgent early subagent events', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('replays child events that arrive before the spawnAgent call completes', async () => {
+		const harness = await startNativeTurn(disposables, 'early-child');
+		const childActions: string[] = [];
+		disposables.add(harness.agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.parentToolCallId !== undefined) {
+				childActions.push(signal.action.type);
+			}
+		}));
+		const spawn = { type: 'collabAgentToolCall', id: 'spawn', tool: 'spawnAgent', senderThreadId: harness.threadId, prompt: 'Edit the file', model: null, reasoningEffort: null, agentsStates: {} };
+		const edit = { type: 'fileChange', id: 'child-edit', changes: [{ path: URI.joinPath(harness.folder, 'edit.txt').fsPath, kind: { type: 'update', move_path: null }, diff: '' }] };
+		const child = { threadId: 'child-thread', turnId: 'child-turn' };
+		harness.peer.push({ method: 'item/started', params: { threadId: harness.threadId, turnId: 'app-turn', startedAtMs: 0, item: { ...spawn, status: 'inProgress', receiverThreadIds: [] } } });
+		harness.peer.push({ method: 'item/started', params: { ...child, startedAtMs: 0, item: { ...edit, status: 'inProgress' } } });
+		harness.peer.push({ method: 'item/completed', params: { ...child, completedAtMs: 0, item: { ...edit, status: 'completed' } } });
+		harness.peer.push({ method: 'item/completed', params: { threadId: harness.threadId, turnId: 'app-turn', completedAtMs: 0, item: { ...spawn, status: 'completed', receiverThreadIds: [child.threadId] } } });
+		await timeout(0);
+		assert.deepStrictEqual(childActions, [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady, ActionType.ChatToolCallContentChanged, ActionType.ChatToolCallComplete]);
+	});
+});
