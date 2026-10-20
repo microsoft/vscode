@@ -3554,7 +3554,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 				shownAfterSelection: true,
 				selectedFolder: undefined,
 				label: 'Choose Workspace',
-				clearLabel: 'Don\'t work in a project',
+				clearLabel: 'Chat without a workspace',
 				clearHidden: true,
 				clearable: false,
 				focused: true,
@@ -3597,7 +3597,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			registration: { delay: delegate.delay, placement: delegate.placement, target, content },
 			shown,
 		}, {
-			registration: { delay: 0, placement: 'element', target: clearButton, content: 'Don\'t work in a project' },
+			registration: { delay: 0, placement: 'element', target: clearButton, content: 'Chat without a workspace' },
 			shown: [[{ target: clearButton, content: 'Tooltip', appearance: { showPointer: true, skipFadeInAnimation: true } }, false]],
 		});
 	});

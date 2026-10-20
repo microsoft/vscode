@@ -667,7 +667,7 @@ export class WorkspacePicker extends Disposable {
 			}));
 			clearButton.element.classList.add('sessions-workspace-clear-button');
 			clearButton.icon = Codicon.closeCompact;
-			const clearLabel = localize('workspacePicker.clearWorkspace', "Don't work in a project");
+			const clearLabel = localize('workspacePicker.clearWorkspace', "Chat without a workspace");
 			clearButton.setAriaLabel(clearLabel);
 			triggerDisposables.add(this.hoverService.setupManagedHover({
 				delay: 0,

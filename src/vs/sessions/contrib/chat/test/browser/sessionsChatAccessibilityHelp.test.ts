@@ -416,7 +416,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				sync: content.find(line => line.startsWith('When available for a folder session with incoming or outgoing commits')),
 				hasSessionOptions: content.some(line => line.startsWith('Above the new-session input')),
 				sessionOptionsMentionsToggle: content.some(line => line.includes('Hide Session Options collapses these controls')),
-				hasClearWorkspace: content.some(line => line.includes('You can send without choosing a workspace.')),
+				hasClearWorkspace: content.some(line => line.includes('Chat without a workspace') && line.includes('You can send without choosing a workspace.')),
 			};
 		};
 
