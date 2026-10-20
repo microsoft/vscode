@@ -902,6 +902,7 @@ suite('Sessions - Chat View', () => {
 		const loadCts = viewStore.add(new MutableDisposable<CancellationTokenSource>());
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_store: viewStore,
+			_transcriptDisposables: viewStore.add(new DisposableStore()),
 			configurationService,
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
@@ -1482,6 +1483,7 @@ suite('Sessions - Chat View', () => {
 			dispose(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables.add(new DisposableStore()),
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			chatPillsDebugService: { clear: () => { } },
 			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
 			_isPrimaryObs: observableValue('primary', true),
@@ -4075,6 +4077,7 @@ suite('Sessions - Chat View', () => {
 		};
 		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			_currentChatResourceObs: constObservable(resource),
 			_currentSessionObs: constObservable(session),
 			_preparationModel: { value: undefined },
@@ -4114,6 +4117,7 @@ suite('Sessions - Chat View', () => {
 		const calls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
 		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
 			_currentSessionObs: constObservable(session),
 			_preparationModel: { value: undefined },
@@ -4140,6 +4144,41 @@ suite('Sessions - Chat View', () => {
 			canceled: true,
 			logOpened: true,
 		});
+	});
+
+	test('stops transcript updates before disposing view dependencies', () => {
+		const viewStore = disposables.add(new DisposableStore());
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('progress', { message: 'Preparing session', cancel: () => { } });
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.Untitled);
+			override readonly description = constObservable(undefined);
+			override readonly preparationProgress = preparationProgress;
+			override readonly isNewSessionRequestInProgress = preparationProgress.map(progress => !!progress);
+		}();
+		const calls: (string | undefined)[] = [];
+		viewStore.add(toDisposable(() => {
+			calls.push('dispose dependencies');
+			preparationProgress.set(undefined, undefined);
+		}));
+		const view: {
+			_setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void;
+			dispose(): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_store: viewStore,
+			_transcriptDisposables: viewStore.add(new DisposableStore()),
+			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),
+			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
+			_loadCts: viewStore.add(new MutableDisposable<CancellationTokenSource>()),
+			_saveCurrentViewState: () => { },
+			_widget: { setTranscriptProgress: (message: string | undefined) => calls.push(message) },
+		});
+		view._setupTranscriptPreparationProgress(constObservable(undefined));
+
+		view.dispose();
+		preparationProgress.set({ message: 'Late progress', cancel: () => { } }, undefined);
+
+		assert.deepStrictEqual(calls, ['Preparing session', 'dispose dependencies']);
 	});
 
 	function createLoadingFeedbackView() {
@@ -4275,6 +4314,7 @@ suite('Sessions - Chat View', () => {
 			_saveCurrentViewState(): void;
 		} = Object.assign(Object.create(ChatView.prototype), {
 			_store: disposables,
+			_transcriptDisposables: disposables.add(new DisposableStore()),
 			instantiationService,
 			_preparationModel: preparationModel,
 			_currentChatResourceObs: constObservable(URI.parse('test:///draft')),

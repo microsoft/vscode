@@ -3794,6 +3794,7 @@ export interface ISessionsList {
 	update(expandAll?: boolean): void;
 	openFind(): void;
 	closeFind(): void;
+	/** Forgets the collapse state of sections that only the previous grouping renders, keeping custom groups and other shared placements. */
 	resetSectionCollapseState(): void;
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
@@ -6665,7 +6666,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	resetSectionCollapseState(): void {
-		this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		// Custom groups and shared sections (Pinned, Chats, External, Done) keep
+		// their tree identity across a grouping change, so the tree preserves their
+		// collapse state. Dropping it from storage would make them silently reopen
+		// on the next restart.
+		const state = this.readSectionCollapseState();
+		for (const sectionId of Object.keys(state)) {
+			if (isGroupingSpecificCollapseStateId(sectionId)) {
+				delete state[sectionId];
+			}
+		}
+		this.writeSectionCollapseState(state);
 	}
 
 	// -- Pinning --
@@ -6859,35 +6870,51 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return undefined;
 	}
 
-	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
-		let state: Record<string, boolean> = {};
+	private readSectionCollapseState(): Record<string, boolean> {
 		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const parsed = JSON.parse(raw);
 				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-					state = parsed;
+					return parsed;
 				}
 			} catch {
 				// ignore corrupt data
 			}
 		}
+		return {};
+	}
+
+	private writeSectionCollapseState(state: Record<string, boolean>): void {
+		if (Object.keys(state).length === 0) {
+			this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
+		const state = this.readSectionCollapseState();
 		state[sectionId] = collapsed;
-		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.writeSectionCollapseState(state);
 	}
 
 	private saveBulkCollapseState(collapsed: boolean): void {
-		const state: Record<string, boolean> = {};
+		// Merge so that sections and groups this tree does not currently render keep their state.
+		const state = this.readSectionCollapseState();
 		const collectSections = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
-			if (node.element && isSessionSection(node.element) && !isShortcutSection(node.element.id)) {
-				state[node.element.collapseStateId ?? node.element.id] = collapsed;
+			const element = node.element;
+			if (element && isSessionGroupItem(element)) {
+				state[`group:${element.group.id}`] = collapsed;
+			} else if (element && isSessionSection(element) && !isShortcutSection(element.id)) {
+				state[element.collapseStateId ?? element.id] = collapsed;
 			}
 			for (const child of node.children) {
 				collectSections(child);
 			}
 		};
 		collectSections(this.tree.getNode(null));
-		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.writeSectionCollapseState(state);
 	}
 
 	private loadCollapsedSessionResources(): Set<string> {
@@ -7361,6 +7388,14 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	}
 
 	return result;
+}
+
+/**
+ * Whether a persisted collapse state id belongs to a section that only one
+ * grouping renders ({@link groupByWorkspace} or {@link groupByDate}).
+ */
+function isGroupingSpecificCollapseStateId(id: string): boolean {
+	return id.startsWith('workspace:') || id === 'recent' || id === 'older';
 }
 
 function workspaceCollapseStateId(sessions: readonly ISession[]): string | undefined {

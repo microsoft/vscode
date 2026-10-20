@@ -22,6 +22,7 @@ import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IO
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
+import { AgentHostSteeringMessageHandoff } from './agentHostSteeringMessageHandoff.js';
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -971,6 +972,8 @@ export interface IAgentHostSessionHandlerConfig {
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
 	readonly supportsCanvasPresentation?: boolean;
+	/** Opt-in for hosts that remove consumed steering before publishing its transcript turn. */
+	readonly retainConsumedSteeringMessages?: boolean;
 	/** Whether sending a message requires workspace trust. Defaults to true. */
 	readonly requiresWorkspaceTrust?: boolean;
 	/** Extension identifier for the registered agent. Defaults to 'vscode.agent-host'. */
@@ -1221,6 +1224,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	private readonly _remotePendingMessageProjections = new ResourceSet();
+	private readonly _steeringMessageHandoffs = new Map<string, AgentHostSteeringMessageHandoff>();
 	/** Locally retained IDs; true means dispatched but not yet projected by the host. */
 	private readonly _localSteeringSubmissions = new ResourceMap<Map<string, boolean>>();
 	/** Per-session debounced sync from chat input state to AHP draft state. */
@@ -1911,17 +1915,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					if (!chatURI) {
 						return true;
 					}
+					this._steeringMessageHandoffs.get(chatURI)?.clear();
 					const turnId = this._getSessionState(sessionKey, chatURI)?.activeTurn?.id;
 					if (!turnId) {
 						// No active turn (likely a race with completion). Noop-success.
 						return true;
 					}
 					this._logService.info(`[AgentHost] Cancellation requested for ${sessionKey}, dispatching turnCancelled`);
-					this._config.connection.dispatch(chatURI, {
+					this._dispatchAction(resolvedSession, {
 						type: ActionType.ChatTurnCancelled,
 						turnId,
 						duration: this._turnDuration(chatURI, turnId),
-					});
+					}, chatURI);
 					return true;
 				},
 				() => {
@@ -2558,6 +2563,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const target = isChatAction(action)
 			? this._requireChatURI(chatURI, action.type)
 			: channel.toString();
+		if (action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatTruncated) {
+			this._steeringMessageHandoffs.get(target)?.clear();
+		}
 		if (action.type === ActionType.ChatToolCallConfirmed && action._meta) {
 			const { turnId, toolCallId } = action;
 			const owner = this._findChatOwner(target);
@@ -3526,7 +3534,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const truncateAction: ChatTruncatedAction = {
 					type: ActionType.ChatTruncated,
 				};
-				this._config.connection.dispatch(turnChannel, truncateAction);
+				this._dispatchAction(session, truncateAction, turnChannel);
 			} else {
 				const seenAtIndex = protocolState.turns.findIndex(t => t.id === previousRequest!.id);
 				if (seenAtIndex !== -1 && seenAtIndex < protocolState.turns.length - 1) {
@@ -3534,7 +3542,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						type: ActionType.ChatTruncated,
 						turnId: previousRequest!.id,
 					};
-					this._config.connection.dispatch(turnChannel, truncateAction);
+					this._dispatchAction(session, truncateAction, turnChannel);
 				}
 			}
 		}
@@ -3589,11 +3597,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
 				this._logService.info(`[AgentHost] Cancellation requested for ${session.toString()}, dispatching turnCancelled`);
-				this._config.connection.dispatch(turnChannel, {
+				this._dispatchAction(session, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 					duration: this._turnDuration(turnChannel, turnId),
-				});
+				}, turnChannel);
 			}));
 
 			store.add(this._observeTurn({
@@ -3688,11 +3696,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
-				this._config.connection.dispatch(chatURI, {
+				this._dispatchAction(session, {
 					type: ActionType.ChatTurnCancelled,
 					turnId,
 					duration: 0,
-				});
+				}, chatURI);
 			}));
 			store.add(this._observeTurn({
 				backendSession: session,
@@ -6671,6 +6679,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			const sessionStr = backendSession.toString();
 			if (chatURI) {
+				if (this._config.retainConsumedSteeringMessages) {
+					const handoff = store.add(new AgentHostSteeringMessageHandoff(chatModel, this._ensureChatSubscription(sessionStr, chatURI)));
+					this._steeringMessageHandoffs.set(chatURI, handoff);
+					store.add(toDisposable(() => this._steeringMessageHandoffs.delete(chatURI)));
+				}
 				const onRemoteChange = () => this._applyRemotePendingMessages(sessionResource, backendSession);
 				store.add(this._ensureSessionSubscription(sessionStr).onDidChange(onRemoteChange));
 				store.add(this._ensureChatSubscription(sessionStr, chatURI).onDidChange(onRemoteChange));

@@ -819,7 +819,7 @@ suite('ChatWidget', () => {
 		return { part, onDidFocus, entriesMap, counts };
 	}
 
-	test('releases the inline request edit input and its subscriptions when editing finishes', async () => {
+	async function checkInlineEditCleanup(consumedSteering: boolean) {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.editRequests', 'inline');
 		const main = createFakeInputPart('main');
@@ -833,11 +833,13 @@ suite('ChatWidget', () => {
 			createInstance: (ctor: unknown) => ctor === ChatInputPart ? main.part : { dispose: () => { disposedTipPresenters++; } },
 		};
 		const inlineInputHolder = store.add(new MutableDisposable<ChatInputPart>());
+		const handoffs = observableValue<readonly IChatRequestModel[]>('handoffs', []);
 		const request = upcastPartial<IChatRequestViewModel>({
 			id: 'request',
 			message: { text: 'original request', parts: [] },
 			messageText: 'original request',
 			variables: [],
+			pendingKind: consumedSteering ? ChatRequestQueueKind.Steering : undefined,
 		});
 		const rowContainer = mainWindow.document.createElement('div');
 		const requestTimestampContainer = dom.append(rowContainer, dom.$('div'));
@@ -868,7 +870,7 @@ suite('ChatWidget', () => {
 			logService: { value: new NullLogService() },
 			viewModel: {
 				value: {
-					model: { getRequests: () => [], setCheckpoint: () => { } },
+					model: { getRequests: () => [], setCheckpoint: () => { }, pendingRequestHandoffs: handoffs },
 					sessionResource: URI.parse('chat-session:/session'),
 					get editing() { return editing; },
 					setEditing: (request: IChatRequestViewModel | undefined) => { editing = request; },
@@ -890,7 +892,13 @@ suite('ChatWidget', () => {
 		widget.startEditing(request.id);
 		const whileEditing = { input: widget.input === inline.part, focusListener: inline.onDidFocus.hasListeners() };
 		main.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
-		widget.finishedEditing();
+		if (consumedSteering) {
+			handoffs.set([upcastPartial<IChatRequestModel>({ id: request.id })], undefined);
+			const onDidChangeItems = (ChatWidget.prototype as unknown as { onDidChangeItems(): void }).onDidChangeItems;
+			onDidChangeItems.call(widget);
+		} else {
+			widget.finishedEditing();
+		}
 		const updatesAfterEdit = main.counts.updateContext + inline.counts.updateContext;
 		inline.entriesMap.set(ToolAndToolSetEnablementMap.fromMap(new Map()), undefined);
 
@@ -905,6 +913,7 @@ suite('ChatWidget', () => {
 			mainFocusListener: main.onDidFocus.hasListeners(),
 			toolUpdatesFromInlineInput: main.counts.updateContext + inline.counts.updateContext - updatesAfterEdit,
 			rowChildren: rowContainer.childElementCount,
+			editing: editing?.id,
 		}, {
 			whileEditing: { input: true, focusListener: true },
 			input: true,
@@ -916,8 +925,13 @@ suite('ChatWidget', () => {
 			mainFocusListener: true,
 			toolUpdatesFromInlineInput: 0,
 			rowChildren: 1,
+			editing: undefined,
 		});
-	});
+	}
+
+	for (const consumedSteering of [false, true]) {
+		test(`releases the inline request edit input and its subscriptions (${consumedSteering ? 'consumed steering' : 'finished edit'})`, () => checkInlineEditCleanup(consumedSteering));
+	}
 
 	test('confirms before cancelling changed request edits', async () => {
 		const scenarios = [

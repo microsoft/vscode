@@ -1494,6 +1494,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
+		const editing = this.viewModel?.editing;
+		if (editing && this.viewModel?.model.pendingRequestHandoffs.get().some(request => request.id === editing.id)) {
+			this.finishedEditing();
+			return;
+		}
 		if (this._visible.get() || !this.viewModel) {
 			const items = this.viewModel?.getItems() ?? [];
 
@@ -2425,7 +2430,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private clickedRequest(item: IChatListItemTemplate) {
 
 		const currentElement = item.currentElement;
-		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
+		if (isRequestVM(currentElement) && !currentElement.isPendingRequestHandoff && !this.viewModel?.editing) {
 
 			const requests = this.viewModel?.model.getRequests();
 			if (!requests || !this.viewModel?.sessionResource) {

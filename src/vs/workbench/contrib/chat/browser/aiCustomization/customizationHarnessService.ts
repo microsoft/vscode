@@ -13,6 +13,9 @@ import {
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatWidgetService } from '../chat.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 
 /**
  * Core implementation of the customization harness service.
@@ -20,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
  * Only the Local harness is registered statically. All other harnesses
  * (e.g. Copilot CLI) are contributed by extensions via the provider API.
  */
-class CustomizationHarnessService extends CustomizationHarnessServiceBase {
+export class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 	constructor(
 		@IPromptsService promptsService: IPromptsService,
 	) {
@@ -47,3 +50,24 @@ class CustomizationHarnessService extends CustomizationHarnessServiceBase {
 
 registerSingleton(ICustomizationHarnessService, CustomizationHarnessService, InstantiationType.Delayed);
 
+export class ActiveChatHarnessSyncContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.chatActiveCustomizationHarnessSync';
+
+	constructor(
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
+	) {
+		super();
+
+		const updateActiveSession = () => {
+			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			if (sessionResource) {
+				harnessService.setActiveSession(sessionResource);
+			}
+		};
+		this._register(chatWidgetService.onDidChangeFocusedSession(updateActiveSession));
+		updateActiveSession();
+	}
+}
+
+registerWorkbenchContribution2(ActiveChatHarnessSyncContribution.ID, ActiveChatHarnessSyncContribution, WorkbenchPhase.AfterRestored);
