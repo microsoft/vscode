@@ -19,12 +19,12 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -272,6 +272,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedChats: URI[] = [];
 	override async disposeChat(chat: URI): Promise<void> {
 		this.disposedChats.push(chat);
+	}
+
+	public chatWorkspaceRequests: { chat: URI; workspace: IAgentCreateChatWorkspace }[] = [];
+	override async setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		this.chatWorkspaceRequests.push({ chat, workspace });
 	}
 
 	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
@@ -719,7 +724,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -786,6 +791,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: options?.acquireOrLoadSession ?? (async () => undefined),
+		getSession: options?.getChatModel ?? (() => undefined),
 		sendRequest: options?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
 	instantiationService.stub(IChatWidgetService, {
@@ -12905,6 +12911,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('createNewChat rethrows a host failure as is', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-create-fails');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-create-fails').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-create-fails', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+			const failure = new Error('host refused');
+			stub(agentHost, 'createChat').callsFake(async () => { throw failure; });
+
+			const error = await provider.createNewChat(session.sessionId).then(() => undefined, e => e);
+
+			assert.deepStrictEqual({ sameError: error === failure, disposed: agentHost.disposedChats.length }, { sameError: true, disposed: 0 });
+		}));
+
+		test('createNewChat disposes the host chat when its session goes away before the chat surfaces', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-create-removed');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-create-removed').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-create-removed', 'copilotcli', makeState([makeChatSummary(defaultChat, '')], { defaultChat }));
+			let minted: URI | undefined;
+			stub(agentHost, 'createChat').callsFake(async (_session, chat) => {
+				// The host commits the chat, but the session is removed before the chat is published.
+				minted = chat;
+				fireSessionRemoved(agentHost, 'multi-create-removed');
+			});
+
+			const error = await provider.createNewChat(session.sessionId).then(() => undefined, e => e);
+
+			assert.deepStrictEqual({
+				failed: error instanceof Error,
+				disposed: agentHost.disposedChats.map(chat => chat.toString()),
+			}, {
+				failed: true,
+				disposed: [minted?.toString()],
+			});
+		}));
+
 		suite('nested chat workspace', () => {
 			const repo = URI.file('/work/repo');
 			const other = URI.file('/work/other');
@@ -12933,7 +12977,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 
 			function describeSupport(provider: ReturnType<typeof createProvider>, sessionId: string) {
-				const support = provider.getNestedChatWorkspaceSupport(sessionId);
+				const support = provider.getNestedChatWorkspaceSupport(sessionId, undefined);
 				return support && {
 					sessionFolder: support.sessionFolder?.toString(),
 					sessionFolders: support.sessionFolders.map(folder => folder.toString()),
@@ -12942,12 +12986,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 				};
 			}
 
-			test('offers no workspace choices on a host without the capability', () => {
+			test('offers no workspace choices and applies none on a host without the capability', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				const provider = createProvider(disposables, agentHost);
 				const session = setupWorkspaceSession(provider, 'nested-old-host');
+				const peer = session.chats.get().find(chat => chat.resource.fragment === 'shared')!;
 
-				assert.strictEqual(provider.getNestedChatWorkspaceSupport(session.sessionId), undefined);
-			});
+				const error = await provider.applyNestedChatWorkspace(session.sessionId, peer.resource, { kind: 'folder', folder: repo, isolation: 'folder' }, 'Fix the bug').then(() => undefined, e => e);
+
+				assert.deepStrictEqual({
+					support: provider.getNestedChatWorkspaceSupport(session.sessionId, undefined),
+					error: error instanceof NestedChatWorkspaceError ? error.kind : error,
+					requests: agentHost.chatWorkspaceRequests.length,
+				}, {
+					support: undefined,
+					error: 'notSupported',
+					requests: 0,
+				});
+			}));
+
+			test('re-evaluates the support when the host capability, the agent, or the session folders change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const session = setupWorkspaceSession(provider, 'nested-reactive');
+				const support = derived(reader => {
+					const value = provider.getNestedChatWorkspaceSupport(session.sessionId, reader);
+					return value && { multipleFolders: value.multipleFolders, sessionFolders: value.sessionFolders.map(folder => folder.toString()) };
+				});
+				const observed: unknown[] = [];
+				disposables.add(autorun(reader => { observed.push(support.read(reader)); }));
+
+				enableCreateChatWorkspace(false);
+				enableCreateChatWorkspace(true);
+				const added = URI.file('/work/added');
+				const sessionUri = AgentSession.uri('copilotcli', 'nested-reactive').toString();
+				const defaultChat = buildDefaultChatUri(sessionUri);
+				agentHost.setSessionState('nested-reactive', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
+					makeChatSummary(buildChatUri(sessionUri, 'added'), 'Added', ProtocolSessionStatus.Idle, [added.toString()]),
+				], { defaultChat }));
+
+				assert.deepStrictEqual({ first: observed[0], last: observed.at(-1), sawSingleFolder: observed.some(value => JSON.stringify(value) === JSON.stringify({ multipleFolders: false, sessionFolders: [repo.toString(), other.toString()] })) }, {
+					first: undefined,
+					last: { multipleFolders: true, sessionFolders: [repo.toString(), added.toString()] },
+					sawSingleFolder: true,
+				});
+			}));
 
 			test('reports the session folder and non-scratch folders of a workspace session and a workspace-less one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(true);
@@ -12978,29 +13060,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
-			test('a single-folder agent may only create a nested chat in the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(false);
 				const provider = createProvider(disposables, agentHost);
 				const session = setupWorkspaceSession(provider, 'nested-single');
+				const chat = await provider.createNewChat(session.sessionId);
 				const outcome = async (workspace: INestedChatWorkspace) => {
 					try {
-						await provider.createNewChatInWorkspace(session.sessionId, workspace, 'Fix the bug');
-						return 'created';
+						await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, workspace, 'Fix the bug');
+						return 'applied';
 					} catch (error) {
 						return error instanceof NestedChatWorkspaceError ? error.kind : 'unexpected';
 					}
 				};
 
 				assert.deepStrictEqual({
-					multipleFolders: provider.getNestedChatWorkspaceSupport(session.sessionId)?.multipleFolders,
+					multipleFolders: provider.getNestedChatWorkspaceSupport(session.sessionId, undefined)?.multipleFolders,
 					sessionFolder: await outcome({ kind: 'folder', folder: repo, isolation: 'folder' }),
 					sessionFolderWorktree: await outcome({ kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }),
 					otherFolder: await outcome({ kind: 'folder', folder: other, isolation: 'folder' }),
 					scratch: await outcome({ kind: 'scratch' }),
-					requested: agentHost.createdChats.map(call => call.options?.workspace?.kind),
+					requested: agentHost.chatWorkspaceRequests.map(request => request.workspace.kind),
 				}, {
 					multipleFolders: false,
-					sessionFolder: 'created',
+					sessionFolder: 'applied',
 					sessionFolderWorktree: 'notSupported',
 					otherFolder: 'notSupported',
 					scratch: 'notSupported',
@@ -13008,62 +13091,79 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
-			test('createNewChatInWorkspace asks the host for the chosen folder, worktree, or scratch folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('applyNestedChatWorkspace asks the host to give the untitled chat the chosen folder, worktree, or scratch folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(true);
 				const provider = createProvider(disposables, agentHost);
-				const session = setupWorkspaceSession(provider, 'nested-create');
-				provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:selected-model', ChatModelSource.Chosen);
+				const session = setupWorkspaceSession(provider, 'nested-apply');
+				const chat = await provider.createNewChat(session.sessionId);
 
-				const chats = [
-					await provider.createNewChatInWorkspace(session.sessionId, { kind: 'folder', folder: other, isolation: 'folder' }, 'ignored'),
-					await provider.createNewChatInWorkspace(session.sessionId, { kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }, 'Fix the bug'),
-					await provider.createNewChatInWorkspace(session.sessionId, { kind: 'scratch' }, 'ignored'),
-				];
+				await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: other, isolation: 'folder' }, 'ignored');
+				await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: repo, isolation: 'worktree', baseBranch: 'main' }, 'Fix the bug');
+				await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'scratch' }, 'ignored');
 
+				const minted = agentHost.createdChats.at(-1)?.chat.toString();
 				assert.deepStrictEqual({
-					requests: agentHost.createdChats.map(call => {
-						const workspace = call.options?.workspace;
-						return { model: call.options?.model, workspace: workspace?.kind === 'folder' ? { ...workspace, folder: workspace.folder.toString() } : workspace };
-					}),
-					untitled: chats.map(chat => chat.status.get() === SessionStatus.Untitled),
+					requests: agentHost.chatWorkspaceRequests.map(({ chat, workspace }) => ({ chat: chat.toString(), workspace: workspace.kind === 'folder' ? { ...workspace, folder: workspace.folder.toString() } : workspace })),
+					createdWithWorkspace: agentHost.createdChats.some(call => call.options?.workspace !== undefined),
+					untitled: chat.status.get() === SessionStatus.Untitled,
 				}, {
 					requests: [
-						{ model: { id: 'selected-model' }, workspace: { kind: 'folder', folder: other.toString(), isolation: 'folder' } },
-						{ model: { id: 'selected-model' }, workspace: { kind: 'folder', folder: repo.toString(), isolation: 'worktree', baseBranch: 'main', prompt: 'Fix the bug' } },
-						{ model: { id: 'selected-model' }, workspace: { kind: 'scratch' } },
+						{ chat: minted, workspace: { kind: 'folder', folder: other.toString(), isolation: 'folder' } },
+						{ chat: minted, workspace: { kind: 'folder', folder: repo.toString(), isolation: 'worktree', baseBranch: 'main', prompt: 'Fix the bug' } },
+						{ chat: minted, workspace: { kind: 'scratch' } },
 					],
-					untitled: [true, true, true],
+					createdWithWorkspace: false,
+					untitled: true,
 				});
 			}));
 
-			test('createNewChatInWorkspace maps a host refusal to NestedChatWorkspaceError and drops the untitled mark', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			test('applyNestedChatWorkspace maps a host refusal to NestedChatWorkspaceError', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(true);
 				const provider = createProvider(disposables, agentHost);
 				const session = setupWorkspaceSession(provider, 'nested-refused');
-				let minted: URI | undefined;
-				stub(agentHost, 'createChat').callsFake(async (_session, chat) => {
-					minted = chat;
+				const chat = await provider.createNewChat(session.sessionId);
+				stub(agentHost, 'setChatWorkspace').callsFake(async () => {
 					throw new Error('not a git repository');
 				});
 
-				const error = await provider.createNewChatInWorkspace(session.sessionId, { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: undefined }, 'Fix the bug').then(() => undefined, e => e);
-				// Should the host still publish the chat, it must not show as a draft.
-				const sessionUri = AgentSession.uri('copilotcli', 'nested-refused').toString();
-				const defaultChat = buildDefaultChatUri(sessionUri);
-				agentHost.setSessionState('nested-refused', 'copilotcli', makeState([
-					makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle, [repo.toString()]),
-					makeChatSummary(minted!.toString(), 'Late'),
-				], { defaultChat }));
-				const late = session.chats.get().find(chat => chat.resource.fragment === getAgentHostChatId(minted!.toString()));
+				const folderError = await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: undefined }, 'Fix the bug').then(() => undefined, e => e);
+				const scratchError = await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'scratch' }, 'Fix the bug').then(() => undefined, e => e);
 
-				assert.deepStrictEqual({
+				assert.deepStrictEqual([folderError, scratchError].map(error => ({
 					kind: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
 					message: error instanceof Error ? error.message : undefined,
-					lateStatus: late?.status.get(),
+				})), [
+					{ kind: 'refused', message: 'The nested session could not be created in other: not a git repository' },
+					{ kind: 'refused', message: 'The nested session could not be created in a new folder: not a git repository' },
+				]);
+			}));
+
+			test('applyNestedChatWorkspace refuses a chat outside the session or already started without asking the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const requested = new ResourceSet();
+				const provider = createProvider(disposables, agentHost, undefined, {
+					getChatModel: resource => requested.has(resource) ? new class extends mock<IChatModel>() { override readonly hasRequests = true; }() : undefined,
+				});
+				const session = setupWorkspaceSession(provider, 'nested-started');
+				const sending = await provider.createNewChat(session.sessionId);
+				requested.add(sending.resource);
+				const sent = session.chats.get().find(chat => chat.resource.fragment === 'other')!;
+				const outcome = async (chat: URI) => {
+					const error = await provider.applyNestedChatWorkspace(session.sessionId, chat, { kind: 'folder', folder: other, isolation: 'folder' }, 'Fix the bug').then(() => undefined, e => e);
+					return error instanceof NestedChatWorkspaceError ? `${error.kind}: ${error.message}` : error;
+				};
+
+				const alreadyStarted = 'refused: The nested session already started, so its workspace can\'t change.';
+				assert.deepStrictEqual({
+					notInSession: await outcome(session.resource.with({ fragment: 'unknown' })),
+					sent: await outcome(sent.resource),
+					requestInFlight: await outcome(sending.resource),
+					requests: agentHost.chatWorkspaceRequests.length,
 				}, {
-					kind: 'refused',
-					message: 'The nested session could not be created in other: not a git repository',
-					lateStatus: SessionStatus.Completed,
+					notInSession: alreadyStarted,
+					sent: alreadyStarted,
+					requestInFlight: alreadyStarted,
+					requests: 0,
 				});
 			}));
 

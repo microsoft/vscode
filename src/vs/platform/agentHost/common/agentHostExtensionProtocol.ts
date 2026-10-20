@@ -22,7 +22,7 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from './meta/agentHos
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey } from './meta/agentHostSessionUrisMeta.js';
 import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHostDebugLogsMeta.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
-import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from './meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
@@ -78,6 +78,11 @@ export const ImportSessionExtensionMethod = 'vscode/importSession';
  * chats is enabled, which can change after a client connected. A move while it is off is refused with `disabled`.
  */
 export const MoveAgentHostSessionExtensionMethod = 'vscode/moveSession';
+/**
+ * Applies a workspace (folder, worktree or scratch folder) to an existing peer chat that hasn't started a turn, as
+ * `createChat` does with `vscode.chatWorkspace`; gated by the same `vscode.createChatWorkspace` capability.
+ */
+export const SetChatWorkspaceExtensionMethod = 'vscode/setChatWorkspace';
 export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
@@ -172,6 +177,9 @@ export const stopBackgroundWorkParamsValidator = vObj({
 
 export const importSessionParamsValidator = vObj({ session: vString() });
 
+/** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
+export const setChatWorkspaceParamsValidator = vObj({ chat: vString(), workspace: chatWorkspaceValueValidator });
+
 class StringOrNullValidator extends ValidatorBase<string | null> {
 	validate(content: unknown): { content: string | null; error: undefined } | { content: undefined; error: ValidationError } {
 		return content === null || typeof content === 'string'
@@ -214,6 +222,7 @@ export interface IAgentHostExtensionCommandMap {
 	[CompleteSavedChatContinuationExtensionMethod]: { params: ValidatorType<typeof completeSavedChatContinuationParamsValidator>; result: IAgentHostSavedChatContinuationResult };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[MoveAgentHostSessionExtensionMethod]: { params: ValidatorType<typeof moveSessionParamsValidator>; result: { session: string } };
+	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };

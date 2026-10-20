@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, DisposableMap, IReference, Mu
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -1883,7 +1883,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return newChat;
 	}
 
-	getNestedChatWorkspaceSupport(_sessionId: string): INestedChatWorkspaceSupport | undefined {
+	getNestedChatWorkspaceSupport(_sessionId: string, _reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
 		return undefined;
 	}
 
@@ -1895,7 +1895,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		throw NestedChatWorkspaceError.notSupported();
 	}
 
-	async createNewChatInWorkspace(_sessionId: string, _workspace: INestedChatWorkspace, _prompt: string): Promise<IChat> {
+	async applyNestedChatWorkspace(_sessionId: string, _chat: URI, _workspace: INestedChatWorkspace, _prompt: string): Promise<void> {
 		throw NestedChatWorkspaceError.notSupported();
 	}
 

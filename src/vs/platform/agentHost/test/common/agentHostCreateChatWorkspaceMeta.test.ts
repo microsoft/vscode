@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentCreateChatWorkspace } from '../../common/agent.js';
-import { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCreateChatWorkspace } from '../../common/agentHostExtensionProtocol.js';
-import { AgentHostCreateChatWorkspaceMetaKey, readCreateChatWorkspaceMeta, withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { getAgentHostExtensionInitializeResultMeta, setChatWorkspaceParamsValidator, supportsAgentHostCreateChatWorkspace } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCreateChatWorkspaceMetaKey, readChatWorkspaceValue, readCreateChatWorkspaceMeta, serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
 
 suite('Agent host createChat workspace metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +46,38 @@ suite('Agent host createChat workspace metadata', () => {
 		}, {
 			absent: [undefined, undefined, undefined],
 			malformed: malformed.map(() => 'invalid'),
+		});
+	});
+
+	test('a bare workspace value reads like the metadata and only host file folders are accepted', () => {
+		const folder = URI.file('/workspace/repo');
+		const read = (value: unknown) => {
+			const result = readChatWorkspaceValue(value);
+			return result === 'invalid' || result.kind === 'scratch' ? result : { ...result, folder: result.folder.toString() };
+		};
+		assert.deepStrictEqual({
+			scratch: read(serializeChatWorkspace({ kind: 'scratch' })),
+			folder: read(JSON.parse(JSON.stringify(serializeChatWorkspace({ kind: 'folder', folder, isolation: 'folder' })))),
+			remoteScheme: read({ kind: 'folder', folder: 'vscode-remote://ssh-remote+host/repo', isolation: 'folder' }),
+			agentHostScheme: read({ kind: 'folder', folder: 'vscode-agent-host://host/repo', isolation: 'folder' }),
+			untitled: read({ kind: 'folder', folder: 'untitled:/repo', isolation: 'folder' }),
+			metaRemoteScheme: readCreateChatWorkspaceMeta({ [AgentHostCreateChatWorkspaceMetaKey]: { kind: 'folder', folder: 'vscode-remote://ssh-remote+host/repo', isolation: 'folder' } }),
+			absent: read(undefined),
+			params: [
+				{ chat: 'ahp-chat:/c', workspace: { kind: 'scratch' } },
+				{ chat: 'ahp-chat:/c' },
+				{ workspace: { kind: 'scratch' } },
+				{ chat: 'ahp-chat:/c', workspace: { kind: 'folder', isolation: 'folder' } },
+			].map(params => !setChatWorkspaceParamsValidator.validate(params).error),
+		}, {
+			scratch: { kind: 'scratch' },
+			folder: { kind: 'folder', folder: folder.toString(), isolation: 'folder' },
+			remoteScheme: 'invalid',
+			agentHostScheme: 'invalid',
+			untitled: 'invalid',
+			metaRemoteScheme: 'invalid',
+			absent: 'invalid',
+			params: [true, false, false, false],
 		});
 	});
 

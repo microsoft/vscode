@@ -934,6 +934,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** AgentService-owned integrations installed for registered providers. */
 	private readonly _providerSubscriptions = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	private readonly _disposingPeerChats = new Set<string>();
+	/** Chats {@link setChatWorkspace} is moving into a workspace: their first message waits until it settles. */
+	private readonly _applyingChatWorkspaces = new Set<string>();
 	/** Folders reserved by chats being created or moved, by session (see {@link _reserveChatWorkingDirectories}). */
 	private readonly _reservedChatWorkingDirectories = new Map<string, string[]>();
 	/** Folders prepared for a chat that is not published yet, by session. */
@@ -6289,7 +6291,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// Reservations hold the folder attached to the session, so they end before the detach in abort() and release().
 			reservations.dispose();
 			await scratch?.abort();
-			await prepared?.release();
+			await this._releasePreparedChatFolder(prepared);
 			throw error;
 		} finally {
 			reservations.dispose();
@@ -6302,29 +6304,38 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Refuses a requested chat workspace the session cannot honor: combined with folders, a fork or a side chat,
 	 * for the default chat, or with a provider without chats or per-chat folders. Returns the session's provider.
 	 */
-	private _requireChatWorkspaceSupport(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined): IAgent {
+	private _requireChatWorkspaceSupport(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, operation: 'createChat' | 'setChatWorkspace' = 'createChat'): IAgent {
 		if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
-			throw new Error('[AgentService] createChat: a chat workspace cannot be combined with working directories, a fork or a side chat');
+			throw new Error(`[AgentService] ${operation}: a chat workspace cannot be combined with working directories, a fork or a side chat`);
 		}
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider) {
-			throw new Error(`[AgentService] createChat: no provider for session ${session.toString()}`);
+			throw new Error(`[AgentService] ${operation}: no provider for session ${session.toString()}`);
 		}
 		if (!provider.getDescriptor().capabilities?.multipleWorkingDirectories) {
-			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support a workspace per chat`);
+			throw new Error(`[AgentService] ${operation}: provider ${provider.id} does not support a workspace per chat`);
 		}
 		if (!this._supportsChats(provider)) {
-			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
+			throw new Error(`[AgentService] ${operation}: provider ${provider.id} does not support multiple chats`);
 		}
 		if (chat.toString() === this._requireDefaultChat(session)) {
-			throw new Error('[AgentService] createChat: the default chat cannot get a workspace of its own');
+			throw new Error(`[AgentService] ${operation}: the default chat cannot get a workspace of its own`);
 		}
 		return provider;
 	}
 
+	/** Releases a prepared folder or worktree after a failure, logging (never throwing) a failed clean-up so the failure itself surfaces. */
+	private async _releasePreparedChatFolder(prepared: IPreparedChatWorkingDirectory | undefined): Promise<void> {
+		try {
+			await prepared?.release();
+		} catch (error) {
+			this._logService.error(`[AgentService] Failed to release chat folder ${prepared?.directory.toString()}: ${toErrorMessage(error)}`);
+		}
+	}
+
 	/** Adds a requested folder to the session, as is or in a new worktree, for a new chat to work in. */
-	private async _prepareRequestedChatFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions, workspace: Extract<IAgentCreateChatWorkspace, { kind: 'folder' }>, credentials: IAgentHostCredentialSource | undefined): Promise<IPreparedChatWorkingDirectory> {
-		this._requireChatWorkspaceSupport(session, chat, options);
+	private async _prepareRequestedChatFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions, workspace: Extract<IAgentCreateChatWorkspace, { kind: 'folder' }>, credentials: IAgentHostCredentialSource | undefined, operation: 'createChat' | 'setChatWorkspace' = 'createChat'): Promise<IPreparedChatWorkingDirectory> {
+		this._requireChatWorkspaceSupport(session, chat, options, operation);
 		const prepared = await this.prepareChatWorkingDirectory(session, workspace.folder, {
 			...(workspace.isolation === 'worktree'
 				? { isolation: 'worktree', prompt: workspace.prompt, forceNewWorktree: true, ...(workspace.baseBranch !== undefined ? { baseBranch: workspace.baseBranch } : {}) }
@@ -6334,10 +6345,165 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			await prepared.associateWithChat?.(chat);
 		} catch (error) {
-			await prepared.release();
+			await this._releasePreparedChatFolder(prepared);
 			throw error;
 		}
 		return prepared;
+	}
+
+	async setChatWorkspace(session: URI, chat: URI, workspace: IAgentCreateChatWorkspace, credentials?: IAgentHostCredentialSource): Promise<void> {
+		const sessionKey = session.toString();
+		const chatKey = chat.toString();
+		await this._scratchFoldersLoaded;
+		const provider = this._requireChatWorkspaceTarget(session, chat);
+		if (this._applyingChatWorkspaces.has(chatKey)) {
+			throw new Error(`[AgentService] setChatWorkspace: a workspace is already being applied to chat ${chatKey}`);
+		}
+		// Added before any await: a first message sent while the workspace is prepared is refused (see `_getWorkspaceConversionRejection`).
+		this._applyingChatWorkspaces.add(chatKey);
+		let scratch: IAllocatedScratchFolder | undefined;
+		let prepared: IPreparedChatWorkingDirectory | undefined;
+		let directory: URI | undefined;
+		try {
+			if (workspace.kind === 'scratch' && await this._ownScratchFolder(session, chat) !== undefined) {
+				// The chat already works in a scratch folder of its own.
+				return;
+			}
+			credentials = await this._resolveExecutionCredentials(sessionKey, credentials);
+			if (workspace.kind === 'folder') {
+				prepared = await this._prepareRequestedChatFolder(session, chat, {}, workspace, credentials, 'setChatWorkspace');
+			} else {
+				scratch = await this._allocateScratchFolder(session, chat, undefined, true, 'setChatWorkspace');
+			}
+			directory = prepared?.directory ?? scratch?.folder;
+			if (!directory) {
+				throw new Error(`[AgentService] setChatWorkspace: no folder was prepared for chat ${chatKey}`);
+			}
+			const gitState = await this._gitService.getSessionGitState(directory);
+			const isCurrentChat = this._stateManager.captureChatValidity(chatKey);
+			const target = directory;
+			await this._chatCatalogMutationSequencer.queue(sessionKey, () => this._rebindChatWorkingDirectory(session, chat, provider, target, gitState, isCurrentChat, credentials));
+		} catch (error) {
+			await scratch?.abort();
+			await this._releasePreparedChatFolder(prepared);
+			throw error;
+		} finally {
+			this._applyingChatWorkspaces.delete(chatKey);
+		}
+		// Outside the try: the chat works in the folder now, so a failure here never removes it.
+		await scratch?.commit();
+		await this._retireReplacedScratchFolders(session, chat, directory);
+	}
+
+	/**
+	 * Refuses a {@link setChatWorkspace} the chat can't take: one the session doesn't own, a forked, side or spawned
+	 * chat, one with a turn or a pending message, the default chat, or a provider without chats or per-chat folders.
+	 */
+	private _requireChatWorkspaceTarget(session: URI, chat: URI): IAgent {
+		const sessionKey = session.toString();
+		const chatKey = chat.toString();
+		const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey);
+		if (!summary || this._chatOwnership.getChatOwner(chatKey) !== sessionKey) {
+			throw new Error(`[AgentService] setChatWorkspace: chat ${chatKey} does not belong to session ${sessionKey}`);
+		}
+		const provider = this._requireChatWorkspaceSupport(session, chat, undefined, 'setChatWorkspace');
+		const origin = this._stateManager.getChatOrigin(chatKey) ?? summary.origin;
+		if (origin !== undefined && origin.kind !== ChatOriginKind.User) {
+			throw new Error(`[AgentService] setChatWorkspace: a ${origin.kind} chat works in the workspace of the chat it came from`);
+		}
+		this._assertChatHasNotStarted(chat);
+		if (this._workspaceConversionService.isPending(this._requireDefaultChat(session), true)) {
+			throw new Error('Wait for workspace setup to finish before changing the workspace of a chat.');
+		}
+		return provider;
+	}
+
+	/** Throws unless `chat` has no turn, active turn or pending message: its provider backing is replaced then. */
+	private _assertChatHasNotStarted(chat: URI): void {
+		const state = this._stateManager.getChatState(chat.toString());
+		if (!state || state.turns.length > 0 || state.turnsNextCursor !== undefined || state.activeTurn !== undefined
+			|| this._stateManager.getActiveTurnId(chat.toString()) !== undefined || state.steeringMessage !== undefined || (state.queuedMessages?.length ?? 0) > 0) {
+			throw new Error(`[AgentService] setChatWorkspace: chat ${chat.toString()} has already started`);
+		}
+	}
+
+	/** The scratch folder `chat` owns and works in only, if any. */
+	private async _ownScratchFolder(session: URI, chat: URI): Promise<string | undefined> {
+		const directories = this._stateManager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories;
+		if (directories?.length !== 1 || !this._stateManager.isScratchFolder(directories[0])) {
+			return undefined;
+		}
+		const rows = await this._orchestratorDatabase.listScratchFolders();
+		return rows.some(row => row.folder === directories[0] && row.chatUri === chat.toString() && row.state !== 'removing') ? directories[0] : undefined;
+	}
+
+	/**
+	 * Replaces the provider backing of `chat`, which has not started, by one working in `directory` (already attached to
+	 * the session) and publishes the folder. Runs under the session's catalog lock. When anything fails the chat gets a
+	 * backing in its previous folders again and the original failure is thrown.
+	 */
+	private async _rebindChatWorkingDirectory(session: URI, chat: URI, provider: IAgent, directory: URI, gitState: ISessionGitState | undefined, isCurrentChat: () => boolean, credentials: IAgentHostCredentialSource | undefined): Promise<void> {
+		const sessionKey = session.toString();
+		const chatKey = chat.toString();
+		this._assertChatHasNotStarted(chat);
+		if (!isCurrentChat()) {
+			throw new Error(localize('agentHost.chatWorkspaceTargetChanged', "The chat was removed or replaced while changing its workspace."));
+		}
+		const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey);
+		const origin = summary?.origin;
+		const previousDirectories = summary?.workingDirectories;
+		const workingDirectories = this._resolveChatWorkingDirectories(session, provider, [directory]);
+		const recordBacking = async (result: IAgentCreateChatResult | void) => {
+			this._stateManager.updateChatProviderData(chatKey, result?.providerData);
+			await this._peerChatStore.upsert(session, chat, result?.providerData, origin);
+			if (result?.backingSession) {
+				await this._markChatBacking(result.backingSession, session, chat);
+			}
+		};
+		await this._disposeChat(provider, session, chat);
+		let rebound = false;
+		try {
+			await recordBacking(await this._createChat(provider, chat, session, { workingDirectories }, credentials));
+			rebound = true;
+			this._assertChatHasNotStarted(chat);
+			await this._setChatWorkingDirectory(session, chat, workingDirectories[0], false, gitState, isCurrentChat);
+		} catch (error) {
+			try {
+				if (rebound) {
+					await this._disposeChat(provider, session, chat);
+				}
+				const restored = previousDirectories?.length
+					? { workingDirectories: previousDirectories.map(previous => URI.parse(previous)) }
+					: undefined;
+				await recordBacking(await this._createChat(provider, chat, session, restored, credentials));
+			} catch (restoreError) {
+				this._logService.error(`[AgentService] Failed to restore the backing of chat ${chatKey} after a failed workspace change: ${toErrorMessage(restoreError)}`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Schedules the removal of the scratch folders `chat` owned and no longer works in, now that it works in `directory`:
+	 * detached from the session when no other chat uses them, marked `removing` for the clean-up pass. Never throws.
+	 */
+	private async _retireReplacedScratchFolders(session: URI, chat: URI, directory: URI): Promise<void> {
+		const chatKey = chat.toString();
+		try {
+			const replaced = (await this._orchestratorDatabase.listScratchFolders())
+				.filter(row => row.chatUri === chatKey && row.state !== 'removing' && !isEqual(URI.parse(row.folder), directory))
+				.map(row => row.folder);
+			if (!replaced.length) {
+				return;
+			}
+			await this._detachDeletedChatWorkingDirectories(session, chatKey, replaced);
+			for (const folder of replaced) {
+				await this._orchestratorDatabase.markScratchFolderRemoving(folder);
+			}
+			this._worktreeCleanup.schedule();
+		} catch (error) {
+			this._logService.error(`[AgentService] Failed to retire the replaced scratch folders of chat ${chatKey}: ${toErrorMessage(error)}`);
+		}
 	}
 
 	/**
@@ -6346,11 +6512,11 @@ export class AgentService extends Disposable implements IAgentService {
 	 * share their source's folder), side chats, the default chat, chats naming folders and providers without per-chat
 	 * folders are left alone. A `requested` scratch folder is allocated in any session, or refused.
 	 */
-	private async _allocateScratchFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, requested = false): Promise<IAllocatedScratchFolder | undefined> {
+	private async _allocateScratchFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, requested = false, operation: 'createChat' | 'setChatWorkspace' = 'createChat'): Promise<IAllocatedScratchFolder | undefined> {
 		const sessionKey = session.toString();
 		let provider: IAgent | undefined;
 		if (requested) {
-			provider = this._requireChatWorkspaceSupport(session, chat, options);
+			provider = this._requireChatWorkspaceSupport(session, chat, options, operation);
 		} else {
 			if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
 				return undefined;
@@ -11244,6 +11410,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 
+			if (options.baseBranch !== undefined && !await this._gitService.getBranch(checkoutRoot, options.baseBranch)) {
+				throw new Error(localize('agentHost.worktreeBaseBranchMissing', "Branch '{0}' does not exist in {1}.", options.baseBranch, repositoryRoot.fsPath));
+			}
 			const selectedBranch = options.baseBranch
 				?? (await this._gitService.getDefaultBranch(repositoryRoot))?.name
 				?? await this._gitService.getCurrentBranch(repositoryRoot)
@@ -11762,10 +11931,16 @@ export class AgentService extends Disposable implements IAgentService {
 					? localize('agentHost.cannotCancelWorkspaceChange', "Cannot cancel while the workspace is changing.")
 					: undefined;
 			case ActionType.ChatPendingMessageSet:
+				if (this._applyingChatWorkspaces.has(channel)) {
+					return localize('agentHost.cannotQueueChatWorkspaceChange', "Cannot send a message while the chat's workspace is changing.");
+				}
 				return action.kind === PendingMessageKind.Steering && isConversionChat(channel)
 					? localize('agentHost.cannotSteerWorkspaceChange', "Cannot steer while the workspace is changing.")
 					: undefined;
 			case ActionType.ChatTurnStarted:
+				if (this._applyingChatWorkspaces.has(channel)) {
+					return localize('agentHost.cannotStartTurnChatWorkspaceChange', "Cannot send a message while the chat's workspace is changing.");
+				}
 				return isConversionChat(channel)
 					? localize('agentHost.cannotStartTurnWorkspaceChange', "Cannot send a message while the workspace is changing.")
 					: undefined;

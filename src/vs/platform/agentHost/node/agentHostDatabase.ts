@@ -4270,6 +4270,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	// ---- Scratch folders (see agentHostScratchFolderDatabase.ts) ------------
 	insertScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['insertScratchFolder']>) { return this._scratchFolders.insertScratchFolder(...args); }
 	markScratchFolderOwned(...args: Parameters<IAgentHostScratchFolderDatabase['markScratchFolderOwned']>) { return this._scratchFolders.markScratchFolderOwned(...args); }
+	markScratchFolderRemoving(...args: Parameters<IAgentHostScratchFolderDatabase['markScratchFolderRemoving']>) { return this._scratchFolders.markScratchFolderRemoving(...args); }
 	listScratchFolders(...args: Parameters<IAgentHostScratchFolderDatabase['listScratchFolders']>) { return this._scratchFolders.listScratchFolders(...args); }
 	hasScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['hasScratchFolder']>) { return this._scratchFolders.hasScratchFolder(...args); }
 	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostScratchFolderDatabase['recordScratchFolderRemovalFailure']>) { return this._scratchFolders.recordScratchFolderRemovalFailure(...args); }

@@ -1233,6 +1233,11 @@ class AdditionalChat extends Disposable {
 		return this._workingDirectories.get();
 	}
 
+	/** {@link ownWorkingDirectories}, tracked by `reader`. */
+	readOwnWorkingDirectories(reader: IReader | undefined): readonly string[] | undefined {
+		return this._workingDirectories.read(reader);
+	}
+
 	toMetadata(): IAgentSessionChatMetadata {
 		const changes = this._changesSummary.get();
 		const workingDirectories = this._workingDirectories.get();
@@ -2301,24 +2306,28 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/**
 	 * The folders a new nested chat may work in: the session folder (the default chat's first folder that is not a
 	 * host scratch folder; `undefined` in a workspace-less session) and the non-scratch folders of all its chats,
-	 * session folder first, deduped. Reads cached summaries only.
+	 * session folder first, deduped. Reads cached summaries only, tracked by `reader`.
 	 */
-	getNestedChatFolders(): { readonly sessionFolder: URI | undefined; readonly folders: readonly URI[] } {
-		const scratch = this._scratchFolders.get();
-		const isQuickChat = this.isQuickChat.get();
+	getNestedChatFolders(reader: IReader | undefined): { readonly sessionFolder: URI | undefined; readonly folders: readonly URI[] } {
+		// The chat catalog and the session workspace change with the chats and session folders read below.
+		this._chatsObs.read(reader);
+		this.workspace.read(reader);
+		const scratch = this._scratchFolders.read(reader);
+		const isQuickChat = this.isQuickChat.read(reader);
+		const defaultChatWorkingDirectories = this._defaultChatWorkingDirectories.read(reader);
 		// A chat without folders of its own works in its session's: only the scratch primary of a quick chat.
 		const foldersOf = (directories: readonly string[] | undefined): readonly URI[] => directories
 			? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory)))
 			: isQuickChat ? this.workingDirectories.slice(0, 1) : this.workingDirectories;
 		const folders = new ResourceSet();
-		for (const directories of [this._defaultChatWorkingDirectories.get(), ...[...this._additionalChats.values()].map(chat => chat.ownWorkingDirectories)]) {
+		for (const directories of [defaultChatWorkingDirectories, ...[...this._additionalChats.values()].map(chat => chat.readOwnWorkingDirectories(reader))]) {
 			for (const folder of foldersOf(directories)) {
 				if (!scratch?.has(folder)) {
 					folders.add(folder);
 				}
 			}
 		}
-		const sessionFolder = isQuickChat ? undefined : foldersOf(this._defaultChatWorkingDirectories.get()).find(folder => !scratch?.has(folder));
+		const sessionFolder = isQuickChat ? undefined : foldersOf(defaultChatWorkingDirectories).find(folder => !scratch?.has(folder));
 		return {
 			sessionFolder,
 			folders: sessionFolder ? [sessionFolder, ...[...folders].filter(folder => !isEqual(folder, sessionFolder))] : [...folders],
@@ -7480,19 +7489,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Otherwise this is an additional peer chat inside an existing running
 		// session. Mint a client-chosen chat URI, ask the host to add it to the
 		// session's catalog, and wait for the adapter to surface the new chat.
-		return this._createAdditionalChat(chatId, connection, undefined);
+		return this._createAdditionalChat(chatId, connection);
 	}
 
-	getNestedChatWorkspaceSupport(sessionId: string): INestedChatWorkspaceSupport | undefined {
-		const cached = this._getNestedChatWorkspaceSession(sessionId);
+	getNestedChatWorkspaceSupport(sessionId: string, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined {
+		const cached = this._getNestedChatWorkspaceSession(sessionId, reader);
 		if (!cached) {
 			return undefined;
 		}
-		const { sessionFolder, folders } = cached.getNestedChatFolders();
+		const { sessionFolder, folders } = cached.getNestedChatFolders(reader);
 		return {
 			sessionFolder,
 			sessionFolders: folders,
-			multipleFolders: !!this._agentCapabilities.get()?.get(cached.agentProvider)?.multipleWorkingDirectories,
+			multipleFolders: !!this._agentCapabilities.read(reader)?.get(cached.agentProvider)?.multipleWorkingDirectories,
 			browseActions: this.browseActions,
 		};
 	}
@@ -7527,30 +7536,46 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return (baseBranch.schema.enum ?? []).filter((value): value is string => typeof value === 'string' && value.toLowerCase().includes(lowerQuery));
 	}
 
-	async createNewChatInWorkspace(sessionId: string, workspace: INestedChatWorkspace, prompt: string): Promise<IChat> {
+	async applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
 		this._assertSessionAvailable(sessionId);
-		const support = this.getNestedChatWorkspaceSupport(sessionId);
+		const support = this.getNestedChatWorkspaceSupport(sessionId, undefined);
+		const cached = this._getNestedChatWorkspaceSession(sessionId, undefined);
 		const connection = this.connection;
-		if (!support || !connection || !isNestedChatWorkspaceAllowed(support, workspace)) {
+		if (!support || !cached || !connection || !isNestedChatWorkspaceAllowed(support, workspace)) {
 			throw NestedChatWorkspaceError.notSupported();
+		}
+		// Only a chat that has not sent its first request can still change where it works.
+		const target = cached.chats.get().find(candidate => isEqual(candidate.resource, chat));
+		const backendChat = target && this.getBackendChatResource(target.resource);
+		if (!target || !backendChat || target.status.get() !== SessionStatus.Untitled || this._chatService.getSession(target.resource)?.hasRequests) {
+			throw NestedChatWorkspaceError.alreadyStarted();
 		}
 		const hostWorkspace: IAgentCreateChatWorkspace = workspace.kind === 'scratch'
 			? { kind: 'scratch' }
 			: workspace.isolation === 'worktree'
 				? { kind: 'folder', folder: workspace.folder, isolation: 'worktree', baseBranch: workspace.baseBranch, prompt }
 				: { kind: 'folder', folder: workspace.folder, isolation: 'folder' };
-		return this._createAdditionalChat(sessionId, connection, hostWorkspace);
+		try {
+			await connection.setChatWorkspace(backendChat, hostWorkspace);
+		} catch (error) {
+			const workspaceLabel = workspace.kind === 'scratch'
+				? localize('nestedChatWorkspace.newFolder', "a new folder")
+				: basename(workspace.folder);
+			throw NestedChatWorkspaceError.refused(workspaceLabel, getErrorMessage(error));
+		}
 	}
 
 	/** The session whose new nested chats may choose a workspace; `undefined` when the composer must not offer one. */
-	private _getNestedChatWorkspaceSession(sessionId: string): AgentHostSessionAdapter | undefined {
+	private _getNestedChatWorkspaceSession(sessionId: string, reader: IReader | undefined): AgentHostSessionAdapter | undefined {
 		const connection = this.connection;
-		if (!connection || this._isSessionDisabledByPolicy(sessionId) || !supportsAgentHostCreateChatWorkspace(connection.initializeResult.get())) {
+		// The session cache changes with the sessions read below.
+		this._backendSessionsChanged.read(reader);
+		if (!connection || this._isSessionDisabledByPolicy(sessionId) || !supportsAgentHostCreateChatWorkspace(connection.initializeResult.read(reader))) {
 			return undefined;
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		if (!cached || cached.isArchived.get() || !cached.capabilities.get().supportsMultipleChats) {
+		if (!cached || cached.isArchived.read(reader) || !cached.capabilities.read(reader).supportsMultipleChats) {
 			return undefined;
 		}
 		return cached;
@@ -7558,7 +7583,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Resolves the agent's default configuration for a new chat in `folder`, as a new session draft does. */
 	private async _resolveNestedChatFolderConfig(sessionId: string, folder: URI, token: CancellationToken): Promise<ResolveSessionConfigResult & { readonly connection: IAgentConnection; readonly provider: string }> {
-		const cached = this._getNestedChatWorkspaceSession(sessionId);
+		const cached = this._getNestedChatWorkspaceSession(sessionId, undefined);
 		const connection = this.connection;
 		if (!cached || !connection) {
 			throw NestedChatWorkspaceError.notSupported();
@@ -7568,11 +7593,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return { ...result, connection, provider };
 	}
 
-	/**
-	 * Creates a peer chat in an existing running session: mints a client-chosen chat URI, asks the host to add it to
-	 * the session's catalog (in `workspace` when given), and waits for the adapter to surface the new chat.
-	 */
-	private async _createAdditionalChat(chatId: string, connection: IAgentConnection, workspace: IAgentCreateChatWorkspace | undefined): Promise<IChat> {
+	private async _createAdditionalChat(chatId: string, connection: IAgentConnection): Promise<IChat> {
 		const rawId = this._sessionKeyFromChatId(chatId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!rawId || !cached) {
@@ -7594,27 +7615,30 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Keep the session-state subscription alive so the `chatAdded` it emits
 		// flows into `_applyChatCatalogFromState` and updates `cached.chats`.
 		this._keepSessionStateAlive(cached.sessionId);
-		try {
-			await connection.createChat(sessionUri, chatUri, {
-				model: cached.modelSelection,
-				...(workspace ? { workspace } : {}),
-			});
-		} catch (error) {
-			// The chat was never committed: drop its `Untitled` mark.
-			cached.markChatAsSent(newChatId);
-			if (!workspace) {
-				throw error;
-			}
-			const workspaceLabel = workspace.kind === 'scratch'
-				? localize('nestedChatWorkspace.newFolder', "a new folder")
-				: basename(workspace.folder);
-			throw NestedChatWorkspaceError.refused(workspaceLabel, getErrorMessage(error));
-		}
+		await connection.createChat(sessionUri, chatUri, {
+			model: cached.modelSelection,
+		});
 
-		const chat = await waitForState(
-			cached.chats.map(chats => chats.find(c => c.resource.fragment === newChatId)),
-			c => !!c,
-		);
+		let chat: IChat;
+		try {
+			({ chat } = await waitForState(
+				derived(reader => {
+					// The chat can no longer surface once its session left the cache (deleted or evicted).
+					this._backendSessionsChanged.read(reader);
+					return { chat: cached.chats.read(reader).find(c => c.resource.fragment === newChatId), sessionRemoved: this._sessionCache.get(rawId) !== cached };
+				}),
+				(state): state is { chat: IChat; sessionRemoved: boolean } => !!state.chat,
+				state => state.sessionRemoved && new Error(`Session '${chatId}' was removed before its new chat appeared`),
+			));
+		} catch (error) {
+			// The host committed the chat, but it never surfaced here: don't leave it behind on the host.
+			try {
+				await connection.disposeChat(chatUri);
+			} catch (disposeError) {
+				this._logService.warn(`[${this.id}] Failed to dispose new chat ${chatUri.toString()}: ${getErrorMessage(disposeError)}`);
+			}
+			throw error;
+		}
 
 		// The model comes from the chat this one was branched off, not from any choice made here.
 		cached.setChatModelId(chat.resource, selectedModelId, ChatModelSource.CarriedOver);

@@ -312,8 +312,6 @@ export interface ISessionsService {
 	 * and shows a rich input for composing a message. Pass
 	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
 	 * chat (e.g. when resetting the composer right after a background send).
-	 * With {@link ICreateNewChatInSessionOptions.workspace}, rejects with the
-	 * provider's error when the chat cannot be created in that workspace.
 	 */
 	openNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<void>;
 

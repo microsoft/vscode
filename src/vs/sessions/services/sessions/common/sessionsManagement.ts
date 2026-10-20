@@ -147,11 +147,6 @@ export interface ICreateNewChatInSessionOptions {
 	 * just-sent chat may still transiently report `Untitled`.
 	 */
 	readonly forceNew?: boolean;
-	/**
-	 * Create the chat in this workspace (see {@link ISessionsProvider.createNewChatInWorkspace}); `prompt` names a new
-	 * worktree. Always creates a fresh chat, and rejects with the provider's error when it cannot be created there.
-	 */
-	readonly workspace?: { readonly workspace: INestedChatWorkspace; readonly prompt: string };
 }
 
 /**
@@ -484,10 +479,16 @@ export interface ISessionsManagementService {
 	 * provider so it can be shown as the new-chat-in-session view. Pass
 	 * {@link ICreateNewChatInSessionOptions.forceNew} to always create a fresh
 	 * chat. Returns the chat, or `undefined` when the provider could not be
-	 * resolved. With {@link ICreateNewChatInSessionOptions.workspace}, always
-	 * creates a fresh chat in that workspace and rejects when the provider refuses.
+	 * resolved.
 	 */
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
+
+	/**
+	 * Gives `chat`, an untitled chat of `session` that has not sent a request, the chosen workspace via the session's
+	 * provider (see {@link ISessionsProvider.applyNestedChatWorkspace}); `prompt` names a new worktree. Rejects with a
+	 * {@link NestedChatWorkspaceError} when the workspace cannot be applied, including when the provider is unknown.
+	 */
+	applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void>;
 
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded
