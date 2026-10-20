@@ -201,7 +201,16 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			? getDurationString(duration < 1000 ? Math.round(duration) : Math.round(duration / 100) * 100)
 			: undefined);
 		const size = addField(localize('chat.imageGeneration.imageSize', "Image size"));
-		addField(localize('chat.imageGeneration.tokens', "Tokens"));
+		const data = this.toolInvocation.toolSpecificData;
+		const usage = data?.kind === 'generatedImage' || data?.kind === 'input' ? data.imageGeneration?.usage : undefined;
+		const tokens = usage?.inputTokens !== undefined || usage?.outputTokens !== undefined
+			? localize('chat.imageGeneration.tokenCounts', "{0} input / {1} output", usage.inputTokens ?? '-', usage.outputTokens ?? '-')
+			: usage?.totalTokens !== undefined ? String(usage.totalTokens) : undefined;
+		addField(localize('chat.imageGeneration.tokens', "Tokens"), tokens);
+		const charge = usage?.copilotUsage?.totalNanoAiu;
+		addField(localize('chat.imageGeneration.credits', "AI credits"), charge === undefined
+			? localize('chat.imageGeneration.costUnavailable', "Unavailable")
+			: String(charge / 1_000_000_000));
 		store.add(toDisposable(() => metadata.remove()));
 		const setSize = (lengths: readonly number[]) => {
 			size.textContent = ByteSize.formatSize(lengths.reduce((total, length) => total + length, 0));

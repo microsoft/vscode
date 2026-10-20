@@ -42,6 +42,8 @@ import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.j
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import type { IImageGenerationToolMetadata } from '../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
+import type { AiCreditsStatus } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 
 export interface IChatRequest {
 	message: string;
@@ -220,6 +222,8 @@ export interface IChatUsage {
 	 * ran between turns). Not every backend reports it.
 	 */
 	sessionCopilotCredits?: number;
+	/** Whether the session's reported credits cover every metered operation. */
+	sessionCopilotCreditsStatus?: AiCreditsStatus;
 	/**
 	 * The language-model ID that actually served the request. Set when a
 	 * meta-model (e.g. "auto") routes to a concrete model so consumers
@@ -331,6 +335,12 @@ export interface IChatProgressMessage {
 	 * appended, so live progress doesn't stack up rows.
 	 */
 	id?: string;
+	/**
+	 * With {@link id}, removes the progress message with that id instead of
+	 * showing this one, so the response falls back to its generic working
+	 * progress once the reported activity ends.
+	 */
+	remove?: boolean;
 }
 
 export interface IChatSystemNotificationPart {
@@ -854,7 +864,7 @@ export interface IChatToolInputInvocationData {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
 	/** Image-generation input and its independently selected image model. */
-	imageGeneration?: { readonly requestedModel?: { readonly id: string; readonly name?: string } };
+	imageGeneration?: Partial<IImageGenerationToolMetadata>;
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
 	/**
@@ -1362,6 +1372,7 @@ export interface IChatGeneratedImageData {
 	readonly kind: 'generatedImage';
 	/** Tool execution time in milliseconds, when known. */
 	readonly durationMs?: number;
+	readonly imageGeneration?: IImageGenerationToolMetadata;
 }
 
 /**
@@ -2013,6 +2024,11 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/**
+	 * Invoked after a silent slash command has completed successfully. This is
+	 * intentionally not called when command execution throws.
+	 */
+	onDidExecuteSlashCommand?: () => void;
 	/** UI-only observation of this send's response and dispatch outcome. Queued/rejected sends have no response. Not persisted or sent to an agent. */
 	onDidCreateResponse?: (response: IChatResponseModel | undefined, kind?: ChatSendResult['kind']) => void;
 	modeInfo?: IChatRequestModeInfo;

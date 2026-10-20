@@ -150,6 +150,40 @@
 	white-space: nowrap;
 }
 
+/* A lone entry can mirror its promoted action onto the pill, like the remove
+	action of a chat attachment: quiet until hovered. It rides on trailing padding
+	its button reserves, adding no width of its own. */
+.chat-pill-item.has-promoted-action > .monaco-button.chat-pill-button {
+	padding-right: calc(var(--vscode-spacing-size40) + var(--vscode-spacing-size160) + var(--vscode-spacing-size20));
+}
+
+.monaco-workbench .chat-pill-item > .chat-pill-promoted-action.codicon {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	margin: 0 calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness)) 0 calc(-1 * (var(--vscode-spacing-size160) + var(--vscode-spacing-size20) + var(--vscode-strokeThickness)));
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+	cursor: pointer;
+}
+
+.monaco-workbench .chat-pill-item > .chat-pill-promoted-action.codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Compact pills keep only their icon; the compact padding rules also drop the reserved space. */
+.monaco-workbench .chat-pills-row.compact .chat-pill-item > .chat-pill-promoted-action.codicon,
+.monaco-workbench .chat-pill-item > .chat-pill-button.compact + .chat-pill-promoted-action.codicon {
+	display: none;
+}
+
 /* The chevron shares the leading glyph's compact box. `chevron-down-compact` is
 	drawn on that box's centre, so it needs no nudge to sit on the label. */
 .monaco-workbench .chat-pill-chevron.codicon {

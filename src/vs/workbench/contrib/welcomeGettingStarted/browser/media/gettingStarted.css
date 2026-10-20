@@ -77,7 +77,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:focus {
-	outline: 1px solid -webkit-focus-ring-color;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
@@ -1117,10 +1117,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon {
 	color: var(--vscode-textLink-activeForeground);
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):focus {
-	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button {

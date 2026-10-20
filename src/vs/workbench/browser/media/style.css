@@ -260,6 +260,7 @@ body {
 
 /* Keyboard Focus Indication Styles */
 
+.monaco-workbench a:focus-visible,
 .monaco-workbench [tabindex="0"]:focus,
 .monaco-workbench [tabindex="-1"]:focus,
 .monaco-workbench .synthetic-focus,

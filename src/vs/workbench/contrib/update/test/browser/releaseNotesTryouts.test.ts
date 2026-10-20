@@ -254,41 +254,41 @@ suite('Release notes Try This', () => {
 			disabled: 'false',
 			runs: [], commands: [],
 		});
+	});
 
-		test('a failing availability provider leaves ordinary content and other examples usable', async () => {
-			const service = instantiationService.get(IOnboardingTryoutService);
-			const original = service.getAvailability;
-			const availabilityStub = stub(service, 'getAvailability').callsFake(id => {
-				if (id === 'sample') {
-					throw new Error('Broken provider');
-				}
-				return original(id);
-			});
-			const logged = stub(instantiationService.get(ILogService), 'error');
-			store.add(toDisposable(() => { availabilityStub.restore(); logged.restore(); }));
-			const container = await render(`# Ordinary content\n[Try](${sampleUri}) [Other](${createOnboardingTryoutUri('other')}) [Settings](command:workbench.action.openSettings)`);
-			attach();
-			changes.fire();
-			request();
-			await timeout(0);
+	test('a failing availability provider leaves ordinary content and other examples usable', async () => {
+		const service = instantiationService.get(IOnboardingTryoutService);
+		const original = service.getAvailability;
+		const availabilityStub = stub(service, 'getAvailability').callsFake(id => {
+			if (id === 'sample') {
+				throw new Error('Broken provider');
+			}
+			return original(id);
+		});
+		const logged = stub(instantiationService.get(ILogService), 'error');
+		store.add(toDisposable(() => { availabilityStub.restore(); logged.restore(); }));
+		const container = await render(`# Ordinary content\n[Try](${sampleUri}) [Other](${createOnboardingTryoutUri('other')}) [Settings](command:workbench.action.openSettings)`);
+		attach();
+		changes.fire();
+		request();
+		await timeout(0);
 
-			assert.deepStrictEqual({
-				heading: container.querySelector('h1')?.textContent,
-				links: [...container.querySelectorAll('a')].map(link => ({ href: link.getAttribute('href'), disabled: link.getAttribute('aria-disabled') })),
-				fallback: container.querySelector('.release-notes-tryout-message')?.textContent,
-				logged: logged.called,
-				runs,
-			}, {
-				heading: 'Ordinary content',
-				links: [
-					{ href: null, disabled: 'true' },
-					{ href: createOnboardingTryoutUri('other').toString(), disabled: 'false' },
-					{ href: 'command:workbench.action.openSettings', disabled: null },
-				],
-				fallback: 'This feature example could not be loaded.',
-				logged: true,
-				runs: [],
-			});
+		assert.deepStrictEqual({
+			heading: container.querySelector('h1')?.textContent,
+			links: [...container.querySelectorAll('a')].map(link => ({ href: link.getAttribute('href'), disabled: link.getAttribute('aria-disabled') })),
+			fallback: container.querySelector('.release-notes-tryout-message')?.textContent,
+			logged: logged.called,
+			runs,
+		}, {
+			heading: 'Ordinary content',
+			links: [
+				{ href: null, disabled: 'true' },
+				{ href: createOnboardingTryoutUri('other').toString(), disabled: 'false' },
+				{ href: 'command:workbench.action.openSettings', disabled: null },
+			],
+			fallback: 'This feature example could not be loaded.',
+			logged: true,
+			runs: [],
 		});
 	});
 

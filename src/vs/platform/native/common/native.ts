@@ -90,6 +90,10 @@ export interface INativeZipProgress {
 	readonly path: string;
 }
 
+export interface INativeZipResult {
+	readonly skippedFiles: readonly { readonly path: string; readonly error: string }[];
+}
+
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
@@ -396,6 +400,7 @@ export interface ICommonNativeHostService {
 	readClipboardBuffer(format: string): Promise<VSBuffer>;
 	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
 	readImage(): Promise<Uint8Array>;
+	writeImage(data: VSBuffer): Promise<void>;
 
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;
@@ -458,7 +463,7 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult>;
 	readonly onDidProgressZipFile: Event<INativeZipProgress>;
 	cancelZipFile(operationId: string): Promise<void>;
 

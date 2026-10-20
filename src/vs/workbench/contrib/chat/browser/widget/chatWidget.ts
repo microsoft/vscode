@@ -13,6 +13,7 @@ import { disposableTimeout, timeout } from '../../../../../base/common/async.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { structuralEquals } from '../../../../../base/common/equals.js';
 import { CancellationError, ErrorNoTelemetry, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { hash } from '../../../../../base/common/hash.js';
@@ -27,6 +28,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableFrom
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatOpenDiagnosticsService } from '../../common/chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -645,6 +647,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAgentHostPolicyContinuationService private readonly policyContinuationService: IAgentHostPolicyContinuationService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
@@ -793,7 +796,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false)));
+		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (!this.viewOptions.hostSubmit && (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false))));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
@@ -1510,6 +1513,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._pendingFirstRenderSessionResource = undefined;
 				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
 				CloudSandboxSessionTrace.get(this.viewModel.model)?.record('firstRender', { items: items.length });
+				this.chatOpenDiagnosticsService.mark(this.viewModel.sessionResource, 'firstRender');
 			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -1703,9 +1707,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * belongs to the empty state of the standard chat layout.
 	 */
 	private isGettingStartedTipEligible(): boolean {
-		if (typeof this.viewOptions.renderGettingStartedTip === 'function'
-			? !this.viewOptions.renderGettingStartedTip()
-			: this.viewOptions.renderGettingStartedTip === false) {
+		if (typeof this.viewOptions.renderGettingStartedTip === 'function' && !this.viewOptions.renderGettingStartedTip()) {
 			return false;
 		}
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -2693,6 +2695,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
 			renderSecondaryToolbar: this.viewOptions.renderSecondaryToolbar ?? true,
+			renderStatusToolbar: this.viewOptions.renderStatusToolbar,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
 				telemetrySource: 'chatWidget',
@@ -2704,12 +2707,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
+			inputEditorPadding: this.viewOptions.inputEditorPadding,
 			isTransientChat: isTransientChat(this),
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 			isSessionsWindow: this.viewOptions.isSessionsWindow,
+			inputPartHorizontalPadding: this.viewOptions.inputPartHorizontalPadding,
+			hostModelSelection: this.viewOptions.hostModelSelection,
+			deferredNotificationsEnabled: this.viewOptions.deferredNotificationsEnabled,
+			ownsDraftVoiceSession: this.viewOptions.ownsDraftVoiceSession,
+			hostSubmit: this.viewOptions.hostSubmit,
 		};
 
 		let input: ChatInputPart;
@@ -2752,6 +2761,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		input.render(container, '', this);
+		if (!isInlineEdit && this.viewOptions.inputPlaceholder) {
+			input.inputEditor.updateOptions({ placeholder: this.viewOptions.inputPlaceholder });
+		}
 		// The migration notice and the tip belong to the empty state, which never applies while a request is edited.
 		if (!isInlineEdit) {
 			if (this.viewOptions.customizationMigrationNotice) {
@@ -2782,15 +2794,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.customizationMigrationNotice.clear();
 			}
-			this._gettingStartedTip.value = this.instantiationService.createInstance(
-				ChatInputTipPresenter,
-				{
-					container: input.gettingStartedTipContainerElement,
-					isEligible: () => this.isGettingStartedTipEligible(),
-					focusInput: () => this.focusInput(),
-				},
-				input.noticeHost,
-			);
+			if (this.viewOptions.renderGettingStartedTip !== false) {
+				this._gettingStartedTip.value = this.instantiationService.createInstance(
+					ChatInputTipPresenter,
+					{
+						container: input.gettingStartedTipContainerElement,
+						isEligible: () => this.isGettingStartedTipEligible(),
+						focusInput: () => this.focusInput(),
+					},
+					input.noticeHost,
+				);
+			}
 		}
 		// Keep read-only chats' composer hidden if the input part was rebuilt.
 		this._applyInputVisibility();
@@ -3051,6 +3065,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.listWidget.setViewModel(this.viewModel);
 		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
+		this.chatOpenDiagnosticsService.mark(model.sessionResource, 'modelAttached');
 		// Armed only once the list is bound, so a render triggered while the
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;
@@ -3061,9 +3076,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
 			}
 			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
+			this._updateInputPlaceholder(placeholder);
 		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 		}
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
@@ -3079,7 +3094,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
-				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+				this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 			}
 
 			this.onDidChangeItems();
@@ -3100,16 +3115,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._chatSessionSupportsRenameContextKey.set(false);
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const updateSessionCapabilities = () => {
-			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
-			this._chatSessionSupportsForkContextKey.set(supportsFork);
-			const supportsRename = getChatSessionType(model.sessionResource) === localChatSessionType
-				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
-			this._chatSessionSupportsRenameContextKey.set(supportsRename);
-			this.listWidget?.updateRendererOptions({ supportsFork });
-		};
-		updateSessionCapabilities();
-		this.viewModelDisposables.add(this.chatSessionsService.onDidChangeAvailability(() => updateSessionCapabilities()));
+		this.viewModelDisposables.add(this.bindSessionCapabilities(model));
 		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
@@ -3174,6 +3180,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private bindSessionCapabilities(model: IChatModel): IDisposable {
+		const sessionType = getChatSessionType(model.sessionResource);
+		return Event.runAndSubscribe(this.chatSessionsService.onDidChangeAvailability, () => {
+			// Saved history can bind before its live session contribution registers.
+			if (sessionType !== localChatSessionType && !this._lockedAgent) {
+				const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+				if (contribution) {
+					this.lockToCodingAgent(contribution.name, contribution.displayName, sessionType, contribution.agentHostProviderId);
+				}
+			}
+			const supportsFork = this.chatSessionsService.sessionSupportsFork(model.sessionResource);
+			this._chatSessionSupportsForkContextKey.set(supportsFork);
+			const supportsRename = sessionType === localChatSessionType
+				|| this.chatSessionsService.sessionSupportsRename(model.sessionResource);
+			this._chatSessionSupportsRenameContextKey.set(supportsRename);
+			this.listWidget?.updateRendererOptions({ supportsFork });
+		});
+	}
+
 	setLoading(isLoading: boolean): void {
 		this._isLoading = isLoading;
 		this.renderGettingStartedTipIfNeeded();
@@ -3210,6 +3235,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	resetInputPlaceholder(): void {
 		this.viewModel?.resetInputPlaceholder();
+	}
+
+	/** Shows `placeholder` in the input, unless the host supplies its own. */
+	private _updateInputPlaceholder(placeholder: string | undefined): void {
+		this.inputEditor?.updateOptions({ placeholder: this.viewOptions.inputPlaceholder ?? placeholder });
 	}
 
 	setInput(value = ''): void {
@@ -3278,7 +3308,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		this.inputEditor?.updateOptions({ placeholder: undefined });
+		this._updateInputPlaceholder(undefined);
 		this.listWidget?.updateRendererOptions({ restorable: true, editable: !this._readOnly, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		this.rerenderListIfConnected();
 	}
@@ -3363,14 +3393,54 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private _createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined {
+		const sourceSessionResource = this.viewModel?.sessionResource;
+		if (!sourceSessionResource || !isAgentHostTarget(getChatSessionType(sourceSessionResource)) || !!query || options?.preserveInput) {
+			return undefined;
+		}
+		const ownedInput = this.getInput();
+		const forkPart = this.parsedInput.parts.find((part): part is ChatRequestSlashCommandPart =>
+			part instanceof ChatRequestSlashCommandPart && part.slashCommand.command === 'fork');
+		const afterFork = forkPart ? ownedInput.slice(forkPart.range.endExclusive) : '';
+		const promptToken = afterFork ? /^(\s*)prompt(?=\s|$)/.exec(afterFork) : undefined;
+		const promptText = promptToken ? afterFork.slice(promptToken[0].length).trim() : '';
+		if (!forkPart
+			|| !promptToken
+			|| !promptText) {
+			return undefined;
+		}
+		const sourceInputModel = this.viewModel?.model.inputModel;
+		const ownedAttachments = [...this.input.attachmentModel.attachments];
+		// Keep cleanup bound to the source model even after navigating to the fork.
+		return () => {
+			if (!sourceInputModel) {
+				return;
+			}
+			const state = sourceInputModel.state.get();
+			if (state?.inputText !== ownedInput) {
+				return;
+			}
+			if (!structuralEquals(state.attachments ?? [], ownedAttachments)) {
+				return;
+			}
+			sourceInputModel.setState({ inputText: '', attachments: [] });
+		};
+	}
+
 	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this._readOnly || this.viewModel?.model.isInputBlocked.get() || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
+		const modelInputBlocked = this.viewModel?.model.isInputBlocked.get() && !this.viewOptions.hostSubmit;
+		if (this._readOnly || modelInputBlocked || this.isTranscriptProgressActive || this.input.hasPendingProgrammaticModelSelection || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
 		const participant = this.getParticipantForLocalChat(query);
 		if (participant) {
 			return this.acceptParticipantInputInLocalChat(participant, query, options);
 		}
+		// A prompt-bearing fork is a host-owned create-and-send operation. Keep
+		// its captured source draft until its silent callback establishes whether
+		// creation/message acceptance succeeded; ordinary slash commands retain
+		// their existing eager-clear behavior.
+		let clearOwnedForkPromptInput: (() => void) | undefined;
 		const sessionResource = this.viewModel?.sessionResource;
 		const modeInfo = this.input.currentModeInfo;
 		const interaction = this.instantiationService.createInstance(ChatUserInteraction, {
@@ -3397,6 +3467,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// unrelated dictation and flush its final transcript into that draft.
 				await stopDictationForEditor(this.inputEditor);
 			}
+			// Dictation may flush its final transcript while stopping. Snapshot the
+			// owned source only after that update, immediately before submission.
+			clearOwnedForkPromptInput = this._createForkPromptInputCleanup(query, options);
 
 			if (this.viewModel) {
 				markChat(this.viewModel.sessionResource, ChatPerfMark.RequestStart);
@@ -3405,7 +3478,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (kind === 'queued') {
 					interaction.cancel('queued');
 				}
-			});
+			}, clearOwnedForkPromptInput);
 			if (!response) {
 				interaction.cancel('notDispatched');
 				return undefined;
@@ -3582,7 +3655,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return blocked;
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse']): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}, onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'], clearOwnedForkPromptInput?: () => void): Promise<IChatResponseModel | undefined> {
 		if (this.isTranscriptProgressActive || this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return undefined;
 		}
@@ -3633,8 +3706,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.isSubmissionBlockedByManagedSettingsRefresh()) {
 			return;
 		}
-		if (this.viewModel.model.hasActiveRequest.get() && await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined)) {
-			this.setInput('');
+		// Immediate silent commands run before the ordinary request collection
+		// below. Capture the source composer's context while it still belongs to
+		// this input, so callbacks that create another session can retain it.
+		const immediateCommandOptions: IChatSendRequestOptions = {
+			attachedContext: options?.preserveInput
+				? []
+				: options?.enableImplicitContext === false ? this.input.getAttachedContext().asArray() : this.input.getAttachedAndImplicitContext().asArray(),
+		};
+		const immediateCommandResult = this.viewModel.model.hasActiveRequest.get()
+			? await this._tryExecuteImmediateSlashCommand(inputValue, isUserQuery ? this.parsedInput : undefined, immediateCommandOptions)
+			: undefined;
+		if (immediateCommandResult?.executed) {
+			if (clearOwnedForkPromptInput) {
+				clearOwnedForkPromptInput();
+			} else if (!immediateCommandResult.preserveInput) {
+				this.setInput('');
+			}
 			return;
 		}
 		if (isUserQuery) {
@@ -3671,7 +3759,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		const attachedContext = this._getAttachedContextForConcurrentSlashCommand(options.preserveInput);
-		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus)) {
+		if (await this._executeSlashCommandDuringRequest(requestInputs.input, { attachedContext }, isUserQuery, options.preserveFocus, clearOwnedForkPromptInput)) {
 			return;
 		}
 		const isEditing = this.viewModel?.editing;
@@ -3719,7 +3807,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const model = this.viewModel.model;
-		if (options.cancelCurrentRequest && model.requestInProgress.get() && !cancelledCurrentRequest) {
+		if (options.cancelCurrentRequest && model.hasActiveRequest.get() && !cancelledCurrentRequest) {
 			await this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-stopAndSend');
 			cancelledCurrentRequest = true;
 			options.queue = undefined;
@@ -3828,6 +3916,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		try {
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 				onDidCreateResponse,
+				onDidExecuteSlashCommand: clearOwnedForkPromptInput,
 				...selectedModelRequestOptions,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
@@ -3869,7 +3958,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, options?.preserveInput);
+		this.input.acceptInput(options?.storeToHistory ?? isUserQuery, options?.preserveFocus, clearOwnedForkPromptInput ? true : options?.preserveInput);
 
 		if (!options.preserveInput) {
 			// A maintenance command is not the user's goal.
@@ -3933,7 +4022,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return preserveInput ? [] : this.input.getAttachedContext().asArray();
 	}
 
-	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined): Promise<boolean> {
+	private async _executeSlashCommandDuringRequest(input: string, requestOptions: IChatSendRequestOptions, storeToHistory: boolean, preserveFocus: boolean | undefined, clearOwnedForkPromptInput?: () => void): Promise<boolean> {
 		const viewModel = this.viewModel;
 		if (!viewModel?.model.hasActiveRequest.get()) {
 			return false;
@@ -3963,7 +4052,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			history.push({ role: ChatMessageRole.Assistant, content: [{ type: 'text', value: request.response.response.toString() }] });
 		}
 
-		this.input.acceptInput(storeToHistory, preserveFocus);
+		if (!clearOwnedForkPromptInput) {
+			this.input.acceptInput(storeToHistory, preserveFocus);
+		}
 		const prompt = parsedRequest.text.slice(commandPart.range.endExclusive).trimStart();
 		try {
 			await this.chatSlashCommandService.executeCommand(
@@ -3975,7 +4066,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				viewModel.sessionResource,
 				CancellationToken.None,
 				requestOptions,
+				{ input },
 			);
+			clearOwnedForkPromptInput?.();
 			this.chatTipService.recordSlashCommandUsage(commandPart.slashCommand.command);
 		} finally {
 			clearChatMarks(viewModel.sessionResource);
@@ -4003,10 +4096,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return resolved.flat();
 	}
 
-	private async _tryExecuteImmediateSlashCommand(input: string, parsedInput: IParsedChatRequest | undefined): Promise<boolean> {
+	private async _tryExecuteImmediateSlashCommand(input: string, parsedInput: IParsedChatRequest | undefined, requestOptions: IChatSendRequestOptions): Promise<{ readonly executed: boolean; readonly preserveInput: boolean }> {
 		const viewModel = this.viewModel;
 		if (!viewModel) {
-			return false;
+			return { executed: false, preserveInput: false };
 		}
 		const parsedRequest = parsedInput ?? this.instantiationService.createInstance(ChatRequestParser)
 			.parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), input, this.location, {
@@ -4018,7 +4111,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		const commandPart = getImmediateSilentSlashCommandPart(parsedRequest);
 		if (!commandPart) {
-			return false;
+			return { executed: false, preserveInput: false };
 		}
 
 		const history: IChatMessage[] = [];
@@ -4031,7 +4124,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const command = commandPart.slashCommand.command;
-		await this.chatSlashCommandService.executeCommand(
+		const result = await this.chatSlashCommandService.executeCommand(
 			command,
 			input.slice(commandPart.range.endExclusive).trimStart(),
 			new Progress(() => { }),
@@ -4039,9 +4132,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.location,
 			viewModel.sessionResource,
 			CancellationToken.None,
+			requestOptions,
+			{ input: parsedRequest.text },
 		);
 		this.chatTipService.recordSlashCommandUsage(command);
-		return true;
+		return { executed: true, preserveInput: result?.preserveInput === true };
 	}
 
 	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {

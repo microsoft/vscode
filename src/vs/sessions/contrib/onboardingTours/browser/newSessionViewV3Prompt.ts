@@ -25,7 +25,8 @@ import { IActiveSession } from '../../../services/sessions/common/sessionsManage
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposer, INewSessionComposerService, INewSessionPromptOption, INewSessionPromptOptionsController, NEW_SESSION_PROMPT_TYPING_DURATION_MS, NewSessionPromptOptionsProgress, NewSessionPromptOptionsState } from '../../chat/browser/newSessionComposerService.js';
 import { getGitHubRepositoryFromUri } from '../../github/common/utils.js';
-import { GitHubAuthenticationError } from '../../github/browser/githubApiClient.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { ApiRequestOptions } from '../../../../platform/github/common/client/request.js';
 import { IGitHubRecentIssue, IGitHubRecentPullRequest, IGitHubRecentUserWork } from '../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computeIssueIcon, computePullRequestIcon, GitHubIssueState, GitHubPullRequestState } from '../../github/common/types.js';
@@ -461,7 +462,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt option lookup was cancelled by the onboarding flow.`);
 				return this._createPromptOptionsPlan([], 'requestFailed', diagnostics);
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; filling with standard options without requesting sign-in.`);
 				return this._createPromptOptionsPlan([], 'noAuthentication', diagnostics);
 			}
@@ -544,7 +545,7 @@ export class NewSessionViewV3PromptRunner {
 		diagnostics?: GitHubLookupDiagnostics,
 		reportCandidates: (candidates: readonly INewSessionViewV3GitHubCandidate[]) => void = () => undefined,
 	): Promise<IGitHubCandidateLookupResult> {
-		const outcome = await this._resolveIssueCandidates(owner, repo, token, diagnostics, issues => reportCandidates(toIssuePromptOptionCandidates(issues)));
+		const outcome = await this._resolveIssueCandidates(owner, repo, token, diagnostics, issues => reportCandidates(toIssuePromptOptionCandidates(issues)), { priority: 'enrichment' });
 		if (outcome.kind === 'failure') {
 			return { candidates: [], failures: [outcome.reason] };
 		}
@@ -562,7 +563,7 @@ export class NewSessionViewV3PromptRunner {
 			'authored pull request summaries',
 			this._gitHubLookupTimeouts.summaryMs,
 			token,
-			lookupToken => this._gitHubService.getRecentAuthoredPullRequests(owner, repo, lookupToken),
+			lookupToken => this._gitHubService.getRecentAuthoredPullRequests(owner, repo, lookupToken, { priority: 'enrichment' }),
 			'prSummary',
 			diagnostics,
 		);
@@ -589,7 +590,7 @@ export class NewSessionViewV3PromptRunner {
 		// Review-thread enrichment is a post-render refinement: candidates whose position can no longer
 		// change were already published above, so this stage can only ever delay the `githubReviewComments`
 		// option, never the merge-conflict, CI or issue options that are already known.
-		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token, diagnostics);
+		const reviewLookup = await this._resolveReviewCandidates(owner, repo, reviewPullRequests, token, diagnostics, { priority: 'enrichment' });
 		const candidates = getCandidatesInPullRequestOrder(
 			pullRequests,
 			[...directCandidates.map(entry => entry.candidate), ...reviewLookup.candidates],
@@ -635,7 +636,7 @@ export class NewSessionViewV3PromptRunner {
 				this._logService.trace(`${LOG_PREFIX} GitHub prompt lookup was cancelled by the onboarding flow.`);
 				return this._resolvePrompt('requestFailed');
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} No existing GitHub authentication session is available; using the prompt variation without requesting sign-in.`);
 				return this._resolvePrompt('noAuthentication');
 			}
@@ -733,12 +734,13 @@ export class NewSessionViewV3PromptRunner {
 		token: CancellationToken,
 		diagnostics?: GitHubLookupDiagnostics,
 		reportIssues?: (issues: readonly IGitHubRecentIssue[]) => void,
+		options?: ApiRequestOptions,
 	): Promise<GitHubLookupOutcome<readonly IGitHubRecentIssue[]>> {
 		const issues = await this._runGitHubLookup(
 			'assigned issue summaries',
 			this._gitHubLookupTimeouts.summaryMs,
 			token,
-			lookupToken => this._gitHubService.getRecentAssignedIssues(owner, repo, lookupToken),
+			lookupToken => this._gitHubService.getRecentAssignedIssues(owner, repo, lookupToken, options),
 			'issueSummary',
 			diagnostics,
 		);
@@ -755,7 +757,7 @@ export class NewSessionViewV3PromptRunner {
 			'issue pull request linkage',
 			this._gitHubLookupTimeouts.linkageMs,
 			token,
-			lookupToken => this._gitHubService.getIssuesWithLinkedPullRequests(owner, repo, issues.value.map(issue => issue.number), lookupToken),
+			lookupToken => this._gitHubService.getIssuesWithLinkedPullRequests(owner, repo, issues.value.map(issue => issue.number), lookupToken, options),
 			'issueLinkage',
 			diagnostics,
 		);
@@ -778,6 +780,7 @@ export class NewSessionViewV3PromptRunner {
 		pullRequests: readonly IGitHubRecentPullRequest[],
 		token: CancellationToken,
 		diagnostics?: GitHubLookupDiagnostics,
+		options?: ApiRequestOptions,
 	): Promise<IGitHubReviewLookupResult> {
 		const eligiblePullRequests = pullRequests.filter(pullRequest => !!pullRequest.latestCommitAt);
 		if (eligiblePullRequests.length === 0) {
@@ -792,7 +795,7 @@ export class NewSessionViewV3PromptRunner {
 				`review threads for pull request #${pullRequest.number}`,
 				this._gitHubLookupTimeouts.reviewMs,
 				token,
-				lookupToken => this._gitHubService.getPullRequestReviewThreads(owner, repo, pullRequest.number, lookupToken),
+				lookupToken => this._gitHubService.getPullRequestReviewThreads(owner, repo, pullRequest.number, lookupToken, options),
 				'prReview',
 				diagnostics,
 			);
@@ -863,7 +866,7 @@ export class NewSessionViewV3PromptRunner {
 				record('timeout');
 				return { kind: 'failure', reason: 'timeout' };
 			}
-			if (error instanceof GitHubAuthenticationError) {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				this._logService.warn(`${LOG_PREFIX} ${capitalize(label)} lookup could not run because no existing GitHub authentication session is available.`);
 				record('noAuthentication');
 				return { kind: 'failure', reason: 'noAuthentication' };

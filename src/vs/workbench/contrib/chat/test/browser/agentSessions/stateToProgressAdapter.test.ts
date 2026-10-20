@@ -17,12 +17,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
@@ -426,6 +427,26 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 		});
+	});
+
+	test('restores embedded resources with invalid base64 data without throwing', () => {
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'notes.bin',
+			data: 'not base64',
+			contentType: 'application/octet-stream',
+		}, {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'screenshot.png',
+			data: 'not base64',
+			contentType: 'image/png',
+			displayKind: 'image',
+		}], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, name, value }) => ({ kind, name, value })), [
+			{ kind: 'generic', name: 'notes.bin', value: 'not base64' },
+			{ kind: 'generic', name: 'screenshot.png', value: 'screenshot.png' },
+		]);
 	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
@@ -1843,6 +1864,30 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('image generation', () => {
+		for (const success of [false, true]) {
+			test(`preserves authoritative image usage through live and restored tool state (${success})`, () => {
+				const backendSession = URI.parse('another-host:/opaque-image-session');
+				const imageGeneration = {
+					requestedModel: { id: 'provider/image:model' },
+					usage: { requestId: 'metered-operation', inputTokens: 21, outputTokens: 196, copilotUsage: { totalNanoAiu: 598_500_000 } },
+				};
+				const running = createToolCallState({ toolName: 'remote_create_image' });
+				const completed = createCompletedToolCall({
+					...running, status: ToolCallStatus.Completed, success,
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, contentType: 'image/png', data: 'AQID' }] : [],
+					...(success ? {} : { error: { message: 'Image decoding failed.' } }),
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'another-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'another-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'another-host');
+				assert.deepStrictEqual([live, restored].map(part => {
+					const data = part.toolSpecificData;
+					return data?.kind === 'generatedImage' || data?.kind === 'input' ? data.imageGeneration : undefined;
+				}), [imageGeneration, imageGeneration]);
+			});
+		}
+
 		test('preserves metadata-only image failure details and classification in live and restored state', () => {
 			const backendSession = URI.parse('other-host:/opaque-image-session');
 			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };
@@ -4445,6 +4490,49 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		for (const authority of ['local', 'remote-host']) {
+			test(`maps pending file confirmations through the connection while preserving ${authority} content references`, () => {
+				const file = URI.parse('file:///tmp/foo.txt');
+				const originalFile = URI.parse('file:///tmp/old.txt');
+				const before = URI.parse('pending-edit-content:///opaque/before');
+				const after = URI.parse('pending-edit-content:///opaque/after');
+				const resourceUris = authority === 'local' ? identityAgentHostResourceUriMapper : {
+					fromAgentHost: (resource: URI) => resource.with({ scheme: 'test-remote', authority }),
+					toAgentHost: (resource: URI) => resource.with({ scheme: file.scheme, authority: '' }),
+				};
+				const invocation = rawToolCallStateToInvocation({
+					toolCallId: 'tc-rename',
+					toolName: 'edit',
+					displayName: 'Edit',
+					invocationMessage: 'Editing foo.txt',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Write file?',
+					edits: {
+						items: [{
+							before: { uri: originalFile.toString(), content: { uri: before.toString() } },
+							after: { uri: file.toString(), content: { uri: after.toString() } },
+						}],
+					},
+				}, undefined, URI.parse('custom-session:/opaque'), authority, undefined, undefined, resourceUris);
+
+				assert.deepStrictEqual(invocation.toolSpecificData, {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Allow'],
+					modifiedFiles: [{
+						uri: resourceUris.fromAgentHost(file),
+						editKind: 'rename',
+						originalUri: resourceUris.fromAgentHost(originalFile),
+						modifiedContentUri: toAgentHostContentUri(after, authority, file),
+						originalContentUri: toAgentHostContentUri(before, authority, originalFile),
+						insertions: undefined,
+						deletions: undefined,
+						title: 'foo.txt',
+						description: '/tmp/foo.txt',
+					}],
+				});
+			});
+		}
+
 		test('includes all parts in correct order', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Thinking...' },
@@ -5476,6 +5564,37 @@ suite('stateToProgressAdapter', () => {
 
 		test('reports no totals when the provider did not supply any', () => {
 			assert.strictEqual(usageInfoToChatUsage({ inputTokens: 30, outputTokens: 40 })?.modelTotals, undefined);
+		});
+
+		test('renders compacted context attribution identically to the full provider breakdown', () => {
+			const attribution = {
+				totalTokens: 20_000,
+				modelId: 'claude-opus-4.8',
+				modelSource: 'selected',
+				promptTokenLimit: 128_000,
+				limit: 128_000,
+				bufferTokens: 4_000,
+				compactionThreshold: 100_000,
+				categories: { systemPrompt: 2_000, customInstructions: 500, systemTools: 6_000, mcpTools: 1_500, messages: 8_000, freeSpace: 100_000, buffer: 4_000 },
+				entries: [
+					{ kind: 'system', id: 'system:prompt', label: 'System prompt', tokens: 2_000 },
+					{ kind: 'system', id: 'system:instructions', label: 'Custom instructions', tokens: 500, attributes: { source: 'AGENTS.md' } },
+					{ kind: 'system', id: 'system:tools', label: 'Tool definitions', tokens: 6_000 },
+					{ kind: 'system', id: 'system:tiny', label: 'Tiny', tokens: 10 },
+					...Array.from({ length: 60 }, (_, i) => ({ kind: 'toolDefinition', id: `toolDefinition:tool${i}`, label: `tool${i}`, tokens: 100, parentId: 'system:tools', attributes: { evictable: 'false' } })),
+					{ kind: 'plugin', id: 'plugin:acme', label: 'acme', tokens: 300 },
+					{ kind: 'skill', id: 'skill:tmux', label: 'skill: tmux', tokens: 200, parentId: 'plugin:acme' },
+					{ kind: 'mcpServer', id: 'mcpServer:github', label: 'github', tokens: 1_500, parentId: 'plugin:acme' },
+					...Array.from({ length: 20 }, (_, i) => ({ kind: 'tool', id: `tool:call${i}`, label: `call${i}`, tokens: 150, attributes: { messageCount: '1', role: 'tool' } })),
+					{ kind: 'futureKind', id: 'futureKind:x', label: 'x', tokens: 400 },
+				],
+				compactions: { count: 2 },
+			};
+			const toChatUsage = (contextAttribution: unknown) => usageInfoToChatUsage({ inputTokens: 20_000, outputTokens: 10, _meta: { contextAttribution } });
+
+			const full = toChatUsage(attribution);
+			assert.ok(full?.promptTokenDetails?.length);
+			assert.deepStrictEqual(toChatUsage(compactContextAttribution(attribution)), full);
 		});
 	});
 });

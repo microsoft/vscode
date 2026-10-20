@@ -264,6 +264,13 @@ export class MockAgent implements IAgent {
 		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages, steeringSender });
 	}
 
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean> {
+		return this.setPendingMessages(chat, message, [], sender);
+	}
+
+	/** Assign to model a provider that can withdraw steering it was already handed. */
+	withdrawSteeringMessage?: (chat: URI, messageId: string) => void;
+
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
 		if (subagentInfo) {
@@ -1041,6 +1048,10 @@ export class ScriptedMockAgent implements IAgent {
 				]);
 				break;
 		}
+	}
+
+	sendSteeringMessage(chat: URI, message: PendingMessage): void {
+		this.setPendingMessages(chat, message, []);
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {

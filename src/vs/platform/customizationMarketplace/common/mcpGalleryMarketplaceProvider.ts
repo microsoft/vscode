@@ -11,10 +11,12 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../mcp/common/mcpManagement.js';
 import { getMcpGalleryServerCardUrl } from '../../mcp/common/mcpGalleryService.js';
-import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../product/common/productService.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from './customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from './customizationMarketplaceSources.js';
+
+const maxMcpGalleryPageSize = 99;
 
 export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
 	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
@@ -27,8 +29,8 @@ function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationSe
 	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
 }
 
-export function getCustomizationMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
-	return getAllMcpGalleryMarketplaceSourceInfos();
+export function getCustomizationMarketplaceSourceInfos(status: McpGalleryManifestStatus): readonly ICustomizationMarketplaceSourceInfo[] {
+	return status === McpGalleryManifestStatus.Available ? getAllMcpGalleryMarketplaceSourceInfos() : [];
 }
 
 export function getAllMcpGalleryMarketplaceSourceInfos(): readonly ICustomizationMarketplaceSourceInfo[] {
@@ -127,7 +129,7 @@ export class McpGalleryMarketplaceProvider implements ICustomizationMarketplaceP
 		for (let attempt = 0; attempt < 5; attempt++) {
 			const page = await this.galleryService.queryPage({
 				text: options.query,
-				pageSize: options.pageSize ?? 30,
+				pageSize: Math.min(options.pageSize ?? 30, maxMcpGalleryPageSize),
 				cursor,
 			}, token, manifest);
 			if (page.items.length || !page.nextCursor) {
