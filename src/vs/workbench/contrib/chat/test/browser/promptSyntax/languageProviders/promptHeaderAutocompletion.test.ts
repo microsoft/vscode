@@ -132,6 +132,37 @@ suite('PromptHeaderAutocompletion', () => {
 	const sortByLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
 
 	suite('agent header completions', () => {
+		test('completes all github-copilot attributes from the schema', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'|',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'deferred-tool-loading',
+				'description',
+				'disable-model-invocation',
+				'github',
+				'hooks',
+				'include-custom-instructions',
+				'infer',
+				'mcp-servers',
+				'model',
+				'model-policy',
+				'name',
+				'reasoning-effort',
+				'skills',
+				'strict-tools-list',
+				'target',
+				'tools',
+				'user-invocable',
+			]);
+		});
+
 		test('uses active harness target when target is not specified', async () => {
 			activeTarget = Target.GitHubCopilot;
 			const content = [
@@ -237,6 +268,165 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'medium', result: 'reasoning-effort: medium' },
 				{ label: 'xhigh', result: 'reasoning-effort: xhigh' },
 			].sort(sortByLabel));
+		});
+
+		test('complete github-copilot model policy value', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model-policy: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'preferred', result: 'model-policy: preferred' },
+				{ label: 'required', result: 'model-policy: required' },
+			]);
+		});
+
+		for (const attribute of [
+			'infer',
+			'disable-model-invocation',
+			'user-invocable',
+			'deferred-tool-loading',
+			'strict-tools-list',
+			'include-custom-instructions',
+		]) {
+			test(`complete github-copilot ${attribute} boolean values`, async () => {
+				const content = [
+					'---',
+					'description: "Test"',
+					'target: github-copilot',
+					`${attribute}: |`,
+					'---',
+				].join('\n');
+
+				const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+				assert.deepStrictEqual(labels, ['true', 'false']);
+			});
+		}
+
+		test('complete github-copilot target values', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['vscode', 'github-copilot']);
+		});
+
+		test('complete github-copilot tool values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'tools: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent']);
+		});
+
+		test('complete github-copilot github properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'github:',
+				'  toolsets: []',
+				'  |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['permissions']);
+		});
+
+		test('complete github-copilot local MCP server properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  local:',
+				'    command: node',
+				'    |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['args', 'cwd', 'deferTools', 'env', 'timeout', 'tools', 'type']);
+		});
+
+		test('complete github-copilot remote MCP server properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  remote:',
+				'    type: http',
+				'    |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['deferTools', 'headers', 'timeout', 'tools', 'url']);
+		});
+
+		test('complete github-copilot MCP server type values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    type: h|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'local', result: '    type: local' },
+				{ label: 'stdio', result: '    type: stdio' },
+				{ label: 'http', result: '    type: http' },
+				{ label: 'sse', result: '    type: sse' },
+			]);
+		});
+
+		test('complete github-copilot MCP deferTools values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    command: node',
+				'    deferTools: a|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'auto', result: '    deferTools: auto' },
+				{ label: 'never', result: '    deferTools: never' },
+			]);
 		});
 
 		test('complete model attribute value with partial input', async () => {
@@ -543,6 +733,145 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.ok(labels.includes('PostToolUse'), 'PostToolUse should be suggested');
 			// SessionEnd is not available for vscode target
 			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be available for vscode target');
+		});
+
+		test('complete all canonical github-copilot hook event names', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - command: echo ready',
+				'  |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'agentStop',
+				'errorOccurred',
+				'notification',
+				'permissionRequest',
+				'postToolUse',
+				'postToolUseFailure',
+				'preCompact',
+				'preMcpToolCall',
+				'preToolUse',
+				'sessionEnd',
+				'subagentStart',
+				'subagentStop',
+				'userPromptSubmitted',
+				'userPromptTransformed',
+			]);
+		});
+
+		test('github-copilot sessionStart offers command, HTTP, and prompt actions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart: |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['New Command', 'New HTTP Action', 'New Prompt Action']);
+		});
+
+		test('github-copilot hook action type completes supported values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: c|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'command', result: '    - type: command' },
+				{ label: 'http', result: '    - type: http' },
+				{ label: 'prompt', result: '    - type: prompt' },
+			]);
+		});
+
+		test('github-copilot hook actions complete all supported fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  agentStop:',
+				'    - type: command',
+				'      |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'args',
+				'bash',
+				'command',
+				'cwd',
+				'env',
+				'exec',
+				'linux',
+				'matcher',
+				'osx',
+				'powershell',
+				'timeout',
+				'timeoutSec',
+				'windows',
+			]);
+		});
+
+		test('github-copilot HTTP hook actions complete HTTP fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  preToolUse:',
+				'    - type: http',
+				'      |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, [
+				'allowedEnvVars',
+				'headers',
+				'matcher',
+				'timeout',
+				'timeoutSec',
+				'url',
+			]);
+		});
+
+		test('github-copilot startup prompt actions complete only prompt', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: prompt',
+				'      |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['prompt']);
 		});
 
 		test('complete hook event names on empty line before existing hooks', async () => {

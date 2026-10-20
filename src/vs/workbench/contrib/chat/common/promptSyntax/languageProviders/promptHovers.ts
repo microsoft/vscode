@@ -17,7 +17,7 @@ import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
-import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
+import { getAgentHookMetadata } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 
@@ -93,9 +93,17 @@ export class PromptHoverProvider implements HoverProvider {
 						case PromptHeaderAttributes.hooks:
 							return this.getHooksHover(attribute, position, description, target);
 						case PromptHeaderAttributes.infer:
-							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invocable` and `disable-model-invocation` instead.'), attribute.range);
+							return this.createHover(description + '\n\n' + (target === Target.GitHubCopilot
+								? localize('promptHeader.attribute.infer.githubCopilot.hover', 'Legacy: Use `disable-model-invocation` instead.')
+								: localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invocable` and `disable-model-invocation` instead.')), attribute.range);
 						default:
 							return this.createHover(description, attribute.range);
+					}
+				}
+				if (promptType === PromptsType.agent && target === Target.GitHubCopilot) {
+					const localDescription = getAttributeDefinition(attribute.key, promptType, Target.Undefined)?.description;
+					if (localDescription) {
+						return this.createHover(localDescription + '\n\n' + localize('promptHeader.attribute.notUsedByCopilot', 'Note: This attribute is not used by the GitHub Copilot harness.'), attribute.range);
 					}
 				}
 			}
@@ -238,13 +246,11 @@ export class PromptHoverProvider implements HoverProvider {
 	private getHooksHover(attribute: IHeaderAttribute, position: Position, baseMessage: string, target: Target): Hover | undefined {
 		const value = attribute.value;
 		if (value.type === 'map') {
-			const hooksByTarget = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
 			for (const prop of value.properties) {
 				// Hover on a hook event name key (e.g., SessionStart, PreToolUse)
 				if (prop.key.range.containsPosition(position)) {
-					const hookType = hooksByTarget[prop.key.value];
-					if (hookType) {
-						const meta = HOOK_METADATA[hookType];
+					const meta = getAgentHookMetadata(target, prop.key.value);
+					if (meta) {
 						return this.createHover(`**${meta.label}**\n\n${meta.description}`, prop.key.range);
 					}
 				}

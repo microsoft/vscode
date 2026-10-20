@@ -135,7 +135,7 @@ suite('PromptHoverProvider', () => {
 
 			const hover = await getHover(content, 3, 1, PromptsType.agent);
 
-			assert.strictEqual(hover, 'Possible handoff actions when the agent has completed its task.\n\nNote: This attribute is not used in GitHub Copilot or Claude targets.');
+			assert.strictEqual(hover, 'Possible handoff actions when the agent has completed its task.\n\nNote: This attribute is not used by the GitHub Copilot harness.');
 		});
 
 		test('hover on target attribute shows description', async () => {
@@ -158,7 +158,59 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.');
+			assert.strictEqual(hover, 'The model to use. An array is treated as an ordered list of model preferences.');
+		});
+
+		test('hover on github-copilot model policy uses schema description', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model-policy: required',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Controls whether the configured model list is preferred or required.');
+		});
+
+		test('hover on github-copilot infer explains the replacement', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'infer: false',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Legacy inverse of `disable-model-invocation`. Set to false to prevent model-driven invocation.\n\nLegacy: Use `disable-model-invocation` instead.');
+		});
+
+		test('hover on github-copilot hook event and HTTP property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  preMcpToolCall:',
+				'    - type: http',
+				'      url: https://example.com/hook',
+				'---',
+			].join('\n');
+
+			const eventHover = await getHover(content, 5, 3, PromptsType.agent);
+			const urlHover = await getHover(content, 7, 7, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				eventHover,
+				urlHover,
+			}, {
+				eventHover: '**Pre-MCP Tool Call**\n\nExecuted before an MCP tool is called.',
+				urlHover: 'HTTP or HTTPS URL invoked by the hook.',
+			});
 		});
 
 		test('hover on model attribute with vscode target shows model info', async () => {
@@ -195,7 +247,7 @@ suite('PromptHoverProvider', () => {
 			const expected = [
 				'Possible handoff actions when the agent has completed its task.',
 				'',
-				'Note: This attribute is not used in GitHub Copilot or Claude targets.'
+				'Note: This attribute is not used by the GitHub Copilot harness.'
 			].join('\n');
 			assert.strictEqual(hover, expected);
 		});

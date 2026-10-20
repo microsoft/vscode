@@ -209,7 +209,7 @@ suite('PromptValidator', () => {
 			})), [{
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
-				message: `Attribute 'argument-hint' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, model, name, reasoning-effort, target, tools.`,
+				message: `Attribute 'argument-hint' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.`,
 			}]);
 		});
 
@@ -751,12 +751,250 @@ suite('PromptValidator', () => {
 				'target: github-copilot',
 				'model: ["MAE 4.1 (copilot)", "MAE 4 (olama)"]',
 				`tools: ['shell', 'edit', 'search', 'custom-agent']`,
-				'mcp-servers: []',
+				'mcp-servers: {}',
 				'---',
 				'Body with #search and #edit references',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues for github-copilot target');
+		});
+
+		test('github-copilot agent supports the complete schema', async () => {
+			const content = [
+				'---',
+				'name: reviewer',
+				'description: Reviews code',
+				'target: github-copilot',
+				'model: [model-a, model-b]',
+				'model-policy: preferred',
+				'reasoning-effort: custom-effort',
+				'tools: [execute, read]',
+				'mcp-servers: null',
+				'disable-model-invocation: false',
+				'user-invocable: true',
+				'github:',
+				'  toolsets: [repos, issues]',
+				'  permissions:',
+				'    issues: write',
+				'skills: [review, testing]',
+				'deferred-tool-loading: true',
+				'strict-tools-list: false',
+				'include-custom-instructions: true',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: command',
+				'      bash: echo ready',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent supports all canonical hook events and aliases', async () => {
+			const canonicalEvents = [
+				'sessionStart',
+				'sessionEnd',
+				'userPromptSubmitted',
+				'userPromptTransformed',
+				'preToolUse',
+				'preMcpToolCall',
+				'postToolUse',
+				'postToolUseFailure',
+				'errorOccurred',
+				'agentStop',
+				'subagentStart',
+				'subagentStop',
+				'preCompact',
+				'permissionRequest',
+				'notification',
+			];
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				...canonicalEvents.flatMap(event => [`  ${event}:`, '    - command: echo hook']),
+				'  PreMcpToolCall:',
+				'    - command: echo alias',
+				'  Notification:',
+				'    - command: echo alias',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent supports command, HTTP, and startup prompt hook actions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  sessionStart:',
+				'    - type: prompt',
+				'      prompt: Check repository status',
+				'    - type: command',
+				'      exec: node',
+				'      args: [script.js]',
+				'      timeout: 2.5',
+				'  preToolUse:',
+				'    - type: http',
+				'      url: https://example.com/approve',
+				'      headers:',
+				'        X-Source: agent',
+				'      allowedEnvVars: [TOKEN]',
+				'      matcher: shell|bash',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot agent rejects invalid hook action combinations', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'hooks:',
+				'  agentStop:',
+				'    - type: prompt',
+				'      prompt: Not allowed here',
+				'    - type: command',
+				'      command: echo shell',
+				'      exec: node',
+				'    - type: http',
+				'    - type: unknown',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`Prompt hook actions are only supported for 'sessionStart'.`,
+				`Hook command must specify either a shell command or 'exec', but not both.`,
+				`HTTP hook action requires the 'url' property.`,
+				`Unknown hook action type 'unknown'. Supported: command, http, prompt.`,
+			]);
+		});
+
+		test('github-copilot agent requires a description', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'name: reviewer',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'description' attribute is required.`,
+			]);
+		});
+
+		test('github-copilot agent validates schema value types', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: []',
+				'model-policy: sometimes',
+				'skills: review',
+				'deferred-tool-loading: "true"',
+				'github: invalid',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'description' attribute must be a scalar value.`,
+				`The 'model-policy' attribute must be one of: preferred, required.`,
+				`The 'skills' attribute must be an array.`,
+				`The 'deferred-tool-loading' attribute must be true or false.`,
+				`The 'github' attribute must be an object.`,
+			]);
+		});
+
+		test('github-copilot required model policy needs a model', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'model-policy: required',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'model-policy' attribute has no effect when 'model' is not specified.`,
+			]);
+		});
+
+		test('github-copilot infer is accepted as legacy', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'infer: false',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => ({
+				message: marker.message,
+				severity: marker.severity,
+				tags: marker.tags,
+			})), [{
+				message: `The 'infer' attribute is legacy. Use 'disable-model-invocation' instead.`,
+				severity: MarkerSeverity.Warning,
+				tags: [MarkerTag.Deprecated],
+			}]);
+		});
+
+		test('github-copilot validates local and remote MCP servers', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'mcp-servers:',
+				'  local:',
+				'    command: node',
+				'    args: [server.js]',
+				'    tools: [search]',
+				'    env:',
+				'      MODE: test',
+				'    timeout: 10',
+				'    deferTools: auto',
+				'  remote:',
+				'    type: http',
+				'    url: https://example.com/mcp',
+				'    tools: [fetch]',
+				'    headers:',
+				'      Authorization: token',
+				'    deferTools: never',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
+		test('github-copilot reports invalid MCP server definitions', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'mcp-servers:',
+				'  local:',
+				'    command: [node]',
+				'    args: value',
+				'    tools: []',
+				'    timeout: 0',
+				'    unknown: value',
+				'  remote:',
+				'    type: http',
+				'    tools: [fetch]',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'command' property for MCP server 'local' must be a string.`,
+				`The 'args' property for MCP server 'local' must be an array of strings.`,
+				`The 'timeout' property for MCP server 'local' must be a positive integer.`,
+				`Unknown property 'unknown' in MCP server 'local'.`,
+				`MCP server 'remote' requires the 'url' property.`,
+			]);
 		});
 
 		test('github-copilot agent warns about handoffs attribute', async () => {
@@ -778,7 +1016,7 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, model, name, reasoning-effort, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.',
 			], 'Only handoffs is unsupported for github-copilot target, model and reasoning-effort are supported');
 		});
 
