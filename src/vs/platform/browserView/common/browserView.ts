@@ -585,13 +585,12 @@ export interface IBrowserViewService {
 	 */
 	getBrowserViews(windowId?: number): Promise<IBrowserViewInfo[]>;
 
-	/**
-	 * Get or create a browser view instance.
-	 *
-	 * @param id The browser view identifier
-	 * @param options Creation options. If a view with the given ID already exists, these options are ignored.
-	 */
-	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions): Promise<IBrowserViewInfo>;
+	/** Register an editor or embedded model, even before it requests native creation. */
+	acquireBrowserView(id: string, windowId: number, referenceId: string): Promise<void>;
+	/** Release a reference after its pending creation replies have settled. */
+	releaseBrowserView(id: string, referenceId: string): Promise<void>;
+	/** Get or create a native view for a live reference; existing views retain their creation options. */
+	getOrCreateBrowserView(id: string, options: IBrowserViewCreateOptions, referenceId: string): Promise<IBrowserViewInfo>;
 
 	/**
 	 * Destroy a browser view instance

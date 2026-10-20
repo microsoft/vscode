@@ -578,6 +578,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
 		private readonly _remoteEvents: BrowserViewEventEmitters,
+		private readonly reference: IDisposable,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -587,6 +588,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this._register(reference);
 		this._owner = owner;
 		this.sandboxSessionId = initialState.sandboxSessionId;
 
@@ -1090,8 +1092,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	override dispose(): void {
 		this._onWillDispose.fire();
 
-		// Clean up the browser view when the model is disposed
-		void this.browserViewService.destroyBrowserView(this.id);
+		this.reference.dispose();
 
 		super.dispose();
 	}
