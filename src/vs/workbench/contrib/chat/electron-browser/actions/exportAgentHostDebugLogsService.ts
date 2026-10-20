@@ -58,7 +58,6 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 		};
 		const operationId = generateUuid();
 		const temporaryExport = joinPath(dirname(destination), `.agent-host-debug-logs-${operationId}.zip`);
-		const zipFiles: INativeZipFile[] = [];
 		const zipOptions = { maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, operationId };
 		let temporaryHostArchive: URI | undefined;
 		let hostSaveError: string | undefined;
@@ -110,32 +109,37 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 				}
 			}
 			checkCancellation();
-			let omittedFiles = 0;
-			for (const file of files) {
-				if (file.path.startsWith('ahp/') && includedHostPaths.has(`ahp/mission-control/${file.path.slice('ahp/'.length)}`)) {
-					continue;
+			const createZipFiles = (includeHost: boolean): INativeZipFile[] => {
+				const zipFiles: INativeZipFile[] = [];
+				const clientLimit = includeHost ? availableClientEntries : AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES;
+				let omittedFiles = 0;
+				for (const file of files) {
+					if (includeHost && file.path.startsWith('ahp/') && includedHostPaths.has(`ahp/mission-control/${file.path.slice('ahp/'.length)}`)) {
+						continue;
+					}
+					if (zipFiles.length >= clientLimit) {
+						omittedFiles++;
+						continue;
+					}
+					if (hasKey(file, { contents: true })) {
+						zipFiles.push(file);
+						continue;
+					}
+					const source = file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource;
+					if (source.scheme !== Schemas.file) {
+						this.logService.warn(`[ExportAgentHostDebugLogs] Cannot add non-local resource '${source.toString()}' to a ZIP; skipping '${file.path}'`);
+						continue;
+					}
+					zipFiles.push({ path: file.path, source, size: file.size, skipSourceErrors: true });
 				}
-				if (zipFiles.length >= availableClientEntries) {
-					omittedFiles++;
-					continue;
+				if (omittedFiles > 0) {
+					this.logService.warn(`[ExportAgentHostDebugLogs] Omitted ${omittedFiles} client log files to keep the combined export within ${AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES} entries`);
 				}
-				if (hasKey(file, { contents: true })) {
-					zipFiles.push(file);
-					continue;
+				if (includeHost && hostZipFile) {
+					zipFiles.push(hostZipFile);
 				}
-				const source = file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource;
-				if (source.scheme !== Schemas.file) {
-					this.logService.warn(`[ExportAgentHostDebugLogs] Cannot add non-local resource '${source.toString()}' to a ZIP; skipping '${file.path}'`);
-					continue;
-				}
-				zipFiles.push({ path: file.path, source, size: file.size, skipSourceErrors: true });
-			}
-			if (omittedFiles > 0) {
-				this.logService.warn(`[ExportAgentHostDebugLogs] Omitted ${omittedFiles} client log files to keep the combined export within ${AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES} entries`);
-			}
-			if (hostZipFile) {
-				zipFiles.push(hostZipFile);
-			}
+				return zipFiles;
+			};
 			options?.progress.report({ message: localize('exportDebugLogs.zipProgress', "Creating debug logs ZIP...") });
 			listeners.add(this.nativeHostService.onDidProgressZipFile(progress => {
 				if (progress.operationId === operationId && !token.isCancellationRequested) {
@@ -150,7 +154,14 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 			const watch = StopWatch.create();
 			creatingZip = true;
 			try {
-				await this.nativeHostService.createZipFile(temporaryExport, zipFiles, zipOptions);
+				const result = await this.nativeHostService.createZipFile(temporaryExport, createZipFiles(!!hostZipFile), zipOptions);
+				checkCancellation();
+				const skippedHost = hostZipFile && result.skippedFiles.find(file => file.path === 'host-logs.zip');
+				if (skippedHost) {
+					hostSaveError = skippedHost.error;
+					this.logService.warn(`[ExportAgentHostDebugLogs] Failed to save Agent Host logs: ${hostSaveError}; retrying with client-owned logs only`);
+					await this.nativeHostService.createZipFile(temporaryExport, createZipFiles(false), zipOptions);
+				}
 			} finally {
 				creatingZip = false;
 			}
