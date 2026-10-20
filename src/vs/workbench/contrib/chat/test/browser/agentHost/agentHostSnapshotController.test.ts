@@ -184,6 +184,27 @@ suite('AgentHostSnapshotController', () => {
 		});
 	});
 
+	test('edits recorded after a checkpoint was first restored are undone and redone with it', async () => {
+		const early = URI.file('/early.txt').toString();
+		const late = URI.file('/late.txt').toString();
+		const snapshot = (name: string) => URI.file(`/snap/${name}`).toString();
+		const contents = new Map([
+			[early, 'early after'], [snapshot('early-before'), 'early before'], [snapshot('early-after'), 'early after'],
+			[snapshot('late-before'), 'late before'], [snapshot('late-after'), 'late after'],
+		]);
+		const edit = (file: string, name: string): ISessionFileDiff => ({ before: { uri: file, content: { uri: snapshot(`${name}-before`) } }, after: { uri: file, content: { uri: snapshot(`${name}-after`) } } });
+		const edits = [edit(early, 'early')];
+		const controller = createController(store, contents, { getChanges: () => undefined, resolve: async () => edits });
+		controller.ensureRequestCheckpoint('req-1');
+		await controller.restoreSnapshot('req-1', undefined);
+		// A subagent of the restored turn was still running and records one more edit afterwards.
+		contents.set(late, 'late after');
+		edits.push(edit(late, 'late'));
+		await controller.redoInteraction();
+		await controller.undoInteraction();
+		assert.deepStrictEqual([contents.get(early), contents.get(late)], ['early before', 'late before']);
+	});
+
 	test('addToolCallEdits is idempotent on toolCallId', () => {
 		const controller = createController(store, new Map());
 		const tc = makeToolCall({
