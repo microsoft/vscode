@@ -4138,13 +4138,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Direct-rendered chip lane for agent-host config properties that
 		// are advertised by the agent's schema but not handled by a
 		// dedicated `MenuId.ChatInputSecondary` action. Sits as a sibling
-		// of the content-sized secondary toolbar.
+		// of the content-sized secondary toolbar, so a host that renders no
+		// secondary toolbar has no lane, and the lane doesn't subscribe to
+		// that host's sessions.
 		const genericChipsContainer = dom.$('.chat-secondary-generic-chips');
-		const genericChipsLane = this._register(this.instantiationService.createInstance(
-			AgentHostGenericConfigChips,
-			widget,
-		));
-		genericChipsLane.render(genericChipsContainer);
+		const genericChipsLane = this.options.renderSecondaryToolbar !== false
+			? this._register(this.instantiationService.createInstance(AgentHostGenericConfigChips, widget))
+			: undefined;
+		genericChipsLane?.render(genericChipsContainer);
 		const getSecondaryToolbarAvailableWidth = (): number => {
 			const laneWidth = responsivePickerContainer.getBoundingClientRect().width;
 			if (genericChipsContainer.parentElement !== responsivePickerContainer || genericChipsContainer.getClientRects().length === 0) {
@@ -4335,7 +4336,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
 				getItems: () => [
 					...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),
-					...genericChipsLane.getCompactableElements()
+					...(genericChipsLane?.getCompactableElements() ?? [])
 						.map(element => ({
 							element,
 							isCompact: () => element.classList.contains('compact-picker'),
