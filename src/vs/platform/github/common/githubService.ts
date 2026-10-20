@@ -12,6 +12,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IGitHubAnonymousClient } from './anonymous/anonymous.js';
 import { AnonymousClient } from './anonymous/anonymousClient.js';
 import { LocalApiRequestProvider } from './client/localApiRequestProvider.js';
+import { LocalConnectorsRequestProvider } from './client/localConnectorsRequestProvider.js';
 import { BufferedApiRequestProvider } from './client/request.js';
 import { LocalMissionControlRequestProvider, missionControlAccount } from './client/localMissionControlRequestProvider.js';
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
@@ -55,6 +56,7 @@ export interface ApiRequestProviders {
 	readonly rawContent?: LocalApiRequestProvider;
 	readonly graphql?: LocalApiRequestProvider;
 	readonly missionControl?: BufferedApiRequestProvider;
+	readonly connectors?: BufferedApiRequestProvider;
 	readonly onDidInvalidate?: Event<void>;
 	readonly onDidChangeCredentials?: Event<void>;
 }
@@ -239,6 +241,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 							rest: new LocalApiRequestProvider(apiBaseUri, client.transport, client.credentials, 'rest', signal),
 							graphql: new LocalApiRequestProvider(client.endpoint.getGraphQlUri(), client.transport, client.credentials, 'graphql', signal),
 							missionControl: missionControl && new LocalMissionControlRequestProvider(missionControl.endpoint, client.credentials, client.transport, this._logService, signal),
+							connectors: apiBaseUri === defaults.apiBaseUri && this._options.connectorsApiBaseUri
+								? new LocalConnectorsRequestProvider(this._options.connectorsApiBaseUri, client.credentials, client.transport, signal)
+								: undefined,
 							onDidInvalidate: invalidated.event,
 							onDidChangeCredentials: credentialsChanged.event,
 							rawContent: apiBaseUri === defaults.apiBaseUri && defaults.rawBaseUri
