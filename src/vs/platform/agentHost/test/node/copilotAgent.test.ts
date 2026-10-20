@@ -8599,7 +8599,7 @@ suite('CopilotAgent', () => {
 				} finally {
 					db.dispose();
 				}
-				const context = exactChatContext(session, chat, session);
+				const context = { ...exactChatContext(session, chat, session), workspaceless: true };
 				await first.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1', undefined, context);
 				await first.chats.releaseChat(chat, context);
 				await disposeAgent(first);
@@ -8622,6 +8622,28 @@ suite('CopilotAgent', () => {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 			}
 		}).timeout(30_000);
+
+		test('a host decision of not workspaceless overrides the stored session marker', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), sessionDataService });
+			try {
+				const session = URI.parse('ahp-session:/workspaceless-nested-own-folder');
+				const db = sessionDataService.openDatabase(session);
+				try {
+					await db.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+				} finally {
+					db.dispose();
+				}
+				const read = (hostWorkspaceless: boolean | undefined) => (agent as unknown as { _readSessionMetadata(scope: { storage: URI; owner: URI }, host: boolean | undefined): Promise<{ workspaceless?: boolean }> })._readSessionMetadata({ storage: session, owner: session }, hostWorkspaceless);
+				assert.deepStrictEqual({
+					hostSaysNo: (await read(false)).workspaceless,
+					hostSaysYes: (await read(true)).workspaceless,
+					legacyFallsBackToMarker: (await read(undefined)).workspaceless,
+				}, { hostSaysNo: false, hostSaysYes: true, legacyFallsBackToMarker: true });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('minted peer and fork in a workspaceless session keep the parent system message across resume', async () => {
 			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/qc-mint-home-`));
@@ -23634,7 +23656,7 @@ suite('CopilotAgent', () => {
 					return built.fake;
 				};
 
-				await agent.chats.sendMessage(chatUri, 'continue in the selected workspace', [scratchDirectory], undefined, 'turn-1', undefined, exactChatContext(session, chatUri, session));
+				await agent.chats.sendMessage(chatUri, 'continue in the selected workspace', [scratchDirectory], undefined, 'turn-1', undefined, { ...exactChatContext(session, chatUri, session), workspaceless: true });
 				const storedRef = sessionDataService.openDatabase(session);
 				const metadata = await storedRef.object.getMetadataObject({
 					'copilot.workingDirectory': true,

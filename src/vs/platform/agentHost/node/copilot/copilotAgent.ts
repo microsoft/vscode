@@ -5541,7 +5541,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resume so the SDK loads the seeded history as editable turns. The
 			// seeded event log lives at the session's own SDK id, so the resume
 			// records that exact backing for the target chat.
-			const imported = await this._resumeSession(sessionId, chat, false);
+			const imported = await this._resumeSession(sessionId, chat, undefined);
 			this._logService.info(`[Copilot] Imported session created: ${sessionUri.toString()}`);
 			return {
 				resolvedWorkingDirectory: workingDirectory,
@@ -7094,7 +7094,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const [events, metadata] = await Promise.all([
 				this._withChatStorageClient(context.chatKey, client => readCopilotSessionEvents(cursor =>
 					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None)),
-				this._readSessionMetadata({ storage: context.resource, owner: context.ownerSession }, context.workspaceless || undefined),
+				this._readSessionMetadata({ storage: context.resource, owner: context.ownerSession }, context.workspaceless),
 			]);
 			if (this._isShuttingDown) {
 				throw new CancellationError();
@@ -7156,6 +7156,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Releases provider-owned resources once the last chat sharing `scope` is gone. */
 	private async _finalizeConfigurationScope(scope: URI, scopeId: string, workspacelessHint: boolean): Promise<void> {
+		// Session-level on purpose: the whole session ends here, and its own scratch folder goes with it.
 		const isWorkspaceless = workspacelessHint || this._sessionSettings.get(scope)?.workspaceless === true;
 		this._provisionalSessions.delete(scopeId);
 		await this._sessionLifetimes.get(scopeId)?.dispose(async () => { });
@@ -7300,7 +7301,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let sourceEntry: CopilotAgentSession | undefined;
 			let inheritedWorkingDirectories: readonly URI[] | undefined;
 			if (fork) {
-				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner: this._resolveChatOwnerRef(fork.source), resource: this._resolveChatStorageScope(fork.source) }));
+				const sourceOwner = this._resolveChatOwnerRef(fork.source);
+				// A cold source resumes from its own stored marker, or its session's; the flag only makes sure its scratch folder exists.
+				sourceEntry = await this._ensureResolvedChatSession(this._resolveChatContext(fork.source, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: this._sessionSettings.get(sourceOwner.get())?.workspaceless === true, owner: sourceOwner, resource: this._resolveChatStorageScope(fork.source) }));
 				if (!sourceEntry) {
 					throw new Error(`[Copilot] createChat fork: source chat ${fork.source.toString()} not found`);
 				}
@@ -7907,7 +7910,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return undefined;
 			}
 			stageRecorder?.mark('snapshot');
-			const storedMetadata = await this._readSessionMetadata({ storage: context.resource, owner: ownerSession }, context.workspaceless || undefined);
+			const storedMetadata = await this._readSessionMetadata({ storage: context.resource, owner: ownerSession }, context.workspaceless);
 			// Read only when the chat's own pin and the host-supplied directories leave a gap: then the owning session database's pin decides, as on main.
 			let ownerMetadata: { readonly workingDirectory?: URI } | undefined;
 			const readOwnerMetadata = async () => ownerMetadata ??= isEqual(context.resource, ownerSession)
@@ -8428,6 +8431,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				directory,
 				() => this._retainedHostCustomizations(session),
 				() => this._topLevelMcpServers(session),
+				// The plugin controller serves the session's default chat, whose marker is the session's.
 				() => this._sessionSettings.get(session)?.workspaceless === true,
 			);
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidChatProgress);
@@ -8680,7 +8684,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	protected _resumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession> {
+	protected _resumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession> {
 		const current = this._chatBackings.get(chatChannelUri.toString());
 		this._chatBackings.set(chatChannelUri.toString(), { ...current, sdkSessionId: sessionId });
 		const lifetime = this._getOrCreateSessionLifetime(sessionId);
@@ -8700,7 +8704,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private _doResumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession> {
+	private _doResumeSession(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession> {
 		const canvasHandoff = this._canvasHandoffs.get(chatChannelUri);
 		let replacement: CopilotAgentSession | undefined;
 		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, chatChannelUri, workspaceless, acquireClient, workingDirectories, stageRecorder, token), chatChannelUri).then(session => {
@@ -8713,13 +8717,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, workspaceless: boolean, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession> {
+	private async _resumeSessionOnce(sessionId: string, chatChannelUri: URI, workspaceless: boolean | undefined, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		// The chat stores in this session's database; its owner is the one the host recorded (a legacy resume no host context recorded is owned by that session).
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 		const owner = this._chatOwners.get(chatChannelUri.toString()) ?? fixedChatOwnerRef(sessionUri);
 		// Read persisted metadata while the SDK client is acquired.
-		const storedMetadataPromise = this._readSessionMetadata({ storage: sessionUri, owner: owner.get() }, this._sessionSettings.get(owner.get())?.workspaceless);
+		const storedMetadataPromise = this._readSessionMetadata({ storage: sessionUri, owner: owner.get() }, workspaceless ?? this._sessionSettings.get(owner.get())?.workspaceless);
 		storedMetadataPromise.catch(() => { /* surfaced by the await below */ });
 		stageRecorder?.mark('client');
 		const client = await acquireClient();

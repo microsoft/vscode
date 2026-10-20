@@ -28,6 +28,7 @@ export async function resolveAgentHostSessionTrustFolders(
 		return undefined;
 	}
 	// Host-allocated per-chat scratch folders are internal and never need workspace trust.
+	// This only honors the host's own claim in the session state; the claim is the host's, not a client's.
 	const scratchFolders = readSessionScratchFolders(state._meta);
 	if (scratchFolders.length > 0) {
 		const scratch = new Set(scratchFolders.map(folder => URI.parse(folder).toString()));

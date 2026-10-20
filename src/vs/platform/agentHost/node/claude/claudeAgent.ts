@@ -1786,6 +1786,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/** Recreates (mkdir -p) a recorded scratch folder that was reaped since the chat last ran. */
 	private async _recreateMissingScratchFolder(context: IResolvedClaudeChatContext, workingDirectory: URI | undefined): Promise<void> {
 		// A chat moved under a foldered session keeps working in its folder under the chats root, which only the host allocates.
+		// The path check only guards what may be recreated; it never decides which session or chat owns the folder.
 		if (workingDirectory && (context.workspaceless || extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, workspacelessChatsRoot(this._environmentService.userHome)))) {
 			await fs.mkdir(workingDirectory.fsPath, { recursive: true });
 		}

@@ -7922,6 +7922,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _checkMovedFoldersExist(chat: string, folders: readonly string[]): Promise<void> {
 		for (const folder of folders) {
 			const resource = URI.parse(folder);
+			// The root check is a guard so a recorded, host-owned folder is never treated as a user folder; it never derives an owner.
 			// A host-allocated scratch folder is recreated by its provider when the chat next runs; a provider-managed one (Codex) can't be.
 			if (this._stateManager.isScratchFolder(folder) && isEqualOrParent(resource, workspacelessChatsRoot(this._environmentService.userHome))) {
 				continue;
