@@ -393,6 +393,28 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		});
 	});
 
+	test('cancellation refreshes a turn changeset observed since before the turn edited', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-cancel-observed': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
+		}, { pausedScenario: 'codex-diff-cancel-observed' });
+		const turn = generateUuid();
+		// The workbench observes a request's changes while it runs, holding a result from before its edits.
+		assert.deepStrictEqual(await changes(turn), []);
+		dispatchTurn(client, session, turn, '[scenario:codex-diff-cancel-observed] Apply the patches.', ++clientSeq);
+		await client.waitForNotification(notification => {
+			if (!isActionNotification(notification, ActionType.ChatDelta)) {
+				return false;
+			}
+			const { action } = getActionEnvelope(notification);
+			return action.type === ActionType.ChatDelta && action.turnId === turn && action.content.includes('Waiting');
+		}, 30_000);
+		// Let the edit be stored while the turn runs, which only schedules a debounced recompute.
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		client.dispatch({ channel: defaultChatChannel(session), clientSeq: ++clientSeq, action: { type: ActionType.ChatTurnCancelled, turnId: turn, duration: 0 } });
+		await client.waitForNotification(notification => isActionNotification(notification, ActionType.ChatTurnCancelled));
+		assert.deepStrictEqual(await changes(turn), [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'after\n' } }]);
+	});
+
 	test('truncation preserves a retained local command before the first native turn', async () => {
 		await start({ 'edit.txt': 'before\n' }, {
 			'codex-diff-local-boundary': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
