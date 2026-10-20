@@ -101,7 +101,8 @@ import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -2147,7 +2148,9 @@ export class CopilotAgentSession extends Disposable {
 			// (user, workspace or plugin configured) is not the runtime's, and the setting cannot control it.
 			controllingSetting: (serverName, provenance) => serverName === GITHUB_MCP_SERVER_NAME && provenance.source === 'builtin' && !provenance.sourcePlugin
 				? AgentHostGitHubMcpServerEnabledSettingId
-				: undefined,
+				: serverName === COMPUTER_USE_PLUGIN_NAME && provenance.source === 'builtin' && provenance.sourcePlugin === COMPUTER_USE_PLUGIN_NAME
+					? AgentHostComputerUseEnabledSettingId
+					: undefined,
 			connectorName: serverName => this._copilotConnectorServers.get(serverName)?.connectorName,
 		}));
 
@@ -6943,6 +6946,15 @@ export class CopilotAgentSession extends Disposable {
 					});
 				}
 				return attributePermissionResult({ kind: 'approve-once' }, 'assisted_approval');
+			}
+
+			// The runtime recommends approving tools of trusted built-in MCP servers
+			// (Computer Use, which gates each app with its own consent prompt). Deny
+			// rules are evaluated before the host is consulted; managed approval and
+			// a consulted assisted-approval judge still outrank the recommendation.
+			if (!managedApprovalRequired && request.kind === 'mcp' && request.permissionRecommendation === 'approve' && autoApproval === undefined) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving ${request.serverName}/${request.toolName} on the runtime's recommendation`);
+				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
 
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
