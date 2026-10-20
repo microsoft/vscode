@@ -28,14 +28,17 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let completionProvider: PromptHeaderAutocompletion;
+	let activeTarget: Target;
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -94,6 +97,9 @@ suite('PromptHeaderAutocompletion', () => {
 		});
 
 		instaService.stub(IChatModeService, new MockChatModeService());
+		instaService.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+		});
 
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
 	});
@@ -126,6 +132,40 @@ suite('PromptHeaderAutocompletion', () => {
 	const sortByLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
 
 	suite('agent header completions', () => {
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'|',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual({
+				hasMcpServers: labels.includes('mcp-servers'),
+				hasHandoffs: labels.includes('handoffs'),
+			}, {
+				hasMcpServers: true,
+				hasHandoffs: false,
+			});
+		});
+
+		test('explicit target overrides active harness target', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'|',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.strictEqual(labels.includes('handoffs'), true);
+		});
 		test('complete model attribute name', async () => {
 			const content = [
 				'---',

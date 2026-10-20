@@ -27,14 +27,17 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let hoverProvider: PromptHoverProvider;
+	let activeTarget: Target;
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -91,6 +94,9 @@ suite('PromptHoverProvider', () => {
 				return parser.parse(model.uri, model.getValue());
 			}
 		});
+		instaService.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+		});
 
 		hoverProvider = instaService.createInstance(PromptHoverProvider);
 	});
@@ -115,6 +121,23 @@ suite('PromptHoverProvider', () => {
 	}
 
 	suite('agent hovers', () => {
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'handoffs:',
+				'  - label: Test',
+				'    agent: Default',
+				'    prompt: Test',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 3, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Possible handoff actions when the agent has completed its task.\n\nNote: This attribute is not used in GitHub Copilot or Claude targets.');
+		});
+
 		test('hover on target attribute shows description', async () => {
 			const content = [
 				'---',
