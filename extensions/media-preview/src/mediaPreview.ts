@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
+import { getMediaResourceFallbackVersion, getMediaResourceVersionFromStat } from './mediaResourceVersion';
 import { Disposable } from './util/dispose';
 
 export async function reopenAsText(resource: vscode.Uri, viewColumn: vscode.ViewColumn | undefined): Promise<void> {
@@ -101,6 +102,14 @@ export abstract class MediaPreview extends Disposable {
 			this._binarySize = size;
 			this.updateState();
 		});
+	}
+
+	protected async getResourceVersion(): Promise<string> {
+		return getMediaResourceVersionFromStat(
+			() => vscode.workspace.fs.stat(this._resource),
+			() => getMediaResourceFallbackVersion(this._resource.toString()),
+			error => error instanceof vscode.FileSystemError,
+		);
 	}
 
 	protected async render() {
