@@ -1098,6 +1098,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			onDidDisposeSession.fire({ sessionResources, reason: 'cleared' });
 		},
 		setSession(sessionResource: URI, model: IChatModel) {
+			Object.assign(model, {
+				onDidDispose: model.onDidDispose ?? Event.None,
+				onDidChange: model.onDidChange ?? Event.None,
+			});
 			chatModels.set(sessionResource.toString(), model);
 			onDidCreateModel.fire(model);
 		},
@@ -16674,11 +16678,14 @@ suite('AgentHostChatContribution', () => {
 	suite('server-initiated turns', () => {
 		function createPendingChatModel(sessionResource: URI, pendingRequests: IChatPendingRequest[]): { model: IChatModel; firePendingRequestsChanged(): void } {
 			const onDidChangePendingRequests = disposables.add(new Emitter<void>());
+			const pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>('handoffs', []);
 			return {
 				model: upcastPartial<IChatModel>({
 					sessionResource,
 					onDidChangePendingRequests: onDidChangePendingRequests.event,
 					getPendingRequests: () => pendingRequests,
+					pendingRequestHandoffs,
+					setPendingRequestHandoffs: requests => pendingRequestHandoffs.set(requests, undefined),
 				}),
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
@@ -17186,6 +17193,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.sessionStates.set(backendSession.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
 				agentHostService.chatStates.set(chatUri, {
 					...createChatState(createDefaultChatSummary(summary, chatUri)),
+					activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
 					steeringMessage: message(legacyId),
 					queuedMessages: [
 						message('queued'),
@@ -17214,6 +17222,8 @@ suite('AgentHostChatContribution', () => {
 					serverSeq: 1, origin: undefined,
 				});
 				const afterConsumption = pending.map(request => request.request.id);
+				const handoffAfterConsumption = chatModel.model.pendingRequestHandoffs.get().map(request => request.id);
+				chatModel.firePendingRequestsChanged();
 				agentHostService.fireAction({
 					channel: chatUri,
 					action: { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, ...message('c') },
@@ -17228,6 +17238,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					restored,
 					afterConsumption,
+					handoffAfterConsumption,
 					afterAnotherSteer,
 					afterMirrorRemoval: pending.map(request => request.request.id),
 					echoed: agentHostService.dispatchedActions.filter(({ action }) =>
@@ -17235,6 +17246,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					restored: legacyId === 'legacy' ? ['legacy', 'a', 'b', 'queued'] : ['a', 'b', 'queued'],
 					afterConsumption: legacyId === 'legacy' ? ['legacy', 'b', 'queued'] : ['b', 'queued'],
+					handoffAfterConsumption: ['a'],
 					afterAnotherSteer: ['b', 'c', 'queued'],
 					afterMirrorRemoval: ['b', 'queued'],
 					echoed: [],

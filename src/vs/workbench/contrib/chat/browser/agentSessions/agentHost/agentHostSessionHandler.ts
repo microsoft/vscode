@@ -22,6 +22,7 @@ import { autorun, autorunPerKeyedItem, constObservable, derived, derivedOpts, IO
 import { extUriBiasedIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { AgentHostFirstResponseTiming, nextRendererRootInvocationOrdinal, type AgentHostFirstResponseClassification, type AgentHostFirstResponseOutcome, type IAgentHostFirstResponseEvent } from './agentHostFirstResponseTelemetry.js';
+import { AgentHostSteeringMessageHandoff } from './agentHostSteeringMessageHandoff.js';
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -6626,6 +6627,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			const sessionStr = backendSession.toString();
 			if (chatURI) {
+				store.add(new AgentHostSteeringMessageHandoff(chatModel, this._ensureChatSubscription(sessionStr, chatURI)));
 				const onRemoteChange = () => this._applyRemotePendingMessages(sessionResource, backendSession);
 				store.add(this._ensureSessionSubscription(sessionStr).onDidChange(onRemoteChange));
 				store.add(this._ensureChatSubscription(sessionStr, chatURI).onDidChange(onRemoteChange));
