@@ -104,6 +104,31 @@ suite('Composite artifact model', () => {
 		}, { initial: ['host'], combined: ['host', 'client'] });
 	});
 
+	for (const cachedBy of ['invocation', 'history'] as const) {
+		test(`replaces cached run owners from ${cachedBy} when the client model reconnects`, async () => {
+			const history = [run('client', 1)];
+			const host = source('host', 'host');
+			const previous = source('client', 'client', history);
+			const current = source('client', 'client', history);
+			const secondary = observableValue<IArtifactModel | undefined>('secondary', previous.model);
+			const model = new CompositeArtifactModel(host.model, secondary);
+			if (cachedBy === 'invocation') {
+				await model.invoke('client', 'action', 'chat', 'request');
+			} else {
+				await model.getRuns();
+			}
+			previous.calls.length = 0;
+			secondary.set(current.model, undefined);
+			await model.cancel(history[0].id);
+			await model.reconcile(history[0].id);
+			secondary.set(undefined, undefined);
+			await assert.rejects(model.cancel(history[0].id), /not found/);
+			assert.deepStrictEqual({ previous: previous.calls, current: current.calls }, {
+				previous: [], current: ['cancel:client:1', 'reconcile:client:1'],
+			});
+		});
+	}
+
 	test('live runs retain the newest fifty in chronological order and preserve source order for ties', () => {
 		const all = Array.from({ length: 64 }, (_, index) => run(index % 2 ? 'host' : 'client', 64 - index));
 		const host = source('host', 'host', all.filter(run => run.bindingId === 'host'));

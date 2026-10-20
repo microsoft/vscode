@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
+import { localize } from '../../../nls.js';
 import { ArtifactAuthority, ArtifactAvailability, ArtifactPrompt, ArtifactPromptReceipt, ArtifactRecord, ArtifactRequestPresentation, ArtifactRunInitiator, IArtifactActionContext } from './artifactIntegration.js';
 
 export interface ArtifactSessionState {
@@ -108,7 +109,14 @@ export interface IArtifactRuntime {
 	authorize(context: IArtifactActionContext, scope: 'resource' | 'resourceAndWorkspace', token: CancellationToken): Promise<ArtifactAuthorization>;
 }
 
-/** Writes must be durable and atomic; a rejected write must not publish the new value. */
+/** A write replaced the ledger, but confirming its durability failed. */
+export class ArtifactStorageCommitError extends Error {
+	constructor(cause: unknown) {
+		super(localize('artifactStorageCommitUncertain', "The artifact changes were saved, but their durability could not be confirmed. Further changes are blocked until the artifact runtime restarts."), { cause });
+	}
+}
+
+/** Successful writes are durable and atomic; only ArtifactStorageCommitError may reject after publishing the new value. */
 export interface IArtifactIntegrationStorage {
 	read(): Promise<string | undefined>;
 	write(value: string): Promise<void>;

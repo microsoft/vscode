@@ -116,7 +116,6 @@ export class ArtifactExecutionService extends Disposable {
 			throw new Error('An invoking chat and request ID are required');
 		}
 		const binding = this.requireBinding(bindingId);
-		const action = this.requireAction(binding, actionId, true, chat);
 		const run = await this.ledger.transact(state => {
 			const existing = state.runs.find(run => run.bindingId === bindingId && run.source === 'manual' && run.requestId === requestId);
 			if (existing) {
@@ -125,6 +124,7 @@ export class ArtifactExecutionService extends Disposable {
 				}
 				return existing;
 			}
+			const action = this.requireAction(binding, actionId, true, chat);
 			const run: ArtifactRun = { ...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor };
 			state.runs.push(run);
 			return run;
@@ -332,8 +332,12 @@ export class ArtifactExecutionService extends Disposable {
 						await this.updateRun(runId, { state: token.isCancellationRequested ? 'cancelled' : 'failed', dispatched: false, indeterminate: false, reason: submission.reason });
 						break;
 					case 'busy':
-						await this.updateRun(runId, { state: 'queued', dispatched: false });
-						this.scheduler.schedule(1000);
+						await this.updateRun(runId, { state: token.isCancellationRequested ? 'cancelled' : 'queued', dispatched: false });
+						if (token.isCancellationRequested) {
+							await this.cancel(binding.id, runId);
+						} else {
+							this.scheduler.schedule(1000);
+						}
 						break;
 					case 'indeterminate':
 						await this.updateRun(runId, { state: 'interrupted', indeterminate: true, reason: submission.reason });
@@ -616,8 +620,7 @@ export class ArtifactExecutionService extends Disposable {
 			return;
 		}
 		const binding = this.requireBinding(bindingId);
-		const action = this.requireAction(binding, run.actionId, false);
-		if (action.kind === 'prompt' && run.prompt && run.chat) {
+		if (run.actionKind === 'prompt' && run.prompt && run.chat) {
 			const recovered = await this.runtime.chat.recover(this.promptRequest(binding, run), run.receipt, CancellationToken.None);
 			if (recovered.kind === 'attached') {
 				await this.trackPrompt(run, recovered.handle, true);
@@ -625,7 +628,8 @@ export class ArtifactExecutionService extends Disposable {
 			}
 			await this.updateRun(runId, { state: 'interrupted', indeterminate: recovered.kind !== 'notSent', dispatched: recovered.kind !== 'notSent', reason: recovered.kind === 'indeterminate' ? recovered.reason : localize('artifactPromptNotSent', "The prompt was not submitted.") }, true);
 		} else {
-			const result = action.kind === 'code' && action.reconcile
+			const action = binding.provider.actions.find(action => action.id === run.actionId);
+			const result = run.actionKind === 'code' && action?.kind === 'code' && action.reconcile
 				? await action.reconcile(this.context(binding, run), CancellationToken.None)
 				: { kind: 'indeterminate' as const, reason: localize('artifactCodeInterrupted', "The artifact action was interrupted. Its external outcome must be reconciled.") };
 			await this.updateRun(runId, result.kind === 'completed'

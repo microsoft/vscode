@@ -10,12 +10,15 @@ import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IArtifactIntegrationStorage } from '../common/artifactRuntime.js';
+import { ArtifactStorageCommitError, IArtifactIntegrationStorage } from '../common/artifactRuntime.js';
 
 export class FileArtifactIntegrationStorage implements IArtifactIntegrationStorage {
 	private value: string | undefined;
 
-	constructor(private readonly resource: URI | undefined) {
+	constructor(
+		private readonly resource: URI | undefined,
+		private readonly fileSystem: Pick<typeof fs, 'readFile' | 'mkdir' | 'open' | 'rename' | 'unlink'> = fs,
+	) {
 		if (resource && resource.scheme !== Schemas.file) {
 			throw new Error('Artifact file storage requires a local file URI');
 		}
@@ -26,7 +29,7 @@ export class FileArtifactIntegrationStorage implements IArtifactIntegrationStora
 			return this.value;
 		}
 		try {
-			return await fs.readFile(this.resource.fsPath, 'utf8');
+			return await this.fileSystem.readFile(this.resource.fsPath, 'utf8');
 		} catch (error) {
 			if (error && typeof error === 'object' && hasKey(error, { code: true }) && error.code === 'ENOENT') {
 				return undefined;
@@ -41,21 +44,21 @@ export class FileArtifactIntegrationStorage implements IArtifactIntegrationStora
 			return;
 		}
 		const path = this.resource.fsPath;
-		await fs.mkdir(dirname(path), { recursive: true });
+		await this.fileSystem.mkdir(dirname(path), { recursive: true });
 		const temporary = `${path}.${generateUuid()}.tmp`;
 		let renamed = false;
 		try {
-			const handle = await fs.open(temporary, 'wx', 0o600);
+			const handle = await this.fileSystem.open(temporary, 'wx', 0o600);
 			try {
 				await handle.writeFile(value, 'utf8');
 				await handle.sync();
 			} finally {
 				await handle.close();
 			}
-			await fs.rename(temporary, path);
+			await this.fileSystem.rename(temporary, path);
 			renamed = true;
 			if (!isWindows) {
-				const directory = await fs.open(dirname(path), 'r');
+				const directory = await this.fileSystem.open(dirname(path), 'r');
 				try {
 					await directory.sync();
 				} finally {
@@ -63,13 +66,14 @@ export class FileArtifactIntegrationStorage implements IArtifactIntegrationStora
 				}
 			}
 		} catch (error) {
-			if (!renamed) {
-				try {
-					await fs.unlink(temporary);
-				} catch (cleanupError) {
-					if (!cleanupError || typeof cleanupError !== 'object' || !hasKey(cleanupError, { code: true }) || cleanupError.code !== 'ENOENT') {
-						throw new AggregateError([error, cleanupError], 'Artifact ledger write and temporary-file cleanup failed');
-					}
+			if (renamed) {
+				throw new ArtifactStorageCommitError(error);
+			}
+			try {
+				await this.fileSystem.unlink(temporary);
+			} catch (cleanupError) {
+				if (!cleanupError || typeof cleanupError !== 'object' || !hasKey(cleanupError, { code: true }) || cleanupError.code !== 'ENOENT') {
+					throw new AggregateError([error, cleanupError], 'Artifact ledger write and temporary-file cleanup failed');
 				}
 			}
 			throw error;

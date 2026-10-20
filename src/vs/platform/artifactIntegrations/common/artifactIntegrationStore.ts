@@ -10,7 +10,7 @@ import { IObservable, observableValue } from '../../../base/common/observable.js
 import { localize } from '../../../nls.js';
 import { ArtifactAutomationConfiguration, ArtifactAutomationOption, ArtifactJsonValue, ArtifactRecord, ArtifactRun, artifactBindingId, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { isArtifactAutomationOption, isArtifactConfiguration, isArtifactJsonValue, isArtifactRecord, isArtifactRun, isCounter, isDictionary, isRecord } from './artifactIntegrationValidation.js';
-import { IArtifactIntegrationStorage } from './artifactRuntime.js';
+import { ArtifactStorageCommitError, IArtifactIntegrationStorage } from './artifactRuntime.js';
 
 const settledRunRetentionPerBinding = 200;
 
@@ -164,6 +164,9 @@ export class ArtifactIntegrationStore {
 				await this.storage.write(JSON.stringify(next));
 			} catch (error) {
 				this.writeFailure = error instanceof Error ? error : new Error(String(error));
+				if (error instanceof ArtifactStorageCommitError) {
+					this.stateValue.set(next, undefined);
+				}
 				throw error;
 			}
 			this.stateValue.set(next, undefined);
