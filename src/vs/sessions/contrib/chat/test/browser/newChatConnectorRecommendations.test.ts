@@ -206,16 +206,16 @@ suite('NewChatConnectorRecommendations', () => {
 		}
 
 		assert.deepStrictEqual(states, [
-			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: true, visibleCards: [] },
 			{ hidden: false, visibleCards: ['notion'] },
 			{ hidden: false, visibleCards: ['linear'] },
-			{ hidden: false, visibleCards: ['linear'] },
-			{ hidden: false, visibleCards: ['linear'] },
-			{ hidden: false, visibleCards: ['linear'] },
-			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: true, visibleCards: [] },
+			{ hidden: true, visibleCards: [] },
+			{ hidden: true, visibleCards: [] },
+			{ hidden: true, visibleCards: [] },
 			{ hidden: false, visibleCards: ['notion'] },
 			{ hidden: false, visibleCards: ['notion'] },
-			{ hidden: false, visibleCards: ['linear'] },
+			{ hidden: true, visibleCards: [] },
 		]);
 	});
 
@@ -232,16 +232,16 @@ suite('NewChatConnectorRecommendations', () => {
 		});
 	});
 
-	test('uses product-configured URL domains and static visibility', () => {
+	test('uses product-configured URL domains', () => {
 		const fixture = setup(true, true, true, {
-			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png', showStatically: false, urlDomains: ['dataexplorer.azure.com', 'kusto.windows.net'] },
-			'atlassian-rovo': { name: 'Atlassian Rovo', description: 'Search Jira and Confluence.', iconUrl: 'https://example.com/atlassian.png', showStatically: false },
-			cloudflare: { name: 'Cloudflare', description: 'Inspect Cloudflare resources.', iconUrl: 'https://example.com/cloudflare.png', showStatically: false },
+			kusto: { name: 'Azure Data Explorer', description: 'Query Azure Data Explorer.', iconUrl: 'https://example.com/kusto.png', urlDomains: ['dataexplorer.azure.com', 'kusto.windows.net'] },
+			'atlassian-rovo': { name: 'Atlassian Rovo', description: 'Search Jira and Confluence.', iconUrl: 'https://example.com/atlassian.png' },
+			cloudflare: { name: 'Cloudflare', description: 'Inspect Cloudflare resources.', iconUrl: 'https://example.com/cloudflare.png' },
 			linear: connectorRecommendations.linear,
 			notion: connectorRecommendations.notion,
 			'workiq-mail': connectorRecommendations['workiq-mail'],
-			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png', showStatically: false, urlDomains: ['sentry.io'] },
-			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png', showStatically: false },
+			sentry: { name: 'Sentry', description: 'Search and triage Sentry issues.', iconUrl: 'https://example.com/sentry.png', urlDomains: ['sentry.io'] },
+			microsoftlearndocsmcpserver: { name: 'Microsoft Learn Docs', description: 'Search Microsoft Learn.', iconUrl: 'https://example.com/learn.png' },
 		}, true, () => 0);
 		const visibleCards = () => [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')]
 			.filter(card => !card.hidden)
@@ -264,57 +264,47 @@ suite('NewChatConnectorRecommendations', () => {
 		assert.deepStrictEqual(visibleCards(), ['kusto']);
 
 		fixture.setInput('');
-		assert.deepStrictEqual(visibleCards(), ['linear']);
+		assert.deepStrictEqual(visibleCards(), []);
 	});
 
-	test('keeps static and dynamic dismissals independent', () => {
-		const beforeStaticDismissal = setup(true, true, true, connectorRecommendations, true, () => 0.5);
-		const beforeCards = [...beforeStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
-		const staticAfterDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
-		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
-		const dynamicAfterStaticDismissal = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
-		beforeCards[1].querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
-		const dynamicAfterDynamicDismissal = {
-			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
-			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
+	test('dismisses a URL-driven connector without showing a replacement', () => {
+		const fixture = setup(true, true);
+		const cards = [...fixture.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
+		fixture.setInput('Compare linear.app/a with notion.so/b.');
+		const selected = cards.find(card => !card.hidden)!;
+		selected.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
+		const afterDismissal = {
+			hidden: fixture.recommendations.element.hidden === true,
+			visibleCards: cards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
 		};
-		beforeStaticDismissal.setInput('');
-		const restoredStatic = beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
-		beforeStaticDismissal.setInput('Open notion.so/acme/project.');
-		const repeatedDynamic = {
-			hidden: beforeStaticDismissal.recommendations.element.hidden === true,
-			visibleCards: beforeCards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
+		fixture.setInput('');
+		const withoutUrl = fixture.recommendations.element.hidden === true;
+		fixture.setInput('Open linear.app/a.');
+		const repeated = {
+			hidden: fixture.recommendations.element.hidden === true,
+			visibleCards: cards.filter(card => !card.hidden).map(card => card.dataset.connectorId),
 		};
-
-		const afterStaticDismissal = setup(true, true);
-		const afterCards = [...afterStaticDismissal.recommendations.element.querySelectorAll<HTMLElement>('.new-session-connector-recommendation-card')];
-		afterCards.find(card => !card.hidden)!.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label')!.click();
-		const allStaticDismissed = afterStaticDismissal.recommendations.element.hidden === true;
-		afterStaticDismissal.setInput('Open notion.so/acme/project.');
-		const dynamicAfterAllStaticDismissed = afterCards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
+		fixture.setInput('Open notion.so/b.');
+		const otherConnector = cards.filter(card => !card.hidden).map(card => card.dataset.connectorId);
 
 		assert.deepStrictEqual({
-			staticAfterDismissal,
-			dynamicAfterStaticDismissal,
-			dynamicAfterDynamicDismissal,
-			restoredStatic,
-			repeatedDynamic,
-			allStaticDismissed,
-			dynamicAfterAllStaticDismissed,
+			selected: selected.dataset.connectorId,
+			afterDismissal,
+			withoutUrl,
+			repeated,
+			otherConnector,
 		}, {
-			staticAfterDismissal: [],
-			dynamicAfterStaticDismissal: ['notion'],
-			dynamicAfterDynamicDismissal: { hidden: true, visibleCards: [] },
-			restoredStatic: [],
-			repeatedDynamic: { hidden: true, visibleCards: [] },
-			allStaticDismissed: true,
-			dynamicAfterAllStaticDismissed: ['notion'],
+			selected: 'linear',
+			afterDismissal: { hidden: true, visibleCards: [] },
+			withoutUrl: true,
+			repeated: { hidden: true, visibleCards: [] },
+			otherConnector: ['notion'],
 		});
 	});
 
 	test('tracks enablement and dismisses individual cards for the widget lifetime', async () => {
 		const fixture = setup(true, false, true, connectorRecommendations, true);
+		fixture.setInput('Open linear.app/a.');
 		assert.strictEqual(fixture.recommendations.element.hidden, true);
 
 		await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled, true);

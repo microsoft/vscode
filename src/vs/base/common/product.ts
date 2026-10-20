@@ -181,7 +181,6 @@ export interface IProductConfiguration {
 		readonly name: string;
 		readonly description: string;
 		readonly iconUrl: string;
-		readonly showStatically?: boolean;
 		readonly urlDomains?: readonly string[];
 	}>;
 	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;

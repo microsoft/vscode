@@ -87,7 +87,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('one randomly chosen static connector recommendation');
+				.includes('No recommendation appears without a matching URL');
 		});
 
 		assert.deepStrictEqual(enabled, [false, true]);

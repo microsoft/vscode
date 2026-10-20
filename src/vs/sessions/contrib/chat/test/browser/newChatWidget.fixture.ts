@@ -208,7 +208,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly connectorRecommendationsSetting?: boolean;
 	readonly connectorPrompt?: string;
 	readonly connectorId?: 'linear' | 'notion' | 'workiq-mail';
-	readonly dismissStaticBeforePrompt?: boolean;
+	readonly expectConnectorRecommendation?: boolean;
 	readonly dismissConnector?: boolean;
 	readonly connectorProductIcons?: boolean;
 	readonly focusConnectorRecommendations?: boolean;
@@ -418,7 +418,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		connectorRecommendationsSetting = connectorRecommendations,
 		connectorPrompt,
 		connectorId = 'linear',
-		dismissStaticBeforePrompt = false,
+		expectConnectorRecommendation = connectorPrompt !== undefined && connectorRecommendationsSetting,
 		dismissConnector = false,
 		connectorProductIcons = true,
 		focusConnectorRecommendations = false,
@@ -1046,20 +1046,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!recommendations && cards?.length === 1);
 		const card = cards[0];
 		const dismiss = card.querySelector<HTMLElement>('.new-session-connector-recommendation-dismiss .action-label');
-		if (dismissStaticBeforePrompt) {
-			dismiss?.click();
-		}
 		if (connectorPrompt !== undefined) {
 			view.prefillInput(connectorPrompt);
-			if (connectorRecommendationsSetting) {
+			if (expectConnectorRecommendation) {
 				await waitForFixtureCondition(() => !card.hidden, 'URL-triggered connector recommendation did not settle.');
 			}
 		}
 		const visibleCards = [...cards].filter(card => !card.hidden);
-		const connectorSurfaceVisible = connectorRecommendationsSetting;
-		assert(visibleCards.length === 1
-			&& visibleCards[0].dataset.connectorId === connectorId,
-			'Only the selected connector recommendation must be visible.');
+		const connectorSurfaceVisible = expectConnectorRecommendation;
+		assert(visibleCards.length === (connectorSurfaceVisible ? 1 : 0)
+			&& (!connectorSurfaceVisible || visibleCards[0].dataset.connectorId === connectorId),
+			'Only a URL-matched connector recommendation may be visible.');
 		assert((targetWindow.getComputedStyle(recommendations).display !== 'none') === connectorSurfaceVisible);
 		if (connectorProductIcons && connectorSurfaceVisible) {
 			await waitForFixtureCondition(() => visibleCards.every(card => card.querySelector('img')), 'Visible connector recommendation icons did not load.');
@@ -1377,10 +1374,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['Over a loud repeating magenta, cyan, yellow, and blue striped background, the new-session composer shows the customization migration notice below the input on an opaque bordered surface. None of the stripes show through the notice.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, migrationCount: 4, chatBackground: 'loud' }),
 	}),
-	ConnectorRecommendationsBefore: defineComponentFixture({
+	ConnectorRecommendationsNoUrl: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With no URL in the prompt, one full-width minimal static recommendation shows a small Linear icon, muted task text, and a compact close action below the centered composer.'],
+		expectedVisualDescriptions: ['With no recognized URL in the prompt, the centered new-session composer shows no connector recommendation.'],
 		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsDisabled: defineComponentFixture({
@@ -1405,15 +1402,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['When the prompt contains multiple matching URLs, one stable full-width recommendation is shown without rendering replacement cards beside it.'],
 		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true }),
 	}),
-	ConnectorRecommendationsAfterStaticDismissal: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A Notion URL reveals the dynamic Notion recommendation even though its static card was dismissed first.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorId: 'notion', dismissStaticBeforePrompt: true, connectorPrompt: 'Summarize notion.so/acme/project', experimentalComposerLayout: true }),
-	}),
 	ConnectorRecommendationsOneDismissed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Dismissing the selected recommendation hides the recommendation surface and returns focus to the composer without showing a replacement.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, dismissConnector: true, experimentalComposerLayout: true }),
+		expectedVisualDescriptions: ['Dismissing the URL-driven recommendation hides the recommendation surface and returns focus to the composer without showing a replacement.'],
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Review linear.app/acme/issue/ENG-1', dismissConnector: true, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsTwoDismissed: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1423,7 +1415,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	ConnectorRecommendationsFallbackIcons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['When the selected connector image is unavailable, the minimal recommendation uses the standard 16px MCP server fallback icon with muted task copy and compact close action.'],
-		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorProductIcons: false, experimentalComposerLayout: true }),
+		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorPrompt: 'Review linear.app/acme/issue/ENG-1', connectorProductIcons: false, experimentalComposerLayout: true }),
 	}),
 	ConnectorRecommendationsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot' },
