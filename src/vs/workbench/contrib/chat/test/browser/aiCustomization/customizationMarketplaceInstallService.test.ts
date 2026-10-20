@@ -1055,14 +1055,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 	test('reports a change only when the provider inventory differs', async () => {
 		const changes = store.add(new Emitter<void>());
-		const candidate = resource();
 		let state: 'installed' | 'missing' = 'installed';
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = changes.event;
 			getInstallations() {
 				return Promise.resolve([{
 					installationId: 'sdk-skill',
-					resource: candidate,
+					resource: resource(),
 					state: { kind: state, target: { kind: 'skill' as const, uri: joinPath(skillDestination, SKILL_FILENAME), name: 'demo-skill' } },
 				}]);
 			}
@@ -1072,6 +1071,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const fixture = await createFixture({ enabled: true, installProvider: provider });
 		await timeout(0);
+		const candidate = resource();
+		fixture.service.installations.get().findByTarget({ kind: 'skill', uri: joinPath(skillDestination, SKILL_FILENAME) });
 		let serviceChanges = 0;
 		store.add(fixture.service.onDidChange(() => serviceChanges++));
 

@@ -55,6 +55,38 @@ interface IInstallProviderBinding {
 	refreshVersion: number;
 }
 
+type ProviderInstallationValue = object | string | number | boolean | null | undefined;
+
+function providerInstallationValueEquals(first: ProviderInstallationValue, second: ProviderInstallationValue): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (URI.isUri(first) || URI.isUri(second)) {
+		return URI.isUri(first) && URI.isUri(second) && isEqual(first, second);
+	}
+	if (typeof first !== 'object' || first === null || typeof second !== 'object' || second === null) {
+		return false;
+	}
+	if (Array.isArray(first) || Array.isArray(second)) {
+		return Array.isArray(first) && Array.isArray(second)
+			&& first.length === second.length
+			&& first.every((value, index) => providerInstallationValueEquals(value, second[index]));
+	}
+	const firstRecord = first as Record<string, ProviderInstallationValue>;
+	const secondRecord = second as Record<string, ProviderInstallationValue>;
+	const firstKeys = Object.keys(firstRecord).sort();
+	const secondKeys = Object.keys(secondRecord).sort();
+	return firstKeys.length === secondKeys.length
+		&& firstKeys.every((key, index) => key === secondKeys[index] && providerInstallationValueEquals(firstRecord[key], secondRecord[key]));
+}
+
+function providerInstallationsEqual(
+	first: readonly IRecordedCustomizationMarketplaceResource[],
+	second: readonly IRecordedCustomizationMarketplaceResource[],
+): boolean {
+	return providerInstallationValueEquals(first, second);
+}
+
 export class CustomizationMarketplaceInstallService extends Disposable implements ICustomizationMarketplaceInstallService {
 	declare readonly _serviceBrand: undefined;
 
@@ -175,7 +207,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				return;
 			}
 			// Providers refresh on every customization change, so most refreshes return the same installations.
-			if (JSON.stringify(installations) === JSON.stringify(this.providerInstallations)) {
+			if (providerInstallationsEqual(installations, this.providerInstallations)) {
 				return;
 			}
 			this.providerInstallations = installations;

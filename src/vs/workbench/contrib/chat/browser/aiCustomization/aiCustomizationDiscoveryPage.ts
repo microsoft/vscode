@@ -812,6 +812,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private providerPluginSequence = 0;
 	private lastDimension: DOM.Dimension | undefined;
 	private lastAnnouncement: string | undefined;
+	private browseInstallStateKey: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -985,7 +986,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.refreshInstalledItems();
 			}
 		});
-		this._register(this.installService.onDidChange(() => this.render()));
+		this._register(this.installService.onDidChange(() => this.renderInstallStateChange()));
 		this._register(this.themeService.onDidColorThemeChange(() => this.render()));
 		if (this.marketplaceService.onDidChangeSources) {
 			this._register(this.marketplaceService.onDidChangeSources(() => this.scheduleMarketplaceRefresh(true)));
@@ -1365,6 +1366,39 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.render(true);
 	}
 
+	private renderInstallStateChange(): void {
+		if (!this.query.isEmpty()) {
+			this.render();
+			return;
+		}
+		if (this.getBrowseInstallStateKey() !== this.browseInstallStateKey) {
+			this.render();
+		}
+	}
+
+	private getBrowseInstallStateKey(): string {
+		return JSON.stringify(this.catalogItems.map(resource => {
+			const state = this.installService.getInstallState(resource);
+			const target = state.kind === 'checking' || state.kind === 'installed' || state.kind === 'repairing'
+				|| state.kind === 'uninstalling' || state.kind === 'missing' || state.kind === 'error'
+				? state.target
+				: undefined;
+			const targetUri = target?.kind === 'skill' || target?.kind === 'plugin' ? target.uri?.toString() : undefined;
+			const targetId = target?.kind === 'mcp' ? target.id : undefined;
+			return [
+				getCustomizationMarketplaceResourceKey(resource),
+				state.kind,
+				target?.kind,
+				targetUri,
+				targetId,
+				target?.name,
+				state.kind === 'error' || state.kind === 'unavailable' ? state.message : undefined,
+				state.kind === 'unavailable' ? state.setupUrl?.toString() : undefined,
+				state.kind === 'missing' ? state.repairUnavailableMessage : undefined,
+			];
+		}));
+	}
+
 	private async refreshProviderPlugins(): Promise<void> {
 		const sequence = ++this.providerPluginSequence;
 		if (!this.visibleSectionIds.has(AICustomizationManagementSection.Plugins)) {
@@ -1594,6 +1628,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (searchMode) {
 			this.renderSearchResults(preserveResults);
 		} else {
+			this.browseInstallStateKey = this.getBrowseInstallStateKey();
 			this.renderBrowse();
 		}
 		this.layout(this.lastDimension);

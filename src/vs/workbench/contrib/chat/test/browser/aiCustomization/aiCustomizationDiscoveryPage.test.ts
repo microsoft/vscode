@@ -263,7 +263,10 @@ suite('AICustomizationDiscoveryPage', () => {
 				}
 			},
 			notifyInstallChange: () => installChanges.fire(),
-			notifyMcpChange: () => mcpChanges.fire(undefined),
+			notifyMcpChange: () => {
+				mcpChanges.fire(undefined);
+				installChanges.fire();
+			},
 			setInstalledSkills: (items: readonly IAICustomizationListItem[]) => installedSkills.set(items, undefined),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
@@ -491,16 +494,26 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.setInstalledSkills([localSkill('local-skill', 'Local mail skill'), localSkill('other-skill', 'Other mail skill')]);
 		fixture.notifyMcpChange();
 		const browseCardKeptAfterMcpChange = card.isConnected;
+		fixture.notifyInstallChange();
+		const browseCardKeptAfterUnchangedInstallRefresh = card.isConnected;
+		const remoteMail = resource('remote-mail', { mediaType: CustomizationMarketplaceMediaType.Skill });
+		fixture.setInstallState(remoteMail, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed/remote-mail') } });
+		fixture.notifyInstallChange();
+		const browseCardReplacedAfterInstallStateChange = !card.isConnected;
 		fixture.page.setSearchQuery('mail');
 		await timeout(0);
 		fixture.setInstalledSkills([localSkill('local-skill', 'Local mail skill')]);
 
 		assert.deepStrictEqual({
 			browseCardKeptAfterMcpChange,
+			browseCardKeptAfterUnchangedInstallRefresh,
+			browseCardReplacedAfterInstallStateChange,
 			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
 		}, {
 			browseCardKeptAfterMcpChange: true,
-			rows: ['Local mail skill'],
+			browseCardKeptAfterUnchangedInstallRefresh: true,
+			browseCardReplacedAfterInstallStateChange: true,
+			rows: ['Local mail skill', 'remote-mail'],
 		});
 	});
 
