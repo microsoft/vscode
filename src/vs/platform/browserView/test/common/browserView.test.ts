@@ -63,14 +63,15 @@ suite('BrowserView', () => {
 			editorWindow: {
 				owner: { type: 'agent', sessionId: 'chat-session' },
 				initialAudiences: [{ type: 'agent' }],
-				session: { scope: BrowserViewStorageScope.Agent }
+				session: { scope: BrowserViewStorageScope.Agent, affinity: undefined, network: undefined }
 			},
 			agentsWindow: {
 				owner: { type: 'agent', sessionId: 'chat-session' },
 				initialAudiences: [{ type: 'agent' }],
 				session: {
 					scope: BrowserViewStorageScope.Agent,
-					affinity: 'chat-session'
+					affinity: 'chat-session',
+					network: undefined
 				}
 			}
 		});

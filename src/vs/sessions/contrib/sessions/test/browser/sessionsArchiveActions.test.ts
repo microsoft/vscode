@@ -105,7 +105,7 @@ suite('Sessions - Bulk archive undo', () => {
 			storageService.store('sessions.comparisons', JSON.stringify([{
 				...comparison,
 				version: 1,
-				workspace: comparison.workspace.toString(),
+				workspace: comparison.workspace?.toString(),
 				participants: comparison.participants.map(participant => ({ ...participant, sessionResource: participant.sessionResource?.toString() })),
 			}]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}

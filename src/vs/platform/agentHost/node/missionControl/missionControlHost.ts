@@ -25,6 +25,7 @@ import { changesetSession, parseChangesetUri } from '../../common/changesetUri.j
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { isAhpChatChannel, readSessionExternal } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -276,7 +277,7 @@ export class MissionControlHost extends Disposable {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@IAgentHostProxyResolver proxyResolver: IAgentHostProxyResolver,
-		@IAgentHostGitHubEndpointService gitHubEndpoints: IAgentHostGitHubEndpointService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpoints: IAgentHostGitHubEndpointService,
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
@@ -284,6 +285,7 @@ export class MissionControlHost extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
 	) {
 		super();
 		this._ahpLogDirectory = URI.joinPath(environmentService.logsHome, 'ahp');
@@ -307,7 +309,7 @@ export class MissionControlHost extends Disposable {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
-			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
+			attach: (relay, roots, getRoots, getProjects, defaultDirectory, useLocalCredentials) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory, useLocalCredentials),
 			updateProjects: () => this._projects.initialize(),
 			onError: error => {
 				this._publishTelemetry.flush();
@@ -323,8 +325,8 @@ export class MissionControlHost extends Disposable {
 			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
-			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
-			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
+			getIdentityApiBase: () => this._gitHubEndpoints.getApiBaseUri(),
+			onDidChangeIdentityAuthority: this._gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
 			createAhpLogger: (clientId, generation) => this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
@@ -382,7 +384,7 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
-	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string): IDisposable {
+	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string, useLocalCredentials = false): IDisposable {
 		this._grantedRoots = getRoots;
 		this._projectRoots = getProjects;
 		const directory = defaultDirectory ?? roots[0];
@@ -395,6 +397,12 @@ export class MissionControlHost extends Disposable {
 				hostLaunchKind: this._options.hostLaunchKind,
 				allowExtensionMethods: false,
 				scopedRelayCredentials: true,
+				resolveRelayCredentials: useLocalCredentials ? async (principal, resource) => {
+					const copilotResource = this._gitHubEndpoints.getCopilotResource();
+					return resource === copilotResource.resource
+						? this._authenticationService.createLocalCredentialSource(principal, [copilotResource])
+						: undefined;
+				} : undefined,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
 				ahpLogDirectory: this._ahpLogDirectory,

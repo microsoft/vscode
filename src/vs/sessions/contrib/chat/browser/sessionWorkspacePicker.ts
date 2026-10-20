@@ -162,14 +162,6 @@ export interface IWorkspacePickerTrigger {
 	readonly hideWhenNoGitHubRepository?: boolean;
 }
 
-export interface IWorkspacePickerContextAction {
-	readonly label: string;
-	readonly description?: string;
-	readonly icon: ThemeIcon;
-	readonly placement?: 'top';
-	readonly run: () => Promise<void>;
-}
-
 export interface IResolvedBrowseSelection {
 	readonly workspace: ISessionWorkspace;
 	readonly providerId: string;
@@ -631,21 +623,6 @@ export class WorkspacePicker extends Disposable {
 		return Array.from(this._triggerElements);
 	}
 
-	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
-		return this.sessionsProvidersService.getProviders()
-			.filter(provider => this._isWorkspaceProviderVisible(provider.id))
-			.flatMap(provider => provider.browseActions)
-			.filter(action => action.attachesContext === true)
-			.map(action => ({
-				label: action.label,
-				description: action.description,
-				icon: action.icon,
-				run: async () => {
-					await this._dispatchPickerItem({ browseAction: action });
-				},
-			}));
-	}
-
 	/**
 	 * Shared trigger-creation core for {@link render}. Wires up the click /
 	 * keyboard / touch handlers and the per-trigger lifecycle.
@@ -909,7 +886,7 @@ export class WorkspacePicker extends Disposable {
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
-			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
+			? { className: 'sessions-new-chat-picker-list', showFilter: true, focusFilterOnOpen: isConsolidatedWorkspacePicker, filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined, submenuPointerIntent: isConsolidatedWorkspacePicker || undefined, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true }
 			: { className: 'sessions-new-chat-picker-list', submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true, minWidth: pickerWidth, maxWidth: pickerWidth, hideDefaultKeybindingTooltip: true };
 	}
 
@@ -2030,6 +2007,9 @@ export class WorkspacePicker extends Disposable {
 			},
 			submenuActions: noWorkspaceOption.submenuActions ? [...noWorkspaceOption.submenuActions] : undefined,
 			openSubmenuOnClick: !!noWorkspaceOption.submenuActions?.length,
+			hover: this._useConsolidatedRemoteWorkspaces() && noWorkspaceOption.submenuActions?.length
+				? { preserveVerticalPosition: true, alignToAnchorTop: true }
+				: undefined,
 		};
 		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]

@@ -317,6 +317,108 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	test('keeps session header read actions in parity with the overflow menu', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const isCreated = contextKeyService.createKey<boolean>('sessionIsCreated', true);
+		const isRead = contextKeyService.createKey<boolean>('sessionIsRead', true);
+		const isArchived = contextKeyService.createKey<boolean>('sessionIsArchived', false);
+		const readActionIds = new Set([MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID]);
+		const getActions = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(isIMenuItem)
+			.filter(item => readActionIds.has(item.command.id) && contextKeyService.contextMatchesRules(item.when))
+			.map(item => ({ id: item.command.id, group: item.group, order: item.order }));
+		const snapshots = [];
+		for (const archived of [false, true]) {
+			for (const read of [false, true]) {
+				isArchived.set(archived);
+				isRead.set(read);
+				snapshots.push({
+					read,
+					archived,
+					contextMenu: getActions(Menus.SessionHeaderContext),
+					overflow: getActions(Menus.SessionBarToolbar),
+				});
+			}
+		}
+
+		isCreated.set(false);
+		for (const read of [false, true]) {
+			isArchived.set(false);
+			isRead.set(read);
+			snapshots.push({
+				read,
+				archived: false,
+				contextMenu: getActions(Menus.SessionHeaderContext),
+				overflow: getActions(Menus.SessionBarToolbar),
+			});
+		}
+
+		assert.deepStrictEqual(snapshots, [
+			{
+				read: false, archived: false,
+				contextMenu: [{ id: MARK_SESSION_READ_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
+				overflow: [{ id: MARK_SESSION_READ_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
+			},
+			{
+				read: true, archived: false,
+				contextMenu: [{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
+				overflow: [{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: 'secondary/5_read', order: 0 }],
+			},
+			{ read: false, archived: true, contextMenu: [], overflow: [] },
+			{ read: true, archived: true, contextMenu: [], overflow: [] },
+			{ read: false, archived: false, contextMenu: [], overflow: [] },
+			{ read: true, archived: false, contextMenu: [], overflow: [] },
+		]);
+	});
+
+	test('keeps all session header and overflow menu contributions identical', () => {
+		const registration = disposables.add(new DisposableStore());
+		registration.add(registerAction2(ArchiveSessionAction));
+		registration.add(registerAction2(ArchiveChatAction));
+		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
+			.filter(item => item.group?.startsWith('secondary/'))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0))
+			.map(item => ({
+				action: isIMenuItem(item) ? item.command : { submenu: item.submenu, title: item.title },
+				group: item.group,
+				order: item.order,
+				when: item.when?.serialize(),
+			}));
+
+		assert.deepStrictEqual(getItems(Menus.SessionHeaderContext), getItems(Menus.SessionBarToolbar));
+	});
+
+	test('uses the designed action order and dividers in both session menus', () => {
+		disposables.add(registerAction2(ArchiveSessionAction));
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		for (const key of ['sessionIsCreated', 'sessionSupportsRename', 'sessionIsRead', 'multipleSessionsVisible', IsSessionsWindowContext.key, ChatContextKeys.enabled.key]) {
+			contextKeyService.createKey(key, true);
+		}
+		const getGroups = (menuId: MenuId) => {
+			const groups = new Map<string, string[]>();
+			const items = MenuRegistry.getMenuItems(menuId)
+				.filter(item => item.group?.startsWith('secondary/') && contextKeyService.contextMatchesRules(item.when))
+				.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? '') || (a.order ?? 0) - (b.order ?? 0));
+			for (const item of items) {
+				const group = item.group ?? '';
+				const actions = groups.get(group) ?? [];
+				actions.push(isIMenuItem(item) ? item.command.id : item.submenu.id);
+				groups.set(group, actions);
+			}
+			return [...groups.values()];
+		};
+		const expected = [
+			['sessions.sessionHeader.rename', ARCHIVE_SESSION_COMMAND_ID],
+			[TOGGLE_PIN_SESSION_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', Menus.SessionGridLayout.id],
+			[MARK_SESSION_UNREAD_COMMAND_ID],
+		];
+
+		assert.deepStrictEqual({
+			contextMenu: getGroups(Menus.SessionHeaderContext),
+			overflow: getGroups(Menus.SessionBarToolbar),
+		}, { contextMenu: expected, overflow: expected });
+	});
+
 	test('parent session action marks unread nested sessions as read', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const firstTestSession = createTestSession('First');
@@ -764,11 +866,11 @@ suite('Sessions - Actions', () => {
 			{ id: TOGGLE_PIN_SESSION_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
+			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
+			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
-			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'navigation' },
-			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 		]);
 	});
 
@@ -956,10 +1058,10 @@ suite('Sessions - Actions', () => {
 			},
 			contextMenu: {
 				chat: [
-					{ group: '1_view', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+					{ group: 'secondary/4_pin', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
 				],
 				session: [
-					{ group: '1_view', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+					{ group: 'secondary/4_pin', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
 				],
 			},
 		});
@@ -986,8 +1088,8 @@ suite('Sessions - Actions', () => {
 				session: 'sessionIsCreated && sessionSupportsRename && !sessionHeaderShowsChat && !sessionIsArchived',
 			},
 			contextMenu: {
-				chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat',
-				session: '!sessionHeaderShowsChat && sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+				chat: 'sessionFocusedChatIsRenameTarget && sessionHeaderShowsChat && sessionIsCreated && !sessionIsArchived',
+				session: 'sessionIsCreated && sessionSupportsRename && !sessionHeaderShowsChat && !sessionIsArchived',
 			},
 		});
 	});

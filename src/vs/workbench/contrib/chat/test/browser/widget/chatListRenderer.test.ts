@@ -3329,6 +3329,8 @@ suite('ChatListRenderer', () => {
 			renderer.renderElement(node, 0, template);
 			const loader = template.value.querySelector('.chat-image-generation-line');
 			assert.ok(loader);
+			// The loader is a square at the generated image size cap.
+			template.value.querySelector<HTMLElement>('.chat-image-generation-placeholder')!.style.setProperty('--chat-generated-image-max-height', '300px');
 			const style = mainWindow.getComputedStyle(loader);
 			const glyph = loader.querySelector('.chat-image-loading-glyphs');
 			assert.ok(glyph);
@@ -3369,7 +3371,7 @@ suite('ChatListRenderer', () => {
 				restoredHasDropdown: !!restored.template.value.querySelector('.chat-confirmation-widget-title'),
 				restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
 			}, {
-				preset: { width: '320px', height: '50px', glyphSize: '10px' },
+				preset: { width: '200px', height: '200px', glyphSize: '10px' },
 				running: { hasDropdown: true, loaderBeforeDropdown: false, toolIcons: 1 },
 				expanded: 'true',
 				sameLoader: true,
@@ -3544,7 +3546,9 @@ suite('ChatListRenderer', () => {
 				const icon = root.querySelector('.chat-tool-invocation-part > .chat-tool-call-icon')!;
 				return visual.getBoundingClientRect().left - icon.getBoundingClientRect().left;
 			};
-			const titleLeft = template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left;
+			// Relative to the chat, since the tall loader can add a page scrollbar that re-centers the test container.
+			const titleLeft = () => template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left - container.getBoundingClientRect().left;
+			const runningTitleLeft = titleLeft();
 			const runningOffset = offset(template.value, '.chat-image-generation-line');
 			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 1536, height: 1024 });
 			const context = canvas.getContext('2d')!;
@@ -3594,7 +3598,7 @@ suite('ChatListRenderer', () => {
 				revealOffsets,
 				completedOffset,
 				restoredOffset: offset(restored.template.value, '.chat-generated-image-result img'),
-				titleUnchanged: template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left === titleLeft,
+				titleUnchanged: titleLeft() === runningTitleLeft,
 				sizeUnchanged: imageSize(),
 				// Wrapped and bare images can differ by one CSS layout unit in intrinsic width.
 				restoredWidthMatches: Math.abs(restoredSize.width - finalFrameSize[0]) <= 1 / 64,
@@ -4086,6 +4090,8 @@ suite('ChatListRenderer', () => {
 				heights.push(image.getBoundingClientRect().height);
 			}
 			thumbnails[3].click();
+			// The pending preview is a square at the generated image size cap.
+			preview.querySelector<HTMLElement>('.chat-image-generation-placeholder')!.style.setProperty('--chat-generated-image-max-height', '300px');
 			const pending = {
 				previewHeight: preview.getBoundingClientRect().height,
 				thumbnailGap: thumbnails[0].getBoundingClientRect().top - preview.getBoundingClientRect().bottom,
@@ -4133,7 +4139,7 @@ suite('ChatListRenderer', () => {
 				selected: thumbnails.map(thumbnail => thumbnail.getAttribute('aria-pressed')),
 			}, {
 				layouts: Array.from({ length: 6 }, () => ({ onlyImageAndMargin: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
-				pending: { previewHeight: 50, thumbnailGap: 16, glyphs: 1, images: 0 },
+				pending: { previewHeight: 200, thumbnailGap: 16, glyphs: 1, images: 0 },
 				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
 				waiting: { height: 0, text: '', thumbnailGap: 24 },
 				failed: { height: 0, text: '', thumbnailGap: 16 },
@@ -5492,7 +5498,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const width of [280, 760]) {
-		test(`image generation uses a compact glyph band in a ${width}px chat, animates while visible, and holds still with reduced motion or high contrast`, async () => {
+		test(`image generation uses a square glyph loader in a ${width}px chat, animates while visible, and holds still with reduced motion or high contrast`, async () => {
 			const disposables = store.add(new DisposableStore());
 			const container = dom.append(mainWindow.document.body, dom.$('div'));
 			disposables.add(toDisposable(() => container.remove()));
@@ -5513,6 +5519,8 @@ suite('ChatListRenderer', () => {
 				'image-placeholder', undefined, {},
 			);
 			const placeholder = disposables.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool));
+			// The loader is a square at the generated image size cap, within the chat width.
+			placeholder.domNode.style.setProperty('--chat-generated-image-max-height', '300px');
 			container.appendChild(placeholder.domNode);
 			const field = placeholder.domNode.querySelector<HTMLCanvasElement>('canvas.chat-image-loading-glyphs');
 			assert.ok(field);
@@ -5565,8 +5573,8 @@ suite('ChatListRenderer', () => {
 			const holdsStillWithHighContrast = !await changesWithin(10);
 
 			assert.deepStrictEqual({
-				dimensions: [bounds.width, bounds.height],
-				devicePixels: field.width === Math.round(bounds.width * targetWindow.devicePixelRatio),
+				dimensions: [Math.round(bounds.width), Math.round(bounds.height)],
+				devicePixels: field.width === Math.round(field.clientWidth * targetWindow.devicePixelRatio),
 				painted,
 				animates,
 				pausesWhileHidden,
@@ -5576,7 +5584,7 @@ suite('ChatListRenderer', () => {
 				highContrastUsesSolidColors: highContrastFrame !== stillFrame,
 				semantics: [placeholder.domNode.getAttribute('role'), placeholder.domNode.getAttribute('aria-label'), placeholder.domNode.getAttribute('aria-busy'), field.parentElement?.getAttribute('aria-hidden')],
 				focusTargets: placeholder.domNode.querySelectorAll('button, a, [tabindex]').length,
-			}, { dimensions: [Math.min(width, 320), 50], devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
+			}, { dimensions: Array.from({ length: 2 }, () => Math.min(200, Math.floor((width - 30) * 2 / 3))), devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
 		});
 	}
 
@@ -13058,6 +13066,53 @@ suite('ChatListRenderer', () => {
 			}
 		}
 
+		for (const carousel of [true, false]) {
+			for (const selectedOption of ['save-sandbox-path', 'skip']) {
+				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					const resource = URI.file('/outside/new.ts').toString();
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'sandbox-write',
+						toolName: 'apply_patch',
+						displayName: 'Apply Patch',
+						confirmationTitle: 'Add to user sandbox settings and retry?',
+						invocationMessage: 'Allow read/write access to the folder.',
+						options: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+						],
+						edits: { items: [{ after: { uri: resource, content: { uri: resource } } }] },
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
+					const labels = buttons.map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
+					const button = buttons[selectedOption === 'skip' ? 1 : 0];
+					assert.ok(button);
+					button.click();
+
+					assert.deepStrictEqual({
+						labels,
+						hasFilePreview,
+						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
+					}, {
+						labels: ['Allow', 'Skip'],
+						hasFilePreview: true,
+						confirmed: {
+							type: ToolConfirmKind.UserAction,
+							selectedButton: selectedOption,
+							selectedButtonKind: selectedOption === 'skip' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+						},
+					});
+				});
+			}
+		}
+
 		for (const cdPrefix of ['', 'cd /workspace && ']) {
 			test(`restores edited shell approvals after switching sessions (${cdPrefix ? 'directory prefix' : 'no prefix'})`, async () => {
 				const context = createConfirmationRenderer();
@@ -13164,6 +13219,26 @@ suite('ChatListRenderer', () => {
 				},
 				primaryLabel: 'Deny Once',
 				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'deny-once', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'custom modified-file option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Add to user sandbox settings and retry?',
+						message: 'Allow read/write access to the folder.',
+						customOptions: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/outside/new.ts'), editKind: 'create' }],
+					},
+				},
+				primaryLabel: 'Allow',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'save-sandbox-path', selectedButtonKind: ConfirmationOptionKind.Approve },
 			},
 			{
 				name: 'modified-file option',

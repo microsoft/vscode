@@ -27,6 +27,7 @@ export class CopilotAgentStartupConfig {
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 		readonly localIndexEnabled: boolean,
 		readonly legacyApprovalRestricted = false,
+		readonly searchSubagentModel = '',
 		/** `chat.copilot.localModel.enabled`: the request handler can only be installed when the client starts. */
 		readonly localModel = false,
 		readonly executionSubagent = false,
