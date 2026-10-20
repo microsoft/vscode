@@ -168,6 +168,8 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 	}
 }
 
+const PolicyHelperFeatureFlag = 'POLICY_HELPER';
+
 function addCopilotFeatureFlag(env: Record<string, string | undefined>, flag: string): void {
 	const enabledFlags = env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'];
 	const flags = new Set((enabledFlags ?? '').split(',').map(f => f.trim()).filter(Boolean));
@@ -1506,6 +1508,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return runtimePath ? runtimePath : undefined;
 	}
 
+	private _getPolicyHelper(): string | undefined {
+		const policyHelper = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.PolicyHelper);
+		if (!policyHelper?.path.trim()) {
+			return undefined;
+		}
+		return JSON.stringify({ path: policyHelper.path, args: policyHelper.args ?? [] });
+	}
+
 	/**
 	 * Returns the installed Computer Use plugin. On a cache miss the client starts
 	 * without it while the plugin downloads in the background; the client then
@@ -1750,6 +1760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._getExecutionSubagentModel(),
 			this._isDynamicAutoTiersEnabled(),
 			this._isComputerUseEnabled(),
+			this._getPolicyHelper(),
 		);
 	}
 
@@ -3832,6 +3843,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (startupConfig.dynamicAutoTiers) {
 				addCopilotFeatureFlag(env, DynamicAutoTiersFeatureFlag);
 				this._logService.info(`[Copilot] Enabled runtime feature flag ${DynamicAutoTiersFeatureFlag}`);
+			}
+
+			// The runtime reads COPILOT_CLI_POLICY_HELPER only behind its feature flag.
+			if (startupConfig.policyHelper) {
+				addCopilotFeatureFlag(env, PolicyHelperFeatureFlag);
+				env['COPILOT_CLI_POLICY_HELPER'] = startupConfig.policyHelper;
+				this._logService.info(`[Copilot] Enabled runtime feature flag ${PolicyHelperFeatureFlag}`);
 			}
 
 			// Identify VS Code's agent host traffic in CAPI

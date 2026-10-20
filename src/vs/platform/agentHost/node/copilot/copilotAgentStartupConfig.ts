@@ -35,6 +35,8 @@ export class CopilotAgentStartupConfig {
 		readonly dynamicAutoTiers = false,
 		/** `chat.agentHost.computerUse.enabled`: built-in plugins can only be registered before any session exists. */
 		readonly computerUse = false,
+		/** Serialized `COPILOT_CLI_POLICY_HELPER` value; the runtime reads it only at startup. */
+		readonly policyHelper: string | undefined = undefined,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {
@@ -48,7 +50,7 @@ export class CopilotAgentStartupConfig {
 	describeChangesFrom(other: CopilotAgentStartupConfig): string {
 		const values = new Map(Object.entries(this));
 		return this.changedKeysFrom(other)
-			.map(key => key === 'managedSettingsPermissions' ? key : `${key}=${String(values.get(key))}`)
+			.map(key => key === 'managedSettingsPermissions' || key === 'policyHelper' ? key : `${key}=${String(values.get(key))}`)
 			.join(', ');
 	}
 
