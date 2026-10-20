@@ -281,10 +281,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			if (choices === undefined) {
 				return;
 			}
-			if (this._requestedRepository(this._editorChatSessionsService.getSessionOptions(model.sessionResource)) !== undefined) {
-				void this._draftPreparationService.discard(model.sessionResource);
-			} else if (widget.visible && !model.hasRequests && widget.getInput().trim()) {
-				this._draftPreparationService.prepare(model.sessionResource);
+			const repoNwo = this._requestedRepository(this._editorChatSessionsService.getSessionOptions(model.sessionResource));
+			this._draftPreparationService.updateRepository(model.sessionResource, repoNwo);
+			if (widget.visible && !model.hasRequests && widget.getInput().trim()) {
+				this._draftPreparationService.prepare(model.sessionResource, repoNwo);
 			}
 		}));
 		return store;

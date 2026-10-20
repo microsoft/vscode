@@ -22,9 +22,12 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			included: help.includes(preparation),
 			setting: preparation.includes('chat.agentHost.cloudSandbox.earlyPreparation'),
+			repositories: preparation.includes('with or without a repository'),
 			private: preparation.includes('no conversation is added to the session list until you press Send'),
-			pending: preparation.includes('Send waits for that same environment'),
-		}, { included: true, setting: true, private: true, pending: true });
+			pending: preparation.includes('Send waits for pending preparation'),
+			fallback: preparation.includes('otherwise it can continue without early preparation'),
+			repositoryChange: preparation.includes('when you change repositories'),
+		}, { included: true, setting: true, repositories: true, private: true, pending: true, fallback: true, repositoryChange: true });
 	});
 	test('documents the session working set while preserving existing editor guidance', () => {
 		const read = (sessionWorkingSetUndo: boolean) => {

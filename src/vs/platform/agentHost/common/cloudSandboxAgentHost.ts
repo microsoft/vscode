@@ -95,13 +95,15 @@ export interface ICloudSandboxCreateSessionRequest {
 	readonly repoNwo?: string;
 	/** Existing online environment to reuse. Omit to provision a new environment. */
 	readonly environmentId?: string;
+	/** Reservation to consume on submission; requires expectedAccountKey and excludes environmentId. */
+	readonly reservedTaskId?: string;
 	/** Expected account identity, checked locally before sending the request. */
 	readonly expectedAccountKey?: string;
 	/** First user turn. Mission Control starts no run, so the client sends it over the relay. */
 	readonly prompt: string;
 }
 
-/** A freshly provisioned sandbox task/session pair, bound to a concrete environment. */
+/** A sandbox task/session pair, bound to a concrete environment. */
 export interface ICloudSandboxCreatedSession {
 	/** Mission Control task id owning the session; the key its persisted AHP history is under. */
 	readonly taskId: string;
@@ -109,27 +111,48 @@ export interface ICloudSandboxCreatedSession {
 	readonly sessionId: string;
 	/** The sandbox VM Mission Control bound, never {@link CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID}. */
 	readonly environmentId: string;
+	/** Present for reservation submissions: true when reused, false when the server created a fresh task. */
+	readonly claimed?: boolean;
 }
 
-export interface ICloudSandboxPreparedEnvironment {
-	readonly environmentId: string;
+/** Client task-creation provenance, not a claim about environment readiness. */
+export type CloudSandboxTaskCreationPath = 'newEnvironment' | 'existingEnvironment' | 'reservationClaimed' | 'reservationFallback' | 'reservationUnconfirmed' | 'unknown';
+
+/** The draft configuration to reserve without submitting a user turn. */
+export interface ICloudSandboxReserveSessionRequest {
+	readonly repoNwo?: string;
+	/** Renew this reservation when compatible, or accept its replacement. */
+	readonly reservedTaskId?: string;
+	readonly expectedAccountKey: string;
+}
+
+/** A hidden task reservation; its environment is not necessarily ready. */
+export interface ICloudSandboxReservedSession extends ICloudSandboxCreatedSession {
+	/** Server lease expiry in milliseconds since the Unix epoch. */
+	readonly reservationExpiresAt: number;
+}
+
+export interface ICloudSandboxPreparedReservation extends ICloudSandboxReservedSession {
 	readonly expectedAccountKey: string;
 }
 
 export const ICloudSandboxDraftPreparationService = createDecorator<ICloudSandboxDraftPreparationService>('cloudSandboxDraftPreparationService');
 
-/** Owns unused environments for default-context drafts, independently of either chat UI. */
+/** Owns unsubmitted task reservations independently of either chat UI. */
 export interface ICloudSandboxDraftPreparationService {
 	readonly _serviceBrand: undefined;
 
-	/** Start at most one allocation for an eligible draft, without creating a task or session. */
-	prepare(draftResource: URI): void;
+	/** Start at most one reservation for an eligible draft, without submitting its prompt or publishing a session. */
+	prepare(draftResource: URI, repoNwo?: string): void;
 
-	/** Claim preparation once for Send and wait for readiness; the caller owns it after this resolves. Missing preparation returns undefined. */
-	take(draftResource: URI, token: CancellationToken): Promise<ICloudSandboxPreparedEnvironment | undefined>;
+	/** Release unused preparation when the resolved repository changes, without starting or replacing it. */
+	updateRepository(draftResource: URI, repoNwo: string | undefined): void;
+
+	/** Take preparation once for Send and wait for its receipt, not environment readiness. Missing or failed optional preparation returns undefined. */
+	take(draftResource: URI, token: CancellationToken): Promise<ICloudSandboxPreparedReservation | undefined>;
 
 	/** Return the receipt from take for cleanup only when task creation was not dispatched. */
-	release(prepared: ICloudSandboxPreparedEnvironment): Promise<void>;
+	release(prepared: ICloudSandboxPreparedReservation): Promise<void>;
 
 	/** Release unused preparation without allowing subsequent typing to replace it. */
 	discard(draftResource: URI): Promise<void>;
@@ -344,14 +367,17 @@ export interface ICloudSandboxApiService {
 	/** Enumerate sandbox sessions, optionally returning changes since the last successful scan. */
 	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;
 
+	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
+	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
+
 	/**
-	 * Create a sandbox task and bound session, optionally reusing an online environment; the caller sends the first turn over the relay.
+	 * Create a sandbox task and bound session, optionally consuming a reservation or reusing an online environment.
 	 * The optional callback reports the HTTP dispatch attempt, after local validation and authentication.
 	 */
 	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession>;
 
-	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
-	deleteTask(taskId: string, token: CancellationToken): Promise<void>;
+	/** Soft-delete the task without waking the sandbox, optionally requiring the account that created it. */
+	deleteTask(taskId: string, token: CancellationToken, expectedAccountKey?: string): Promise<void>;
 
 	/** Rename the Mission Control task without waking the sandbox. */
 	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
@@ -443,6 +469,10 @@ export interface ICloudSandboxConnectOptions {
 	readonly connectionSource?: 'created' | 'existing';
 	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
 	readonly provisioningStartedAt?: number;
+	/** Local startup provenance for timing telemetry; never persisted or sent to MC. */
+	readonly taskCreationPath?: CloudSandboxTaskCreationPath;
+	/** Time spent awaiting the draft reservation during submission; a subset of provisioning time, not an additional stage. */
+	readonly reservationWaitMs?: number;
 }
 
 /**

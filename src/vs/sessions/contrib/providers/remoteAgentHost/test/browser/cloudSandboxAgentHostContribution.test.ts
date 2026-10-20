@@ -32,6 +32,7 @@ import {
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxCreateSessionRequest,
 	type ICloudSandboxCreatedSession,
+	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveredSession,
 	type ICloudSandboxDiscoveryResult,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -547,8 +548,8 @@ suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('waits for the composing environment before creating or seeding an Agents task', async () => {
-		const receipt = new DeferredPromise<{ environmentId: string; expectedAccountKey: string }>();
+	test('waits for the composing reservation before submitting or seeding an Agents task', () => runWithFakedTimers({}, async () => {
+		const receipt = new DeferredPromise<ICloudSandboxPreparedReservation>();
 		const entered = new DeferredPromise<void>();
 		const claims: string[] = [];
 		const preparation = new class extends mock<ICloudSandboxDraftPreparationService>() {
@@ -559,22 +560,137 @@ suite('CloudSandboxAgentHostContribution', () => {
 			}
 		}();
 		const created = { environmentId: 'env-prepared', sessionId: 'session-prepared', taskId: 'task-prepared' };
-		const h = await createContribution(store, [], { draftPreparation: preparation, createSession: async () => created });
+		const logs: string[] = [];
+		const h = await createContribution(store, [], {
+			draftPreparation: preparation, createSession: async () => ({ ...created, claimed: true }),
+			logService: new class extends NullLogService {
+				override info(message: string): void { logs.push(message); }
+			}(),
+		});
+		const taskCreationPaths: (ICloudSandboxConnectOptions['taskCreationPath'])[] = [];
+		const reservationWaits: (number | undefined)[] = [];
+		h.onConnect = async options => {
+			taskCreationPaths.push(options.taskCreationPath);
+			reservationWaits.push(options.reservationWaitMs);
+		};
 		const draft = URI.parse('copilot-cloud-sandbox:/untitled-prepared');
 		const sending = h.contribution.provisionSession({ prompt: 'final prompt' }, CancellationToken.None, undefined, draft);
 		await entered.p;
 		const beforeReady = { tasks: [...h.created], providers: h.contribution.stubProviders.size };
-		await receipt.complete({ environmentId: created.environmentId, expectedAccountKey: '["github","account-1"]' });
+		await timeout(200);
+		await receipt.complete({ ...created, reservationExpiresAt: Date.UTC(2100, 0, 1), expectedAccountKey: '["github","account-1"]' });
 		const result = await sending;
 
 		assert.deepStrictEqual({
-			beforeReady, claims, requests: h.created, environmentId: result.environmentId, sessionId: result.sessionId,
+			beforeReady, claims, requests: h.created, environmentId: result.environmentId, sessionId: result.sessionId, taskCreationPaths, reservationWaits,
+			submitted: logs.filter(message => message.includes('event=taskSubmitted ')),
 		}, {
 			beforeReady: { tasks: [], providers: 0 },
 			claims: [draft.toString()],
-			requests: [{ prompt: 'final prompt', environmentId: created.environmentId, expectedAccountKey: '["github","account-1"]' }],
+			requests: [{ prompt: 'final prompt', reservedTaskId: created.taskId, expectedAccountKey: '["github","account-1"]' }],
 			environmentId: created.environmentId, sessionId: created.sessionId,
+			taskCreationPaths: ['reservationClaimed'], reservationWaits: [200],
+			submitted: ['[CloudSandboxAgentHost] event=taskSubmitted taskCreationPath=reservationClaimed taskId="task-prepared" environmentId="env-prepared" reservationWaitMs=200 durationMs=200'],
 		});
+	}));
+
+	test('uses the fallback task without releasing a reservation that another Send may own', async () => {
+		const prepared: ICloudSandboxPreparedReservation = {
+			taskId: 'task-prepared', sessionId: 'session-prepared', environmentId: 'env-prepared',
+			reservationExpiresAt: Date.UTC(2100, 0, 1), expectedAccountKey: '["github","account-1"]',
+		};
+		let releases = 0;
+		const preparation = new class extends mock<ICloudSandboxDraftPreparationService>() {
+			override async take() { return prepared; }
+			override async release() { releases++; }
+		}();
+		const created = { taskId: 'task-fallback', sessionId: 'session-fallback', environmentId: 'env-fallback', claimed: false };
+		const h = await createContribution(store, [], { draftPreparation: preparation, createSession: async () => created });
+		const paths: (ICloudSandboxConnectOptions['taskCreationPath'])[] = [];
+		h.onConnect = async options => { paths.push(options.taskCreationPath); };
+
+		const result = await h.contribution.provisionSession({ prompt: 'final prompt' }, CancellationToken.None, undefined, URI.parse('copilot-cloud-sandbox:/untitled-fallback'));
+
+		assert.deepStrictEqual({
+			requests: h.created, connected: h.connectedTo, paths, releases,
+			result: { taskId: result.taskId, sessionId: result.sessionId, environmentId: result.environmentId },
+		}, {
+			requests: [{ prompt: 'final prompt', reservedTaskId: 'task-prepared', expectedAccountKey: prepared.expectedAccountKey }],
+			connected: ['env-fallback'], paths: ['reservationFallback'], releases: 0,
+			result: { taskId: 'task-fallback', sessionId: 'session-fallback', environmentId: 'env-fallback' },
+		});
+	});
+
+	for (const mismatch of ['account', 'reservation'] as const) {
+		test(`draft handoff refuses a mismatched ${mismatch} before submission`, async () => {
+			let takes = 0;
+			let releases = 0;
+			const preparation = new class extends mock<ICloudSandboxDraftPreparationService>() {
+				override async take() {
+					takes++;
+					return {
+						taskId: 'task-prepared', sessionId: 'session-prepared', environmentId: 'env-prepared',
+						reservationExpiresAt: Date.UTC(2100, 0, 1), expectedAccountKey: '["github","account-1"]',
+					};
+				}
+				override async release() { releases++; }
+			}();
+			const h = await createContribution(store, [], { draftPreparation: preparation });
+
+			await assert.rejects(h.contribution.provisionSession({
+				prompt: 'final prompt',
+				...(mismatch === 'account' ? { expectedAccountKey: 'other-account' } : { reservedTaskId: 'other-reservation' }),
+			}, CancellationToken.None, undefined, URI.parse('copilot-cloud-sandbox:/untitled-mismatch')), isCancellationError);
+
+			assert.deepStrictEqual({ takes, releases, requests: h.created, connections: h.connectedTo }, {
+				takes: mismatch === 'account' ? 0 : 1, releases: mismatch === 'account' ? 0 : 1,
+				requests: [], connections: [],
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ path: 'newEnvironment', request: {} },
+		{ path: 'existingEnvironment', request: { environmentId: 'env-new' } },
+		{ path: 'reservationClaimed', request: { reservedTaskId: 'task-new' }, claimed: true },
+		{ path: 'reservationFallback', request: { reservedTaskId: 'task-old' }, claimed: false },
+	]) {
+		test(`forwards ${scenario.path} from task submission to connection timing`, async () => {
+			const logs: string[] = [];
+			const h = await createContribution(store, [], {
+				createSession: async () => ({ environmentId: 'env-new', sessionId: 'sess-new', taskId: 'task-new', claimed: scenario.claimed }),
+				logService: new class extends NullLogService {
+					override info(message: string): void { logs.push(message); }
+				}(),
+			});
+			const taskCreationPaths: (ICloudSandboxConnectOptions['taskCreationPath'])[] = [];
+			h.onConnect = async options => { taskCreationPaths.push(options.taskCreationPath); };
+
+			await h.contribution.provisionSession({
+				...scenario.request, repoNwo: 'private-owner/private-repo', prompt: 'private-prompt', expectedAccountKey: '["github","account-1"]',
+			}, CancellationToken.None);
+
+			const submitted = logs.filter(message => message.includes('event=taskSubmitted '));
+			assert.deepStrictEqual({
+				taskCreationPaths,
+				loggedPaths: submitted.map(message => message.match(/\btaskCreationPath=(?<path>\w+)/)?.groups?.path),
+				privateContent: submitted.some(message => message.includes('private-') || message.includes('account-1')),
+			}, { taskCreationPaths: [scenario.path], loggedPaths: [scenario.path], privateContent: false });
+		});
+	}
+
+	test('failed task submission does not log a completed submission', async () => {
+		const logs: string[] = [];
+		const h = await createContribution(store, [], {
+			createSession: async () => { throw new Error('request failed'); },
+			logService: new class extends NullLogService {
+				override info(message: string): void { logs.push(message); }
+			}(),
+		});
+
+		await assert.rejects(h.contribution.provisionSession({ prompt: 'private-prompt' }, CancellationToken.None), /request failed/);
+
+		assert.deepStrictEqual(logs.filter(message => message.includes('event=taskSubmitted ')), []);
 	});
 
 	test('keeps discovered environments behind one logical Cloud provider across restoration', async () => {

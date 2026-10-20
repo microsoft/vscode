@@ -1440,8 +1440,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!session || session.isNewSessionRequestInProgress.get()) {
 			return;
 		}
-		if (this._usesSandbox(session) && session.isQuickChat.get() && session.repoNwo === undefined && !session.selectedOptions.has('repositories')) {
-			this.draftPreparationService.prepare(session.resource);
+		const repoNwo = session.repoNwo;
+		if (this._usesSandbox(session) && (repoNwo || (session.isQuickChat.get() && !session.selectedOptions.has('repositories')))) {
+			this.draftPreparationService.prepare(session.resource, repoNwo);
 		} else {
 			void this.draftPreparationService.discard(session.resource);
 		}

@@ -21,6 +21,7 @@ import {
 	CloudSandboxAutoConnectOnOpenSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
+	type CloudSandboxTaskCreationPath,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
 	ICloudSandboxDraftPreparationService,
@@ -29,7 +30,7 @@ import {
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxCreatedSession,
 	type ICloudSandboxCreateSessionRequest,
-	type ICloudSandboxPreparedEnvironment,
+	type ICloudSandboxPreparedReservation,
 	type ICloudSandboxDiscoveryResult,
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -56,6 +57,7 @@ import { withSessionInitiator } from '../../../../../platform/agentHost/common/m
 import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { getCloudSandboxTaskCreationPath } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const DISCOVERY_STALE_AFTER_MS = 60_000;
@@ -979,7 +981,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const enabledToken = this._enabledCts.token;
 		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
 		const provisioningStartedAt = Date.now();
-		const created = await this._createTaskForDraft(request, draftResource, accountKey, token);
+		const { created, taskCreationPath, reservationWaitMs } = await this._createTaskForDraft(request, draftResource, accountKey, token);
+		this._logService.info(`${LOG_PREFIX} event=taskSubmitted taskCreationPath=${taskCreationPath} taskId=${JSON.stringify(created.taskId)} environmentId=${JSON.stringify(created.environmentId)} reservationWaitMs=${reservationWaitMs} durationMs=${Math.max(0, Date.now() - provisioningStartedAt)}`);
 		const name = request.repoNwo ?? created.taskId;
 		const title = newSessionTitle(request.prompt, name);
 		const address = cloudSandboxAddress(created.environmentId);
@@ -1009,7 +1012,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			seededProvider = provider;
 			this._persistInventory();
 			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
-			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created', provisioningStartedAt });
+			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created', provisioningStartedAt, taskCreationPath, reservationWaitMs });
 			await raceCancellationError(connectionAttempt, token);
 			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
@@ -1032,36 +1035,53 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 	}
 
-	private async _createTaskForDraft(request: ICloudSandboxCreateSessionRequest, draftResource: URI | undefined, accountKey: string, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+	private async _createTaskForDraft(request: ICloudSandboxCreateSessionRequest, draftResource: URI | undefined, accountKey: string, token: CancellationToken): Promise<{ readonly created: ICloudSandboxCreatedSession; readonly taskCreationPath: CloudSandboxTaskCreationPath; readonly reservationWaitMs: number }> {
 		if (!draftResource) {
-			return this._apiService.createSession(request, token);
+			const created = await this._apiService.createSession(request, token);
+			return { created, taskCreationPath: getCloudSandboxTaskCreationPath(request, created), reservationWaitMs: 0 };
 		}
 		const store = new DisposableStore();
 		const source = store.add(new CancellationTokenSource(token));
 		store.add(this._enabledCts.token.onCancellationRequested(() => source.cancel()));
-		let prepared: ICloudSandboxPreparedEnvironment | undefined;
+		let prepared: ICloudSandboxPreparedReservation | undefined;
+		let reservationWaitMs = 0;
 		let taskRequestStarted = false;
 		try {
-			if (request.repoNwo === undefined && request.environmentId === undefined) {
+			if (request.expectedAccountKey !== undefined && request.expectedAccountKey !== accountKey) {
+				throw new CancellationError();
+			}
+			if (request.environmentId === undefined) {
+				const startedAt = Date.now();
 				prepared = await this._draftPreparationService.take(draftResource, source.token);
+				reservationWaitMs = Math.max(0, Date.now() - startedAt);
+				if (request.reservedTaskId !== undefined && request.reservedTaskId.trim() !== prepared?.taskId) {
+					throw new CancellationError();
+				}
 			} else {
 				void this._draftPreparationService.discard(draftResource);
 			}
 			if (source.token.isCancellationRequested || !this._isEnabled() || (prepared && prepared.expectedAccountKey !== accountKey)) {
 				throw new CancellationError();
 			}
-			return await this._apiService.createSession({ ...request, ...prepared }, source.token, () => {
+			const taskRequest = {
+				...request,
+				expectedAccountKey: request.expectedAccountKey ?? accountKey,
+				...(prepared ? { reservedTaskId: prepared.taskId } : {}),
+			};
+			const created = await this._apiService.createSession(taskRequest, source.token, () => {
 				taskRequestStarted = true;
 			});
+			// A fallback may mean another Send claimed the reservation; do not release it here.
+			return { created, taskCreationPath: getCloudSandboxTaskCreationPath(taskRequest, created), reservationWaitMs };
 		} catch (error) {
 			if (prepared && !taskRequestStarted) {
 				try {
 					await this._draftPreparationService.release(prepared);
 				} catch (cleanupError) {
-					this._logService.warn(`${LOG_PREFIX} Could not release prepared environment ${prepared.environmentId} before task creation.`, cleanupError);
+					this._logService.warn(`${LOG_PREFIX} Could not release task reservation ${prepared.taskId} before submission.`, cleanupError);
 				}
 			} else if (prepared) {
-				this._logService.warn(`${LOG_PREFIX} Retaining prepared environment ${prepared.environmentId} after a failed task request; its outcome must be reconciled.`);
+				this._logService.warn(`${LOG_PREFIX} Retaining task reservation ${prepared.taskId} after a failed submission; its outcome must be reconciled.`);
 			}
 			throw error;
 		} finally {

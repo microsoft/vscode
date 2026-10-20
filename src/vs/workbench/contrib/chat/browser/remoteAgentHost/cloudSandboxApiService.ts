@@ -28,6 +28,8 @@ import {
 	ICloudSandboxApiService,
 	ICloudSandboxCreatedSession,
 	ICloudSandboxCreateSessionRequest,
+	ICloudSandboxReservedSession,
+	ICloudSandboxReserveSessionRequest,
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
@@ -46,7 +48,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
+import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
 import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
@@ -72,6 +74,9 @@ interface ITaskSummary {
 
 /** A full task, which additionally carries the sessions bound to sandbox environments. */
 interface ITaskDetail extends ITaskSummary {
+	readonly reserved?: boolean;
+	readonly claimed?: boolean;
+	readonly reservation_expires_at?: string;
 	readonly sessions?: readonly {
 		readonly id: string;
 		readonly environment_id?: string;
@@ -632,6 +637,28 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return since ? { kind: 'incremental', sessions, removedTaskIds } : { kind: 'complete', sessions };
 	}
 
+	async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession> {
+		const context = await this._requestTaskCreation({
+			repoNwo: request.repoNwo,
+			expectedAccountKey: request.expectedAccountKey,
+			prompt: '',
+		}, token, undefined, { taskId: request.reservedTaskId });
+		const task = await this._readJson<ITaskDetail>(context);
+		const taskId = typeof task?.id === 'string' && task.id.trim().length > 0 ? task.id : undefined;
+		const binding = task && getTaskEnvironmentBinding(task);
+		const reservationExpiresAt = typeof task?.reservation_expires_at === 'string' ? Date.parse(task.reservation_expires_at) : NaN;
+		if (!taskId || !binding || task?.reserved !== true || !Number.isFinite(reservationExpiresAt)) {
+			if (taskId && taskId !== request.reservedTaskId?.trim()) {
+				await this._deleteTaskBestEffort(taskId, request.expectedAccountKey);
+			} else if (taskId) {
+				this._logService.warn(`${LOG_PREFIX} Retaining task ${taskId} after an unusable renewal response; it may already have been claimed.`);
+			}
+			throw new CloudSandboxRequestError(context.res.statusCode, localize('cloudSandbox.invalidTaskReservation', "The cloud service did not return a usable task reservation."));
+		}
+		this._logService.info(`${LOG_PREFIX} Reserved sandbox task ${taskId} (session ${binding.sessionId}) on environment ${binding.environmentId}.`);
+		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId, reservationExpiresAt };
+	}
+
 	/**
 	 * Provision a sandbox task and environment without starting an agent turn.
 	 * The caller sends the first turn over the relay.
@@ -640,15 +667,48 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const startedAt = Date.now();
 		try {
 			const created = await this._createSession(request, token, onRequest);
-			this._telemetry.reportProvisioningOutcome(token.isCancellationRequested ? 'cancelled' : 'success', Math.max(0, Date.now() - startedAt));
+			this._telemetry.reportProvisioningOutcome(token.isCancellationRequested ? 'cancelled' : 'success', Math.max(0, Date.now() - startedAt), getCloudSandboxTaskCreationPath(request, created));
 			return created;
 		} catch (error) {
-			this._telemetry.reportProvisioningOutcome(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure', Math.max(0, Date.now() - startedAt));
+			this._telemetry.reportProvisioningOutcome(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure', Math.max(0, Date.now() - startedAt), getCloudSandboxTaskCreationPath(request));
 			throw error;
 		}
 	}
 
 	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
+		const context = await this._requestTaskCreation(request, token, onRequest);
+		const task = await this._readJson<ITaskDetail>(context);
+		const taskId = typeof task?.id === 'string' && task.id.trim().length > 0 ? task.id : undefined;
+		if (!taskId) {
+			throw new CloudSandboxRequestError(context.res.statusCode, 'Mission Control task create returned no task id');
+		}
+		let claimed: boolean | undefined;
+		if (request.reservedTaskId !== undefined) {
+			const serverClaimed = task?.claimed;
+			const reserved = task?.reserved;
+			if (typeof serverClaimed !== 'boolean' || (reserved !== undefined && reserved !== false) || (serverClaimed && taskId !== request.reservedTaskId.trim())) {
+				throw new CloudSandboxRequestError(context.res.statusCode, localize('cloudSandbox.invalidReservationSubmission', "The cloud service did not confirm the task reservation outcome."));
+			}
+			claimed = serverClaimed;
+		}
+		const binding = task && getTaskEnvironmentBinding(task);
+		if (!binding) {
+			if (request.reservedTaskId === undefined) {
+				// An unusable task must not remain in the session list.
+				await this._deleteTaskBestEffort(taskId, request.expectedAccountKey);
+			} else {
+				this._logService.warn(`${LOG_PREFIX} Retaining task ${taskId} after an incomplete reservation submission response; its outcome must be reconciled.`);
+			}
+			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound no sandbox session to task ${taskId}`);
+		}
+		if (request.environmentId !== undefined && binding.environmentId !== request.environmentId) {
+			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound sandbox task ${taskId} to a different environment`);
+		}
+		this._logService.info(`${LOG_PREFIX} Provisioned sandbox task ${taskId} (session ${binding.sessionId}) on environment ${binding.environmentId}.`);
+		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId, ...(claimed !== undefined ? { claimed } : {}) };
+	}
+
+	private async _requestTaskCreation(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void, reservation?: { readonly taskId?: string }): Promise<IRequestContext> {
 		const repository = parseNwo(request.repoNwo);
 		if (request.repoNwo !== undefined && !repository) {
 			throw new Error(localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."));
@@ -656,7 +716,20 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (request.environmentId !== undefined && !isConcreteEnvironmentId(request.environmentId)) {
 			throw new Error(localize('cloudSandbox.invalidEnvironment', "The prepared sandbox environment identifier is invalid."));
 		}
-		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
+		const requestedReservationId = reservation ? reservation.taskId : request.reservedTaskId;
+		const reservedTaskId = requestedReservationId?.trim();
+		if (requestedReservationId !== undefined && !reservedTaskId) {
+			throw new Error(localize('cloudSandbox.invalidReservation', "The task reservation identifier must not be empty."));
+		}
+		if (!reservation && reservedTaskId) {
+			if (request.environmentId !== undefined) {
+				throw new Error(localize('cloudSandbox.reservationEnvironmentConflict', "A task reservation cannot be combined with an existing environment."));
+			}
+			if (request.expectedAccountKey === undefined) {
+				throw new Error(localize('cloudSandbox.reservationAccountRequired', "The account that reserved the task is required to submit it."));
+			}
+		}
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', reservation ? 'reserveTask' : 'createTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, CREATE_TIMEOUT_MS, session => ({
@@ -666,43 +739,33 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			...(repository ? { repositories: [repository] } : {}),
 			// New repo-less compute uses the account authorizing this request.
 			...(!repository && request.environmentId === undefined ? { compute: { scope: session.account.label } } : {}),
+			...(reservation ? { reserve: true } : {}),
+			...(reservedTaskId ? { reserved_task_id: reservedTaskId } : {}),
 		}), undefined, onRequest, { expectedAccountKey: request.expectedAccountKey });
 		if (!isSuccess(context)) {
 			// Read once: the body carries both the id to clean up and the failure message.
 			const failureBody = await asText(context).catch(() => '') ?? '';
 
 			const orphanedTaskId = this._taskIdFromFailure(failureBody);
-			if (orphanedTaskId) {
-				await this._deleteTaskBestEffort(orphanedTaskId);
+			if (!reservation && reservedTaskId) {
+				this._logService.warn(`${LOG_PREFIX} Retaining reservation ${reservedTaskId} and any created task after a failed submission; its outcome must be reconciled.`);
+			} else if (orphanedTaskId && reservation && orphanedTaskId === reservedTaskId) {
+				this._logService.warn(`${LOG_PREFIX} Retaining task ${orphanedTaskId} after a failed renewal request; it may already have been claimed.`);
+			} else if (orphanedTaskId) {
+				await this._deleteTaskBestEffort(orphanedTaskId, request.expectedAccountKey);
 			} else {
 				this._logService.warn(`${LOG_PREFIX} Task create failed (HTTP ${context.res.statusCode ?? 'unknown'}) without reporting a task id. Mission Control may have recorded a task before failing; such a task is orphaned and can only be removed server-side.`);
 			}
-			await this._throwForStatus('task create', context, failureBody);
+			await this._throwForStatus(reservation ? 'task reservation' : 'task create', context, failureBody);
 		}
-		const task = await this._readJson<ITaskDetail>(context);
-		const taskId = task?.id;
-		if (!taskId) {
-			throw new CloudSandboxRequestError(context.res.statusCode, 'Mission Control task create returned no task id');
-		}
-		const binding = task && getTaskEnvironmentBinding(task);
-		if (!binding) {
-			// A task with no bound session is unusable — the relay has nothing to address — but it
-			// still shows up in the user's task list, so drop it rather than leaving litter behind.
-			await this._deleteTaskBestEffort(taskId);
-			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound no sandbox session to task ${taskId}`);
-		}
-		if (request.environmentId !== undefined && binding.environmentId !== request.environmentId) {
-			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound sandbox task ${taskId} to a different environment`);
-		}
-		this._logService.info(`${LOG_PREFIX} Provisioned sandbox task ${taskId} (session ${binding.sessionId}) on environment ${binding.environmentId}.`);
-		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId };
+		return context;
 	}
 
-	async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
+	async deleteTask(taskId: string, token: CancellationToken, expectedAccountKey?: string): Promise<void> {
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE', undefined, { expectedAccountKey });
 		if (!isSuccess(context) && context.res.statusCode !== 404) {
 			await this._throwForStatus('task delete', context);
 		}
@@ -756,9 +819,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * provisioning error such as HTTP 500 `failed to create agent compute`) leaves a task behind.
 	 * When the failure response omits the id, that orphan can only be cleaned up server-side.
 	 */
-	private async _deleteTaskBestEffort(taskId: string): Promise<void> {
+	private async _deleteTaskBestEffort(taskId: string, expectedAccountKey?: string): Promise<void> {
 		try {
-			await this.deleteTask(taskId, CancellationToken.None);
+			await this.deleteTask(taskId, CancellationToken.None, expectedAccountKey);
 			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}.`);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}. It remains and can only be removed server-side.`);
@@ -1300,8 +1363,11 @@ function parseNwo(nwo: string | undefined): { owner: string; name: string } | un
  * `sessions[]`. Undefined when no session is bound to an environment yet.
  */
 function getTaskEnvironmentBinding(task: ITaskDetail): { environmentId: string; sessionId: string } | undefined {
-	for (const session of task.sessions ?? []) {
-		if (session.environment_id && session.environment_id.length > 0 && session.id.length > 0) {
+	if (!Array.isArray(task.sessions)) {
+		return undefined;
+	}
+	for (const session of task.sessions) {
+		if (isConcreteEnvironmentId(session?.environment_id) && typeof session.id === 'string' && session.id.trim().length > 0) {
 			return { environmentId: session.environment_id, sessionId: session.id };
 		}
 	}

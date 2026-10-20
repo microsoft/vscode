@@ -40,7 +40,7 @@ import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../.
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, type ICloudSandboxCreateSessionRequest, type ICloudSandboxReserveSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
@@ -2914,6 +2914,7 @@ suite('CopilotChatSessionsProvider', () => {
 			const allocationStarted = new DeferredPromise<void>();
 			const deleted = new DeferredPromise<void>();
 			const calls: string[] = [];
+			const requests: ICloudSandboxReserveSessionRequest[] = [];
 			let allocationToken: CancellationToken | undefined;
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
@@ -2931,19 +2932,17 @@ suite('CopilotChatSessionsProvider', () => {
 			instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 				override readonly onDidChangeAccount = Event.None;
 				override async getAccountKey() { return 'account-a'; }
-				override async provisionEnvironment(token: CancellationToken) {
-					calls.push('allocate');
+				override async reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken) {
+					calls.push('reserve');
+					requests.push(request);
 					allocationToken = token;
 					if (!allocationStarted.isSettled) {
 						void allocationStarted.complete();
 					}
-					return allocation.p;
+					const environmentId = await allocation.p;
+					return { taskId: 'task-new', sessionId: 'sess-new', environmentId, reservationExpiresAt: Date.UTC(2100, 0, 1) };
 				}
-				override async getEnvironment(id: string) {
-					calls.push(`read:${id}`);
-					return { id, status: 'online' as const };
-				}
-				override async deleteEnvironment(id: string, expectedAccountKey: string) {
+				override async deleteTask(id: string, _token: CancellationToken, expectedAccountKey?: string) {
 					calls.push(`delete:${id}:${expectedAccountKey}`);
 					if (!deleted.isSettled) {
 						void deleted.complete();
@@ -2952,7 +2951,7 @@ suite('CopilotChatSessionsProvider', () => {
 			}());
 			const preparation = disposables.add(instantiationService.createInstance(CloudSandboxDraftPreparationService));
 			return {
-				preparation, allocation, calls,
+				preparation, allocation, calls, requests,
 				allocationStarted: allocationStarted.p,
 				deleted: deleted.p,
 				allocationCancelled: () => allocationToken?.isCancellationRequested,
@@ -2984,7 +2983,7 @@ suite('CopilotChatSessionsProvider', () => {
 					calls: fixture.calls, allocationCancelled: fixture.allocationCancelled(),
 					listed: provider.getSessions(), starting: draft.isNewSessionRequestInProgress?.get(), provisionRequests,
 				}, {
-					calls: ['allocate', 'delete:env-new:account-a'], allocationCancelled: false,
+					calls: ['reserve', 'delete:task-new:account-a'], allocationCancelled: false,
 					listed: [], starting: false, provisionRequests: [],
 				});
 			});
@@ -3033,7 +3032,7 @@ suite('CopilotChatSessionsProvider', () => {
 					calls: fixture.calls, provisionRequests,
 					resource: result.resource.toString(),
 				}, {
-					calls: ['allocate', 'read:env-new'], provisionRequests: [{ prompt: 'final prompt' }],
+					calls: ['reserve'], provisionRequests: [{ prompt: 'final prompt' }],
 					resource: 'agent-host-copilot:/sess-new',
 				});
 			});
@@ -3057,16 +3056,80 @@ suite('CopilotChatSessionsProvider', () => {
 			});
 		});
 
-		test('Agents repository drafts do not request default-context preparation', () => {
-			const prepared: string[] = [];
-			const preparation = createDraftPreparationStub();
-			preparation.prepare = resource => prepared.push(resource.toString());
-			const { provider } = createSandboxProvider({ providerMode: 'sandbox', draftPreparation: preparation });
-			const draft = provider.createNewSession(repoWorkspace, CopilotSandboxSessionType.id);
-			provider.prepareNewSessionWhileComposing(draft.sessionId);
+		for (const providerMode of ['default', 'sandbox'] as const) {
+			test(`${providerMode} Agents repository drafts prepare with the same repository as Send`, async () => {
+				const prepared: { resource: URI; repoNwo: string | undefined }[] = [];
+				const preparation = createDraftPreparationStub();
+				preparation.prepare = (resource, repoNwo) => { prepared.push({ resource, repoNwo }); };
+				const { provider, provisionRequests, provisionDrafts } = createSandboxProvider({
+					providerMode, draftPreparation: preparation, provision: async () => provisionedSession(),
+				});
+				const draft = provider.createNewSession(repoWorkspace.with({ path: '/owner/repository/HEAD' }), providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id);
+				const beforeTyping = [...prepared];
+				provider.prepareNewSessionWhileComposing(draft.sessionId);
+				const beforeSend = { prepared: [...prepared], listed: provider.getSessions(), requests: [...provisionRequests] };
+				const chat = await provider.createNewChat(draft.sessionId);
+				await provider.sendRequest(draft.sessionId, chat.resource, { query: 'final prompt' });
 
-			assert.deepStrictEqual({ prepared, listed: provider.getSessions() }, { prepared: [], listed: [] });
+				assert.deepStrictEqual({ beforeTyping, beforeSend, provisionRequests, provisionDrafts }, {
+					beforeTyping: [],
+					beforeSend: { prepared: [{ resource: draft.resource, repoNwo: 'owner/repository' }], listed: [], requests: [] },
+					provisionRequests: [{ repoNwo: 'owner/repository', prompt: 'final prompt' }],
+					provisionDrafts: [draft.resource],
+				});
+			});
+		}
+
+		test('Agents repository drafting reserves once and Send awaits that reservation', async () => {
+			const fixture = createDraftPreparationFixture();
+			const submitting = new DeferredPromise<void>();
+			const { provider, provisionRequests } = createSandboxProvider({
+				draftPreparation: fixture.preparation,
+				provision: async (_request, token, _progress, resource) => {
+					assert.ok(resource);
+					const taking = fixture.preparation.take(resource, token);
+					void submitting.complete();
+					const prepared = await taking;
+					assert.ok(prepared);
+					assert.strictEqual(prepared.taskId, 'task-new');
+					return provisionedSession();
+				},
+			});
+			const draft = provider.createNewSession(repoWorkspace, CopilotCloudSessionType.id);
+			provider.prepareNewSessionWhileComposing(draft.sessionId);
+			provider.prepareNewSessionWhileComposing(draft.sessionId);
+			await fixture.allocationStarted;
+			const beforeSend = { calls: [...fixture.calls], listed: provider.getSessions(), requests: [...provisionRequests] };
+			const chat = await provider.createNewChat(draft.sessionId);
+			const sending = provider.sendRequest(draft.sessionId, chat.resource, { query: 'final prompt' });
+			await submitting.p;
+			await fixture.allocation.complete('env-new');
+			await sending;
+
+			assert.deepStrictEqual({ beforeSend, calls: fixture.calls, reservations: fixture.requests, provisionRequests }, {
+				beforeSend: { calls: ['reserve'], listed: [], requests: [] }, calls: ['reserve'],
+				reservations: [{ repoNwo: 'osortega/simple-server', expectedAccountKey: 'account-a' }],
+				provisionRequests: [{ repoNwo: 'osortega/simple-server', prompt: 'final prompt' }],
+			});
 		});
+
+		for (const context of ['legacy backend', 'automation draft', 'missing repository'] as const) {
+			test(`Agents preparation excludes ${context}`, () => {
+				const prepared: URI[] = [];
+				const preparation = createDraftPreparationStub();
+				preparation.prepare = resource => { prepared.push(resource); };
+				const { provider } = createSandboxProvider({
+					enabled: context !== 'legacy backend', draftPreparation: preparation,
+				});
+				const draft = provider.createNewSession(
+					context === 'missing repository' ? repoWorkspace.with({ path: '/' }) : repoWorkspace,
+					CopilotCloudSessionType.id, { isAutomationDraft: context === 'automation draft' },
+				);
+				provider.prepareNewSessionWhileComposing(draft.sessionId);
+
+				assert.deepStrictEqual(prepared, []);
+			});
+		}
 
 		test('Agents Send carries the same draft identity to the shared preparation handoff', async () => {
 			const pending = new DeferredPromise<ICloudSandboxProvisionedSession>();
