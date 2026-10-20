@@ -74,7 +74,7 @@ Platform-specific scripts are provided in the `scripts/` directory to set up the
 |`run-win32.cmd`|Windows|Runs tests using Edge as the Playwright browser|
 |`run-macOS.sh`|macOS|Installs Playwright WebKit and runs tests|
 |`run-ubuntu.sh`|Ubuntu|Sets up X11, Chromium, and Snap daemon, then runs tests|
-|`run-docker.sh`|Linux (Docker)|Builds and runs tests inside a Docker container|
+|`run-docker.sh`|Linux (Docker)|Pulls a prebuilt image and runs tests inside a Docker container|
 |`run-docker.cmd`|Windows (Docker)|Windows wrapper for Docker-based Linux tests|
 
 ### Docker Script Options
@@ -83,9 +83,8 @@ The `run-docker.sh` script accepts the following options:
 
 |Option|Description|
 |--------|-------------|
-|`--container <name>`|Container dockerfile name (required, e.g., "ubuntu", "alpine")|
+|`--container <name>`|Supported image name (required, e.g., "ubuntu-24", "debian-13", "alpine")|
 |`--arch <arch>`|Target architecture: amd64, arm64, or arm (default: amd64)|
-|`--base-image <image>`|Override the base Docker image (e.g., "ubuntu:24.04")|
 
 All other arguments are passed through to the sanity test runner.
 
@@ -190,18 +189,20 @@ The focused suite is an implementation gate for source-built fixtures, not an of
 
 ## Containers
 
-Docker container definitions are provided in the `containers/` directory for testing on various Linux distributions:
+Docker container definitions and their supported architecture matrix are maintained in [vscode-linux-build-agent](https://github.com/microsoft/vscode-linux-build-agent/tree/main/sanity-tests). The `containers/entrypoint.sh` script runs inside those prebuilt images from `vscodehub.azurecr.io/vscode-linux-build-agent/sanity-tests`:
 
 |Container|Base Image|Description|
 |-----------|------------|-------------|
-|`alpine`|Alpine 3.x|Alpine Linux with musl libc|
+|`alpine`|Alpine 3.22|Alpine Linux with musl libc|
 |`centos`|CentOS Stream 9|RHEL-compatible distribution|
-|`debian-10`|Debian 10 (Buster)|Older Debian with legacy library versions|
-|`debian-12`|Debian 12 (Bookworm)|Current Debian stable|
-|`fedora`|Fedora 36/40|Cutting-edge RPM-based distribution|
+|`debian-12`|Debian 12 (Bookworm)|Previous Debian stable|
+|`debian-13`|Debian 13 (Trixie)|Current Debian stable|
+|`fedora-42`|Fedora 42|RPM-based distribution|
+|`fedora-43`|Fedora 43|RPM-based distribution|
 |`opensuse`|openSUSE Leap 16.0|SUSE-based enterprise distribution|
 |`redhat`|Red Hat UBI 9|Red Hat Universal Base Image|
-|`ubuntu`|Ubuntu 22.04/24.04|Popular Debian-based distribution|
+|`ubuntu-22`|Ubuntu 22.04|Debian-based LTS distribution|
+|`ubuntu-24`|Ubuntu 24.04|Debian-based LTS distribution|
 
 Each container includes:
 
@@ -216,7 +217,7 @@ Some containers include web browser used for validating web server targets.
 
 ```bash
 # Ubuntu 24.04 on amd64
-./scripts/run-docker.sh --container ubuntu --base-image ubuntu:24.04 -c <commit> -q insider
+./scripts/run-docker.sh --container ubuntu-24 -c <commit> -q insider
 
 # Alpine on arm64
 ./scripts/run-docker.sh --container alpine --arch arm64 -c <commit> -q stable
@@ -228,7 +229,7 @@ Sanity tests run in Azure Pipelines via the `product-sanity-tests.yml` pipeline.
 
 Linux x64 and ARM64 builds receive a separate container only DEB/RPM desktop pass whether they are published or resolved from build artifacts. It checks the installed `chrome-sandbox` ownership and mode, then exercises the UI with `--disable-namespace-sandbox` to force Chromium's setuid sandbox. Published runs select both package formats; artifact backed runs select only the DEB/RPM formats included in the job's downloads and use the same `--artifacts-dir` as the normal sanity pass. Native host, Alpine, ARM32, and archive only artifact jobs do not run this additional pass. Both passes publish separate JUnit results.
 
-The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. It installs `sudo` when needed and allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
+The dedicated container pass grants `SYS_ADMIN` so the setuid helper can create its PID/network namespaces, and runs the test runner as a non-root `sanity` user. The images must include `sudo`, `useradd`, and `runuser`; missing prerequisites fail explicitly rather than installing packages at test startup. The entrypoint allows that user to invoke only `dpkg` and `rpm` as root for package installation/removal. These changes apply only to the disposable setuid test container; running as root would cause Playwright to inject `--no-sandbox` and bypass the check.
 
 Artifact sanity runs retain the native x64 job for Snap coverage and add a separate Ubuntu x64 DEB container job. The Ubuntu ARM64 job exercises its DEB, and Fedora x64/ARM64 container jobs exercise RPMs. These package container jobs run both the normal and setuid passes. ARM32 remains download/CLI-only: its QEMU emulated containers cannot execute Chromium's setuid sandbox.
 
@@ -259,10 +260,10 @@ For the following platforms only downloads are validated (and not install/runtim
 
 **Linux Containers (amd64 and arm64):**
 
-- Alpine 3.23
+- Alpine 3.22
 - CentOS Stream 9
-- Debian 10 and 12 (also arm32)
-- Fedora 36 and 40
+- Debian 12 and 13 (also arm32)
+- Fedora 42 and 43
 - openSUSE Leap 16.0
 - Red Hat UBI 9
 - Ubuntu 22.04 and 24.04 (also arm32)
